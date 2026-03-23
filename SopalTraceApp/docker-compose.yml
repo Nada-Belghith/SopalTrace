@@ -16,3 +16,7 @@ services:
       - SA_PASSWORD=Sopal_Password123! 
     ports:
       - "1433:1433"
+    volumes:
+      - sopal_db_data:/var/opt/mssql
+volumes:
+  sopal_db_data:

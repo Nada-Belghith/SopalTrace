@@ -10,4 +10,8 @@
     <ProjectReference Include="..\SopalTrace.Application\SopalTrace.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="ScriptsSQL\" />
+  </ItemGroup>
+
 </Project>
