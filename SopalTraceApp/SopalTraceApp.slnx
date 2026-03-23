@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Éléments de solution/">
+    <File Path="../.github/workflows/dotnet.yml" />
+  </Folder>
   <Project Path="SopalTrace.Api/SopalTrace.Api.csproj" />
   <Project Path="SopalTrace.Application/SopalTrace.Application.csproj" />
   <Project Path="SopalTrace.Domain/SopalTrace.Domain.csproj" />
