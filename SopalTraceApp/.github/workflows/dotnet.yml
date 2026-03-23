@@ -1,0 +1,51 @@
+name: .NET
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Find solution or project
+        id: find
+        run: |
+          # Try to find a solution first, then any csproj
+          SOL=$(find . -maxdepth 2 -name "*.sln" -print -quit)
+          if [ -z "$SOL" ]; then
+            SOL=$(find . -name "*.csproj" -print -quit)
+          fi
+          echo "PROJECT=${SOL:-}" >> $GITHUB_OUTPUT
+
+      - name: Restore dependencies
+        run: |
+          if [ -n "${{ steps.find.outputs.PROJECT }}" ]; then
+            dotnet restore "${{ steps.find.outputs.PROJECT }}"
+          else
+            echo "No solution or project file found to restore."
+          fi
+
+      - name: Build
+        run: |
+          if [ -n "${{ steps.find.outputs.PROJECT }}" ]; then
+            dotnet build "${{ steps.find.outputs.PROJECT }}" --no-restore --configuration Release
+          else
+            echo "No solution or project file found to build."
+          fi
+
+      - name: Test
+        run: |
+          if [ -n "${{ steps.find.outputs.PROJECT }}" ]; then
+            dotnet test "${{ steps.find.outputs.PROJECT }}" --no-build --verbosity normal
+          else
+            echo "No solution or project file found to test."
+          fi
