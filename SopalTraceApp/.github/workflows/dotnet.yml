@@ -19,12 +19,28 @@ jobs:
       - name: Find solution or project
         id: find
         run: |
-          # Try to find a solution first, then any csproj
+          # Try to find a solution first (shallow), then prefer the API project, then any csproj
           SOL=$(find . -maxdepth 2 -name "*.sln" -print -quit)
-          if [ -z "$SOL" ]; then
-            SOL=$(find . -name "*.csproj" -print -quit)
+          if [ -n "$SOL" ]; then
+            echo "PROJECT=$SOL" >> $GITHUB_OUTPUT
+            exit 0
           fi
-          echo "PROJECT=${SOL:-}" >> $GITHUB_OUTPUT
+
+          # Prefer the API project if present
+          SOL=$(find . -name "SopalTrace.Api.csproj" -print -quit)
+          if [ -n "$SOL" ]; then
+            echo "PROJECT=$SOL" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Fallback to any csproj
+          SOL=$(find . -name "*.csproj" -print -quit)
+          if [ -n "$SOL" ]; then
+            echo "PROJECT=$SOL" >> $GITHUB_OUTPUT
+          else
+            # No single project found; leave PROJECT empty so later steps can fallback
+            echo "PROJECT=" >> $GITHUB_OUTPUT
+          fi
 
       - name: Restore dependencies
         run: |
