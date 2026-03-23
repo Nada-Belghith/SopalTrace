@@ -2,6 +2,9 @@
   <Folder Name="/Éléments de solution/">
     <File Path="../.github/workflows/dotnet.yml" />
   </Folder>
+  <Project Path="docker-compose.dcproj">
+    <Build />
+  </Project>
   <Project Path="SopalTrace.Api/SopalTrace.Api.csproj" />
   <Project Path="SopalTrace.Application.Tests/SopalTrace.Application.Tests.csproj" />
   <Project Path="SopalTrace.Application/SopalTrace.Application.csproj" />
