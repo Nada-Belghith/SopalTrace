@@ -1,2 +1,6 @@
 <Solution>
+  <Project Path="SopalTrace.Api/SopalTrace.Api.csproj" />
+  <Project Path="SopalTrace.Application/SopalTrace.Application.csproj" />
+  <Project Path="SopalTrace.Domain/SopalTrace.Domain.csproj" />
+  <Project Path="SopalTrace.Infrastructure/SopalTrace.Infrastructure.csproj" />
 </Solution>
