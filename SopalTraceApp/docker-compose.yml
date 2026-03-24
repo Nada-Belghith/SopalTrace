@@ -13,10 +13,12 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=Sopal_Password123! 
+      - SA_PASSWORD=${DB_PASSWORD}  
     ports:
       - "1433:1433"
     volumes:
       - sopal_db_data:/var/opt/mssql
+
+
 volumes:
   sopal_db_data:
