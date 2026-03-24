@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Ignorer les fichiers contenant des variables d'environnement et mots de passe
+.env
+**/.env
