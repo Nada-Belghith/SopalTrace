@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
-using SopalTrace.Infrastructure.Data.Models;
+using SopalTrace.Domain.Entities;
 
 namespace SopalTrace.Infrastructure.Data;
 
@@ -22,10 +22,6 @@ public partial class SopalTraceDbContext : DbContext
 
     public virtual DbSet<UtilisateursApp> UtilisateursApps { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Server=localhost,1433;Database=SopalTraceDB;User Id=sa;Password=SopalTrace123!;TrustServerCertificate=True;");
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<JournalConnexion>(entity =>
@@ -40,10 +36,6 @@ public partial class SopalTraceDbContext : DbContext
             entity.Property(e => e.Action)
                 .HasMaxLength(50)
                 .IsUnicode(false);
-            entity.Property(e => e.AdresseIp)
-                .HasMaxLength(50)
-                .IsUnicode(false)
-                .HasColumnName("AdresseIP");
             entity.Property(e => e.DateAction)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime");
@@ -105,7 +97,7 @@ public partial class SopalTraceDbContext : DbContext
             entity.Property(e => e.DateDerniereConnexion).HasColumnType("datetime");
             entity.Property(e => e.DateExpirationCode).HasColumnType("datetime");
             entity.Property(e => e.Email)
-                .HasMaxLength(150)
+                .HasMaxLength(100)
                 .IsUnicode(false);
             entity.Property(e => e.EstActif).HasDefaultValue(true);
             entity.Property(e => e.IntituleMetier)

@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
-namespace SopalTrace.Infrastructure.Data.Models;
+namespace SopalTrace.Domain.Entities;
 
-public partial class UtilisateursApp
+public class UtilisateursApp
 {
     public Guid Id { get; set; }
 
@@ -29,5 +29,5 @@ public partial class UtilisateursApp
 
     public bool? EstActif { get; set; }
 
-    public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

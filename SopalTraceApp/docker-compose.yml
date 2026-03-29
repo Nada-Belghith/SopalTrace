@@ -5,20 +5,32 @@ services:
       context: .
       dockerfile: SopalTrace.Api/Dockerfile
     ports:
-      - "8080:80"
+      - "9091:8080" 
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__SopalTraceConnection=Server=sqlserver,1433;Database=SopalTraceDB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=False;
+      - ConnectionStrings__SageErpConnection=Server=sqlserver,1433;Database=SAGE_MOCK;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=False;
+      - EmailSettings__SmtpServer=${SMTP_SERVER}
+      - EmailSettings__Port=${SMTP_PORT}
+      - EmailSettings__SmtpUsername=${SMTP_USERNAME} 
+      - EmailSettings__SenderEmail=${EMAIL_SENDER}
+      - EmailSettings__AppPassword=${EMAIL_PASSWORD}
+      - EmailSettings__SenderName=SopalTrace Production
     depends_on:
       - sqlserver
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=${DB_PASSWORD}  
+      - ACCEPT_EULA=Y  
+      - MSSQL_PID=Developer
+      - SA_PASSWORD=${DB_PASSWORD}
     ports:
-      - "1433:1433"
+      - "1434:1433" 
     volumes:
       - sopal_db_data:/var/opt/mssql
-
 
 volumes:
   sopal_db_data:

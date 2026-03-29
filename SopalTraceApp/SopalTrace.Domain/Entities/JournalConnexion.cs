@@ -1,17 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 
-namespace SopalTrace.Infrastructure.Data.Models;
+namespace SopalTrace.Domain.Entities;
 
-public partial class JournalConnexion
+public class JournalConnexion
 {
     public Guid Id { get; set; }
 
     public string Matricule { get; set; } = null!;
 
     public string Action { get; set; } = null!;
-
-    public string? AdresseIp { get; set; }
 
     public string? Details { get; set; }
 

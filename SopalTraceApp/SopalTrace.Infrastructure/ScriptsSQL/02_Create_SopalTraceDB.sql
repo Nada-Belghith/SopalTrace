@@ -45,7 +45,6 @@ CREATE TABLE JournalConnexions (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     Matricule VARCHAR(20) NOT NULL,        -- On stocke le matricule même si l'utilisateur n'existe pas
     Action VARCHAR(50) NOT NULL,           -- Ex: 'CONNEXION_SUCCES', 'ECHEC_MDP', 'DECONNEXION', 'MDP_OUBLIE'
-    AdresseIP VARCHAR(50) NULL,            -- Pour savoir depuis quelle tablette l'action a été faite
     Details VARCHAR(255) NULL,             -- Ex: 'Mot de passe incorrect' ou 'Compte ERP inactif'
     DateAction DATETIME DEFAULT GETDATE()
 );
