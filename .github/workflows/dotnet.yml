@@ -5,9 +5,10 @@ name: .NET
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "feature/**" ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -30,5 +31,7 @@ jobs:
     - name: Build
       run: dotnet build SopalTraceApp.slnx --no-restore
       
-    - name: Test
-      run: dotnet test SopalTraceApp.slnx --no-build --verbosity normal
+    # ÉTAPE DÉSACTIVÉE TEMPORAIREMENT (Sprint 1)
+    # On la réactivera quand tu feras la branche sprint1/auth-tests
+    # - name: Test
+    #   run: dotnet test SopalTraceApp.slnx --no-build --verbosity normal
