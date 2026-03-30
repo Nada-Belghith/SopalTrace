@@ -20,4 +20,5 @@ public interface IUserRepository
     Task<bool> ValidateRefreshTokenAsync(string token, string userId);
     Task RevokeRefreshTokenAsync(string token);
     Task<UtilisateursApp?> GetUserByEmailAsync(string email);
+    Task RevokeAllTokensForUserAsync(Guid userId);
 }
