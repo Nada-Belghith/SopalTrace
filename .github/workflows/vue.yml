@@ -27,7 +27,9 @@ jobs:
         node-version: '20'
         
     - name: Installation des dépendances
-      run: npm install
+      run: |
+        rm -f package-lock.json
+        npm install
       
     - name: Vérification du Linting
       run: npm run lint
