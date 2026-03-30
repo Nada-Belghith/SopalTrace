@@ -31,6 +31,16 @@ services:
       - "1434:1433" 
     volumes:
       - sopal_db_data:/var/opt/mssql
+   
+  sopaltrace.web:
+    build: 
+      context: ../SopalTraceWeb
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - sopaltrace.api
 
 volumes:
   sopal_db_data:
+  
