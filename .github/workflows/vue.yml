@@ -1,0 +1,40 @@
+name: Vue.js
+
+on:
+  push:
+    branches: [ "master", "feature/**" ]
+    paths:
+      - 'SopalTraceWeb/**'
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - 'SopalTraceWeb/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./SopalTraceWeb
+
+    steps:
+    - name: Checkout du code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Installation des dépendances
+      run: npm install
+      
+    - name: Vérification du Linting
+      run: npm run lint
+      
+    - name: Compilation du projet (Build Node)
+      run: npm run build
+
+    # NOUVELLE ÉTAPE : Test du conteneur
+    - name: Test de compilation Docker
+      run: docker build -t sopaltraceweb:test .
