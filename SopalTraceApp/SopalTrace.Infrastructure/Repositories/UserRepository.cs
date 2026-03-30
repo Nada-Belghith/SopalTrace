@@ -117,11 +117,4 @@ public class UserRepository : IUserRepository
         }
     }
 
-    public async Task RevokeAllTokensForUserAsync(Guid userId)
-    {
-        await _context.RefreshTokens
-            .Where(rt => rt.UtilisateurId == userId && !rt.EstRevoque)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(rt => rt.EstRevoque, true));
-    }
-
 }

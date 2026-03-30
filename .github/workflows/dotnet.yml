@@ -8,8 +8,6 @@ on:
     branches: [ "master", "feature/**" ]
   pull_request:
     branches: [ "master" ]
-    paths:
-      - 'SopalTraceApp/**'
   workflow_dispatch:
 
 jobs:

@@ -1,11 +1,9 @@
 ﻿// AuthController
 using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using SopalTrace.Application.DTOs.Auth;
 using SopalTrace.Application.Interfaces;
-using System.Security.Claims;
 
 namespace SopalTrace.Api.Controllers;
 
@@ -110,23 +108,5 @@ public class AuthController : ControllerBase
         };
         Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
     }
-
-    [HttpPost("logout")]
-    [Authorize] // L'utilisateur doit être connecté pour se déconnecter
-    public async Task<IActionResult> Logout()
-    {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        // 💡 On extrait le matricule directement depuis ton badge (Token JWT)
-        var matricule = User.FindFirst("matricule")?.Value;
-
-        if (Guid.TryParse(userIdString, out Guid userId))
-        {
-            // On envoie le matricule au service pour qu'il le journalise
-            await _authService.RevokeUserTokensAsync(userId, matricule);
-        }
-
-        return Ok(new { message = "Déconnexion réussie." });
-    }
-
+    
 }

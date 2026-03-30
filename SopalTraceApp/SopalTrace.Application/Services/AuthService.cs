@@ -127,7 +127,6 @@ public class AuthService : IAuthService
         user.DateExpirationCode = null;
 
         await _userRepository.UpdateUserAsync(user);
-        await RevokeUserTokensAsync(user.Id, user.Matricule);
         _logger.LogInformation("Mot de passe réinitialisé avec succès pour {Email}", request.Email);
     }
 
@@ -151,16 +150,5 @@ public class AuthService : IAuthService
             throw new RoleNotAllowedException(employe.IntituleMetier);
 
         return employe;
-    }
-
-    public async Task RevokeUserTokensAsync(Guid userId, string? matricule = null)
-    {
-        await _userRepository.RevokeAllTokensForUserAsync(userId);
-        if (!string.IsNullOrEmpty(matricule))
-        {
-            await _journalRepository.LogActionAsync(matricule, "DECONNEXION", "Succès");
-        }
-
-        _logger.LogInformation("Tous les tokens (Logout) ont été révoqués pour l'utilisateur {UserId}", userId);
     }
 }
