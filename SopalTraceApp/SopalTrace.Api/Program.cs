@@ -52,7 +52,7 @@ builder.Services.AddSwaggerGen(opt =>
     });
 });
 
-// 1. Base de données
+// 1. Base de données (Une seule base maintenant !)
 var connectionString = builder.Configuration.GetConnectionString("SopalTraceConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("Connection string 'SopalTraceConnection' is not configured.");
@@ -64,18 +64,14 @@ builder.Services.AddDbContext<SopalTraceDbContext>(options =>
 builder.Services.AddHealthChecks()
     .AddSqlServer(connectionString);
 
-
 // 2. Injection des dépendances (Clean Architecture)
-builder.Services.AddScoped<IErpService, SqlErpService>();
+builder.Services.AddScoped<IErpService, SqlErpService>(); 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
-
-
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---
 var secretKey = builder.Configuration["Jwt:Secret"] ?? "VotreCleSecreteDePlusDe32Caracteres";
@@ -88,7 +84,7 @@ builder.Services.AddAuthentication(x =>
 })
 .AddJwtBearer(x =>
 {
-    x.RequireHttpsMetadata = false; // Car nous sommes dans Docker/Local
+    x.RequireHttpsMetadata = false;
     x.SaveToken = true;
     x.TokenValidationParameters = new TokenValidationParameters
     {
@@ -103,14 +99,17 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- CONFIGURATION DU CORS (Indispensable pour Vue.js) ---
+// --- CONFIGURATION DU CORS (CORRIGÉ POUR HTTPONLY COOKIES) ---
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", b => b.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+    options.AddPolicy("VueJsPolicy", b =>
+        b.WithOrigins("http://localhost:5173") // ⚠️ L'URL exacte de ton front Vue.js
+         .AllowAnyMethod()
+         .AllowAnyHeader()
+         .AllowCredentials()); // 💡 INDISPENSABLE pour autoriser le passage du cookie HttpOnly
 });
 
 var app = builder.Build();
-
 
 // 3. Utilisation du Middleware d'exceptions personnalisé
 app.UseMiddleware<ExceptionMiddleware>();
@@ -122,12 +121,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll"); // Active le CORS avant Auth
-
 // L'ordre ici est CRITIQUE pour la sécurité
-app.UseAuthentication(); 
-app.UseAuthorization();  
+app.UseCors("VueJsPolicy"); // ⚠️ Utilisation de la nouvelle politique stricte
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/api/health");
+
 app.Run();

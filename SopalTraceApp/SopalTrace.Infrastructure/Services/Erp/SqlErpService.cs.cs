@@ -12,7 +12,7 @@ public class SqlErpService : IErpService
 
     public SqlErpService(IConfiguration configuration)
     {
-        _connectionString = configuration.GetConnectionString("SageErpConnection")
+        _connectionString = configuration.GetConnectionString("SopalTraceConnection")
               ?? throw new InvalidOperationException("La chaîne de connexion 'SageErpConnection' est manquante dans la configuration.");
     }
 
