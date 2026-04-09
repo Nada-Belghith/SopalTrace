@@ -11,7 +11,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__SopalTraceConnection=Server=sqlserver,1433;Database=SopalTraceDB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=False;
-      # - ConnectionStrings__SageErpConnection=Server=sqlserver,1433;Database=SAGE_MOCK;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=False;
       - EmailSettings__SmtpServer=${SMTP_SERVER}
       - EmailSettings__Port=${SMTP_PORT}
       - EmailSettings__SmtpUsername=${SMTP_USERNAME} 
@@ -19,7 +18,8 @@ services:
       - EmailSettings__AppPassword=${EMAIL_PASSWORD}
       - EmailSettings__SenderName=SopalTrace Production
     depends_on:
-      - sqlserver
+      sqlserver:
+        condition: service_healthy
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -31,7 +31,12 @@ services:
       - "1434:1433" 
     volumes:
       - sopal_db_data:/var/opt/mssql
-   
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"${DB_PASSWORD}\" -Q \"SELECT 1\" -C"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # sopaltrace.web:
   #   build: 
   #     context: ../SopalTraceWeb
@@ -43,4 +48,3 @@ services:
 
 volumes:
   sopal_db_data:
-  

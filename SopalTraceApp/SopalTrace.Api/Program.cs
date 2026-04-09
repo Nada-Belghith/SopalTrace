@@ -7,6 +7,7 @@ using Serilog;
 using SopalTrace.Api.Middlewares;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Services;
+using SopalTrace.Application.Validators;
 using SopalTrace.Infrastructure.Data;
 using SopalTrace.Infrastructure.Repositories;
 using SopalTrace.Infrastructure.Services;
@@ -65,13 +66,17 @@ builder.Services.AddHealthChecks()
     .AddSqlServer(connectionString);
 
 // 2. Injection des dépendances (Clean Architecture)
-builder.Services.AddScoped<IErpService, SqlErpService>(); 
+builder.Services.AddScoped<IErpService, SqlErpService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPlanAssRepository, PlanAssRepository>();
+builder.Services.AddScoped<IPlanAssService, PlanAssService>();
+builder.Services.AddScoped<IPlanFabricationRepository, PlanFabricationRepository>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
+builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateModeleRequestValidator>();
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---
 var secretKey = builder.Configuration["Jwt:Secret"] ?? "VotreCleSecreteDePlusDe32Caracteres";
