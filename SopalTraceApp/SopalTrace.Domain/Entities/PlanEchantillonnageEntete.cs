@@ -13,6 +13,8 @@ public partial class PlanEchantillonnageEntete
 
     public string? MachineCode { get; set; }
 
+    public Guid? FormulaireId { get; set; }
+
     public string NiveauControle { get; set; } = null!;
 
     public string TypePlan { get; set; } = null!;
@@ -31,9 +33,9 @@ public partial class PlanEchantillonnageEntete
 
     public string? CommentaireVersion { get; set; }
 
+    public virtual RefFormulaire? Formulaire { get; set; }
+
     public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual Nqa Nqa { get; set; } = null!;
-
-    public virtual ICollection<PlanEchantillonnageRegle> PlanEchantillonnageRegles { get; set; } = new List<PlanEchantillonnageRegle>();
 }

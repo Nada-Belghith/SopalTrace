@@ -1,12 +1,12 @@
 ﻿using FluentValidation;
 using Microsoft.Extensions.Logging;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
-using SopalTrace.Application.DTOs.QualityPlans.Plans;
+using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
-using SopalTrace.Domain.Exceptions;
 using SopalTrace.Domain.Constants;
-using SopalTrace.Domain.Entities; // <-- LA CORRECTION DE L'ESPACE DE NOMS EST ICI !
+using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Linq;

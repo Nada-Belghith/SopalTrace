@@ -23,7 +23,7 @@ public partial class PlanAssLigne
 
     public Guid? GroupeInstrumentId { get; set; }
 
-    public string? InstrumentCode { get; set; }
+    public string? MachineCode { get; set; }
 
     public double? ValeurNominale { get; set; }
 
@@ -43,7 +43,7 @@ public partial class PlanAssLigne
 
     public virtual GroupeInstrument? GroupeInstrument { get; set; }
 
-    public virtual Instrument? InstrumentCodeNavigation { get; set; }
+    public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual MoyenControle? MoyenControle { get; set; }
 

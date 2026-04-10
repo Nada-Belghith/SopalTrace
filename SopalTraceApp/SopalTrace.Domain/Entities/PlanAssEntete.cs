@@ -25,6 +25,8 @@ public partial class PlanAssEntete
 
     public DateOnly? DateApplication { get; set; }
 
+    public Guid? FormulaireId { get; set; }
+
     public string CreePar { get; set; } = null!;
 
     public DateTime CreeLe { get; set; }
@@ -34,6 +36,8 @@ public partial class PlanAssEntete
     public DateTime? ModifieLe { get; set; }
 
     public string? CommentaireVersion { get; set; }
+
+    public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 

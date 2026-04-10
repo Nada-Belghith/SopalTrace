@@ -1,8 +1,13 @@
 #nullable disable
+
 using System;
 using System.Collections.Generic;
 
-namespace SopalTrace.Application.DTOs.QualityPlans.Plans;
+namespace SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
+
+// ====================================================================
+// DTOs DE CRÉATION ET GESTION DE PLAN
+// ====================================================================
 
 public record CreatePlanRequestDto
 {
@@ -50,10 +55,17 @@ public record UpdatePlanLineRequestDto
     public Guid? PeriodiciteId { get; set; }
 }
 
-// === LES DTOs DE LA LIBERTÉ TOTALE ===
+// ====================================================================
+// DTOs DE LA LIBERTÉ TOTALE (ÉDITION)
+// ====================================================================
+
 public record SectionEditDto
 {
     public Guid? Id { get; set; }
+
+    // AJOUT ICI : Permet au mapper de faire le lien avec le modèle source
+    public Guid? ModeleSectionId { get; init; }
+
     public Guid TypeSectionId { get; init; }
     public string LibelleSection { get; init; }
     public int OrdreAffiche { get; init; }
@@ -63,17 +75,19 @@ public record SectionEditDto
 public record LigneEditDto
 {
     public Guid? Id { get; set; }
+
+    // AJOUT ICI : Permet au mapper de faire le lien avec la ligne source
+    public Guid? ModeleLigneSourceId { get; init; }
+
     public int OrdreAffiche { get; init; }
     public Guid? OutilSourceId { get; init; }
     public Guid TypeCaracteristiqueId { get; init; }
     public string LibelleAffiche { get; init; }
     public Guid TypeControleId { get; init; }
-
     public Guid? MoyenControleId { get; init; }
     public Guid? GroupeInstrumentId { get; init; }
     public string InstrumentCode { get; init; }
     public Guid? PeriodiciteId { get; init; }
-
     public double? ValeurNominale { get; init; }
     public double? ToleranceSuperieure { get; init; }
     public double? ToleranceInferieure { get; init; }
@@ -83,6 +97,10 @@ public record LigneEditDto
     public string Instruction { get; init; }
     public bool EstCritique { get; init; } = false;
 }
+
+// ====================================================================
+// DTOs DE RÉPONSE (AFFICHAGE)
+// ====================================================================
 
 public record PlanResponseDto
 {

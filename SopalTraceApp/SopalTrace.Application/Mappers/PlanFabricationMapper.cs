@@ -1,9 +1,9 @@
-#nullable disable
+#nullable enable
 
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
-using SopalTrace.Application.DTOs.QualityPlans.Plans;
+using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 using SopalTrace.Domain.Constants;
-using SopalTrace.Domain.Entities; // <-- LA CORRECTION EST ICI !
+using SopalTrace.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -135,7 +135,7 @@ public static class PlanFabricationMapper
     // 2. CLONAGE ET VERSIONING (POST)
     // ====================================================================
 
-    public static PlanFabEntete DupliquerEntitePlan(PlanFabEntete source, string nouveauCode, string nouvelleDesig, string creePar, string comm = null)
+    public static PlanFabEntete DupliquerEntitePlan(PlanFabEntete source, string nouveauCode, string nouvelleDesig, string? creePar, string? comm = null)
     {
         var plan = new PlanFabEntete
         {
@@ -147,7 +147,7 @@ public static class PlanFabricationMapper
             Version = comm == null ? 1 : source.Version + 1,
             Statut = StatutsPlan.Brouillon,
             MachineDefautCode = source.MachineDefautCode,
-            CreePar = creePar,
+            CreePar = creePar ?? "SYSTEM",
             CreeLe = DateTime.UtcNow,
             CommentaireVersion = comm ?? $"Cloné à partir de l'article {source.CodeArticleSage}",
             PlanFabSections = new List<PlanFabSection>()
@@ -206,13 +206,21 @@ public static class PlanFabricationMapper
     // 3. LIBERTÉ TOTALE : MISE À JOUR ET AJOUT DYNAMIQUE (PUT)
     // ====================================================================
 
+    // ====================================================================
+    // 3. LIBERTÉ TOTALE : MISE À JOUR ET AJOUT DYNAMIQUE (PUT)
+    // ====================================================================
+
+    // ====================================================================
+    // 3. LIBERTÉ TOTALE : MISE À JOUR ET AJOUT DYNAMIQUE (PUT)
+    // ====================================================================
+
     public static PlanFabSection ConstruireNouvelleSectionPlan(Guid planId, SectionEditDto dto)
     {
         return new PlanFabSection
         {
-            // FIX CRUCIAL : L'Id n'est pas assigné manuellement ici. 
-            // EF Core génèrera lui-même la clé et effectuera un INSERT.
             PlanEnteteId = planId,
+            // CORRECTION ICI : Utilisation de ?? Guid.Empty
+            ModeleSectionId = dto.ModeleSectionId ?? Guid.Empty,
             OrdreAffiche = dto.OrdreAffiche,
             LibelleSection = string.IsNullOrWhiteSpace(dto.LibelleSection) ? "NOUVELLE SECTION" : dto.LibelleSection,
             PlanFabLignes = new List<PlanFabLigne>()
@@ -223,11 +231,11 @@ public static class PlanFabricationMapper
     {
         return new PlanFabLigne
         {
-            // FIX CRUCIAL : L'Id n'est pas assigné manuellement ici.
             PlanEnteteId = planId,
             SectionId = sectionId,
+            // CORRECTION ICI : Utilisation de ?? Guid.Empty
+            ModeleLigneSourceId = dto.ModeleLigneSourceId ?? Guid.Empty,
             OrdreAffiche = dto.OrdreAffiche,
-
             OutilSourceId = dto.OutilSourceId,
             TypeCaracteristiqueId = dto.TypeCaracteristiqueId,
             TypeControleId = dto.TypeControleId,
@@ -246,11 +254,9 @@ public static class PlanFabricationMapper
             Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction
         };
     }
-
     public static void MettreAJourEntiteLigne(PlanFabLigne ligne, LigneEditDto dto)
     {
         ligne.OrdreAffiche = dto.OrdreAffiche;
-
         ligne.OutilSourceId = dto.OutilSourceId;
         ligne.TypeCaracteristiqueId = dto.TypeCaracteristiqueId;
         ligne.TypeControleId = dto.TypeControleId;
@@ -290,27 +296,26 @@ public static class PlanFabricationMapper
             CreeLe = modele.CreeLe,
             ArchiveLe = modele.ArchiveLe,
             ArchivePar = modele.ArchivePar ?? string.Empty,
-            Sections = modele.ModeleFabSections.Select(s => new ModeleSectionResponseDto
+            Sections = modele.ModeleFabSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id,
                 OrdreAffiche = s.OrdreAffiche,
                 LibelleSection = s.LibelleSection,
                 FrequenceLibelle = s.FrequenceLibelle ?? string.Empty,
-                Lignes = s.ModeleFabLignes.Select(l => new ModeleLigneResponseDto
+                Lignes = s.ModeleFabLignes?.Select(l => new ModeleLigneResponseDto
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
-                    OutilSourceId = l.OutilSourceId,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
-                    LibelleAffiche = l.LibelleAffiche ?? string.Empty,
-                    TypeControleId = l.TypeControleId,
-                    MoyenControleId = l.MoyenControleId,
-                    GroupeInstrumentId = l.GroupeInstrumentId,
-                    PeriodiciteId = l.PeriodiciteId,
+                    OutilSourceId = l.OutilSourceId ?? Guid.Empty,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId, // DTO est déjà Guid (non-nullable)
+                    TypeControleId = l.TypeControleId,               // DTO est déjà Guid (non-nullable)
+                    MoyenControleId = l.MoyenControleId ?? Guid.Empty,
+                    GroupeInstrumentId = l.GroupeInstrumentId ?? Guid.Empty,
+                    PeriodiciteId = l.PeriodiciteId ?? Guid.Empty,
                     Instruction = l.Instruction ?? string.Empty,
                     EstCritique = l.EstCritique
-                }).ToList()
-            }).ToList()
+                }).ToList() ?? new List<ModeleLigneResponseDto>()
+            }).ToList() ?? new List<ModeleSectionResponseDto>()
         };
     }
 
@@ -332,14 +337,14 @@ public static class PlanFabricationMapper
             ModifiePar = plan.ModifiePar ?? string.Empty,
             ModifieLe = plan.ModifieLe,
             CommentaireVersion = plan.CommentaireVersion ?? string.Empty,
-            Sections = plan.PlanFabSections.Select(s => new PlanSectionResponseDto
+            Sections = plan.PlanFabSections?.Select(s => new PlanSectionResponseDto
             {
                 Id = s.Id,
                 ModeleSectionId = s.ModeleSectionId,
                 OrdreAffiche = s.OrdreAffiche,
                 LibelleSection = s.LibelleSection,
                 FrequenceLibelle = s.FrequenceLibelle ?? string.Empty,
-                Lignes = s.PlanFabLignes.Select(l => new PlanLigneResponseDto
+                Lignes = s.PlanFabLignes?.Select(l => new PlanLigneResponseDto
                 {
                     Id = l.Id,
                     ModeleLigneSourceId = l.ModeleLigneSourceId,
@@ -360,8 +365,8 @@ public static class PlanFabricationMapper
                     Observations = l.Observations ?? string.Empty,
                     Instruction = l.Instruction ?? string.Empty,
                     EstCritique = l.EstCritique
-                }).ToList()
-            }).ToList()
+                }).ToList() ?? new List<PlanLigneResponseDto>()
+            }).ToList() ?? new List<PlanSectionResponseDto>()
         };
     }
 }

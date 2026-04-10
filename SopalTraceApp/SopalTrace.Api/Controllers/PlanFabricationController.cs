@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
-using SopalTrace.Application.DTOs.QualityPlans.Plans;
+using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 using SopalTrace.Application.Interfaces;
 using System;
 using System.Collections.Generic;

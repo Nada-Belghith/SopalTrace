@@ -1,6 +1,7 @@
 ﻿using SopalTrace.Domain.Entities;
 using System;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace SopalTrace.Application.Interfaces;
 
@@ -21,4 +22,6 @@ public interface IPlanAssRepository
 
     Task AddPlanAsync(PlanAssEntete plan);
     Task SaveChangesAsync();
+
+    Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string typeRobinetCode, string? codeArticleSage);
 }

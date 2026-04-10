@@ -1,4 +1,4 @@
-﻿using SopalTrace.Application.DTOs.QualityPlans.Assemblage;
+﻿using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

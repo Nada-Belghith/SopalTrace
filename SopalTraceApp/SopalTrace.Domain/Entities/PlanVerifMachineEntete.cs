@@ -13,7 +13,7 @@ public partial class PlanVerifMachineEntete
 
     public string TypeRapport { get; set; } = null!;
 
-    public string? CodeFormulaire { get; set; }
+    public Guid? FormulaireId { get; set; }
 
     public string Nom { get; set; } = null!;
 
@@ -30,6 +30,8 @@ public partial class PlanVerifMachineEntete
     public DateTime? ModifieLe { get; set; }
 
     public string? CommentaireVersion { get; set; }
+
+    public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
 

@@ -19,9 +19,11 @@ public partial class PlanFabEntete
 
     public string Statut { get; set; } = null!;
 
+    public DateOnly? DateApplication { get; set; }
+
     public string? MachineDefautCode { get; set; }
 
-    public DateOnly? DateApplication { get; set; }
+    public Guid? FormulaireId { get; set; }
 
     public string CreePar { get; set; } = null!;
 
@@ -32,6 +34,8 @@ public partial class PlanFabEntete
     public DateTime? ModifieLe { get; set; }
 
     public string? CommentaireVersion { get; set; }
+
+    public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Machine? MachineDefautCodeNavigation { get; set; }
 

@@ -18,4 +18,8 @@ public partial class Operation
     public virtual ICollection<ModeleFabEntete> ModeleFabEntetes { get; set; } = new List<ModeleFabEntete>();
 
     public virtual ICollection<PlanAssEntete> PlanAssEntetes { get; set; } = new List<PlanAssEntete>();
+
+    public virtual ICollection<PlanNcEntete> PlanNcEntetes { get; set; } = new List<PlanNcEntete>();
+
+    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
 }

@@ -21,13 +21,9 @@ public partial class Instrument
 
     public string Statut { get; set; } = null!;
 
-    public string? Localisation { get; set; }
-
     public bool Actif { get; set; }
 
     public virtual ICollection<GroupeInstrumentDetail> GroupeInstrumentDetails { get; set; } = new List<GroupeInstrumentDetail>();
-
-    public virtual ICollection<PlanAssLigne> PlanAssLignes { get; set; } = new List<PlanAssLigne>();
 
     public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();
 }

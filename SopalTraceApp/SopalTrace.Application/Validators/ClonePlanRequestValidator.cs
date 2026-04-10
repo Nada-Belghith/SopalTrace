@@ -1,5 +1,5 @@
 using FluentValidation;
-using SopalTrace.Application.DTOs.QualityPlans.Plans;
+using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 
 namespace SopalTrace.Application.Validators;
 

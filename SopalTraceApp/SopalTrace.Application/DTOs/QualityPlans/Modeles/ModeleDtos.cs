@@ -4,92 +4,96 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Application.DTOs.QualityPlans.Modeles;
 
-// ==========================================================
-// REQUÊTES (Création / Modification)
-// ==========================================================
-
+// --- CRÉATION ---
 public record CreateModeleRequestDto
 {
-    public string Code { get; init; }
-    public string Libelle { get; init; }
-    public string TypeRobinetCode { get; init; }
-    public string NatureComposantCode { get; init; }
-    public string OperationCode { get; init; }
-    public string Notes { get; init; }
-    public List<ModeleCreateSectionDto> Sections { get; init; } = new();
+    public required string Code { get; init; }
+    public required string Libelle { get; init; }
+    public required string TypeRobinetCode { get; init; }
+    public required string NatureComposantCode { get; init; }
+    public required string OperationCode { get; init; }
+    public string? Notes { get; init; }
+    public List<SectionModeleEditDto> Sections { get; init; } = new();
 }
 
-public record ModeleCreateSectionDto
+// --- ÉDITION ---
+public record SectionModeleEditDto
 {
-    public int OrdreAffiche { get; init; }
-    public string LibelleSection { get; init; }
-    public string FrequenceLibelle { get; init; }
-    public List<ModeleCreateLigneDto> Lignes { get; init; } = new();
+    public Guid? Id { get; set; }
+    public required int OrdreAffiche { get; init; }
+    public required string LibelleSection { get; init; }
+    public string? FrequenceLibelle { get; init; }
+    public List<LigneModeleEditDto> Lignes { get; init; } = new();
 }
 
-public record ModeleCreateLigneDto
+public record LigneModeleEditDto
 {
-    public int OrdreAffiche { get; init; }
-    public Guid? OutilSourceId { get; init; }
-    public Guid TypeCaracteristiqueId { get; init; }
-    public string LibelleAffiche { get; init; }
-    public Guid TypeControleId { get; init; }
+    public Guid? Id { get; set; }
+    public required int OrdreAffiche { get; init; }
+    public required Guid OutilSourceId { get; init; }
+    public required Guid TypeCaracteristiqueId { get; init; }
+    public string? LibelleAffiche { get; init; }
+    public required Guid TypeControleId { get; init; }
     public Guid? MoyenControleId { get; init; }
     public Guid? GroupeInstrumentId { get; init; }
     public Guid? PeriodiciteId { get; init; }
-    public string Instruction { get; init; }
-    public bool EstCritique { get; init; } = false;
+    public string? Instruction { get; init; }
+    public required bool EstCritique { get; init; }
 }
 
-public record UpdateModeleRequestDto
+// --- ACTIONS MÉTIER ---
+public record ChangeModeleStatusRequestDto
 {
-    public string Libelle { get; init; }
-    public string Notes { get; init; }
-    public string Statut { get; init; }
+    public required string NouveauStatut { get; init; }
+    public string? Motif { get; init; }
 }
 
-// ==========================================================
-// RÉPONSES (Affichage)
-// ==========================================================
+public record NouvelleVersionModeleRequestDto
+{
+    public required Guid AncienId { get; init; }
+    public required string CreePar { get; init; }
+    public string? MotifModification { get; init; }
+}
 
+// --- RÉPONSES ---
 public record ModeleResponseDto
 {
-    public Guid Id { get; init; }
-    public string Code { get; init; }
-    public string Libelle { get; init; }
-    public string TypeRobinetCode { get; init; }
-    public string NatureComposantCode { get; init; }
-    public string OperationCode { get; init; }
-    public int Version { get; init; }
-    public string Statut { get; init; }
-    public string Notes { get; init; }
-    public string CreePar { get; init; }
-    public DateTime CreeLe { get; init; }
+    public required Guid Id { get; init; }
+    public required string Code { get; init; }
+    public required string Libelle { get; init; }
+    public required string TypeRobinetCode { get; init; }
+    public required string NatureComposantCode { get; init; }
+    public required string OperationCode { get; init; }
+    public required int Version { get; init; }
+    public required string Statut { get; init; }
+    public string? Notes { get; init; }
+    public required string CreePar { get; init; }
+    public required DateTime CreeLe { get; init; }
+    public string? ArchivePar { get; init; }
     public DateTime? ArchiveLe { get; init; }
-    public string ArchivePar { get; init; }
     public List<ModeleSectionResponseDto> Sections { get; init; } = new();
 }
 
 public record ModeleSectionResponseDto
 {
-    public Guid Id { get; init; }
-    public int OrdreAffiche { get; init; }
-    public string LibelleSection { get; init; }
-    public string FrequenceLibelle { get; init; }
+    public required Guid Id { get; init; }
+    public required int OrdreAffiche { get; init; }
+    public required string LibelleSection { get; init; }
+    public string? FrequenceLibelle { get; init; }
     public List<ModeleLigneResponseDto> Lignes { get; init; } = new();
 }
 
 public record ModeleLigneResponseDto
 {
-    public Guid Id { get; init; }
-    public int OrdreAffiche { get; init; }
-    public Guid? OutilSourceId { get; init; }
-    public Guid TypeCaracteristiqueId { get; init; }
-    public string LibelleAffiche { get; init; }
-    public Guid TypeControleId { get; init; }
+    public required Guid Id { get; init; }
+    public required int OrdreAffiche { get; init; }
+    public required Guid OutilSourceId { get; init; }
+    public required Guid TypeCaracteristiqueId { get; init; }
+    public string? LibelleAffiche { get; init; }
+    public required Guid TypeControleId { get; init; }
     public Guid? MoyenControleId { get; init; }
     public Guid? GroupeInstrumentId { get; init; }
     public Guid? PeriodiciteId { get; init; }
-    public string Instruction { get; init; }
-    public bool EstCritique { get; init; }
+    public string? Instruction { get; init; }
+    public required bool EstCritique { get; init; }
 }

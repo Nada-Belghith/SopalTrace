@@ -88,4 +88,18 @@ public class PlanAssRepository : IPlanAssRepository
     {
         await _context.SaveChangesAsync();
     }
+
+    public async Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string typeRobinetCode, string? codeArticleSage)
+    {
+        var query = _context.PlanAssEntetes.Where(p =>
+            p.OperationCode == operationCode &&
+            p.TypeRobinetCode == typeRobinetCode &&
+            p.Statut == "ACTIF");
+
+        query = string.IsNullOrEmpty(codeArticleSage)
+            ? query.Where(p => p.EstModele)
+            : query.Where(p => !p.EstModele && p.CodeArticleSage == codeArticleSage);
+
+        return await query.ToListAsync();
+    }
 }

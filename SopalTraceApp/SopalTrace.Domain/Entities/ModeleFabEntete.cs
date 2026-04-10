@@ -17,6 +17,8 @@ public partial class ModeleFabEntete
 
     public string OperationCode { get; set; } = null!;
 
+    public Guid? FormulaireId { get; set; }
+
     public int Version { get; set; }
 
     public string Statut { get; set; } = null!;
@@ -30,6 +32,8 @@ public partial class ModeleFabEntete
     public DateTime? ArchiveLe { get; set; }
 
     public string? ArchivePar { get; set; }
+
+    public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual ICollection<ModeleFabLigne> ModeleFabLignes { get; set; } = new List<ModeleFabLigne>();
 

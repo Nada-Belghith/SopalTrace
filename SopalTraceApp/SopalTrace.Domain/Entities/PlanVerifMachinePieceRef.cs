@@ -7,7 +7,7 @@ public partial class PlanVerifMachinePieceRef
 {
     public Guid Id { get; set; }
 
-    public Guid PlanLigneId { get; set; }
+    public Guid EcheanceId { get; set; }
 
     public Guid PieceRefId { get; set; }
 
@@ -15,9 +15,11 @@ public partial class PlanVerifMachinePieceRef
 
     public string ResultatAttendu { get; set; } = null!;
 
+    public string? FamilleDesc { get; set; }
+
     public string? Notes { get; set; }
 
-    public virtual PieceReference PieceRef { get; set; } = null!;
+    public virtual PlanVerifMachineEcheance Echeance { get; set; } = null!;
 
-    public virtual PlanVerifMachineLigne PlanLigne { get; set; } = null!;
+    public virtual PieceReference PieceRef { get; set; } = null!;
 }

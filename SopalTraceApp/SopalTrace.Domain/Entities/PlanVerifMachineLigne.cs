@@ -17,8 +17,6 @@ public partial class PlanVerifMachineLigne
 
     public string? LibelleMethode { get; set; }
 
-    public string Periodicite { get; set; } = null!;
-
     public string TypeSaisie { get; set; } = null!;
 
     public double? ValeurNominale { get; set; }
@@ -29,13 +27,13 @@ public partial class PlanVerifMachineLigne
 
     public string? Unite { get; set; }
 
-    public string? Instruction { get; set; }
-
     public bool EstCritique { get; set; }
+
+    public string? Instruction { get; set; }
 
     public virtual PlanVerifMachineEntete PlanEntete { get; set; } = null!;
 
-    public virtual ICollection<PlanVerifMachinePieceRef> PlanVerifMachinePieceRefs { get; set; } = new List<PlanVerifMachinePieceRef>();
+    public virtual ICollection<PlanVerifMachineEcheance> PlanVerifMachineEcheances { get; set; } = new List<PlanVerifMachineEcheance>();
 
     public virtual RisqueDefaut? RisqueDefaut { get; set; }
 }

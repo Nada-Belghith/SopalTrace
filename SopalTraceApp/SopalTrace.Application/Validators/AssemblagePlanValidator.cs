@@ -1,11 +1,11 @@
 ﻿using FluentValidation;
-using SopalTrace.Application.DTOs.QualityPlans.Assemblage;
+using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 
-namespace SopalTrace.Application.Validators.QualityPlans;
+namespace SopalTrace.Application.Validators;
 
-public class CreatePlanAssRequestValidator : AbstractValidator<CreatePlanAssRequestDto>
+public class CreatePlanAssValidator : AbstractValidator<CreatePlanAssRequestDto>
 {
-    public CreatePlanAssRequestValidator()
+    public CreatePlanAssValidator()
     {
         RuleFor(x => x.OperationCode).NotEmpty().WithMessage("Le code opération est obligatoire.");
         RuleFor(x => x.TypeRobinetCode).NotEmpty().WithMessage("Le type de robinet est obligatoire.");

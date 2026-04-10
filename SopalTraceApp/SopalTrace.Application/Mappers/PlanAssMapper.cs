@@ -1,4 +1,4 @@
-﻿using SopalTrace.Application.DTOs.QualityPlans.Assemblage;
+﻿using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using System;
@@ -22,15 +22,13 @@ public static class PlanAssMapper
             Nom = plan.Nom,
             Version = plan.Version,
             Statut = plan.Statut,
-            // CORRECTION: L'opérateur null-conditionnel (?.) résout le problème de typage
-            // et convertit proprement le DateOnly? de la base vers le DateTime? du DTO.
             DateApplication = plan.DateApplication?.ToDateTime(TimeOnly.MinValue),
             CreePar = plan.CreePar,
             CreeLe = plan.CreeLe,
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             CommentaireVersion = plan.CommentaireVersion,
-            Sections = plan.PlanAssSections.Select(s => new SectionAssResponseDto
+            Sections = plan.PlanAssSections?.Select(s => new SectionAssResponseDto
             {
                 Id = s.Id,
                 TypeSectionId = s.TypeSectionId,
@@ -40,7 +38,7 @@ public static class PlanAssMapper
                 NormeReference = s.NormeReference,
                 NqaId = s.NqaId,
                 Notes = s.Notes,
-                Lignes = s.PlanAssLignes.Select(l => new LigneAssResponseDto
+                Lignes = s.PlanAssLignes?.Select(l => new LigneAssResponseDto
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
@@ -49,7 +47,6 @@ public static class PlanAssMapper
                     TypeControleId = l.TypeControleId,
                     MoyenControleId = l.MoyenControleId,
                     GroupeInstrumentId = l.GroupeInstrumentId,
-                    InstrumentCode = l.InstrumentCode,
                     ValeurNominale = l.ValeurNominale,
                     ToleranceSuperieure = l.ToleranceSuperieure,
                     ToleranceInferieure = l.ToleranceInferieure,
@@ -58,8 +55,8 @@ public static class PlanAssMapper
                     Observations = l.Observations,
                     Instruction = l.Instruction,
                     EstCritique = l.EstCritique
-                }).ToList()
-            }).ToList()
+                }).ToList() ?? new List<LigneAssResponseDto>()
+            }).ToList() ?? new List<SectionAssResponseDto>()
         };
     }
 
@@ -67,13 +64,11 @@ public static class PlanAssMapper
     {
         return new PlanAssSection
         {
-            // CORRECTION EF CORE : Ne SURTOUT PAS mettre "Id = Guid.NewGuid()" ici !
-            // En laissant l'ID vide, EF Core comprend qu'il doit exécuter un INSERT.
             PlanEnteteId = planId,
             TypeSectionId = dto.TypeSectionId,
             PeriodiciteId = dto.PeriodiciteId,
             OrdreAffiche = dto.OrdreAffiche,
-            LibelleSection = dto.LibelleSection ?? "NOUVELLE SECTION",
+            LibelleSection = string.IsNullOrWhiteSpace(dto.LibelleSection) ? "NOUVELLE SECTION" : dto.LibelleSection,
             NormeReference = dto.NormeReference,
             NqaId = dto.NqaId,
             Notes = dto.Notes,
@@ -93,7 +88,6 @@ public static class PlanAssMapper
             TypeControleId = dto.TypeControleId,
             MoyenControleId = dto.MoyenControleId,
             GroupeInstrumentId = dto.GroupeInstrumentId,
-            InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode,
             ValeurNominale = dto.ValeurNominale,
             ToleranceSuperieure = dto.ToleranceSuperieure,
             ToleranceInferieure = dto.ToleranceInferieure,
@@ -113,7 +107,6 @@ public static class PlanAssMapper
         ligne.TypeControleId = dto.TypeControleId;
         ligne.MoyenControleId = dto.MoyenControleId;
         ligne.GroupeInstrumentId = dto.GroupeInstrumentId;
-        ligne.InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode;
         ligne.ValeurNominale = dto.ValeurNominale;
         ligne.ToleranceSuperieure = dto.ToleranceSuperieure;
         ligne.ToleranceInferieure = dto.ToleranceInferieure;
@@ -126,8 +119,10 @@ public static class PlanAssMapper
 
     public static PlanAssEntete DupliquerEntitePlan(PlanAssEntete source, bool estModele, string? nouveauCodeArticle, string? nouvelleDesig, string creePar, string? motif)
     {
+        var planId = Guid.NewGuid();
         var plan = new PlanAssEntete
         {
+            Id = planId,
             OperationCode = source.OperationCode,
             TypeRobinetCode = source.TypeRobinetCode,
             EstModele = estModele,
@@ -142,11 +137,13 @@ public static class PlanAssMapper
             PlanAssSections = new List<PlanAssSection>()
         };
 
-        foreach (var sourceSection in source.PlanAssSections)
+        foreach (var sourceSection in source.PlanAssSections ?? Enumerable.Empty<PlanAssSection>())
         {
+            var sectionId = Guid.NewGuid();
             var section = new PlanAssSection
             {
-                PlanEnteteId = plan.Id,
+                Id = sectionId,
+                PlanEnteteId = planId,
                 TypeSectionId = sourceSection.TypeSectionId,
                 PeriodiciteId = sourceSection.PeriodiciteId,
                 OrdreAffiche = sourceSection.OrdreAffiche,
@@ -157,19 +154,19 @@ public static class PlanAssMapper
                 PlanAssLignes = new List<PlanAssLigne>()
             };
 
-            foreach (var sourceLigne in sourceSection.PlanAssLignes)
+            foreach (var sourceLigne in sourceSection.PlanAssLignes ?? Enumerable.Empty<PlanAssLigne>())
             {
                 section.PlanAssLignes.Add(new PlanAssLigne
                 {
-                    PlanEnteteId = plan.Id,
-                    SectionId = section.Id,
+                    Id = Guid.NewGuid(),
+                    PlanEnteteId = planId,
+                    SectionId = sectionId,
                     OrdreAffiche = sourceLigne.OrdreAffiche,
                     TypeCaracteristiqueId = sourceLigne.TypeCaracteristiqueId,
                     LibelleAffiche = sourceLigne.LibelleAffiche,
                     TypeControleId = sourceLigne.TypeControleId,
                     MoyenControleId = sourceLigne.MoyenControleId,
                     GroupeInstrumentId = sourceLigne.GroupeInstrumentId,
-                    InstrumentCode = sourceLigne.InstrumentCode,
                     ValeurNominale = sourceLigne.ValeurNominale,
                     ToleranceSuperieure = sourceLigne.ToleranceSuperieure,
                     ToleranceInferieure = sourceLigne.ToleranceInferieure,
