@@ -53,7 +53,8 @@
             :key="groupe.id" 
             :groupe="groupe" 
             :index="index" 
-            @remove="supprimerGroupe(groupe.id)" 
+            @remove="supprimerGroupe(groupe.id)"
+            @update-groupe="mettreAJourGroupe(groupe.id, $event)"
           />
           
           <!-- BOUTON D'AJOUT -->
@@ -124,6 +125,13 @@ const ajouterGroupe = () => {
 
 const supprimerGroupe = (id) => {
   groupes.value = groupes.value.filter(g => g.id !== id);
+};
+
+const mettreAJourGroupe = (id, updatedGroupe) => {
+  const index = groupes.value.findIndex(g => g.id === id);
+  if (index !== -1) {
+    groupes.value[index] = updatedGroupe;
+  }
 };
 
 // Orchestration de la sauvegarde et des requêtes On-The-Fly

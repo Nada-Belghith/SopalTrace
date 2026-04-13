@@ -52,6 +52,10 @@ import { useRouter } from 'vue-router'
 import Avatar from 'primevue/avatar'
 import ContextMenu from 'primevue/contextmenu'
 
+defineOptions({
+  name: 'TheSidebar'
+})
+
 const router = useRouter()
 const isCollapsed = ref(false)
 const showUserMenu = ref(false)
@@ -92,10 +96,6 @@ const toggleSidebar = () => {
 
 const isActive = (path) => {
   return router.currentRoute.value.path === path
-}
-
-const logout = () => {
-  router.push('/')
 }
 </script>
 
