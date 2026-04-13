@@ -7,19 +7,26 @@ using Serilog;
 using SopalTrace.Api.Middlewares;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Services;
+using SopalTrace.Application.Validators;
 using SopalTrace.Infrastructure.Data;
 using SopalTrace.Infrastructure.Repositories;
 using SopalTrace.Infrastructure.Services;
 using SopalTrace.Infrastructure.Services.Erp;
 using SopalTrace.Infrastructure.Services.Security;
+using SopalTrace.Infrastructure.UnitOfWork;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configuration de Serilog
+// Configuration de Serilog avec enrichissement de contexte
 Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "SopalTrace")
     .WriteTo.Console()
-    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
+    .WriteTo.File("logs/log-.txt", 
+        rollingInterval: RollingInterval.Day,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 builder.Host.UseSerilog();
 
@@ -30,7 +37,12 @@ builder.Services.AddEndpointsApiExplorer();
 // --- CONFIGURATION SWAGGER AVEC SUPPORT JWT ---
 builder.Services.AddSwaggerGen(opt =>
 {
-    opt.SwaggerDoc("v1", new OpenApiInfo { Title = "SopalTrace API", Version = "v1" });
+    opt.SwaggerDoc("v1", new OpenApiInfo 
+    { 
+        Title = "SopalTrace API", 
+        Version = "v1",
+        Description = "API de gestion des plans de qualité (assemblage et fabrication)"
+    });
     opt.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -52,7 +64,7 @@ builder.Services.AddSwaggerGen(opt =>
     });
 });
 
-// 1. Base de données (Une seule base maintenant !)
+// 1. Base de données
 var connectionString = builder.Configuration.GetConnectionString("SopalTraceConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("Connection string 'SopalTraceConnection' is not configured.");
@@ -65,13 +77,26 @@ builder.Services.AddHealthChecks()
     .AddSqlServer(connectionString);
 
 // 2. Injection des dépendances (Clean Architecture)
-builder.Services.AddScoped<IErpService, SqlErpService>(); 
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IPlanNcRepository, PlanNcRepository>();
+builder.Services.AddScoped<IPlanNcService, PlanNcService>();
+builder.Services.AddScoped<IErpService, SqlErpService>();
+builder.Services.AddScoped<IPlanVerifMachineRepository, PlanVerifMachineRepository>();
+builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPlanAssRepository, PlanAssRepository>();
+builder.Services.AddScoped<IPlanAssService, PlanAssService>();
+builder.Services.AddScoped<IPlanFabricationRepository, PlanFabricationRepository>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
+builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateModeleRequestValidator>();
+builder.Services.AddScoped<IPlanEchanRepository, PlanEchanRepository>();
+builder.Services.AddScoped<IPlanEchanService, PlanEchanService>();
+builder.Services.AddScoped<IReferentielService, ReferentielService>();
+builder.Services.AddScoped<IHubService, HubService>();
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---
 var secretKey = builder.Configuration["Jwt:Secret"] ?? "VotreCleSecreteDePlusDe32Caracteres";
@@ -99,19 +124,19 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- CONFIGURATION DU CORS (CORRIGÉ POUR HTTPONLY COOKIES) ---
+// --- CONFIGURATION DU CORS ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("VueJsPolicy", b =>
-        b.WithOrigins("http://localhost:5173") // ⚠️ L'URL exacte de ton front Vue.js
+        b.WithOrigins("http://localhost:5173")
          .AllowAnyMethod()
          .AllowAnyHeader()
-         .AllowCredentials()); // 💡 INDISPENSABLE pour autoriser le passage du cookie HttpOnly
+         .AllowCredentials());
 });
 
 var app = builder.Build();
 
-// 3. Utilisation du Middleware d'exceptions personnalisé
+// 3. Middleware
 app.UseMiddleware<ExceptionMiddleware>();
 
 // Configure the HTTP request pipeline.
@@ -121,8 +146,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// L'ordre ici est CRITIQUE pour la sécurité
-app.UseCors("VueJsPolicy"); // ⚠️ Utilisation de la nouvelle politique stricte
+app.UseCors("VueJsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 

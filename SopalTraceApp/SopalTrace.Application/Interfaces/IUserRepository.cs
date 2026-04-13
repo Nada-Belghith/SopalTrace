@@ -1,8 +1,8 @@
-namespace SopalTrace.Application.Interfaces;
-
 using System;
 using System.Threading.Tasks;
-using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Entities; 
+
+namespace SopalTrace.Application.Interfaces;
 
 public interface IUserRepository
 {

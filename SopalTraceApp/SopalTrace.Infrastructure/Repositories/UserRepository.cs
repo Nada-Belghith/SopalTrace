@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
-using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Entities; // <-- LA CORRECTION EST ICI !
 using SopalTrace.Infrastructure.Data;
 
 namespace SopalTrace.Infrastructure.Repositories;
@@ -14,7 +16,7 @@ public class UserRepository : IUserRepository
     {
         _context = context;
     }
-    
+
     public async Task<bool> ExistsByMatriculeAsync(string matricule) =>
         await _context.UtilisateursApps.AnyAsync(u => u.Matricule == matricule);
 
@@ -25,6 +27,7 @@ public class UserRepository : IUserRepository
     {
         var user = new UtilisateursApp
         {
+            Id = Guid.NewGuid(),
             Matricule = matricule,
             NomComplet = nomComplet,
             Email = email,
@@ -42,7 +45,7 @@ public class UserRepository : IUserRepository
     {
         var user = await _context.UtilisateursApps
             .FirstOrDefaultAsync(u => u.Matricule == matricule);
-        
+
         if (user == null)
         {
             throw new InvalidOperationException($"Utilisateur avec le matricule '{matricule}' introuvable.");
@@ -50,6 +53,7 @@ public class UserRepository : IUserRepository
 
         return (user.Id.ToString(), user.MotDePasseHash, user.RoleApp, user.NomComplet);
     }
+
     public async Task<UtilisateursApp?> GetUserByRefreshTokenAsync(string refreshToken)
     {
         return await _context.UtilisateursApps
@@ -76,6 +80,7 @@ public class UserRepository : IUserRepository
     {
         var refreshToken = new RefreshToken
         {
+            Id = Guid.NewGuid(),
             UtilisateurId = Guid.Parse(userId),
             Token = token,
             JwtId = jwtId,
@@ -119,9 +124,9 @@ public class UserRepository : IUserRepository
 
     public async Task RevokeAllTokensForUserAsync(Guid userId)
     {
+        // ExecuteUpdateAsync est excellent pour les perfs ! (EF Core 7+)
         await _context.RefreshTokens
-            .Where(rt => rt.UtilisateurId == userId && !rt.EstRevoque)
+            .Where(rt => rt.UtilisateurId == userId && rt.EstRevoque != true)
             .ExecuteUpdateAsync(setters => setters.SetProperty(rt => rt.EstRevoque, true));
     }
-
 }
