@@ -1,7 +1,12 @@
 <script setup>
 import { RouterView } from 'vue-router'
 import Toast from 'primevue/toast'
+import { useToast } from 'primevue/usetoast'
 import { onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+// LIGNE SUPPRIMÉE : const toast = useToast()
 
 onMounted(() => {
   // Vous pouvez ajouter ici la logique d'initialisation globale

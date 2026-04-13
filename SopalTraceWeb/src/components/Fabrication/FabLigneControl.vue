@@ -4,7 +4,7 @@
     <td class="p-2 border-r border-slate-200 align-top">
       <div class="flex flex-col gap-2 w-full">
         <!-- 1. Catégorie -->
-        <select v-model="ligne.typeCaracteristiqueId" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
+        <select :value="ligne.typeCaracteristiqueId" @change="updateField('typeCaracteristiqueId', $event.target.value)" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
           <option value="" disabled>Catégorie *</option>
           <option v-for="tc in (store.typesCaracteristique || [])" :key="tc.id" :value="tc.id">{{ tc.libelle }}</option>
         </select>
@@ -24,7 +24,7 @@
 
     <!-- Type de contrôle -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select v-model="ligne.typeControleId" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
+      <select :value="ligne.typeControleId" @change="updateField('typeControleId', $event.target.value)" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
         <option :value="null" disabled>-- Type de contrôle * --</option>
         <option v-for="tco in (store.typesControle || [])" :key="tco.id" :value="tco.id">{{ tco.libelle }}</option>
       </select>
@@ -32,7 +32,7 @@
 
     <!-- Moyen de contrôle (Désactivé si VISUEL) -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select v-model="ligne.moyenControleId" 
+      <select :value="ligne.moyenControleId" @change="updateField('moyenControleId', $event.target.value)"
               :disabled="isVisuel" 
               :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white'"
               class="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
@@ -43,7 +43,7 @@
 
     <!-- Code instrument (FUSION DES 2 LISTES + Désactivé si VISUEL) -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select v-model="instrumentSelection" 
+      <select :value="instrumentSelection" @change="updateInstrument"
               :disabled="isVisuel"
               :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white'"
               class="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
@@ -65,11 +65,11 @@
 
     <!-- Observations -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <input v-model="ligne.instruction" type="text" placeholder="Observations (Optionnel)..." 
+      <input :value="ligne.instruction" @input="updateField('instruction', $event.target.value)" type="text" placeholder="Observations (Optionnel)..." 
              class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-blue-500">
     </td>
 
-    <!-- Actions (Masqué par défaut, apparaît au survol de la ligne grâce à 'group-hover') -->
+    <!-- Actions -->
     <td class="p-2 align-middle text-center opacity-0 group-hover:opacity-100 transition-opacity">
       <button @click="$emit('remove', ligne.id)" class="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50" title="Supprimer cette ligne">
         <i class="pi pi-trash"></i>
@@ -86,15 +86,21 @@ const props = defineProps({
   ligne: { type: Object, required: true }
 });
 
-defineEmits(['remove']);
+const emit = defineEmits(['remove', 'update-ligne']);
 
 const store = useFabModeleStore();
+
+// =========================================================================
+// MOTEUR D'ÉMISSION (Rend le composant immuable et supprime l'erreur Git)
+// =========================================================================
+const updateField = (field, value) => {
+  emit('update-ligne', { ...props.ligne, [field]: value });
+};
 
 // =========================================================================
 // INTELLIGENCE : DÉTECTION ET NETTOYAGE DU MODE VISUEL
 // =========================================================================
 
-// 1. Détecte en temps réel si la ligne est un contrôle visuel
 const isVisuel = computed(() => {
   const typeCtrl = (store.typesControle || []).find(t => t.id === props.ligne.typeControleId);
   const typeCarac = (store.typesCaracteristique || []).find(t => t.id === props.ligne.typeCaracteristiqueId);
@@ -102,12 +108,15 @@ const isVisuel = computed(() => {
   return (typeCtrl?.code === 'VISUEL') || (typeCarac?.code === 'VISUEL');
 });
 
-// 2. Si on bascule sur Visuel, on nettoie automatiquement les sélections d'instruments pour éviter les incohérences en base
 watch(isVisuel, (devenuVisuel) => {
   if (devenuVisuel) {
-    props.ligne.moyenControleId = null;
-    props.ligne.groupeInstrumentId = null;
-    props.ligne.instrumentCode = null;
+    // Si on passe en visuel, on envoie la ligne nettoyée au parent
+    emit('update-ligne', {
+      ...props.ligne,
+      moyenControleId: null,
+      groupeInstrumentId: null,
+      instrumentCode: null
+    });
   }
 });
 
@@ -115,23 +124,28 @@ watch(isVisuel, (devenuVisuel) => {
 // GESTION DES LISTES D'INSTRUMENTS DYNAMIQUES
 // =========================================================================
 
-const instrumentSelection = computed({
-  get: () => {
+const instrumentSelection = computed(() => {
     if (props.ligne.groupeInstrumentId) return 'GRP|' + props.ligne.groupeInstrumentId;
     if (props.ligne.instrumentCode) return 'INS|' + props.ligne.instrumentCode;
     return null;
-  },
-  set: (val) => {
-    if (!val) {
-      props.ligne.groupeInstrumentId = null;
-      props.ligne.instrumentCode = null;
-    } else if (val.startsWith('GRP|')) {
-      props.ligne.groupeInstrumentId = val.split('|')[1];
-      props.ligne.instrumentCode = null;
-    } else if (val.startsWith('INS|')) {
-      props.ligne.groupeInstrumentId = null;
-      props.ligne.instrumentCode = val.split('|')[1];
-    }
-  }
 });
+
+const updateInstrument = (event) => {
+    const val = event.target.value;
+    const newLigne = { ...props.ligne };
+    
+    if (!val) {
+      newLigne.groupeInstrumentId = null;
+      newLigne.instrumentCode = null;
+    } else if (val.startsWith('GRP|')) {
+      newLigne.groupeInstrumentId = val.split('|')[1];
+      newLigne.instrumentCode = null;
+    } else if (val.startsWith('INS|')) {
+      newLigne.groupeInstrumentId = null;
+      newLigne.instrumentCode = val.split('|')[1];
+    }
+    
+    // On envoie le résultat au parent
+    emit('update-ligne', newLigne);
+};
 </script>
