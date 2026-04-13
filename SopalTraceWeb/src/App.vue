@@ -1,12 +1,6 @@
 <script setup>
 import { RouterView } from 'vue-router'
 import Toast from 'primevue/toast'
-import { onMounted } from 'vue'
-
-onMounted(() => {
-  // Vous pouvez ajouter ici la logique d'initialisation globale
-  console.log('Application SopalTrace initialisée')
-})
 </script>
 
 <template>

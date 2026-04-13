@@ -54,7 +54,7 @@
             :groupe="groupe" 
             :index="index" 
             @remove="supprimerGroupe(groupe.id)"
-            @update-groupe="mettreAJourGroupe(groupe.id, $event)"
+            @update-groupe="(updatedGroupe) => mettreAJourGroupe(index, updatedGroupe)"
           />
           
           <!-- BOUTON D'AJOUT -->
@@ -127,11 +127,8 @@ const supprimerGroupe = (id) => {
   groupes.value = groupes.value.filter(g => g.id !== id);
 };
 
-const mettreAJourGroupe = (id, updatedGroupe) => {
-  const index = groupes.value.findIndex(g => g.id === id);
-  if (index !== -1) {
-    groupes.value[index] = updatedGroupe;
-  }
+const mettreAJourGroupe = (index, updatedGroupe) => {
+  groupes.value[index] = updatedGroupe;
 };
 
 // Orchestration de la sauvegarde et des requêtes On-The-Fly
