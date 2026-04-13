@@ -13,11 +13,9 @@ public partial class ModeleFabLigne
 
     public int OrdreAffiche { get; set; }
 
-    public Guid? OutilSourceId { get; set; }
-
     public Guid TypeCaracteristiqueId { get; set; }
 
-    public string? LibelleAffiche { get; set; }
+    public string LibelleAffiche { get; set; } = null!;
 
     public Guid TypeControleId { get; set; }
 
@@ -36,8 +34,6 @@ public partial class ModeleFabLigne
     public virtual ModeleFabEntete ModeleEntete { get; set; } = null!;
 
     public virtual MoyenControle? MoyenControle { get; set; }
-
-    public virtual OutilControle? OutilSource { get; set; }
 
     public virtual Periodicite? Periodicite { get; set; }
 

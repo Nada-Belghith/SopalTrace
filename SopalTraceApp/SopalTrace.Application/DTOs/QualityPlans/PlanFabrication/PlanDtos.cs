@@ -80,7 +80,6 @@ public record LigneEditDto
     public Guid? ModeleLigneSourceId { get; init; }
 
     public int OrdreAffiche { get; init; }
-    public Guid? OutilSourceId { get; init; }
     public Guid TypeCaracteristiqueId { get; init; }
     public string LibelleAffiche { get; init; }
     public Guid TypeControleId { get; init; }
@@ -136,7 +135,6 @@ public record PlanLigneResponseDto
     public Guid Id { get; init; }
     public Guid? ModeleLigneSourceId { get; init; }
     public int OrdreAffiche { get; init; }
-    public Guid? OutilSourceId { get; init; }
     public Guid TypeCaracteristiqueId { get; init; }
     public string LibelleAffiche { get; init; }
     public Guid TypeControleId { get; init; }
