@@ -80,6 +80,7 @@
 
 <script setup>
 import { computed, watch } from 'vue';
+import { computed } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 
 const props = defineProps({
