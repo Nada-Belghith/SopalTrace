@@ -1,8 +1,9 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public class JournalConnexion
+public partial class JournalConnexion
 {
     public Guid Id { get; set; }
 

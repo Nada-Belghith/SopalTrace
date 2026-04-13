@@ -68,13 +68,11 @@ public class AuthService : IAuthService
     {
         var user = await _userRepository.GetUserByRefreshTokenAsync(refreshToken);
 
-        // MODIF 1 : Utilisation de InvalidTokenException
         if (user == null)
             throw new InvalidTokenException();
 
         bool isValid = await _userRepository.ValidateRefreshTokenAsync(refreshToken, user.Id.ToString());
 
-        // MODIF 2 : Si le token est présent mais non valide (révoqué ou expiré)
         if (!isValid)
         {
             _logger.LogWarning("Tentative de refresh invalide pour l'utilisateur {UserId}", user.Id);

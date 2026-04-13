@@ -10,6 +10,7 @@ RUN npm run build
 FROM nginx:alpine AS production-stage
 # On copie le code compilé depuis l'étape 1 vers le dossier public de Nginx
 COPY --from=build-stage /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 # On expose le port 80 (standard web)
 EXPOSE 80
 # Lancement de Nginx

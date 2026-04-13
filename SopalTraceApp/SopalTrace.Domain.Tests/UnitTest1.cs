@@ -1,4 +1,6 @@
-﻿namespace SopalTrace.Domain.Tests;
+﻿using Xunit;
+
+namespace SopalTrace.Domain.Tests;
 
 public class UnitTest1
 {
