@@ -28,12 +28,12 @@
                     Sec {{ index + 1 }}
                 </span>
                 
-                <select :value="groupe.typeSectionId" @change="(e) => {updateGroupe('typeSectionId', e.target.value); verifierVariables();}" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
+                <select v-model="groupe.typeSectionId" @change="verifierVariables" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
                   <option value="" disabled>--Nature de la section--</option>
                   <option v-for="ts in (store.typesSection || [])" :key="ts.id" :value="ts.id">{{ ts.libelle }}</option>
                 </select>
 
-                <select :value="groupe.modeFreq" @change="(e) => {updateGroupe('modeFreq', e.target.value); verifierVariables();}" class="bg-slate-100 border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-600 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
+                <select v-model="groupe.modeFreq" @change="verifierVariables" class="bg-slate-100 border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-600 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
                   <option value="SANS">Sans fréquence</option>
                   <option value="VARIABLE">➕ Fréquence des pièces par heure</option>
                   <option value="FIXE">➕ Règle d'Échantillonnage</option>
@@ -42,10 +42,10 @@
                 <!-- SI VARIABLE : Saisie du nombre de pièces ET du nombre d'heures -->
                 <div v-if="groupe.modeFreq === 'VARIABLE'" class="flex items-center gap-2 animate-in fade-in slide-in-from-left-4 bg-white border border-slate-300 rounded-lg p-1 shadow-sm">
                     
-                    <input type="number" :value="groupe.freqNum" @input="(e) => {updateGroupe('freqNum', parseInt(e.target.value)); verifierVariables();}" min="1" max="1000" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs" title="Nb Pièces" />
+                    <input type="number" v-model="groupe.freqNum" @input="verifierVariables" min="1" max="1000" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs" title="Nb Pièces" />
                     <span class="text-[10px] font-bold text-slate-500 uppercase">Pièce(s)</span>
                     
-                    <select :value="groupe.typeVariable" @change="(e) => {updateGroupe('typeVariable', e.target.value); verifierVariables();}" class="bg-transparent text-slate-700 font-bold outline-none cursor-pointer text-xs ml-1 border-l border-slate-200 pl-2">
+                    <select v-model="groupe.typeVariable" @change="verifierVariables" class="bg-transparent text-slate-700 font-bold outline-none cursor-pointer text-xs ml-1 border-l border-slate-200 pl-2">
                       <option value="HEURE">/ Heure(s)</option>
                       <option value="SERIE">par Série</option>
                     </select>
@@ -53,7 +53,7 @@
                     <!-- Affichage du choix d'heure uniquement si le mode est HEURE -->
                     <template v-if="groupe.typeVariable === 'HEURE'">
                         <span class="text-[10px] font-bold text-slate-500 uppercase ml-1">Toutes les</span>
-                        <input type="number" :value="groupe.freqHours" @input="(e) => {updateGroupe('freqHours', parseInt(e.target.value)); verifierVariables();}" min="1" max="24" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs" title="Nb Heures" />
+                        <input type="number" v-model="groupe.freqHours" @input="verifierVariables" min="1" max="24" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs" title="Nb Heures" />
                         <span class="text-[10px] font-bold text-slate-500 uppercase pr-1">H</span>
                     </template>
 
@@ -62,7 +62,7 @@
 
                 <!-- SI FIXE : Liste textes -->
                 <div v-if="groupe.modeFreq === 'FIXE'" class="flex items-center animate-in fade-in slide-in-from-left-4">
-                    <select :value="groupe.periodiciteId" @change="(e) => {updateGroupe('periodiciteId', e.target.value); verifierVariables();}" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
+                    <select v-model="groupe.periodiciteId" @change="verifierVariables" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
                       <option :value="null" disabled>Sélectionner la règle...</option>
                       <option v-for="p in periodesFixes" :key="p.id" :value="p.id" :title="p.libelle">{{ p.libelle.substring(0, 35) }}{{ p.libelle.length > 35 ? '...' : '' }}</option>
                     </select>
@@ -92,8 +92,7 @@
             v-for="ligne in groupe.lignes" 
             :key="ligne.id" 
             :ligne="ligne" 
-            @remove="supprimerLigne"
-            @update-ligne="mettreAJourLigne"
+            @remove="supprimerLigne" 
         />
         
       </tbody>
@@ -111,18 +110,13 @@ const props = defineProps({
   index: { type: Number, required: true }
 });
 
-const emit = defineEmits(['remove', 'update-groupe']);
+const emit = defineEmits(['remove']);
 const store = useFabModeleStore();
 
 const periodesFixes = computed(() => (store.periodicites || []).filter(p => 
   (p.frequenceNum === null || p.frequenceNum === undefined) && 
   p.frequenceUnite !== 'MACHINE'
 ));
-
-const updateGroupe = (key, value) => {
-  const updatedGroupe = { ...props.groupe, [key]: value };
-  emit('update-groupe', updatedGroupe);
-};
 
 // --- MOTEUR INTELLIGENT ---
 const verifierVariables = () => {
@@ -131,17 +125,15 @@ const verifierVariables = () => {
   let texteBase = typeSec ? typeSec.libelle : "???";
   let titre = `Caractéristiques à contrôler ${texteBase}`;
 
-  const updates = {};
-  
   if (groupe.modeFreq === 'SANS') {
-      updates.periodiciteId = null;
-      updates.isNewFreq = false;
-      updates.nom = titre;
+      groupe.periodiciteId = null;
+      groupe.isNewFreq = false;
+      groupe.nom = titre;
   }
   else if (groupe.modeFreq === 'FIXE') {
       const perio = (store.periodicites || []).find(p => p.id === groupe.periodiciteId);
-      updates.isNewFreq = false;
-      updates.nom = perio ? `${titre} (${perio.libelle})` : `${titre} (Veuillez choisir une règle)`;
+      groupe.isNewFreq = false;
+      groupe.nom = perio ? `${titre} (${perio.libelle})` : `${titre} (Veuillez choisir une règle)`;
   }
   else if (groupe.modeFreq === 'VARIABLE') {
       
@@ -150,7 +142,7 @@ const verifierVariables = () => {
       
       if (groupe.typeVariable === 'HEURE') {
           const sH = groupe.freqHours > 1 ? 's' : '';
-          if (groupe.freqHours === 1) {
+          if (groupe.freqHours == 1) {
               libelleFreq = `${groupe.freqNum} pièce${sP} / heure`;
           } else {
               libelleFreq = `${groupe.freqNum} pièce${sP} / ${groupe.freqHours} heure${sH}`;
@@ -163,55 +155,34 @@ const verifierVariables = () => {
       const perio = (store.periodicites || []).find(p => p.libelle.toLowerCase() === libelleFreq.toLowerCase());
       
       if (perio) {
-          updates.periodiciteId = perio.id;
-          updates.isNewFreq = false;
-          updates.nom = `${titre} (${perio.libelle})`;
+          groupe.periodiciteId = perio.id;
+          groupe.isNewFreq = false;
+          groupe.nom = `${titre} (${perio.libelle})`;
       } else {
-          updates.periodiciteId = null;
-          updates.isNewFreq = true;
-          updates.nom = `${titre} (${libelleFreq})`;
+          groupe.periodiciteId = null;
+          groupe.isNewFreq = true;
+          groupe.nom = `${titre} (${libelleFreq})`;
       }
-  }
-  
-  if (Object.keys(updates).length > 0) {
-      const updatedGroupe = { ...groupe, ...updates };
-      emit('update-groupe', updatedGroupe);
   }
 };
 
 // --- ACTIONS SUR L'ARBRE LOCAL ---
 const ajouterLigne = () => {
-  const nouvelleLigne = {
+  props.groupe.lignes.push({
     id: crypto.randomUUID(),
-    typeCaracteristiqueId: '', 
+    typeCaracteristiqueId: '', // Forcer le placeholder
     libelleAffiche: '',
-    typeControleId: null,
+    typeControleId: null,      // Forcer le placeholder
     moyenControleId: null,
     groupeInstrumentId: null,
     instrumentCode: null,
     instruction: '',
     estCritique: false
-  };
-  const updatedGroupe = {
-    ...props.groupe,
-    lignes: [...props.groupe.lignes, nouvelleLigne]
-  };
-  emit('update-groupe', updatedGroupe);
+  });
 };
 
 const supprimerLigne = (ligneId) => {
-  const updatedGroupe = {
-    ...props.groupe,
-    lignes: props.groupe.lignes.filter(l => l.id !== ligneId)
-  };
-  emit('update-groupe', updatedGroupe);
-};
-
-const mettreAJourLigne = (updatedLigne) => {
-  const updatedGroupe = {
-    ...props.groupe,
-    lignes: props.groupe.lignes.map(l => l.id === updatedLigne.id ? updatedLigne : l)
-  };
-  emit('update-groupe', updatedGroupe);
+  const idx = props.groupe.lignes.findIndex(l => l.id === ligneId);
+  if (idx !== -1) props.groupe.lignes.splice(idx, 1);
 };
 </script>

@@ -4,7 +4,7 @@
     <td class="p-2 border-r border-slate-200 align-top">
       <div class="flex flex-col gap-2 w-full">
         <!-- 1. Catégorie -->
-        <select :value="ligne.typeCaracteristiqueId" @change="(e) => updateLigne('typeCaracteristiqueId', e.target.value)" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
+        <select v-model="ligne.typeCaracteristiqueId" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
           <option value="" disabled>Catégorie *</option>
           <option v-for="tc in (store.typesCaracteristique || [])" :key="tc.id" :value="tc.id">{{ tc.libelle }}</option>
         </select>
@@ -24,7 +24,7 @@
 
     <!-- Type de contrôle -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select :value="ligne.typeControleId" @change="(e) => updateLigne('typeControleId', e.target.value)" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
+      <select v-model="ligne.typeControleId" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
         <option :value="null" disabled>-- Type de contrôle * --</option>
         <option v-for="tco in (store.typesControle || [])" :key="tco.id" :value="tco.id">{{ tco.libelle }}</option>
       </select>
@@ -32,8 +32,7 @@
 
     <!-- Moyen de contrôle (Désactivé si VISUEL) -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select :value="ligne.moyenControleId" 
-              @change="(e) => updateLigne('moyenControleId', e.target.value)"
+      <select v-model="ligne.moyenControleId" 
               :disabled="isVisuel" 
               :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white'"
               class="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
@@ -44,8 +43,7 @@
 
     <!-- Code instrument (FUSION DES 2 LISTES + Désactivé si VISUEL) -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select :value="instrumentSelection" 
-              @change="(e) => { instrumentSelection = e.target.value }"
+      <select v-model="instrumentSelection" 
               :disabled="isVisuel"
               :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white'"
               class="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
@@ -67,9 +65,7 @@
 
     <!-- Observations -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <input :value="ligne.instruction" 
-             @input="(e) => updateLigne('instruction', e.target.value)"
-             type="text" placeholder="Observations (Optionnel)..." 
+      <input v-model="ligne.instruction" type="text" placeholder="Observations (Optionnel)..." 
              class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-blue-500">
     </td>
 
@@ -90,14 +86,9 @@ const props = defineProps({
   ligne: { type: Object, required: true }
 });
 
-const emit = defineEmits(['remove', 'update-ligne']);
+defineEmits(['remove']);
 
 const store = useFabModeleStore();
-
-const updateLigne = (key, value) => {
-  const updatedLigne = { ...props.ligne, [key]: value };
-  emit('update-ligne', updatedLigne);
-};
 
 // =========================================================================
 // INTELLIGENCE : DÉTECTION ET NETTOYAGE DU MODE VISUEL
@@ -114,13 +105,9 @@ const isVisuel = computed(() => {
 // 2. Si on bascule sur Visuel, on nettoie automatiquement les sélections d'instruments pour éviter les incohérences en base
 watch(isVisuel, (devenuVisuel) => {
   if (devenuVisuel) {
-    const updatedLigne = {
-      ...props.ligne,
-      moyenControleId: null,
-      groupeInstrumentId: null,
-      instrumentCode: null
-    };
-    emit('update-ligne', updatedLigne);
+    props.ligne.moyenControleId = null;
+    props.ligne.groupeInstrumentId = null;
+    props.ligne.instrumentCode = null;
   }
 });
 
@@ -135,19 +122,16 @@ const instrumentSelection = computed({
     return null;
   },
   set: (val) => {
-    const updates = {
-      groupeInstrumentId: null,
-      instrumentCode: null
-    };
-    
-    if (val && val.startsWith('GRP|')) {
-      updates.groupeInstrumentId = val.split('|')[1];
-    } else if (val && val.startsWith('INS|')) {
-      updates.instrumentCode = val.split('|')[1];
+    if (!val) {
+      props.ligne.groupeInstrumentId = null;
+      props.ligne.instrumentCode = null;
+    } else if (val.startsWith('GRP|')) {
+      props.ligne.groupeInstrumentId = val.split('|')[1];
+      props.ligne.instrumentCode = null;
+    } else if (val.startsWith('INS|')) {
+      props.ligne.groupeInstrumentId = null;
+      props.ligne.instrumentCode = val.split('|')[1];
     }
-    
-    const updatedLigne = { ...props.ligne, ...updates };
-    emit('update-ligne', updatedLigne);
   }
 });
 </script>
