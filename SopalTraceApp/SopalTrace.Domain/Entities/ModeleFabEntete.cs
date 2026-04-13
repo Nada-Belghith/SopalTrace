@@ -15,7 +15,7 @@ public partial class ModeleFabEntete
 
     public string NatureComposantCode { get; set; } = null!;
 
-    public string OperationCode { get; set; } = null!;
+    public string? OperationCode { get; set; }
 
     public Guid? FormulaireId { get; set; }
 
@@ -41,7 +41,7 @@ public partial class ModeleFabEntete
 
     public virtual NatureComposant NatureComposantCodeNavigation { get; set; } = null!;
 
-    public virtual Operation OperationCodeNavigation { get; set; } = null!;
+    public virtual Operation? OperationCodeNavigation { get; set; }
 
     public virtual ICollection<PlanFabEntete> PlanFabEntetes { get; set; } = new List<PlanFabEntete>();
 

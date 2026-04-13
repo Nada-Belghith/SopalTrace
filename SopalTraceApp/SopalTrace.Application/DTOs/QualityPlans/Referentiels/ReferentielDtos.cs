@@ -12,21 +12,6 @@ public record ReferenceItemDto(
 );
 
 
-public record OutilControleDetailedDto(
-    Guid Id,
-    string Code,
-    string Libelle,
-    ReferenceItemDto TypeControle,
-    ReferenceItemDto TypeCaracteristique,
-    ReferenceItemDto MoyenControle,
-    ReferenceItemDto GroupeInstrument,
-    ReferenceItemDto PeriodiciteDefaut,
-    string LimiteSpecTexte,
-    string Instruction,
-    bool Actif = true
-);
-
-
 public record GroupeInstrumentDetailedDto(
     Guid Id,
     string CodeAlias,
@@ -41,6 +26,32 @@ public record GroupeInstrumentDetailedDto(
     }
 }
 
+public record InstrumentDto(
+    string CodeInstrument,
+    string Designation,
+    bool Actif = true
+);
+
+public record PeriodiciteDto(
+    Guid Id,
+    string Code,
+    string Libelle,
+    int? FrequenceNum,
+    string? FrequenceUnite,
+    int OrdreAffichage,
+    bool Actif = true
+);
+
+public record CreatePeriodiciteDto
+{
+    public required string Code { get; init; }
+    public required string Libelle { get; init; }
+    public int? FrequenceNum { get; init; }
+    public string? FrequenceUnite { get; init; }
+    public int OrdreAffichage { get; init; }
+    public bool Actif { get; init; } = true;
+}
+
 
 public record ReferentielsResponseDto(
     List<ReferenceItemDto> TypesRobinet,
@@ -49,10 +60,10 @@ public record ReferentielsResponseDto(
     List<ReferenceItemDto> TypesControle,
     List<ReferenceItemDto> TypesCaracteristique,
     List<ReferenceItemDto> MoyensControle,
-    List<ReferenceItemDto> Periodicites,
+    List<PeriodiciteDto> Periodicites,
     List<ReferenceItemDto> TypesSections,
-    List<OutilControleDetailedDto> OutilsControle,
-    List<GroupeInstrumentDetailedDto> GroupesInstruments
+    List<GroupeInstrumentDetailedDto> GroupesInstruments,
+    List<InstrumentDto> Instruments
 )
 {
     public ReferentielsResponseDto()

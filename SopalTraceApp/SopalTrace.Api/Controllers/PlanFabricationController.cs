@@ -1,8 +1,12 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
+using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Domain.Entities;
+using SopalTrace.Infrastructure.Data;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -14,14 +18,16 @@ namespace SopalTrace.Api.Controllers;
 public class PlanFabricationController : ControllerBase
 {
     private readonly IPlanFabricationService _planService;
+    private readonly SopalTraceDbContext _context;
 
-    public PlanFabricationController(IPlanFabricationService planService)
+    public PlanFabricationController(IPlanFabricationService planService, SopalTraceDbContext context)
     {
         _planService = planService;
+        _context = context;
     }
 
     // ==========================================
-    // MODÈLES (GABARITS)
+    // MODÈLES
     // ==========================================
 
     [HttpPost("modeles")]
@@ -78,5 +84,32 @@ public class PlanFabricationController : ControllerBase
     {
         var id = await _planService.CreerNouvelleVersionPlanAsync(request);
         return Ok(new { success = true, planId = id, message = "V2 générée avec succès." });
+    }
+
+    [HttpPost("periodicites")]
+    public async Task<IActionResult> CreerNouvellePeriodicite([FromBody] CreatePeriodiciteDto request)
+    {
+        var existeDeja = await _context.Periodicites.AnyAsync(x => x.Code == request.Code);
+
+        if (existeDeja)
+        {
+            return BadRequest(new { success = false, message = "Une périodicité avec ce code existe déjà." });
+        }
+
+        var periodicite = new Periodicite
+        {
+            Id = Guid.NewGuid(),
+            Code = request.Code,
+            Libelle = request.Libelle,
+            FrequenceNum = request.FrequenceNum,
+            FrequenceUnite = request.FrequenceUnite,
+            OrdreAffichage = request.OrdreAffichage,
+            Actif = request.Actif
+        };
+
+        _context.Periodicites.Add(periodicite);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { success = true, periodiciteId = periodicite.Id });
     }
 }

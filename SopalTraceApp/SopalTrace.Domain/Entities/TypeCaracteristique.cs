@@ -19,8 +19,6 @@ public partial class TypeCaracteristique
 
     public virtual ICollection<ModeleFabLigne> ModeleFabLignes { get; set; } = new List<ModeleFabLigne>();
 
-    public virtual ICollection<OutilControle> OutilControles { get; set; } = new List<OutilControle>();
-
     public virtual ICollection<PlanAssLigne> PlanAssLignes { get; set; } = new List<PlanAssLigne>();
 
     public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();

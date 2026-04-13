@@ -30,7 +30,6 @@ public record LigneModeleEditDto
 {
     public Guid? Id { get; set; }
     public required int OrdreAffiche { get; init; }
-    public required Guid OutilSourceId { get; init; }
     public required Guid TypeCaracteristiqueId { get; init; }
     public string? LibelleAffiche { get; init; }
     public required Guid TypeControleId { get; init; }
@@ -87,7 +86,6 @@ public record ModeleLigneResponseDto
 {
     public required Guid Id { get; init; }
     public required int OrdreAffiche { get; init; }
-    public required Guid OutilSourceId { get; init; }
     public required Guid TypeCaracteristiqueId { get; init; }
     public string? LibelleAffiche { get; init; }
     public required Guid TypeControleId { get; init; }

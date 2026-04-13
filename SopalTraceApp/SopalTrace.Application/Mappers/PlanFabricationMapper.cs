@@ -54,7 +54,6 @@ public static class PlanFabricationMapper
                     ModeleEnteteId = modele.Id,
                     SectionId = section.Id,
                     OrdreAffiche = ligneDto.OrdreAffiche,
-                    OutilSourceId = ligneDto.OutilSourceId,
                     TypeCaracteristiqueId = ligneDto.TypeCaracteristiqueId,
                     LibelleAffiche = string.IsNullOrWhiteSpace(ligneDto.LibelleAffiche) ? null : ligneDto.LibelleAffiche,
                     TypeControleId = ligneDto.TypeControleId,
@@ -112,7 +111,6 @@ public static class PlanFabricationMapper
                     SectionId = planSection.Id,
                     ModeleLigneSourceId = modeleLigne.Id,
                     OrdreAffiche = modeleLigne.OrdreAffiche,
-                    OutilSourceId = modeleLigne.OutilSourceId,
                     TypeCaracteristiqueId = modeleLigne.TypeCaracteristiqueId,
                     LibelleAffiche = modeleLigne.LibelleAffiche,
                     TypeControleId = modeleLigne.TypeControleId,
@@ -177,7 +175,6 @@ public static class PlanFabricationMapper
                     SectionId = planSection.Id,
                     ModeleLigneSourceId = sourceLigne.ModeleLigneSourceId,
                     OrdreAffiche = sourceLigne.OrdreAffiche,
-                    OutilSourceId = sourceLigne.OutilSourceId,
                     TypeCaracteristiqueId = sourceLigne.TypeCaracteristiqueId,
                     LibelleAffiche = sourceLigne.LibelleAffiche,
                     TypeControleId = sourceLigne.TypeControleId,
@@ -206,14 +203,6 @@ public static class PlanFabricationMapper
     // 3. LIBERTÉ TOTALE : MISE À JOUR ET AJOUT DYNAMIQUE (PUT)
     // ====================================================================
 
-    // ====================================================================
-    // 3. LIBERTÉ TOTALE : MISE À JOUR ET AJOUT DYNAMIQUE (PUT)
-    // ====================================================================
-
-    // ====================================================================
-    // 3. LIBERTÉ TOTALE : MISE À JOUR ET AJOUT DYNAMIQUE (PUT)
-    // ====================================================================
-
     public static PlanFabSection ConstruireNouvelleSectionPlan(Guid planId, SectionEditDto dto)
     {
         return new PlanFabSection
@@ -236,7 +225,6 @@ public static class PlanFabricationMapper
             // CORRECTION ICI : Utilisation de ?? Guid.Empty
             ModeleLigneSourceId = dto.ModeleLigneSourceId ?? Guid.Empty,
             OrdreAffiche = dto.OrdreAffiche,
-            OutilSourceId = dto.OutilSourceId,
             TypeCaracteristiqueId = dto.TypeCaracteristiqueId,
             TypeControleId = dto.TypeControleId,
             LibelleAffiche = string.IsNullOrWhiteSpace(dto.LibelleAffiche) ? null : dto.LibelleAffiche,
@@ -254,10 +242,10 @@ public static class PlanFabricationMapper
             Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction
         };
     }
+
     public static void MettreAJourEntiteLigne(PlanFabLigne ligne, LigneEditDto dto)
     {
         ligne.OrdreAffiche = dto.OrdreAffiche;
-        ligne.OutilSourceId = dto.OutilSourceId;
         ligne.TypeCaracteristiqueId = dto.TypeCaracteristiqueId;
         ligne.TypeControleId = dto.TypeControleId;
         ligne.LibelleAffiche = string.IsNullOrWhiteSpace(dto.LibelleAffiche) ? null : dto.LibelleAffiche;
@@ -306,9 +294,8 @@ public static class PlanFabricationMapper
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
-                    OutilSourceId = l.OutilSourceId ?? Guid.Empty,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId, // DTO est déjà Guid (non-nullable)
-                    TypeControleId = l.TypeControleId,               // DTO est déjà Guid (non-nullable)
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                    TypeControleId = l.TypeControleId,
                     MoyenControleId = l.MoyenControleId ?? Guid.Empty,
                     GroupeInstrumentId = l.GroupeInstrumentId ?? Guid.Empty,
                     PeriodiciteId = l.PeriodiciteId ?? Guid.Empty,
@@ -349,7 +336,6 @@ public static class PlanFabricationMapper
                     Id = l.Id,
                     ModeleLigneSourceId = l.ModeleLigneSourceId,
                     OrdreAffiche = l.OrdreAffiche,
-                    OutilSourceId = l.OutilSourceId,
                     TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                     LibelleAffiche = l.LibelleAffiche ?? string.Empty,
                     TypeControleId = l.TypeControleId,
