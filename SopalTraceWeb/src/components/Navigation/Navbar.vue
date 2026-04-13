@@ -115,6 +115,10 @@ import Avatar from 'primevue/avatar'
 import InputText from 'primevue/inputtext'
 import { useRouter } from 'vue-router'
 
+defineOptions({
+  name: 'TheNavbar'
+})
+
 const router = useRouter()
 
 const searchQuery = ref('')

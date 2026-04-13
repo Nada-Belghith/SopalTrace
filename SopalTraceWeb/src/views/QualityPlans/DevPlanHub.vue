@@ -61,7 +61,7 @@
         
         <!-- ACTIONS -->
         <div class="p-3 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-3">
-          <button @click="editer(mod.category, mod.id)" class="bg-slate-800 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
+          <button @click="editer(mod.category)" class="bg-slate-800 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
             <i class="pi pi-pencil"></i> Éditer
           </button>
           <button class="bg-emerald-100 text-emerald-700 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-emerald-200 transition-colors">
@@ -131,19 +131,8 @@ const getHoverBorderColor = (category) => {
   return colors[category] || 'hover:border-slate-400';
 };
 
-const getBadgeColor = (category) => {
-  const colors = {
-    'FAB': 'bg-blue-50 text-blue-600 border border-blue-200',
-    'ASS': 'bg-indigo-50 text-indigo-600 border border-indigo-200',
-    'PF':  'bg-emerald-50 text-emerald-600 border border-emerald-200',
-    'VM':  'bg-orange-50 text-orange-600 border border-orange-200',
-    'ECH': 'bg-purple-50 text-purple-600 border border-purple-200'
-  };
-  return colors[category] || 'bg-slate-100 text-slate-600 border border-slate-200';
-};
-
-// Fonction d'édition (Peut inclure l'ID à l'avenir pour ouvrir directement le bon plan)
-const editer = (category, id) => {
+// Fonction d'édition (Peut inclure les ID à l'avenir pour ouvrir directement le bon plan)
+const editer = (category) => {
   switch (category) {
     case 'FAB': 
       router.push('/dev/fabrication/nouveau'); // Plus tard: router.push(`/dev/fabrication/editer/${id}`)
