@@ -135,7 +135,7 @@ const getHoverBorderColor = (category) => {
 const editer = (category) => {
   switch (category) {
     case 'FAB': 
-      router.push(`/dev/fabrication/editer/${id}`);
+      router.push('/dev/fabrication/nouveau'); // Plus tard: router.push(`/dev/fabrication/editer/${id}`)
       break;
     case 'ASS': 
       router.push('/dev/assemblage/nouveau'); 

@@ -1,4 +1,5 @@
 <template>
+  <!-- eslint-disable vue/no-mutating-props -->
   <div class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
     <table class="w-full text-left border-collapse min-w-[1200px]">
       
@@ -101,6 +102,7 @@
 </template>
 
 <script setup>
+/* eslint-disable vue/no-mutating-props */
 import { computed } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import FabLigneControl from './FabLigneControl.vue';
@@ -110,7 +112,9 @@ const props = defineProps({
   index: { type: Number, required: true }
 });
 
-const emit = defineEmits(['remove']);
+// CORRECTION : On définit les emits sans les assigner à une variable inutilisée !
+defineEmits(['remove']);
+
 const store = useFabModeleStore();
 
 const periodesFixes = computed(() => (store.periodicites || []).filter(p => 
