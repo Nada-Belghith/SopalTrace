@@ -38,4 +38,8 @@ public partial class PlanEchantillonnageEntete
     public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual Nqa Nqa { get; set; } = null!;
+
+    public virtual ICollection<PlanAssEntete> PlanAssEntetes { get; set; } = new List<PlanAssEntete>();
+
+    public virtual ICollection<PlanEchantillonnageRegle> PlanEchantillonnageRegles { get; set; } = new List<PlanEchantillonnageRegle>();
 }

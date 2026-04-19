@@ -7,7 +7,7 @@ public partial class PlanNcEntete
 {
     public Guid Id { get; set; }
 
-    public string TypeRobinetCode { get; set; } = null!;
+    public string? TypeRobinetCode { get; set; }
 
     public string OperationCode { get; set; } = null!;
 
@@ -39,5 +39,5 @@ public partial class PlanNcEntete
 
     public virtual PosteTravail PosteCodeNavigation { get; set; } = null!;
 
-    public virtual TypeRobinet TypeRobinetCodeNavigation { get; set; } = null!;
+    public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 }

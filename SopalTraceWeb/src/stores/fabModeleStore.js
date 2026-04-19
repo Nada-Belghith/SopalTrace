@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import { fabPlanService } from '@/services/fabPlanService';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
-
   // --- DICTIONNAIRES ---
   const operations = ref([]);
   const typesRobinet = ref([]);
@@ -13,8 +12,9 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const moyensControle = ref([]);
   const periodicites = ref([]);
   const typesSection = ref([]); 
-  const groupesInstruments = ref([]); // Ajouté
-  const instruments = ref([]); // <-- NOUVEAU
+  const groupesInstruments = ref([]); 
+  const instruments = ref([]); 
+  const gammesOperatoires = ref([]); // <-- NOUVEAU
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU MODÈLE ---
@@ -28,12 +28,13 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   
   const sections = ref([]);
   const isLoading = ref(false);
+  const version = ref(1); // <-- NOUVEAU : Rend la version dynamique
 
   const codeModeleAuto = computed(() => {
-    const op = entete.value.operationCode || 'ALL';
+    const op = entete.value.operationCode || 'XXX';
     const nat = entete.value.natureComposantCode || 'XXX';
-    const typ = entete.value.typeRobinetCode || 'XXX';
-    return `MOD-${op}-${nat}-${typ}-V1`.toUpperCase();
+    const typ = entete.value.typeRobinetCode || 'ALL';
+    return `MOD-${op}-${nat}-${typ}-V${version.value}`.toUpperCase();
   });
 
   // --- ACTIONS ---
@@ -49,9 +50,12 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       typesControle.value = data.typesControle || [];
       moyensControle.value = data.moyensControle || [];
       periodicites.value = data.periodicites || [];
-      typesSection.value = data.typesSections || []; 
+      typesSection.value = data.typesSection || data.typesSections || []; 
       groupesInstruments.value = data.groupesInstruments || []; 
       instruments.value = data.instruments || []; 
+      
+      gammesOperatoires.value = data.gammes || []; // <-- NOUVEAU
+
       isDicosLoaded.value = true;
     } catch (apiError) {
       console.error("Erreur réseau (Dictionnaires):", apiError);
@@ -104,16 +108,17 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     }
   };
 
-  const saveModele = async () => {
+  const saveModele = async (legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = {
         code: codeModeleAuto.value,
         libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value}`,
-        typeRobinetCode: entete.value.typeRobinetCode,
-        natureComposantCode: entete.value.natureComposantCode,
+        typeRobinetCode: entete.value.typeRobinetCode || null,
+        natureComposantCode: entete.value.natureComposantCode || null,
         operationCode: entete.value.operationCode || null, 
         notes: entete.value.notes || "",
+        legendeMoyens: legendeMoyens || '',
         sections: sections.value.map(s => ({
           ordreAffiche: s.ordreAffiche,
           typeSectionId: s.typeSectionId, // Ajouté dans le mapping
@@ -122,17 +127,17 @@ export const useFabModeleStore = defineStore('fabModele', () => {
           frequenceLibelle: s.frequenceLibelle,
           notes: s.notes, // Ajouté dans le mapping
           lignes: s.lignes.map(l => ({
-          ordreAffiche: l.ordreAffiche,
-          typeCaracteristiqueId: l.typeCaracteristiqueId,
-          libelleAffiche: l.libelleAffiche,
-          typeControleId: l.typeControleId,
-          moyenControleId: l.moyenControleId,
-          groupeInstrumentId: l.groupeInstrumentId,
-          instrumentCode: l.instrumentCode, // <-- NOUVEAU
-          periodiciteId: l.periodiciteId,
-          instruction: l.instruction,
-          estCritique: l.estCritique
-        }))
+            ordreAffiche: l.ordreAffiche,
+            typeCaracteristiqueId: l.typeCaracteristiqueId,
+            libelleAffiche: l.libelleAffiche,
+            typeControleId: l.typeControleId,
+            moyenControleId: l.moyenControleId,
+            groupeInstrumentId: l.groupeInstrumentId,
+            instrumentCode: l.instrumentCode, // <-- NOUVEAU
+            periodiciteId: l.periodiciteId,
+            instruction: l.instruction,
+            estCritique: l.estCritique
+          }))
         }))
       };
 
@@ -145,8 +150,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   return {
     operations, typesRobinet, naturesComposant, 
     typesCaracteristique, typesControle, moyensControle, 
-    periodicites, typesSection, groupesInstruments, instruments, isDicosLoaded, // <-- N'OUBLIEZ PAS D'EXPORTER "instruments" et "groupesInstruments"
-    entete, sections, isLoading, codeModeleAuto,
+    periodicites, typesSection, groupesInstruments, instruments, gammesOperatoires, isDicosLoaded, 
+    entete, sections, isLoading, version, codeModeleAuto,
     fetchDictionnaires, addSection, removeSection, addLigneLibre, removeLigne, saveModele
   };
 });

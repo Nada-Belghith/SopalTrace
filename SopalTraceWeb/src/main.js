@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-
+import ConfirmationService from 'primevue/confirmationservice';
 import { logger } from '@/utils/logger'; // <-- 1. IMPORT DU LOGGER
 
 // --- Imports PrimeVue ---
@@ -21,7 +21,7 @@ const app = createApp(App)
 app.config.errorHandler = (err, instance, info) => {
     logger.error(`[Vue Global Error] Info: ${info}`, err);
 };
-
+app.use(ConfirmationService);
 app.use(createPinia())
 app.use(router)
 

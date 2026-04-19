@@ -12,6 +12,7 @@ public record CreatePlanAssRequestDto
     public string? CodeArticleSage { get; init; }
     public required string Nom { get; init; }
     public string? CommentaireVersion { get; init; }
+    public string? LegendeMoyens { get; init; } // <-- Ajout
 }
 
 // --- ÉDITION (ARBRE COMPLET) ---
@@ -74,6 +75,7 @@ public record NouvelleVersionAssRequestDto
     public required Guid AncienId { get; init; }
     public required string CreePar { get; init; }
     public string? MotifModification { get; init; }
+    public string? LegendeMoyens { get; init; } // <-- Ajout
 }
 
 // --- LECTURE ---
@@ -89,6 +91,7 @@ public record PlanAssResponseDto
     public required int Version { get; init; }
     public required string Statut { get; init; }
     public DateTime? DateApplication { get; init; }
+    public string? LegendeMoyens { get; init; } // <-- Ajout
     public required string CreePar { get; init; }
     public required DateTime CreeLe { get; init; }
     public string? ModifiePar { get; init; }

@@ -17,6 +17,12 @@ public class ModeleIntrouvableException : DomainException
         : base($"Le modèle avec l'identifiant {id} est introuvable.") { }
 }
 
+public class ModeleGeneriqueException : DomainException
+{
+    public ModeleGeneriqueException(Guid id)
+        : base($"Impossible d'instancier un plan de fabrication : le modèle source {id} est lié à une nature de composant générique.") { }
+}
+
 public class PlanIntrouvableException : DomainException
 {
     public PlanIntrouvableException(Guid id)
@@ -51,4 +57,10 @@ public class ArticleSageIntrouvableException : DomainException
 {
     public ArticleSageIntrouvableException(string codeArticle)
         : base($"L'article SAGE '{codeArticle}' n'existe pas dans le référentiel ERP.") { }
+}
+
+public class ConflitConcurrenceException : DomainException
+{
+    public ConflitConcurrenceException(string details)
+        : base($"Conflit de concurrence détecté. {details} Merci de recharger puis réessayer.") { }
 }

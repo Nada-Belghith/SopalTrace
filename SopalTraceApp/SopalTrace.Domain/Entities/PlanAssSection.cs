@@ -11,7 +11,7 @@ public partial class PlanAssSection
 
     public int OrdreAffiche { get; set; }
 
-    public Guid TypeSectionId { get; set; }
+    public Guid? TypeSectionId { get; set; }
 
     public Guid? PeriodiciteId { get; set; }
 
@@ -31,5 +31,5 @@ public partial class PlanAssSection
 
     public virtual PlanAssEntete PlanEntete { get; set; } = null!;
 
-    public virtual TypeSection TypeSection { get; set; } = null!;
+    public virtual TypeSection? TypeSection { get; set; }
 }

@@ -17,6 +17,7 @@ public record CreatePlanRequestDto
     public string Nom { get; init; }
     public string MachineDefautCode { get; set; }
     public string CommentaireVersion { get; init; }
+    public string LegendeMoyens { get; init; } 
 }
 
 public record ChangePlanStatusRequestDto
@@ -38,6 +39,7 @@ public record NouvelleVersionRequestDto
     public Guid AncienId { get; init; }
     public string ModifiePar { get; init; }
     public string MotifModification { get; init; }
+    public string LegendeMoyens { get; init; } // <-- Ajout
     public List<SectionEditDto> SectionsModifiees { get; init; } = new();
 }
 
@@ -63,11 +65,13 @@ public record SectionEditDto
 {
     public Guid? Id { get; set; }
 
-    // AJOUT ICI : Permet au mapper de faire le lien avec le modèle source
     public Guid? ModeleSectionId { get; init; }
 
-    public Guid TypeSectionId { get; init; }
+    public Guid? TypeSectionId { get; init; }
     public string LibelleSection { get; init; }
+    public string FrequenceLibelle { get; init; } 
+    public Guid? PeriodiciteId { get; init; }
+   
     public int OrdreAffiche { get; init; }
     public List<LigneEditDto> Lignes { get; init; } = new();
 }
@@ -76,13 +80,12 @@ public record LigneEditDto
 {
     public Guid? Id { get; set; }
 
-    // AJOUT ICI : Permet au mapper de faire le lien avec la ligne source
     public Guid? ModeleLigneSourceId { get; init; }
 
     public int OrdreAffiche { get; init; }
-    public Guid TypeCaracteristiqueId { get; init; }
+    public Guid? TypeCaracteristiqueId { get; init; }
     public string LibelleAffiche { get; init; }
-    public Guid TypeControleId { get; init; }
+    public Guid? TypeControleId { get; init; }
     public Guid? MoyenControleId { get; init; }
     public Guid? GroupeInstrumentId { get; init; }
     public string InstrumentCode { get; init; }
@@ -105,6 +108,7 @@ public record PlanResponseDto
 {
     public Guid Id { get; init; }
     public Guid ModeleSourceId { get; init; }
+    public string OperationCode { get; init; }
     public string CodeArticleSage { get; init; }
     public string Nom { get; init; }
     public string Designation { get; init; }
@@ -112,6 +116,7 @@ public record PlanResponseDto
     public string Statut { get; init; }
     public DateTime? DateApplication { get; init; }
     public string MachineDefautCode { get; init; }
+    public string LegendeMoyens { get; init; } // <-- Ajout
     public string CreePar { get; init; }
     public DateTime CreeLe { get; init; }
     public string ModifiePar { get; init; }
@@ -135,8 +140,9 @@ public record PlanLigneResponseDto
     public Guid Id { get; init; }
     public Guid? ModeleLigneSourceId { get; init; }
     public int OrdreAffiche { get; init; }
-    public Guid TypeCaracteristiqueId { get; init; }
+    public Guid? TypeCaracteristiqueId { get; init; }
     public string LibelleAffiche { get; init; }
+    public string NomCategorie { get; init; }
     public Guid TypeControleId { get; init; }
     public Guid? MoyenControleId { get; init; }
     public Guid? GroupeInstrumentId { get; init; }
@@ -151,3 +157,16 @@ public record PlanLigneResponseDto
     public string Instruction { get; set; }
     public bool EstCritique { get; init; }
 }
+
+public record RestaurerPlanRequestDto(
+    Guid PlanArchiveId, 
+    string RestaurePar, 
+    string MotifRestoration
+);
+public record UpdateValeursPlanRequestDto
+{
+    public List<SectionEditDto> Sections { get; init; } = new();
+    public string LegendeMoyens { get; init; }
+    public bool Finaliser { get; init; } = true;
+}
+

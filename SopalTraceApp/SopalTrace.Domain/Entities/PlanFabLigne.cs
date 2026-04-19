@@ -15,15 +15,15 @@ public partial class PlanFabLigne
 
     public int OrdreAffiche { get; set; }
 
-    public Guid TypeCaracteristiqueId { get; set; }
+    public Guid? TypeCaracteristiqueId { get; set; }
 
-    public string LibelleAffiche { get; set; } = null!;
+    public string? LibelleAffiche { get; set; }
 
-    public Guid TypeControleId { get; set; }
+    public Guid? TypeControleId { get; set; }
 
     public Guid? MoyenControleId { get; set; }
 
-    public Guid? GroupeInstrumentId { get; set; }
+    public string? MoyenTexteLibre { get; set; }
 
     public string? InstrumentCode { get; set; }
 
@@ -45,8 +45,6 @@ public partial class PlanFabLigne
 
     public bool EstCritique { get; set; }
 
-    public virtual GroupeInstrument? GroupeInstrument { get; set; }
-
     public virtual Instrument? InstrumentCodeNavigation { get; set; }
 
     public virtual ModeleFabLigne? ModeleLigneSource { get; set; }
@@ -59,7 +57,7 @@ public partial class PlanFabLigne
 
     public virtual PlanFabSection Section { get; set; } = null!;
 
-    public virtual TypeCaracteristique TypeCaracteristique { get; set; } = null!;
+    public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 
-    public virtual TypeControle TypeControle { get; set; } = null!;
+    public virtual TypeControle? TypeControle { get; set; }
 }

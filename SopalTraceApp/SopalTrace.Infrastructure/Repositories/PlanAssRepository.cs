@@ -86,7 +86,14 @@ public class PlanAssRepository : IPlanAssRepository
 
     public async Task SaveChangesAsync()
     {
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            throw ex.ToDomainExceptionOrSelf("Le plan d'assemblage a été modifié/créé en parallèle.");
+        }
     }
 
     public async Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string typeRobinetCode, string? codeArticleSage)

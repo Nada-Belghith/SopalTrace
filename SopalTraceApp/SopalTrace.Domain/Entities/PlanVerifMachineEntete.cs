@@ -21,6 +21,8 @@ public partial class PlanVerifMachineEntete
 
     public string Statut { get; set; } = null!;
 
+    public string? LegendeMoyens { get; set; }
+
     public string CreePar { get; set; } = null!;
 
     public DateTime CreeLe { get; set; }

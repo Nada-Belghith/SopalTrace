@@ -12,4 +12,8 @@ public partial class Defautheque
     public string? Description { get; set; }
 
     public bool Actif { get; set; }
+
+    public virtual ICollection<PlanAssLigne> PlanAssLignes { get; set; } = new List<PlanAssLigne>();
+
+    public virtual ICollection<PlanPfLigne> PlanPfLignes { get; set; } = new List<PlanPfLigne>();
 }

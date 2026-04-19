@@ -35,10 +35,11 @@ public class ExceptionMiddleware
 
         context.Response.StatusCode = exception switch
         {
-            ValidationException => (int)HttpStatusCode.BadRequest, // <-- NOUVEAU: Erreur de formulaire (400)
-            AuthException => (int)HttpStatusCode.Unauthorized,     // (401) Toutes les erreurs d'authentification
-            DomainException => (int)HttpStatusCode.BadRequest,     // Erreur métier Sopal (400)
-            _ => (int)HttpStatusCode.InternalServerError           // Erreur système (500)
+            ValidationException => (int)HttpStatusCode.BadRequest,
+            AuthException => (int)HttpStatusCode.Unauthorized,
+            ConflitConcurrenceException => (int)HttpStatusCode.Conflict,
+            DomainException => (int)HttpStatusCode.BadRequest,
+            _ => (int)HttpStatusCode.InternalServerError
         };
 
         // Si l'erreur vient de nos nouveaux validateurs (FluentValidation)

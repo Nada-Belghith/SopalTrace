@@ -31,9 +31,9 @@ public static class PlanAssMapper
             Sections = plan.PlanAssSections?.Select(s => new SectionAssResponseDto
             {
                 Id = s.Id,
-                TypeSectionId = s.TypeSectionId,
-                PeriodiciteId = s.PeriodiciteId,
-                LibelleSection = s.LibelleSection,
+                TypeSectionId = s.TypeSectionId ?? Guid.Empty,
+                PeriodiciteId = s.PeriodiciteId ?? Guid.Empty,
+                LibelleSection = s.LibelleSection ?? string.Empty,
                 OrdreAffiche = s.OrdreAffiche,
                 NormeReference = s.NormeReference,
                 NqaId = s.NqaId,
@@ -42,11 +42,10 @@ public static class PlanAssMapper
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
-                    LibelleAffiche = l.LibelleAffiche,
-                    TypeControleId = l.TypeControleId,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                    LibelleAffiche = l.LibelleAffiche ?? string.Empty,
+                    TypeControleId = l.TypeControleId ?? Guid.Empty,
                     MoyenControleId = l.MoyenControleId,
-                    GroupeInstrumentId = l.GroupeInstrumentId,
                     ValeurNominale = l.ValeurNominale,
                     ToleranceSuperieure = l.ToleranceSuperieure,
                     ToleranceInferieure = l.ToleranceInferieure,
@@ -87,7 +86,6 @@ public static class PlanAssMapper
             LibelleAffiche = dto.LibelleAffiche,
             TypeControleId = dto.TypeControleId,
             MoyenControleId = dto.MoyenControleId,
-            GroupeInstrumentId = dto.GroupeInstrumentId,
             ValeurNominale = dto.ValeurNominale,
             ToleranceSuperieure = dto.ToleranceSuperieure,
             ToleranceInferieure = dto.ToleranceInferieure,
@@ -106,7 +104,6 @@ public static class PlanAssMapper
         ligne.LibelleAffiche = dto.LibelleAffiche;
         ligne.TypeControleId = dto.TypeControleId;
         ligne.MoyenControleId = dto.MoyenControleId;
-        ligne.GroupeInstrumentId = dto.GroupeInstrumentId;
         ligne.ValeurNominale = dto.ValeurNominale;
         ligne.ToleranceSuperieure = dto.ToleranceSuperieure;
         ligne.ToleranceInferieure = dto.ToleranceInferieure;
@@ -166,7 +163,6 @@ public static class PlanAssMapper
                     LibelleAffiche = sourceLigne.LibelleAffiche,
                     TypeControleId = sourceLigne.TypeControleId,
                     MoyenControleId = sourceLigne.MoyenControleId,
-                    GroupeInstrumentId = sourceLigne.GroupeInstrumentId,
                     ValeurNominale = sourceLigne.ValeurNominale,
                     ToleranceSuperieure = sourceLigne.ToleranceSuperieure,
                     ToleranceInferieure = sourceLigne.ToleranceInferieure,

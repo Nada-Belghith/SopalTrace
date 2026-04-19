@@ -19,6 +19,8 @@ public partial class PlanVerifMachineLigne
 
     public string TypeSaisie { get; set; } = null!;
 
+    public string? MoyenTexteLibre { get; set; }
+
     public double? ValeurNominale { get; set; }
 
     public double? ToleranceSup { get; set; }

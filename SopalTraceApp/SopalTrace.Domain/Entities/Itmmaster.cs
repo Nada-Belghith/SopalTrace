@@ -15,7 +15,15 @@ public partial class Itmmaster
 
     public string? Statut { get; set; }
 
+    public string? TypeRobinetCode { get; set; }
+
+    public string? NatureComposantCode { get; set; }
+
     public virtual ICollection<Mfghead> Mfgheads { get; set; } = new List<Mfghead>();
 
     public virtual ICollection<Mfgmat> Mfgmats { get; set; } = new List<Mfgmat>();
+
+    public virtual NatureComposant? NatureComposantCodeNavigation { get; set; }
+
+    public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 }

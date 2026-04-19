@@ -1,7 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
@@ -9,6 +7,7 @@ using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Api.Controllers;
@@ -18,98 +17,169 @@ namespace SopalTrace.Api.Controllers;
 public class PlanFabricationController : ControllerBase
 {
     private readonly IPlanFabricationService _planService;
+    private readonly IReferentielService _referentielService;
     private readonly SopalTraceDbContext _context;
 
-    public PlanFabricationController(IPlanFabricationService planService, SopalTraceDbContext context)
+    public PlanFabricationController(IPlanFabricationService planService, IReferentielService referentielService, SopalTraceDbContext context)
     {
         _planService = planService;
+        _referentielService = referentielService;
         _context = context;
     }
 
-    // ==========================================
-    // MODÈLES
-    // ==========================================
-
-    [HttpPost("modeles")]
-    public async Task<IActionResult> CreerModele([FromBody] CreateModeleRequestDto request)
-    {
-        var id = await _planService.CreerModeleAsync(request);
-        return Ok(new { success = true, modeleId = id });
-    }
-
-    [HttpGet("modeles/{id}")]
-    public async Task<IActionResult> GetModele(Guid id)
-    {
-        var data = await _planService.GetModeleByIdAsync(id);
-        return Ok(new { success = true, data });
-    }
-
-    // ==========================================
-    // PLANS DE FABRICATION
-    // ==========================================
-
-    [HttpPost("plans/instancier")]
+    [HttpPost("instancier")]
     public async Task<IActionResult> InstancierPlan([FromBody] CreatePlanRequestDto request)
     {
         var id = await _planService.InstancierPlanDepuisModeleAsync(request);
         return Ok(new { success = true, planId = id, message = "Plan instancié en BROUILLON." });
     }
 
-    [HttpGet("plans/{id}")]
+    // ⚠️ NOUVELLE ROUTE : Vérifie l'état complet (Brouillon ET Actif)
+    [HttpGet("verifier-etat")]
+    public async Task<IActionResult> VerifierEtatPlan([FromQuery] string articleCode, [FromQuery] Guid? modeleId)
+    {
+        var planQuery = _context.PlanFabEntetes
+            .Where(p => p.CodeArticleSage == articleCode);
+
+        string? operationCode = null;
+        if (modeleId.HasValue && modeleId.Value != Guid.Empty)
+        {
+            operationCode = await _context.ModeleFabEntetes
+                .Where(m => m.Id == modeleId.Value)
+                .Select(m => m.OperationCode)
+                .FirstOrDefaultAsync();
+        }
+
+        var brouillonQuery = planQuery.Where(p => p.Statut == "BROUILLON");
+        if (modeleId.HasValue && modeleId.Value != Guid.Empty)
+        {
+            brouillonQuery = brouillonQuery.Where(p => p.ModeleSourceId == modeleId.Value);
+        }
+
+        var actifQuery = planQuery.Where(p => p.Statut == "ACTIF");
+        if (!string.IsNullOrWhiteSpace(operationCode))
+        {
+            actifQuery = actifQuery.Where(p => p.ModeleSource.OperationCode == operationCode);
+        }
+
+        var brouillon = await brouillonQuery
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync();
+
+        var actif = await actifQuery
+            .Select(p => (int?)p.Version)
+            .FirstOrDefaultAsync();
+
+        return Ok(new
+        {
+            success = true,
+            hasBrouillon = brouillon != Guid.Empty,
+            brouillonId = brouillon,
+            hasActif = actif.HasValue,
+            actifVersion = actif ?? 0
+        });
+    }
+
+    [HttpGet("{id}")]
     public async Task<IActionResult> GetPlan(Guid id)
     {
         var data = await _planService.GetPlanByIdAsync(id);
         return Ok(new { success = true, data });
     }
 
-    [HttpPut("plans/{id}/valeurs")]
-    public async Task<IActionResult> MettreAJourValeurs(Guid id, [FromBody] List<SectionEditDto> request)
+    [HttpPut("{id}/valeurs")]
+    public async Task<IActionResult> MettreAJourValeurs(Guid id, [FromBody] UpdateValeursPlanRequestDto request)
     {
-        var success = await _planService.MettreAJourValeursPlanAsync(id, request);
+        var success = await _planService.MettreAJourValeursPlanAsync(
+            id,
+            request.Sections,
+            request.LegendeMoyens,
+            request.Finaliser
+        );
 
         if (!success) return NotFound(new { success = false, message = "Plan introuvable." });
 
-        return Ok(new { success = true, message = "Plan mis à jour avec liberté totale et rendu ACTIF." });
+        var msg = request.Finaliser ? "Plan mis à jour avec succès et rendu ACTIF." : "Plan mis à jour en tant que brouillon.";
+        return Ok(new { success = true, message = msg });
     }
 
-    [HttpPost("plans/clone")]
+    // ⚠️ NOUVELLE ROUTE : Suppression physique (Hard Delete)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> SupprimerBrouillon(Guid id)
+    {
+        try
+        {
+            var success = await _planService.SupprimerBrouillonAsync(id);
+            if (!success) return NotFound(new { success = false, message = "Plan introuvable." });
+
+            return Ok(new { success = true, message = "Le brouillon a été définitivement supprimé de la base de données." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("clone")]
     public async Task<IActionResult> ClonerPlan([FromBody] ClonePlanRequestDto request)
     {
         var id = await _planService.ClonerPlanPourNouvelArticleAsync(request);
         return Ok(new { success = true, planId = id, message = "Plan cloné avec succès." });
     }
 
-    [HttpPost("plans/nouvelle-version")]
+    [HttpPost("nouvelle-version")]
     public async Task<IActionResult> CreerVersion([FromBody] NouvelleVersionRequestDto request)
     {
         var id = await _planService.CreerNouvelleVersionPlanAsync(request);
         return Ok(new { success = true, planId = id, message = "V2 générée avec succès." });
     }
 
+    [HttpPost("restaurer")]
+    public async Task<IActionResult> RestaurerPlan([FromBody] RestaurerPlanRequestDto request)
+    {
+        try
+        {
+            var id = await _planService.RestaurerPlanArchiveAsync(request);
+            return Ok(new { success = true, planId = id, message = "Plan de fabrication restauré et activé avec succès." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpPost("periodicites")]
     public async Task<IActionResult> CreerNouvellePeriodicite([FromBody] CreatePeriodiciteDto request)
     {
-        var existeDeja = await _context.Periodicites.AnyAsync(x => x.Code == request.Code);
-
-        if (existeDeja)
+        try
         {
-            return BadRequest(new { success = false, message = "Une périodicité avec ce code existe déjà." });
+            var periodiciteId = await _referentielService.CreatePeriodiciteAsync(request);
+            return Ok(new { success = true, periodiciteId });
         }
-
-        var periodicite = new Periodicite
+        catch (InvalidOperationException ex)
         {
-            Id = Guid.NewGuid(),
-            Code = request.Code,
-            Libelle = request.Libelle,
-            FrequenceNum = request.FrequenceNum,
-            FrequenceUnite = request.FrequenceUnite,
-            OrdreAffichage = request.OrdreAffichage,
-            Actif = request.Actif
-        };
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
 
-        _context.Periodicites.Add(periodicite);
-        await _context.SaveChangesAsync();
+    [HttpPost("caracteristiques")]
+    public async Task<IActionResult> CreerNouvelleCaracteristique([FromBody] CreateCaracteristiqueDto request)
+    {
+        try
+        {
+            var caracteristiqueId = await _referentielService.CreateCaracteristiqueAsync(request);
+            var caracteristique = await _context.TypeCaracteristiques.FindAsync(caracteristiqueId);
 
-        return Ok(new { success = true, periodiciteId = periodicite.Id });
+            return Ok(new
+            {
+                success = true,
+                caracteristiqueId,
+                data = caracteristique
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 }

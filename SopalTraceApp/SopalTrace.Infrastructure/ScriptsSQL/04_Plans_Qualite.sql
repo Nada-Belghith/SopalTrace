@@ -8,20 +8,29 @@ CREATE TABLE Modele_Fab_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     Code VARCHAR(60) NOT NULL,
     Libelle VARCHAR(150) NOT NULL,
-    TypeRobinetCode VARCHAR(20) NOT NULL REFERENCES ERP_TypeRobinet(Code),
-    NatureComposantCode VARCHAR(20) NOT NULL REFERENCES ERP_NatureComposant(Code),
-    OperationCode VARCHAR(20) NOT NULL REFERENCES ERP_Operation(Code),
+    TypeRobinetCode VARCHAR(10) NULL REFERENCES TypeRobinet(Code),
+    NatureComposantCode VARCHAR(20) NOT NULL REFERENCES NatureComposant(Code),
+    OperationCode VARCHAR(20) NULL REFERENCES Operation(Code),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES Ref_Formulaire(Id),
     Version INT NOT NULL DEFAULT 1,
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE')),
     Notes NVARCHAR(MAX),
+    LegendeMoyens NVARCHAR(MAX) NULL,
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ArchiveLe DATETIME,
-    ArchivePar VARCHAR(20),
-    UNIQUE (TypeRobinetCode, NatureComposantCode, OperationCode, Version)
+    ArchivePar VARCHAR(20)
 );
 GO
 CREATE TRIGGER trg_no_del_ModFab ON Modele_Fab_Entete INSTEAD OF DELETE AS EXEC sp_RaiseDeleteError 'Modele_Fab_Entete';
+GO
+
+CREATE UNIQUE NONCLUSTERED INDEX UQ_ModeleFab_Version
+    ON Modele_Fab_Entete(TypeRobinetCode, NatureComposantCode, OperationCode, Version)
+    WHERE Statut IN ('BROUILLON','ACTIF','ARCHIVE');
+CREATE UNIQUE NONCLUSTERED INDEX UX_ModeleFab_Actif
+    ON Modele_Fab_Entete(TypeRobinetCode, NatureComposantCode, OperationCode)
+    WHERE Statut = 'ACTIF';
 GO
 
 CREATE TABLE Modele_Fab_Section (
@@ -62,16 +71,25 @@ CREATE TABLE Plan_Fab_Entete (
     Version INT NOT NULL DEFAULT 1,
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     DateApplication DATE,
-    MachineDefautCode VARCHAR(30) REFERENCES ERP_Machine(CodeMachine),
+    MachineDefautCode VARCHAR(30) REFERENCES Machine(CodeMachine),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES Ref_Formulaire(Id),
+    LegendeMoyens NVARCHAR(MAX) NULL,
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20),
     ModifieLe DATETIME,
-    CommentaireVersion NVARCHAR(MAX),
-    UNIQUE (CodeArticleSage, ModeleSourceId, Version)
+    CommentaireVersion NVARCHAR(MAX)
 );
 GO
 CREATE TRIGGER trg_no_del_PlanFab ON Plan_Fab_Entete INSTEAD OF DELETE AS EXEC sp_RaiseDeleteError 'Plan_Fab_Entete';
+GO
+
+CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanFab_ArticleModeleVersion
+    ON Plan_Fab_Entete(CodeArticleSage, ModeleSourceId, Version)
+    WHERE Statut IN ('BROUILLON','ACTIF','ARCHIVE');
+CREATE UNIQUE NONCLUSTERED INDEX UX_PlanFab_Actif
+    ON Plan_Fab_Entete(CodeArticleSage)
+    WHERE Statut = 'ACTIF';
 GO
 
 CREATE TABLE Plan_Fab_Section (
@@ -92,12 +110,12 @@ CREATE TABLE Plan_Fab_Ligne (
     ModeleLigneSourceId UNIQUEIDENTIFIER REFERENCES Modele_Fab_Ligne(Id),
     OrdreAffiche INT NOT NULL DEFAULT 0,
     OutilSourceId UNIQUEIDENTIFIER REFERENCES OutilControle(Id),
-    TypeCaracteristiqueId UNIQUEIDENTIFIER NOT NULL REFERENCES TypeCaracteristique(Id),
+    TypeCaracteristiqueId UNIQUEIDENTIFIER NULL REFERENCES TypeCaracteristique(Id),
     LibelleAffiche VARCHAR(200),
     TypeControleId UNIQUEIDENTIFIER NOT NULL REFERENCES TypeControle(Id),
     MoyenControleId UNIQUEIDENTIFIER REFERENCES MoyenControle(Id),
     GroupeInstrumentId UNIQUEIDENTIFIER REFERENCES GroupeInstrument(Id),
-    InstrumentCode VARCHAR(40) REFERENCES ERP_Instrument(CodeInstrument),
+    InstrumentCode VARCHAR(40) REFERENCES Instrument(CodeInstrument),
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES Periodicite(Id),
     ValeurNominale FLOAT,
     ToleranceSuperieure FLOAT,

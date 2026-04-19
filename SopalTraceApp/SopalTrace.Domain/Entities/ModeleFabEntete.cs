@@ -11,7 +11,7 @@ public partial class ModeleFabEntete
 
     public string Libelle { get; set; } = null!;
 
-    public string TypeRobinetCode { get; set; } = null!;
+    public string? TypeRobinetCode { get; set; }
 
     public string NatureComposantCode { get; set; } = null!;
 
@@ -24,6 +24,8 @@ public partial class ModeleFabEntete
     public string Statut { get; set; } = null!;
 
     public string? Notes { get; set; }
+
+    public string? LegendeMoyens { get; set; }
 
     public string CreePar { get; set; } = null!;
 
@@ -45,5 +47,5 @@ public partial class ModeleFabEntete
 
     public virtual ICollection<PlanFabEntete> PlanFabEntetes { get; set; } = new List<PlanFabEntete>();
 
-    public virtual TypeRobinet TypeRobinetCodeNavigation { get; set; } = null!;
+    public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 }

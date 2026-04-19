@@ -3,33 +3,18 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 
-
 public record ReferenceItemDto(
     Guid? Id,
     string Code,
     string Libelle,
-    bool Actif = true
+    bool Actif,
+    bool? EstGenerique
 );
-
-
-public record GroupeInstrumentDetailedDto(
-    Guid Id,
-    string CodeAlias,
-    string Libelle,
-    List<ReferenceItemDto> Instruments,
-    bool Actif = true
-)
-{
-    public GroupeInstrumentDetailedDto(Guid Id, string CodeAlias, string Libelle, bool Actif = true)
-        : this(Id, CodeAlias, Libelle, new(), Actif)
-    {
-    }
-}
 
 public record InstrumentDto(
     string CodeInstrument,
     string Designation,
-    bool Actif = true
+    bool Actif
 );
 
 public record PeriodiciteDto(
@@ -39,7 +24,7 @@ public record PeriodiciteDto(
     int? FrequenceNum,
     string? FrequenceUnite,
     int OrdreAffichage,
-    bool Actif = true
+    bool Actif
 );
 
 public record CreatePeriodiciteDto
@@ -52,6 +37,17 @@ public record CreatePeriodiciteDto
     public bool Actif { get; init; } = true;
 }
 
+public record CreateCaracteristiqueDto
+{
+    public string Libelle { get; init; }
+    public string? UniteDefaut { get; init; }
+    public bool EstNumerique { get; init; }
+}
+// Ajout du DTO pour les gammes
+public record GammeDto(
+    string NatureComposantCode,
+    string OperationCode
+);
 
 public record ReferentielsResponseDto(
     List<ReferenceItemDto> TypesRobinet,
@@ -62,12 +58,19 @@ public record ReferentielsResponseDto(
     List<ReferenceItemDto> MoyensControle,
     List<PeriodiciteDto> Periodicites,
     List<ReferenceItemDto> TypesSections,
-    List<GroupeInstrumentDetailedDto> GroupesInstruments,
-    List<InstrumentDto> Instruments
+    List<InstrumentDto> Instruments,
+    List<GammeDto> Gammes // Ajout de Gammes
 )
 {
     public ReferentielsResponseDto()
-        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new())
+        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new()) // Ajout d'une liste vide pour l'initialisation
     {
     }
 }
+
+public record ArticleDto(
+    string CodeArticle,
+    string? Designation,
+    string? TypeRobinetCode,
+    string? NatureComposantCode
+);

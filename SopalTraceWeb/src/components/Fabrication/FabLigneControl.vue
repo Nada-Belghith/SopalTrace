@@ -1,18 +1,36 @@
 <template>
   <tr class="hover:bg-blue-50/20 transition-colors group">
-    <!-- Caractéristique contrôlée -->
-    <td class="p-2 border-r border-slate-200 align-top">
-      <div class="flex flex-col gap-2 w-full">
-        <!-- 1. Catégorie -->
-        <select :value="localLigne.typeCaracteristiqueId" @change="(e) => updateLigne('typeCaracteristiqueId', e.target.value)" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
-          <option value="" disabled>Catégorie *</option>
-          <option v-for="tc in (store.typesCaracteristique || [])" :key="tc.id" :value="tc.id">{{ tc.libelle }}</option>
+    <td class="p-2 align-top">
+      <div class="flex items-center gap-1">
+        <select v-model="ligne.typeCaracteristiqueId" :disabled="isReadOnly" :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none focus:border-blue-500', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 cursor-pointer']">
+          <option :value="null" disabled>-- Caractéristique * --</option>
+          <option v-for="car in (store.caracteristiques || store.typesCaracteristiques || store.typesCaracteristique || [])" :key="car.id" :value="car.id">
+            {{ car.libelle }}
+          </option>
         </select>
         
+        <button v-if="!isReadOnly"
+          @click="showAddCaractModal = true" 
+          class="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded border border-blue-200 transition-colors"
+          title="Créer une nouvelle caractéristique"
+        >
+          <i class="pi pi-plus text-xs"></i>
+        </button>
       </div>
-    </td>
 
-    <!-- Limite de spécification (Dynamique selon le type Visuel) -->
+      <Dialog v-model:visible="showAddCaractModal" header="Nouvelle Caractéristique" :modal="true" :style="{ width: '400px' }">
+        <div class="flex flex-col gap-4 pt-2">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-bold text-slate-700">Libellé (Nom) <span class="text-red-500">*</span></label>
+            <InputText v-model="newCaract.libelle" placeholder="Ex: Rayon de courbure" class="w-full text-sm" />
+          </div>
+        </div>
+        <template #footer>
+          <Button label="Annuler" icon="pi pi-times" text @click="showAddCaractModal = false" class="p-button-sm text-slate-500" />
+          <Button label="Créer et Sélectionner" icon="pi pi-check" @click="creerCaracteristique" :loading="isSavingCaract" :disabled="!newCaract.libelle" class="p-button-sm p-button-primary" />
+        </template>
+      </Dialog>
+    </td>
     <td class="p-2 border-r border-slate-200 align-middle bg-slate-50/50">
       <div v-if="!isVisuel" class="text-[10px] text-slate-400 font-bold text-center italic select-none">
           Défini au plan article
@@ -22,58 +40,50 @@
       </div>
     </td>
 
-    <!-- Type de contrôle -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select :value="localLigne.typeControleId" @change="(e) => updateLigne('typeControleId', e.target.value)" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer">
+      <select v-model="ligne.typeControleId" :disabled="isReadOnly" :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none focus:border-blue-500', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 cursor-pointer']">
         <option :value="null" disabled>-- Type de contrôle * --</option>
         <option v-for="tco in (store.typesControle || [])" :key="tco.id" :value="tco.id">{{ tco.libelle }}</option>
       </select>
     </td>
 
-    <!-- Moyen de contrôle (Désactivé si VISUEL) -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select :value="localLigne.moyenControleId"
-              @change="(e) => updateLigne('moyenControleId', e.target.value)"
-              :disabled="isVisuel" 
-              :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white'"
-              class="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
+            <select v-model="ligne.moyenControleId" :disabled="isReadOnly" 
+              :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none transition-opacity', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'cursor-pointer bg-white border border-slate-200 text-slate-700']">
         <option :value="null" disabled>-- Moyen de contrôle * --</option>
         <option v-for="mc in (store.moyensControle || [])" :key="mc.id" :value="mc.id">{{ mc.libelle }}</option>
       </select>
     </td>
 
-    <!-- Code instrument (FUSION DES 2 LISTES + Désactivé si VISUEL) -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <select :value="instrumentSelection"
-              @change="(e) => updateInstrumentSelection(e.target.value)"
-              :disabled="isVisuel"
-              :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white'"
-              class="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
-        <option :value="null" disabled>-- Code instrument * --</option>
-        
-        <optgroup label="Groupes d'instruments">
-          <option v-for="gi in (store.groupesInstruments || [])" :key="'grp_'+gi.id" :value="'GRP|'+gi.id">
-            {{ gi.codeAlias }}
-          </option>
-        </optgroup>
-        
-        <optgroup label="Instruments">
-          <option v-for="ins in (store.instruments || [])" :key="'ins_'+ins.codeInstrument" :value="'INS|'+ins.codeInstrument">
+      <div class="flex gap-1">
+        <select 
+          @change="(e) => { if (e.target.value) ligne.instrumentCode = e.target.value; e.target.value = ''; }"
+          :disabled="isVisuel || isReadOnly"
+          :class="(isVisuel || isReadOnly) ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white'"
+          class="flex-1 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
+          <option value="">-- Outil --</option>
+          <option v-for="ins in (store.instruments || [])" :key="ins.codeInstrument" :value="ins.codeInstrument">
             {{ ins.codeInstrument }}
           </option>
-        </optgroup>
-      </select>
+        </select>
+        <input 
+          v-model="ligne.instrumentCode" 
+          type="text" 
+          placeholder="Perso"
+          :disabled="isVisuel || isReadOnly"
+          :class="(isVisuel || isReadOnly) ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white'"
+          class="flex-1 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity" />
+      </div>
     </td>
 
-    <!-- Observations -->
     <td class="p-2 border-r border-slate-200 align-top">
-      <input :value="localLigne.instruction" @input="(e) => updateLigne('instruction', e.target.value)" type="text" placeholder="Observations (Optionnel)..." 
-             class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-blue-500">
+            <input v-model="ligne.instruction" type="text" placeholder="Observations (Optionnel)..." :disabled="isReadOnly"
+              :class="['w-full rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-600']">
     </td>
 
-    <!-- Actions (Masqué par défaut, apparaît au survol de la ligne grâce à 'group-hover') -->
     <td class="p-2 align-middle text-center opacity-0 group-hover:opacity-100 transition-opacity">
-      <button @click="$emit('remove', localLigne.id)" class="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50" title="Supprimer cette ligne">
+      <button v-if="!isReadOnly" @click="$emit('remove', ligne.id)" class="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50" title="Supprimer cette ligne">
         <i class="pi pi-trash"></i>
       </button>
     </td>
@@ -81,74 +91,92 @@
 </template>
 
 <script setup>
-import { computed, watch, ref } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { qualityPlansService } from '@/services/qualityPlansService';
+import { useToast } from 'primevue/usetoast';
+
+// Importation des composants PrimeVue manquants dans ce fichier
+import Dropdown from 'primevue/dropdown';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
+import Checkbox from 'primevue/checkbox';
+import Button from 'primevue/button';
+
+const toast = useToast();
 
 const props = defineProps({
-  ligne: { type: Object, required: true }
+  ligne: { type: Object, required: true },
+  isReadOnly: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['remove', 'update-ligne']);
+const isReadOnly = computed(() => props.isReadOnly);
+
+defineEmits(['remove']);
 
 const store = useFabModeleStore();
 
-// État local synchronisé avec les props
-const localLigne = ref({ ...props.ligne });
+// =========================================================================
+// LOGIQUE DE CRÉATION DE CARACTÉRISTIQUE À LA VOLÉE
+// =========================================================================
+const showAddCaractModal = ref(false);
+const isSavingCaract = ref(false);
 
-// Sync local state with props changes
-watch(() => props.ligne, (newLigne) => {
-  localLigne.value = { ...newLigne };
-}, { deep: true });
+const newCaract = ref({
+  libelle: '',
+  estNumerique: true,
+  uniteDefaut: ''
+});
 
-const updateLigne = (key, value) => {
-  localLigne.value[key] = value;
-  emit('update-ligne', { ...localLigne.value });
+const creerCaracteristique = async () => {
+  if (!newCaract.value.libelle) return;
+  isSavingCaract.value = true;
+
+  try {
+    const payload = {
+      libelle: newCaract.value.libelle.trim(),
+      estNumerique: newCaract.value.estNumerique,
+      uniteDefaut: newCaract.value.estNumerique ? newCaract.value.uniteDefaut.trim() : null
+    };
+
+    const response = await qualityPlansService.createCaracteristique(payload);
+    const caractCree = response.data.data;
+    
+    // ⚠️ CORRECTION ICI : On utilise le bon nom de variable du store
+    store.typesCaracteristique.push(caractCree); 
+
+    // Sélectionne automatiquement la nouvelle caractéristique
+    props.ligne.typeCaracteristiqueId = caractCree.id;
+
+    toast.add({ severity: 'success', summary: 'Créée !', detail: 'La caractéristique a été ajoutée avec succès.', life: 3000 });
+    
+    // Reset et fermeture
+    showAddCaractModal.value = false;
+    newCaract.value = { libelle: '', estNumerique: true, uniteDefaut: '' };
+
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Impossible de créer.', life: 5000 });
+  } finally {
+    isSavingCaract.value = false;
+  }
 };
+
 
 // =========================================================================
 // INTELLIGENCE : DÉTECTION ET NETTOYAGE DU MODE VISUEL
 // =========================================================================
 
-// 1. Détecte en temps réel si la ligne est un contrôle visuel
+// 1. Détecte en temps réel si la ligne est un contrôle visuel UNIQUEMENT via le Type de Contrôle
 const isVisuel = computed(() => {
-  const typeCtrl = (store.typesControle || []).find(t => t.id === localLigne.value.typeControleId);
-  const typeCarac = (store.typesCaracteristique || []).find(t => t.id === localLigne.value.typeCaracteristiqueId);
-  
-  return (typeCtrl?.code === 'VISUEL') || (typeCarac?.code === 'VISUEL');
+  const typeCtrl = (store.typesControle || []).find(t => t.id === props.ligne.typeControleId);
+  return (typeCtrl?.code === 'VISUEL');
 });
 
-// 2. Si on bascule sur Visuel, on nettoie automatiquement les sélections d'instruments pour éviter les incohérences en base
+// 2. Si on bascule sur Visuel, on nettoie automatiquement les instruments physiques uniquement
 watch(isVisuel, (devenuVisuel) => {
   if (devenuVisuel) {
-    emit('update-ligne', {
-      ...localLigne.value,
-      moyenControleId: null,
-      groupeInstrumentId: null,
-      instrumentCode: null
-    });
+    // ⚠️ On a bien retiré la notion de groupeInstrumentId ici !
+    props.ligne.instrumentCode = null;
   }
 });
-
-// =========================================================================
-// GESTION DES LISTES D'INSTRUMENTS DYNAMIQUES
-// =========================================================================
-
-const instrumentSelection = computed(() => {
-  if (localLigne.value.groupeInstrumentId) return 'GRP|' + localLigne.value.groupeInstrumentId;
-  if (localLigne.value.instrumentCode) return 'INS|' + localLigne.value.instrumentCode;
-  return null;
-});
-
-const updateInstrumentSelection = (val) => {
-  if (!val) {
-    updateLigne('groupeInstrumentId', null);
-    updateLigne('instrumentCode', null);
-  } else if (val.startsWith('GRP|')) {
-    updateLigne('groupeInstrumentId', val.split('|')[1]);
-    updateLigne('instrumentCode', null);
-  } else if (val.startsWith('INS|')) {
-    updateLigne('groupeInstrumentId', null);
-    updateLigne('instrumentCode', val.split('|')[1]);
-  }
-};
 </script>

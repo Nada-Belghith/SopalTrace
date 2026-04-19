@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore; // <-- L'AJOUT CRUCIAL EST ICI !
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Infrastructure.Data;
@@ -54,7 +54,13 @@ public class UnitOfWork : IUnitOfWork
             {
                 await _transaction.CommitAsync();
             }
+
             return result;
+        }
+        catch (DbUpdateException ex)
+        {
+            await RollbackAsync();
+            throw ex.ToDomainExceptionOrSelf("Un enregistrement concurrent a déjà été validé.");
         }
         catch
         {
@@ -94,7 +100,6 @@ public class UnitOfWork : IUnitOfWork
     {
         var strategy = _context.Database.CreateExecutionStrategy();
 
-        // Grâce au 'using Microsoft.EntityFrameworkCore;', cette méthode est maintenant reconnue !
         return await strategy.ExecuteAsync(async () =>
         {
             await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -104,6 +109,11 @@ public class UnitOfWork : IUnitOfWork
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
                 return result;
+            }
+            catch (DbUpdateException ex)
+            {
+                await transaction.RollbackAsync();
+                throw ex.ToDomainExceptionOrSelf("Conflit détecté pendant une opération transactionnelle.");
             }
             catch
             {

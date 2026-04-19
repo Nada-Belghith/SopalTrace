@@ -13,8 +13,5 @@ public class CreatePlanRequestValidator : AbstractValidator<CreatePlanRequestDto
         RuleFor(x => x.CodeArticleSage)
             .NotEmpty().WithMessage("Le code article SAGE est obligatoire.")
             .MaximumLength(30).WithMessage("Le code article ne doit pas dépasser 30 caractères.");
-
-        RuleFor(x => x.Nom)
-            .NotEmpty().WithMessage("Le nom du plan est obligatoire.");
     }
 }

@@ -16,22 +16,37 @@ const router = createRouter({
         {
           path: 'hub',
           name: 'dev-hub',
-          // RECTIFICATION : On ajoute /QualityPlans/ dans le chemin
+          component: () => import('@/views/QualityPlans/DevModelHub.vue'),
+        },
+        {
+          path: 'hub-plans',
+          name: 'dev-hub-plans',
           component: () => import('@/views/QualityPlans/DevPlanHub.vue'),
         },
 
-        // 2. ÉDITEUR FABRICATION (TRN, ESP, USI)
+        // 2. ÉDITEUR FABRICATION (TRN, ESP, USI) - GABARITS
         // Gère les Corps et Volants pour les 3 premières opérations
         {
           path: 'fab/nouveau', 
           name: 'dev-fab-modele-create',
-          // Ce chemin semble correct d'après votre image
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
         },
         {
           path: 'fab/editer/:id',
           name: 'dev-fab-edit',
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
+        },
+
+        // === NOUVEAU : ÉDITEUR PLANS PAR ARTICLE (Production) ===
+        {
+          path: 'fab/plans/nouveau',
+          name: 'dev-fab-plan-create',
+          component: () => import('@/views/QualityPlans/Fabrication/FabPlanEditor.vue'),
+        },
+        {
+          path: 'fab/plans/editer/:id',
+          name: 'dev-fab-plan-edit',
+          component: () => import('@/views/QualityPlans/Fabrication/FabPlanEditor.vue'),
         },
 
         // 3. ÉDITEUR ASSEMBLAGE (Plan Maître & Résultats)

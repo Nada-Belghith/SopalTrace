@@ -1,21 +1,11 @@
-import apiClient from './apiClient';
+import { qualityPlansService } from './qualityPlansService';
 
 export const fabPlanService = {
-  // Récupérer les dictionnaires
-  getDictionnaires() {
-    return apiClient.get('/referentiels/fabrication');
-  },
+  // Récupérer les dictionnaires (wrapping for backward compatibility)
+  getDictionnaires: (...args) => qualityPlansService.getDictionnaires(...args),
 
-  // Sauvegarder le modèle
-  creerModele(payload) {
-    return apiClient.post('/plans-fabrication/modeles', payload);
-  },
-
-  getModeleById(id) {
-    return apiClient.get(`/plans-fabrication/modeles/${id}`);
-  },
-
-  nouvelleVersionModele(payload) {
-    return apiClient.post('/plans-fabrication/modeles/nouvelle-version', payload);
-  }
+  // Modèles (compat wrapper)
+  creerModele: (...args) => qualityPlansService.createModele(...args),
+  getModeleById: (...args) => qualityPlansService.getModeleById(...args),
+  nouvelleVersionModele: (...args) => qualityPlansService.newModeleVersion(...args)
 };

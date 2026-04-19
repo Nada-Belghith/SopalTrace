@@ -14,17 +14,27 @@ public interface IPlanFabricationRepository
 
     // Modèles
     Task<bool> ExisteModeleActifAsync(string typeRobinetCode, string natureCode, string operationCode);
+    Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode);
     Task<ModeleFabEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId);
     Task<ModeleFabEntete?> GetModeleAvecRelationsAsync(Guid modeleId);
+    Task<ModeleFabEntete?> GetModelePourArchivageAsync(Guid modeleId);
     Task AddModeleAsync(ModeleFabEntete modele);
+
+    // --> AJOUTEZ CECI POUR SÉCURISER VOTRE CRÉATION V2
+    Task<int> GetDerniereVersionModeleAsync(string typeRobinetCode, string natureCode, string operationCode); 
 
     // Plans
     Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage);
+    Task<bool> ExistePlanActifPourArticleEtOperationAsync(string codeArticleSage, string? operationCode);
     Task<PlanFabEntete?> GetPlanActifPourArticleAsync(string codeArticleSage); // <-- NOUVELLE MÉTHODE
+    Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid modeleSourceId);
     Task<PlanFabEntete?> GetPlanAvecRelationsAsync(Guid planId);
     Task<PlanFabEntete?> GetPlanCompletPourMiseAJourAsync(Guid planId);
     Task<List<PlanFabLigne>> GetLignesDuPlanAsync(Guid planId);
     Task<PlanFabEntete?> GetPlanByIdAsync(Guid planId);
+    void Delete(PlanFabEntete plan);
+    void DeleteSection(PlanFabSection section);
+    void DeleteLigne(PlanFabLigne ligne);
 
     Task AddPlanAsync(PlanFabEntete plan);
 
@@ -34,4 +44,7 @@ public interface IPlanFabricationRepository
 
     // Unité de travail
     Task SaveChangesAsync();
+    Task<int> GetDerniereVersionPlanAsync(string codeArticleSage);
+    Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string typeRobinetCode, string natureCode, string operationCode);
+    Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string typeRobinetCode, string natureComposantCode, string opCode);
 }

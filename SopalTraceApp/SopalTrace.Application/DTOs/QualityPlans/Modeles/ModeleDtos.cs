@@ -1,4 +1,4 @@
-#nullable disable
+#nullable enable
 using System;
 using System.Collections.Generic;
 
@@ -9,10 +9,11 @@ public record CreateModeleRequestDto
 {
     public required string Code { get; init; }
     public required string Libelle { get; init; }
-    public required string TypeRobinetCode { get; init; }
+    public required string? TypeRobinetCode { get; init; }
     public required string NatureComposantCode { get; init; }
     public required string OperationCode { get; init; }
     public string? Notes { get; init; }
+    public string? LegendeMoyens { get; init; } // <-- Ajout
     public List<SectionModeleEditDto> Sections { get; init; } = new();
 }
 
@@ -34,13 +35,12 @@ public record LigneModeleEditDto
     public string? LibelleAffiche { get; init; }
     public required Guid TypeControleId { get; init; }
     public Guid? MoyenControleId { get; init; }
-    public Guid? GroupeInstrumentId { get; init; }
+    public string? InstrumentCode { get; init; }
     public Guid? PeriodiciteId { get; init; }
     public string? Instruction { get; init; }
     public required bool EstCritique { get; init; }
 }
 
-// --- ACTIONS MÉTIER ---
 public record ChangeModeleStatusRequestDto
 {
     public required string NouveauStatut { get; init; }
@@ -50,8 +50,19 @@ public record ChangeModeleStatusRequestDto
 public record NouvelleVersionModeleRequestDto
 {
     public required Guid AncienId { get; init; }
-    public required string CreePar { get; init; }
+    public string? CreePar { get; init; }
+    public string? ModifiePar { get; init; }
     public string? MotifModification { get; init; }
+    public string? Code { get; init; }
+    public string? Libelle { get; init; }
+    public string? TypeRobinetCode { get; init; }
+    public string? NatureComposantCode { get; init; }
+    public string? OperationCode { get; init; }
+    public string? Notes { get; init; }
+    public string? LegendeMoyens { get; init; }
+
+    // CORRECTION ICI : Il faut que ça s'appelle "Sections" et non "SectionsModifiees" !
+    public List<SectionModeleEditDto> Sections { get; init; } = new();
 }
 
 // --- RÉPONSES ---
@@ -66,6 +77,7 @@ public record ModeleResponseDto
     public required int Version { get; init; }
     public required string Statut { get; init; }
     public string? Notes { get; init; }
+    public string? LegendeMoyens { get; init; } 
     public required string CreePar { get; init; }
     public required DateTime CreeLe { get; init; }
     public string? ArchivePar { get; init; }
@@ -90,8 +102,15 @@ public record ModeleLigneResponseDto
     public string? LibelleAffiche { get; init; }
     public required Guid TypeControleId { get; init; }
     public Guid? MoyenControleId { get; init; }
-    public Guid? GroupeInstrumentId { get; init; }
+    public string? InstrumentCode { get; init; }
     public Guid? PeriodiciteId { get; init; }
     public string? Instruction { get; init; }
     public required bool EstCritique { get; init; }
 }
+
+public record RestaurerModeleRequestDto(
+    Guid ModeleArchiveId, 
+    string RestaurePar,
+    string MotifRestoration
+);
+

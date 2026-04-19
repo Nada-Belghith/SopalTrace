@@ -25,6 +25,8 @@ public partial class PlanFabEntete
 
     public Guid? FormulaireId { get; set; }
 
+    public string? LegendeMoyens { get; set; }
+
     public string CreePar { get; set; } = null!;
 
     public DateTime CreeLe { get; set; }

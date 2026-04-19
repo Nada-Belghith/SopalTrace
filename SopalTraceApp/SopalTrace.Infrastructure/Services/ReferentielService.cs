@@ -1,9 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Application.Mappers;
 using SopalTrace.Infrastructure.Data;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.Services;
 
@@ -18,31 +17,68 @@ public class ReferentielService : IReferentielService
 
     public async Task<ReferentielsResponseDto> GetFabricationReferentielsAsync()
     {
+        var typesRobinet = (await _context.TypeRobinets
+            .Where(x => x.Actif)
+            .Select(x => new { x.Code, x.Libelle })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, null))
+            .ToList();
+
+        var naturesComposant = (await _context.NatureComposants
+            .Where(x => x.Actif)
+            .Select(x => new { x.Code, x.Libelle, x.EstGenerique })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, x.EstGenerique))
+            .ToList();
+
+        var operations = (await _context.Operations
+            .Where(x => x.Actif)
+            .Select(x => new { x.Code, x.Libelle })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, null))
+            .ToList();
+
+        var typesControle = (await _context.TypeControles
+            .Where(x => x.Actif)
+            .Select(x => new { x.Id, x.Code, x.Libelle })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
+            .ToList();
+
+        var typesCaracteristique = (await _context.TypeCaracteristiques
+            .Where(x => x.Actif)
+            .Select(x => new { x.Id, x.Code, x.Libelle })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
+            .ToList();
+
+        var moyensControle = (await _context.MoyenControles
+            .Where(x => x.Actif)
+            .Select(x => new { x.Id, x.Code, x.Libelle })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
+            .ToList();
+
+        var typesSections = (await _context.TypeSections
+            .Where(x => x.Actif)
+            .Select(x => new { x.Id, x.Code, x.Libelle })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
+            .ToList();
+
         return new ReferentielsResponseDto(
-            TypesRobinet: await _context.TypeRobinets
-                .Where(x => x.Actif)
-                .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true))
-                .ToListAsync(),
-            NaturesComposant: await _context.NatureComposants
-                .Where(x => x.Actif)
-                .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true))
-                .ToListAsync(),
-            Operations: await _context.Operations
-                .Where(x => x.Actif)
-                .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true))
-                .ToListAsync(),
-            TypesControle: await _context.TypeControles
-                .Where(x => x.Actif)
-                .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true))
-                .ToListAsync(),
-            TypesCaracteristique: await _context.TypeCaracteristiques
-                .Where(x => x.Actif)
-                .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true))
-                .ToListAsync(),
-            MoyensControle: await _context.MoyenControles
-                .Where(x => x.Actif)
-                .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true))
-                .ToListAsync(),
+            TypesRobinet: typesRobinet,
+
+            NaturesComposant: naturesComposant,
+
+            Operations: operations,
+
+            TypesControle: typesControle,
+
+            TypesCaracteristique: typesCaracteristique,
+
+            MoyensControle: moyensControle,
+
             Periodicites: await _context.Periodicites
                 .Where(x => x.Actif)
                 .OrderBy(x => x.OrdreAffichage)
@@ -55,18 +91,60 @@ public class ReferentielService : IReferentielService
                     x.OrdreAffichage,
                     true))
                 .ToListAsync(),
-            TypesSections: await _context.TypeSections
-                .Where(x => x.Actif)
-                .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true))
-                .ToListAsync(),
-            GroupesInstruments: await _context.GroupeInstruments
-                .Where(x => x.Actif)
-                .Select(x => new GroupeInstrumentDetailedDto(x.Id, x.CodeAlias, x.Libelle, true))
-                .ToListAsync(),
+
+            TypesSections: typesSections,
+
             Instruments: await _context.Instruments
                 .Where(x => x.Actif)
                 .Select(x => new InstrumentDto(x.CodeInstrument, x.Designation, true))
+                .ToListAsync(),
+
+            Gammes: await _context.NatureComposantOperations
+                .Select(g => new GammeDto(g.NatureComposantCode, g.OperationCode))
                 .ToListAsync()
         );
+    }
+
+    public async Task<ArticleDto?> GetArticleInfosAsync(string codeArticle)
+    {
+        var article = await _context.Itmmasters
+            .Where(a => a.CodeArticle == codeArticle)
+            .Select(a => new ArticleDto(
+                a.CodeArticle,
+                a.Designation,
+                a.TypeRobinetCode,
+                a.NatureComposantCode
+            ))
+            .FirstOrDefaultAsync();
+
+        return article;
+    }
+
+    public async Task<Guid> CreatePeriodiciteAsync(CreatePeriodiciteDto request)
+    {
+        var existeDeja = await _context.Periodicites.AnyAsync(x => x.Code == request.Code);
+        if (existeDeja)
+            throw new InvalidOperationException("Une périodicité avec ce code existe déjà.");
+
+        var periodicite = PeriodiciteMapper.MapToEntity(request);
+        _context.Periodicites.Add(periodicite);
+        await _context.SaveChangesAsync();
+
+        return periodicite.Id;
+    }
+
+    public async Task<Guid> CreateCaracteristiqueAsync(CreateCaracteristiqueDto request)
+    {
+        var caracteristique = CaracteristiqueMapper.MapToEntity(request);
+
+        var existeDeja = await _context.TypeCaracteristiques.AnyAsync(
+            x => x.Code == caracteristique.Code || x.Libelle == request.Libelle);
+        if (existeDeja)
+            throw new InvalidOperationException("Une caractéristique avec ce nom existe déjà.");
+
+        _context.TypeCaracteristiques.Add(caracteristique);
+        await _context.SaveChangesAsync();
+
+        return caracteristique.Id;
     }
 }

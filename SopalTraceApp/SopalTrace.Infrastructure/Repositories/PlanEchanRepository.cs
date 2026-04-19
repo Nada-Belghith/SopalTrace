@@ -44,6 +44,13 @@ public class PlanEchanRepository : IPlanEchanRepository
 
     public async Task SaveChangesAsync()
     {
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            throw ex.ToDomainExceptionOrSelf("Le plan d'échantillonnage a été modifié/créé en parallèle.");
+        }
     }
 }

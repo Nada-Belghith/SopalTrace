@@ -27,7 +27,6 @@
           <li class="pl-3 ml-5 border-l border-slate-700 mt-2 mb-4">
             <ul class="space-y-1">
               <li>
-                <!-- CORRECTION ICI : /dev/fab/nouveau au lieu de /dev/fabrication/nouveau -->
                 <router-link to="/dev/fab/nouveau" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white group" active-class="bg-slate-800 text-white">
                   <i class="pi pi-plus-circle text-blue-400 group-hover:rotate-90 transition-transform"></i> En cours Production
                 </router-link>
@@ -57,9 +56,14 @@
         </div>
         <ul class="space-y-1 px-3 mb-6">
           <li>
-            <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white">
-              <i class="pi pi-sliders-v"></i> Plans par Article
-            </a>
+            <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 font-bold">
+              <i class="pi pi-table"></i> Tous les plans
+            </router-link>
+          </li>
+          <li>
+            <router-link to="/dev/fab/plans/nouveau" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 font-bold">
+              <i class="pi pi-sliders-v"></i> Créer plan pour article
+            </router-link>
           </li>
         </ul>
 
