@@ -642,7 +642,11 @@
     sections.value.push({ id: crypto.randomUUID(), isFromDb: false, typeSectionId: '', modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1, isNewFreq: false, nom: '', lignes: [] });
   };
   const supprimerSection = (id) => { sections.value = sections.value.filter(s => s.id !== id); };
-  const mettreAJourSection = (index, updatedSection) => { sections.value[index] = updatedSection; };
+  const mettreAJourSection = (index, updatedSection) => {
+    if (!sections.value[index]) return;
+    // Merge updated fields into existing object to keep the same reference and avoid recursive watcher loops
+    Object.assign(sections.value[index], updatedSection);
+  };
 
   const ajouterLigneASection = (sectionIndex) => {
     if (sections.value[sectionIndex]) {

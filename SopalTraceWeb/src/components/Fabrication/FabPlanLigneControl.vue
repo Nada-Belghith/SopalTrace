@@ -1,16 +1,16 @@
 <template>
-  <tr v-if="ligne" class="hover:bg-blue-50/20 transition-colors group">
+  <tr v-if="localLigne" class="hover:bg-blue-50/20 transition-colors group">
 
     <td class="p-2 align-top">
       <div class="flex items-center gap-1">
         <!-- Si la ligne vient du modèle : lecture seule -->
-        <div v-if="ligne.modeleLigneSourceId" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 font-bold overflow-hidden text-ellipsis whitespace-nowrap cursor-not-allowed" :title="getCaracteristiqueLibelle(ligne.typeCaracteristiqueId)">
-          {{ getCaracteristiqueLibelle(ligne.typeCaracteristiqueId) }}
+        <div v-if="localLigne.modeleLigneSourceId" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 font-bold overflow-hidden text-ellipsis whitespace-nowrap cursor-not-allowed" :title="getCaracteristiqueLibelle(localLigne.typeCaracteristiqueId)">
+          {{ getCaracteristiqueLibelle(localLigne.typeCaracteristiqueId) }}
         </div>
 
         <!-- Sinon : sélection libre + création à la volée -->
         <template v-else>
-          <select v-model="ligne.typeCaracteristiqueId" :disabled="isArchived" :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none focus:border-blue-500', isArchived ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 cursor-pointer']">
+          <select v-model="localLigne.typeCaracteristiqueId" :disabled="isArchived" :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none focus:border-blue-500', isArchived ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 cursor-pointer']">
             <option :value="null">-- Aucune caractéristique --</option>
             <option v-for="car in safeCaracteristiques" :key="car.id" :value="car.id">
               {{ car.libelle }}
@@ -41,7 +41,7 @@
     </td>
 
     <td class="p-2 border-r border-slate-200 bg-blue-50/40 align-top text-center w-[12%]">
-      <input v-model="ligne.valeurNominale" type="text" placeholder="Ex: Ø13"
+          <input v-model="localLigne.valeurNominale" type="text" placeholder="Ex: Ø13"
              :disabled="isVisuel || isArchived"
              :class="isVisuel || isArchived ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white'"
              class="w-full text-center font-semibold text-slate-700 border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-500 text-sm transition-opacity">
@@ -49,7 +49,7 @@
 
     <td class="p-2 border-r border-slate-200 align-top text-center w-[14%] min-w-[170px]">
       <div class="grid grid-cols-2 gap-2">
-        <input v-model.number="ligne.toleranceInferieure"
+        <input v-model.number="localLigne.toleranceInferieure"
                @input="updateLimiteSpecTexte"
                type="number"
                step="any"
@@ -57,7 +57,7 @@
                :disabled="isVisuel || isArchived"
                :class="isVisuel || isArchived ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white'"
                class="w-full text-center font-semibold text-slate-700 border border-slate-300 rounded px-2 py-1.5 outline-none focus:border-slate-500 text-sm transition-opacity">
-        <input v-model.number="ligne.toleranceSuperieure"
+        <input v-model.number="localLigne.toleranceSuperieure"
                @input="updateLimiteSpecTexte"
                type="number"
                step="any"
@@ -69,14 +69,14 @@
     </td>
 
     <td class="p-2 border-r border-slate-200 align-top w-[12%]">
-      <select v-model="ligne.typeControleId" :disabled="isArchived" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer disabled:opacity-60 disabled:bg-slate-50">
+      <select v-model="localLigne.typeControleId" :disabled="isArchived" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer disabled:opacity-60 disabled:bg-slate-50">
         <option :value="null" disabled>-- Type * --</option>
         <option v-for="tco in (store.typesControle || [])" :key="tco.id" :value="tco.id">{{ tco.code }}</option>
       </select>
     </td>
 
     <td class="p-2 border-r border-slate-200 align-top w-[12%]">
-      <select v-model="ligne.moyenControleId" :disabled="isArchived" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer disabled:opacity-60 disabled:bg-slate-50">
+      <select v-model="localLigne.moyenControleId" :disabled="isArchived" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer disabled:opacity-60 disabled:bg-slate-50">
         <option :value="null">-- Moyen --</option>
         <option v-for="mco in (store.moyensControle || [])" :key="mco.id" :value="mco.id">{{ mco.libelle }}</option>
       </select>
@@ -85,7 +85,7 @@
     <!-- Code instrument (Éditable - Combobox) -->
     <td class="p-2 border-r border-slate-200 align-top w-[12%]">
       <div class="flex gap-1 items-center">
-        <select @change="(e) => { if (e.target.value) ligne.instrumentCode = e.target.value; e.target.value = ''; }"
+        <select @change="(e) => { if (e.target.value) localLigne.instrumentCode = e.target.value; e.target.value = ''; }"
                 :disabled="isVisuel"
                 :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white cursor-pointer'"
                 class="flex-1 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
@@ -94,7 +94,7 @@
             {{ ins.codeInstrument }}
           </option>
         </select>
-        <input v-model="ligne.instrumentCode" type="text" placeholder="Perso"
+        <input v-model="localLigne.instrumentCode" type="text" placeholder="Perso"
                :disabled="isVisuel"
                :class="isVisuel ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white'"
                class="flex-1 border border-slate-200 rounded px-2 py-1.5 text-[10px] text-slate-700 outline-none focus:border-blue-500 transition-opacity">
@@ -102,12 +102,12 @@
     </td>
 
     <td class="p-2 border-r border-slate-200 align-top w-[18%] min-w-[180px]">
-      <input v-model="ligne.observations" type="text" placeholder="Infos (Optionnel)..." :disabled="isArchived"
+      <input v-model="localLigne.observations" type="text" placeholder="Infos (Optionnel)..." :disabled="isArchived"
              class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-blue-500 disabled:opacity-60 disabled:bg-slate-50">
     </td>
 
     <td v-if="!isArchived" class="p-2 align-middle text-center opacity-0 group-hover:opacity-100 transition-opacity w-8">
-      <button @click="$emit('remove', ligne.id)" class="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50" title="Supprimer cette ligne">
+      <button @click="$emit('remove', localLigne.id)" class="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50" title="Supprimer cette ligne">
         <i class="pi pi-trash"></i>
       </button>
     </td>
@@ -116,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { qualityPlansService } from '@/services/qualityPlansService';
 import { useToast } from 'primevue/usetoast';
@@ -132,10 +132,23 @@ const props = defineProps({
   isArchived: { type: Boolean, default: false }
 });
 
-defineEmits(['remove']);
+const emit = defineEmits(['remove', 'update']);
 
 const store = useFabModeleStore();
 const toast = useToast();
+
+// Local reactive copy to avoid mutating prop directly
+const localLigne = ref({ ...props.ligne });
+const isSyncingFromParent = ref(false);
+
+watch(() => props.ligne, (n) => {
+  if (!n) return;
+  isSyncingFromParent.value = true;
+  localLigne.value = { ...n };
+  nextTick(() => { isSyncingFromParent.value = false; });
+}, { deep: true });
+
+watch(localLigne, (n) => { if (!isSyncingFromParent.value) emit('update', { ...n }); }, { deep: true });
 
 // --- Création de caractéristique à la volée (comme dans FabLigneControl) ---
 const showAddCaractModal = ref(false);
@@ -160,7 +173,7 @@ const creerCaracteristique = async () => {
 
     // Ajouter au store puis sélectionner
     store.typesCaracteristique.push(item);
-    props.ligne.typeCaracteristiqueId = item.id;
+    localLigne.value.typeCaracteristiqueId = item.id;
 
     showAddCaractModal.value = false;
     newCaract.value.libelle = '';
@@ -183,30 +196,30 @@ const getCaracteristiqueLibelle = (id) => {
 
 // ⚠️ SECURITE
 const isVisuel = computed(() => {
-  if (!props.ligne) return false;
-  const typeCtrl = (store.typesControle || []).find(t => t.id === props.ligne.typeControleId);
+  if (!localLigne.value) return false;
+  const typeCtrl = (store.typesControle || []).find(t => t.id === localLigne.value.typeControleId);
   return typeCtrl?.code === 'VISUEL';
 });
 
 watch(isVisuel, (devenuVisuel) => {
-  if (devenuVisuel && props.ligne) {
-    props.ligne.instrumentCode = null;
-    props.ligne.moyenTexteLibre = '';
-    props.ligne.valeurNominale = null;
-    props.ligne.toleranceInferieure = null;
-    props.ligne.toleranceSuperieure = null;
-    props.ligne.limiteSpecTexte = '';
+  if (devenuVisuel && localLigne.value) {
+    localLigne.value.instrumentCode = null;
+    localLigne.value.moyenTexteLibre = '';
+    localLigne.value.valeurNominale = null;
+    localLigne.value.toleranceInferieure = null;
+    localLigne.value.toleranceSuperieure = null;
+    localLigne.value.limiteSpecTexte = '';
   }
 });
 
 const updateLimiteSpecTexte = () => {
-  if (!props.ligne) return;
-  const min = props.ligne.toleranceInferieure;
-  const max = props.ligne.toleranceSuperieure;
+  if (!localLigne.value) return;
+  const min = localLigne.value.toleranceInferieure;
+  const max = localLigne.value.toleranceSuperieure;
   if (min === null || min === undefined || min === '' || max === null || max === undefined || max === '') {
-    props.ligne.limiteSpecTexte = '';
+    localLigne.value.limiteSpecTexte = '';
     return;
   }
-  props.ligne.limiteSpecTexte = `${min} / ${max}`;
+  localLigne.value.limiteSpecTexte = `${min} / ${max}`;
 };
 </script>

@@ -9,23 +9,27 @@
         
         <!-- RÉUTILISATION DU HEADER -->
         <FabSectionHeader
-          :section="section"
+          :section="localSection"
           :index="index"
           :colspan="8"
           label="GROUPE"
           :periodicites="periodicites"
-          @add-ligne="$emit('add-ligne')"
-          @remove="$emit('remove')"
-          @update:section="$emit('update:section', $event)"
+          @add-ligne="() => { localSection.lignes = [...localSection.lignes, { id: crypto.randomUUID(), typeCaracteristiqueId: null, typeControleId: null, moyenControleId: null, moyenTexteLibre: '', instrumentCode: null, valeurNominale: null, toleranceInferieure: null, toleranceSuperieure: null, unite: '', limiteSpecTexte: '', instruction: '', observations: '', estCritique: false }]; emit('update:section', { ...localSection }); }"
+          @remove="() => emit('remove')"
+          @update:section="(hdr) => { Object.assign(localSection, hdr); emit('update:section', { ...localSection }); }"
         />
 
         <!-- LIGNES AVEC FabPlanLigneControl -->
         <FabPlanLigneControl
-          v-for="ligne in section.lignes"
+          v-for="ligne in localSection.lignes"
           :key="ligne.id"
           :ligne="ligne"
-          :section="section"
-          @remove="$emit('remove-ligne', $event)"
+          :section="localSection"
+          @remove="(id) => { localSection.lignes = localSection.lignes.filter(l => l.id !== id); emit('remove-ligne', id); }"
+          @update="(updated) => {
+            const idx = localSection.lignes.findIndex(l => l.id === updated.id);
+            if (idx !== -1) localSection.lignes.splice(idx, 1, updated);
+          }"
         />
         
       </tbody>
@@ -46,7 +50,28 @@ const props = defineProps({
   periodicites: { type: Array, default: () => [] }
 });
 
-defineEmits(['add-ligne', 'remove', 'remove-ligne', 'update:section']);
+const emit = defineEmits(['add-ligne', 'remove', 'remove-ligne', 'update:section']);
+
+import { ref, watch, nextTick } from 'vue';
+
+// Local copy to avoid mutating props directly from child components
+const localSection = ref({ ...props.section });
+const isSyncingFromParent = ref(false);
+
+watch(() => props.section, (newVal) => {
+  // Avoid overwriting local edits unnecessarily; only sync when id changes or parent produced a different object reference
+  if (!newVal) return;
+  if (newVal.id !== localSection.value.id) {
+    isSyncingFromParent.value = true;
+    localSection.value = { ...newVal };
+    // release flag on next tick
+    nextTick(() => { isSyncingFromParent.value = false; });
+  }
+}, { deep: true });
+
+// NOTE: We intentionally do NOT emit on every deep change of localSection to avoid
+// recursive update loops. Updates are emitted explicitly from handlers below when
+// user actions occur (add/remove/update lignes or header changes).
 
 const planColumns = [
   { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
