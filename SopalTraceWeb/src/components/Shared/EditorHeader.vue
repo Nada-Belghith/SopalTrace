@@ -66,8 +66,6 @@ const props = defineProps({
   }
 });
 
-const isArchived = computed(() => props.statut === 'ARCHIVE');
-
 const codeClass = computed(() => {
   if (props.statut === 'ARCHIVE') {
     return 'bg-amber-50 text-amber-700 border-amber-200';

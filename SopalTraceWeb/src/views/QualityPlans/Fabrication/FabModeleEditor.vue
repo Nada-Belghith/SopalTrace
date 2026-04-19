@@ -139,7 +139,6 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { useToast } from 'primevue/usetoast';
-import Toast from 'primevue/toast';
 
 import { qualityPlansService } from '@/services/qualityPlansService';
 import { useModeleVersioning } from '@/composables/useVersioning';
@@ -357,6 +356,7 @@ const chargerModelePourEdition = async (id) => {
     }, 100);
 
   } catch (e) {
+    console.error(e);
     toast.add({ severity: 'error', summary: 'Introuvable', detail: 'Modèle introuvable.', life: 5000 });
     router.push('/dev/hub');
   } finally {

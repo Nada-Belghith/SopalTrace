@@ -178,7 +178,6 @@
   import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
   import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
   import { useToast } from 'primevue/usetoast';
-  import Toast from 'primevue/toast';
   import { useConfirm } from 'primevue/useconfirm';
 
   import { qualityPlansService } from '@/services/qualityPlansService';
@@ -191,6 +190,7 @@
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
   import FabPlanSectionCard from '@/components/Fabrication/FabPlanSectionCard.vue';
   import EditorActions from '@/components/Shared/EditorActions.vue';
+  import ConfirmDialog from 'primevue/confirmdialog';
 
   const route = useRoute();
   const router = useRouter();
@@ -900,7 +900,7 @@
       await mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, false);
 
       if (afficherToast) {
-        toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données (même incomplètes) sont sauvegardées.', life: 3000 });
+        toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
       }
     } catch (error) {
       console.error("L'auto-save a échoué.", error);

@@ -103,7 +103,6 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
-import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import apiClient from '@/services/apiClient';
 
@@ -134,6 +133,7 @@ const chargerModeles = async () => {
     const response = await apiClient.get('/hub/modeles');
     modeles.value = response.data.data || response.data || [];
   } catch (error) {
+    console.error(error);
     toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les modèles', life: 3000 });
   } finally {
     isLoading.value = false;

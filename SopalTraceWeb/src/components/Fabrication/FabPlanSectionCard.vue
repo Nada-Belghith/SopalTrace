@@ -14,7 +14,7 @@
           :colspan="8"
           label="GROUPE"
           :periodicites="periodicites"
-          @add-ligne="() => { localSection.lignes = [...localSection.lignes, { id: crypto.randomUUID(), typeCaracteristiqueId: null, typeControleId: null, moyenControleId: null, moyenTexteLibre: '', instrumentCode: null, valeurNominale: null, toleranceInferieure: null, toleranceSuperieure: null, unite: '', limiteSpecTexte: '', instruction: '', observations: '', estCritique: false }]; emit('update:section', { ...localSection }); }"
+          @add-ligne="addLigneLocal"
           @remove="() => emit('remove')"
           @update:section="(hdr) => { Object.assign(localSection, hdr); emit('update:section', { ...localSection }); }"
         />
@@ -83,4 +83,17 @@ const planColumns = [
   { label: 'Observations', width: 'flex-1' },
   { label: '', width: 'w-8', textAlign: 'center' }
 ];
+
+// Helper to generate an id that works in all environments
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  // fallback: simple guid-like
+  return 'id-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+};
+
+const addLigneLocal = () => {
+  const nouvelleLigne = { id: generateId(), typeCaracteristiqueId: null, typeControleId: null, moyenControleId: null, moyenTexteLibre: '', instrumentCode: null, valeurNominale: null, toleranceInferieure: null, toleranceSuperieure: null, unite: '', limiteSpecTexte: '', instruction: '', observations: '', estCritique: false };
+  localSection.value.lignes = [ ...(localSection.value.lignes || []), nouvelleLigne ];
+  emit('update:section', { ...localSection.value });
+};
 </script>
