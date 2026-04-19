@@ -102,17 +102,15 @@ const apercu = computed(() => {
     if (per) txt += ` (${per.libelle})`;
   } else if (localSection.value.modeFreq === 'VARIABLE') {
     const sP = (localSection.value.freqNum || 0) > 1 ? 's' : '';
-    let libelleFreq = '';
-
-    if (localSection.value.typeVariable === 'HEURE') {
-      const h = localSection.value.freqHours || 1;
-      const sH = h > 1 ? 's' : '';
-      libelleFreq = h === 1
-        ? `${localSection.value.freqNum || 1} pièce${sP} / heure`
-        : `${localSection.value.freqNum || 1} pièce${sP} / ${h} heure${sH}`;
-    } else {
-      libelleFreq = `une série de ${localSection.value.freqNum || 1} pièces`;
-    }
+    const libelleFreq = localSection.value.typeVariable === 'HEURE'
+      ? (() => {
+          const h = localSection.value.freqHours || 1;
+          const sH = h > 1 ? 's' : '';
+          return h === 1
+            ? `${localSection.value.freqNum || 1} pièce${sP} / heure`
+            : `${localSection.value.freqNum || 1} pièce${sP} / ${h} heure${sH}`;
+        })()
+      : `une série de ${localSection.value.freqNum || 1} pièces`;
 
     txt += ` (${libelleFreq})`;
   }

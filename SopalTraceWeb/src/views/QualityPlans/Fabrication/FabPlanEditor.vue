@@ -311,7 +311,7 @@
     });
   };
 
-  onBeforeRouteLeave(async (_to, _from) => {
+  onBeforeRouteLeave(async () => {
     if (isCanceling.value || isExitingEditor.value) {
       return true;
     }
@@ -367,7 +367,7 @@
     isGeneratingPlan.value = false;
   };
 
-  const onWizardGenerate = async (payload) => {
+  const onWizardGenerate = async () => {
     if (isGeneratingPlan.value) return;
     isGeneratingPlan.value = true;
 
@@ -631,7 +631,7 @@
         };
       });
 
-    } catch (e) {
+    } catch {
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les données.', life: 4000 });
     } finally {
       isLoadingData.value = false;
@@ -708,7 +708,6 @@
           ligne.valeurNominale !== '';
 
         if (hasValeurNominale) {
-          const uniteMissing = !`${ligne.unite || ''}`.trim();
           const tolSupMissing = ligne.toleranceSuperieure === null || ligne.toleranceSuperieure === undefined;
           const tolInfMissing = ligne.toleranceInferieure === null || ligne.toleranceInferieure === undefined;
 
@@ -1094,7 +1093,7 @@
 
   const restaurerArchive = async () => {
     try {
-      const res = await restaurerPlan({
+      await restaurerPlan({
         planArchiveId: planId.value,
         restaurePar: 'ADMIN',
         motifRestoration: 'Restauration manuelle depuis l\'éditeur'
