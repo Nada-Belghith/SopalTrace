@@ -56,5 +56,4 @@ public partial class ModeleFabLigne
     public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 
     public virtual TypeControle? TypeControle { get; set; }
-
 }
