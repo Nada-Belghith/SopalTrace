@@ -43,6 +43,7 @@ public static class PlanFabricationMapper
             Id = Guid.NewGuid(), ModeleSourceId = modele.Id, CodeArticleSage = dto.CodeArticleSage,
             Designation = designationSage, Nom = dto.Nom ?? $"PC-{dto.CodeArticleSage}-v1",
             Version = 1, Statut = StatutsPlan.Brouillon, CreePar = "Admin", CreeLe = DateTime.UtcNow,
+            OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? modele.OperationCode : dto.OperationCode,
             CommentaireVersion = dto.CommentaireVersion,
             LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
             PlanFabSections = new List<PlanFabSection>()
@@ -69,7 +70,8 @@ public static class PlanFabricationMapper
                     MoyenControleId = NullIfEmpty(modeleLigne.MoyenControleId),
                     InstrumentCode = instrumentData.InstrumentCode,
                     MoyenTexteLibre = instrumentData.MoyenTexteLibre,
-                    PeriodiciteId = NullIfEmpty(modeleLigne.PeriodiciteId), Instruction = modeleLigne.Instruction, EstCritique = modeleLigne.EstCritique
+                    PeriodiciteId = NullIfEmpty(modeleLigne.PeriodiciteId), Instruction = modeleLigne.Instruction, EstCritique = modeleLigne.EstCritique,
+                    LimiteSpecTexte = string.IsNullOrWhiteSpace(modeleLigne.LimiteSpecTexte) ? null : modeleLigne.LimiteSpecTexte
                 });
             }
             plan.PlanFabSections.Add(planSection);
@@ -225,6 +227,7 @@ public static class PlanFabricationMapper
             ModeleSourceId = null,
             CodeArticleSage = dto.CodeArticleSage,
             Designation = designationSage,
+            OperationCode = dto.OperationCode,
             Nom = string.IsNullOrWhiteSpace(dto.Nom) ? $"PC-{dto.CodeArticleSage}-V1" : dto.Nom,
             Version = 1,
             Statut = StatutsPlan.Brouillon,

@@ -33,6 +33,10 @@ public class ModeleFabricationService : IModeleFabricationService
 
         var nouveauModele = ModeleFabricationMapper.ConstruireEntiteModeleAPartirDeDto(request);
 
+        // Calcule et applique la nouvelle version afin d'éviter les conflits d'index unique
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(request.TypeRobinetCode, request.NatureComposantCode, request.OperationCode);
+        nouveauModele.Version = nouvelleVersion;
+
         await _repository.AddModeleAsync(nouveauModele);
         await _repository.SaveChangesAsync();
 
@@ -80,21 +84,33 @@ public class ModeleFabricationService : IModeleFabricationService
 
     public async Task<Guid> RestaurerModeleArchiveAsync(RestaurerModeleRequestDto request)
     {
-        var archiveModele = await _repository.GetModeleAvecRelationsAsync(request.ModeleArchiveId);
-        if (archiveModele == null) throw new ModeleIntrouvableException(request.ModeleArchiveId);
-        if (archiveModele.Statut != StatutsPlan.Archive) throw new Exception("Seul un modèle archivé peut être restauré.");
+        // Récupérer l'entité en mode tracké afin de la modifier in-place (évite la création d'une "nouvelle version archive")
+        var modele = await _repository.GetModelePourArchivageAsync(request.ModeleArchiveId);
+        if (modele == null) throw new ModeleIntrouvableException(request.ModeleArchiveId);
+        if (modele.Statut != StatutsPlan.Archive) throw new Exception("Seul un modèle archivé peut être restauré.");
 
         var auteurSecure = SecuriserNomAuteur(request.RestaurePar);
-        await ArchiverModeleActifExistantAsync(archiveModele.TypeRobinetCode, archiveModele.NatureComposantCode, archiveModele.OperationCode, auteurSecure);
 
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(archiveModele.TypeRobinetCode, archiveModele.NatureComposantCode, archiveModele.OperationCode);
+        // Archiver l'éventuel modèle actif actuel de la même famille
+        await ArchiverModeleActifExistantAsync(modele.TypeRobinetCode, modele.NatureComposantCode, modele.OperationCode, auteurSecure);
 
-        var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(archiveModele, auteurSecure, request.MotifRestoration, nouvelleVersion);
+        // Calculer nouvelle version (pour éviter conflit de version)
+        var ancienneVersion = modele.Version;
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(modele.TypeRobinetCode, modele.NatureComposantCode, modele.OperationCode);
 
-        await _repository.AddModeleAsync(nouveauModele);
+        // Ré-activer l'entité existante plutôt que d'en créer une nouvelle
+        modele.Version = nouvelleVersion;
+        modele.Statut = StatutsPlan.Actif;
+        modele.ArchiveLe = null;
+        modele.ArchivePar = null;
+        modele.Notes = $"[Restauré depuis V{ancienneVersion}] {request.MotifRestoration}\n{modele.Notes}";
+        modele.CreePar = auteurSecure;
+        modele.CreeLe = DateTime.UtcNow;
+
+        // Les sections/lignes sont déjà présentes sur l'entité trackée et seront préservées (incluant LimiteSpecTexte)
         await _repository.SaveChangesAsync();
 
-        return nouveauModele.Id;
+        return modele.Id;
     }
 
     private string SecuriserNomAuteur(string auteur) => string.IsNullOrWhiteSpace(auteur) ? "SYSTEM" : (auteur.Length > 20 ? auteur[..20] : auteur);

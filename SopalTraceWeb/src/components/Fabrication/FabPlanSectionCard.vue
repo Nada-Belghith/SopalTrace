@@ -5,54 +5,58 @@
       <!-- EN-TÊTE GLOBAL (Réutilisable) -->
       <FabTableHeader v-if="index === 0" :columns="planColumns" />
       
-      <tbody class="divide-y divide-slate-200">
-        
-        <!-- RÉUTILISATION DU HEADER -->
-        <FabSectionHeader
-          :section="localSection"
-          :index="index"
-          :colspan="8"
-          label="GROUPE"
-          :periodicites="periodicites"
-          @add-ligne="addLigneLocal"
-          @remove="() => emit('remove')"
-          @update:section="(hdr) => { Object.assign(localSection, hdr); emit('update:section', { ...localSection }); }"
-        />
+     <tbody class="divide-y divide-slate-200">
+  
+  <!-- RÉUTILISATION DU HEADER -->
+  <FabSectionHeader
+    :section="localSection"
+    :index="index"
+    :colspan="currentColspan"
+    label="GROUPE"
+    :periodicites="periodicites"
+    :is-archived="isArchived"
+    @add-ligne="addLigneLocal"
+    @remove="() => emit('remove')"
+    @update:section="(hdr) => { Object.assign(localSection, hdr); emit('update:section', { ...localSection }); }"
+  />
 
-        <!-- LIGNES AVEC FabPlanLigneControl -->
-        <FabPlanLigneControl
-          v-for="ligne in localSection.lignes"
-          :key="ligne.id"
-          :ligne="ligne"
-          :section="localSection"
-          @remove="(id) => { localSection.lignes = localSection.lignes.filter(l => l.id !== id); emit('remove-ligne', id); }"
-          @update="(updated) => {
-            const idx = localSection.lignes.findIndex(l => l.id === updated.id);
-            if (idx !== -1) localSection.lignes.splice(idx, 1, updated);
-          }"
-        />
-        
-      </tbody>
+  <!-- LIGNES AVEC FabPlanLigneControl -->
+  <FabPlanLigneControl
+    v-for="ligne in localSection.lignes"
+    :key="ligne.id"
+    :ligne="ligne"
+    :section="localSection"
+    :is-archived="isArchived"
+    :operation-code="operationCode"
+    @remove="(id) => { localSection.lignes = localSection.lignes.filter(l => l.id !== id); emit('remove-ligne', id); }"
+    @update="(updated) => {
+      const idx = localSection.lignes.findIndex(l => l.id === updated.id);
+      if (idx !== -1) localSection.lignes.splice(idx, 1, updated);
+    }"
+  />
+  
+</tbody>
     </table>
 
   </div>
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { defineProps, defineEmits, ref, watch, nextTick, computed } from 'vue';
 import FabTableHeader from './FabTableHeader.vue';
 import FabSectionHeader from './FabSectionHeader.vue';
 import FabPlanLigneControl from './FabPlanLigneControl.vue';
+import { useFabModeleStore } from '@/stores/fabModeleStore';
 
 const props = defineProps({
   section: { type: Object, required: true },
   index: { type: Number, required: true },
-  periodicites: { type: Array, default: () => [] }
+  periodicites: { type: Array, default: () => [] },
+  isArchived: { type: Boolean, default: false },
+  operationCode: { type: String, default: '' }
 });
 
 const emit = defineEmits(['add-ligne', 'remove', 'remove-ligne', 'update:section']);
-
-import { ref, watch, nextTick } from 'vue';
 
 // Local copy to avoid mutating props directly from child components
 const localSection = ref({ ...props.section });
@@ -73,18 +77,25 @@ watch(() => props.section, (newVal) => {
 // recursive update loops. Updates are emitted explicitly from handlers below when
 // user actions occur (add/remove/update lignes or header changes).
 
-const planColumns = [
+const store = useFabModeleStore();
+
+const isAssTrn = computed(() => ['ASS', 'TRN'].includes((props.operationCode || '').toUpperCase()));
+
+const planColumns = computed(() => [
   { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { label: 'Valeur', width: 'w-[12%]', bgColor: '#2563eb', textAlign: 'center' },
+  { label: 'Valeur', width: isAssTrn.value ? 'w-[10%]' : 'w-[12%]', bgColor: '#2563eb', textAlign: 'center' },
   { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
   { label: 'Type de contrôle', width: 'w-[12%]', textAlign: 'center' },
   { label: 'Moyen de contrôle', width: 'w-[12%]', textAlign: 'center' },
   { label: 'Code instrument', width: 'w-[12%]', textAlign: 'center' },
   { label: 'Observations', width: 'flex-1' },
   { label: '', width: 'w-8', textAlign: 'center' }
-];
+]);
+
+const currentColspan = computed(() => 8);
 
 // Helper to generate an id that works in all environments
+
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   // fallback: simple guid-like

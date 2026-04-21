@@ -82,17 +82,22 @@ const isReadOnly = computed(() => props.isReadOnly);
 const emit = defineEmits(['remove', 'update-groupe', 'section-type-required']);
 const store = useFabModeleStore();
 
-// Copie locale pour éviter la mutation directe des props
+// Copie locale
 const localGroupe = ref({ ...props.groupe });
 
+// ⚠️ CORRECTION : Empêche la boucle de mise à jour de Vue.js
 watch(() => props.groupe, (newGroupe) => {
-  localGroupe.value = { ...newGroupe };
+  const sourceSource = JSON.stringify(newGroupe);
+  const sourceLocale = JSON.stringify(localGroupe.value);
+  if (sourceSource !== sourceLocale) {
+    localGroupe.value = JSON.parse(sourceSource);
+  }
 }, { deep: true });
 
 const updateGroupe = (key, value) => {
   localGroupe.value[key] = value;
   verifierVariables();
-  emit('update-groupe', { ...localGroupe.value });
+  emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
 };
 
 const periodesFixes = computed(() => (store.periodicites || []).filter(p => 
@@ -169,8 +174,6 @@ const verifierVariables = () => {
   }
 };
 
-// Si l'opération change et que la règle d'échantillonnage n'est
-// pas supportée (non-ASS), on réinitialise les groupes en FIXE.
 watch(() => store.entete.operationCode, (newOp) => {
   if (isReadOnly.value) return;
   if (newOp !== 'ASS') {
@@ -198,11 +201,14 @@ const ajouterLigne = () => {
     valeurNominale: null,
     toleranceSuperieure: null,
     toleranceInferieure: null,
+    limiteSpecTexte: '', 
+    unite: '',          
     instruction: '',
     observations: '',
     estCritique: false
   };
+  
   localGroupe.value.lignes = [...localGroupe.value.lignes, nouvelleLigne];
-  emit('update-groupe', { ...localGroupe.value });
+  emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
 };
 </script>

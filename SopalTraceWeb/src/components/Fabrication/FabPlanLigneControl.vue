@@ -47,24 +47,42 @@
              class="w-full text-center font-semibold text-slate-700 border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-500 text-sm transition-opacity">
     </td>
 
-    <td class="p-2 border-r border-slate-200 align-top text-center w-[14%] min-w-[170px]">
-      <div class="grid grid-cols-2 gap-2">
-        <input v-model.number="localLigne.toleranceInferieure"
-               @input="updateLimiteSpecTexte"
-               type="number"
-               step="any"
-               placeholder="Min"
-               :disabled="isVisuel || isArchived"
-               :class="isVisuel || isArchived ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white'"
-               class="w-full text-center font-semibold text-slate-700 border border-slate-300 rounded px-2 py-1.5 outline-none focus:border-slate-500 text-sm transition-opacity">
-        <input v-model.number="localLigne.toleranceSuperieure"
-               @input="updateLimiteSpecTexte"
-               type="number"
-               step="any"
-               placeholder="Max"
-               :disabled="isVisuel || isArchived"
-               :class="isVisuel || isArchived ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white'"
-               class="w-full text-center font-semibold text-slate-700 border border-slate-300 rounded px-2 py-1.5 outline-none focus:border-slate-500 text-sm transition-opacity">
+    <td class="p-2 border-r border-slate-200 align-top min-w-[150px]">
+      <div class="flex flex-col gap-1">
+
+        <div v-if="!isArchived" class="flex items-center justify-center gap-3 bg-slate-100 rounded p-1 mb-1" :class="{'opacity-50 pointer-events-none': isVisuel}">
+          <label class="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-600">
+            <input type="radio" v-model="typeLimite" value="NUM" class="accent-blue-600"> Chiffres
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-slate-600">
+            <input type="radio" v-model="typeLimite" value="TEXT" class="accent-blue-600"> Texte
+          </label>
+        </div>
+
+        <div v-if="typeLimite === 'TEXT'">
+          <input v-model="localLigne.limiteSpecTexte"
+                 type="text"
+                 placeholder="Ex: Selon plan..."
+                 :disabled="isArchived"
+                 :class="isArchived ? 'bg-slate-100 border-slate-200 text-slate-900 font-black cursor-not-allowed' : 'bg-white border-slate-300 focus:border-blue-500'"
+                 class="w-full text-center border rounded px-2 py-1.5 outline-none text-[11px]">
+        </div>
+
+        <div v-if="typeLimite === 'NUM'">
+          <div class="flex items-center gap-1">
+            <input v-model.number="localLigne.toleranceInferieure"
+                   type="number" step="any" placeholder="Min"
+                   :disabled="isVisuel || isArchived"
+                   :class="isVisuel || isArchived ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-700'"
+                   class="w-1/2 text-center border rounded px-1 py-1 outline-none text-[11px]">
+            <input v-model.number="localLigne.toleranceSuperieure"
+                   type="number" step="any" placeholder="Max"
+                   :disabled="isVisuel || isArchived"
+                   :class="isVisuel || isArchived ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'bg-white border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-700'"
+                   class="w-1/2 text-center border rounded px-1 py-1 outline-none text-[11px]">
+          </div>
+        </div>
+
       </div>
     </td>
 
@@ -116,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { qualityPlansService } from '@/services/qualityPlansService';
 import { useToast } from 'primevue/usetoast';
@@ -141,10 +159,34 @@ const toast = useToast();
 const localLigne = ref({ ...props.ligne });
 const isSyncingFromParent = ref(false);
 
+// --- Logique Limite spécif. (NUM / TEXT) ---
+const typeLimite = ref('NUM');
+
+onMounted(() => {
+  if (localLigne.value.limiteSpecTexte && localLigne.value.limiteSpecTexte.trim() !== '') {
+    typeLimite.value = 'TEXT';
+  }
+});
+
+watch(typeLimite, (newType) => {
+  if (isSyncingFromParent.value) return;
+  if (newType === 'TEXT') {
+    localLigne.value.toleranceInferieure = null;
+    localLigne.value.toleranceSuperieure = null;
+  } else {
+    localLigne.value.limiteSpecTexte = '';
+  }
+});
+
 watch(() => props.ligne, (n) => {
   if (!n) return;
   isSyncingFromParent.value = true;
   localLigne.value = { ...n };
+  // Sync typeLimite uniquement si limiteSpecTexte est rempli (mode TEXT)
+  // Ne jamais forcer NUM depuis le parent : typeLimite est un état UI local
+  if (n.limiteSpecTexte && n.limiteSpecTexte.trim() !== '') {
+    typeLimite.value = 'TEXT';
+  }
   nextTick(() => { isSyncingFromParent.value = false; });
 }, { deep: true });
 
@@ -202,7 +244,8 @@ const isVisuel = computed(() => {
 });
 
 watch(isVisuel, (devenuVisuel) => {
-  if (devenuVisuel && localLigne.value) {
+  if (devenuVisuel && localLigne.value && !isSyncingFromParent.value) {
+    typeLimite.value = 'TEXT';
     localLigne.value.instrumentCode = null;
     localLigne.value.moyenTexteLibre = '';
     localLigne.value.valeurNominale = null;
@@ -212,14 +255,5 @@ watch(isVisuel, (devenuVisuel) => {
   }
 });
 
-const updateLimiteSpecTexte = () => {
-  if (!localLigne.value) return;
-  const min = localLigne.value.toleranceInferieure;
-  const max = localLigne.value.toleranceSuperieure;
-  if (min === null || min === undefined || min === '' || max === null || max === undefined || max === '') {
-    localLigne.value.limiteSpecTexte = '';
-    return;
-  }
-  localLigne.value.limiteSpecTexte = `${min} / ${max}`;
-};
+
 </script>

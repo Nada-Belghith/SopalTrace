@@ -80,17 +80,18 @@
             </template>
 
             <FabPlanSectionCard v-for="(section, index) in sections"
-                                :key="section.id"
-                                :section="section"
-                                :index="index"
-                                :periodicites="store.periodicites"
-                                :is-archived="isArchived"
-                                @add-ligne="ajouterLigneASection(index)"
-                                @remove="supprimerSection(section.id)"
-                                @remove-ligne="(ligneId) => supprimerLigneASection(index, ligneId)"
-                                @update:section="(updatedSection) => mettreAJourSection(index, updatedSection)" />
+                    :key="section.id"
+                    :section="section"
+                    :index="index"
+                    :periodicites="store.periodicites"
+                    :is-archived="isReadOnly"
+                    :operation-code="plan?.operationCode || wizard.operationCode.value"
+                    @add-ligne="ajouterLigneASection(index)"
+                    @remove="supprimerSection(section.id)"
+                    @remove-ligne="(ligneId) => supprimerLigneASection(index, ligneId)"
+                    @update:section="(updatedSection) => mettreAJourSection(index, updatedSection)" />
 
-            <div class="mt-2" v-if="!isArchived">
+            <div class="mt-2" v-if="!isReadOnly">
               <button @click="ajouterSection" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
                 <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
               </button>
@@ -126,20 +127,26 @@
                 </div>
               </div>
               <textarea v-model="legendeMoyens"
-                        :disabled="isArchived"
+                        :disabled="isReadOnly"
                         placeholder="Ex: PAC*=PAC512,PAC612"
                         rows="2"
                         :class="[
                   'w-full border rounded px-3 py-2 text-xs outline-none shadow-sm',
-                  isArchived ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'text-slate-700 bg-white border-slate-300 focus:border-blue-500',
-                  showLegendValidation && !legendeMoyens && !isArchived ? 'bg-red-50 border-red-300 focus:border-red-500' : ''
+                  isReadOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'text-slate-700 bg-white border-slate-300 focus:border-blue-500',
+                  showLegendValidation && !legendeMoyens && !isReadOnly ? 'bg-red-50 border-red-300 focus:border-red-500' : ''
                 ]"></textarea>
-              <p v-if="showLegendValidation && !legendeMoyens && !isArchived" class="text-[9px] text-red-600 font-bold mt-1">❌ Remplissez la légende avant d'enregistrer!</p>
+              <p v-if="showLegendValidation && !legendeMoyens && !isReadOnly" class="text-[9px] text-red-600 font-bold mt-1">❌ Remplissez la légende avant d'enregistrer!</p>
             </div>
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
-            <template v-if="isEditMode && plan?.statut === 'BROUILLON'">
+            <template v-if="isForcedView">
+              <button @click="onCloseEditor" class="px-6 py-3 bg-slate-500 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2 shadow-sm font-bold">
+                <i class="pi pi-times"></i>
+                Fermer
+              </button>
+            </template>
+            <template v-else-if="isEditMode && plan?.statut === 'BROUILLON'">
               <div class="flex gap-3">
                 <button @click="onSaveDraft"
                         :disabled="isSaving || isVersioningSaving"
@@ -204,6 +211,7 @@
 
   const isFromWizard = ref(false);
   const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
+  const isForcedView = ref(route.query.view === 'true');
   const plan = ref(null);
   const sections = ref([]);
   const legendeMoyens = ref('');
@@ -220,8 +228,10 @@
 
   const isEditMode = computed(() => !!planId.value);
   const isArchived = computed(() => plan.value?.statut === 'ARCHIVE');
+  const isReadOnly = computed(() => isForcedView.value || isArchived.value);
 
   const headerTitle = computed(() => {
+    if (isForcedView.value) return 'Consultation du Plan';
     if (isFromWizard.value) return "Création d'un plan de Fabrication";
     if (plan.value && plan.value.statut === 'BROUILLON' && (plan.value.version || 0) <= 1) {
       return "Création d'un plan de Fabrication";
@@ -232,6 +242,7 @@
   });
 
   const headerSubtitle = computed(() => {
+    if (isForcedView.value) return 'Mode lecture seule (Aperçu de la structure).';
     if (isFromWizard.value) return "Configurez la structure du plan de fabrication.";
     if (plan.value && plan.value.statut === 'BROUILLON' && (plan.value.version || 0) <= 1) {
       return "Configurez la structure du plan de fabrication.";
@@ -831,7 +842,6 @@
   };
 
   const sauvegarderBrouillonSilencieux = async (afficherToast = false, force = false) => {
-    // Si 'force' est vrai, on bypass les guards qui empêchent l'auto-save (utilisé pour le bouton "Enregistrer Brouillon")
     if (!force && (isGeneratingPlan.value || isCanceling.value || isSaving.value || plan.value?.statut === 'ACTIF' || isArchived.value)) return;
 
     let currentPlanId = planId.value;
@@ -859,9 +869,21 @@
         const originalSection = sections.value[idx];
         const tsMatch = store.typesSection.find(t => t.id === s.typeSectionId);
 
-          const lignesMappees = (s.lignes || []).map((l, lIdx) => {
+        const lignesMappees = (s.lignes || []).map((l, lIdx) => {
           const originalLigne = originalSection.lignes[lIdx];
-          const mesurements = sanitizeMesurements(l, true); // sauvegarde brouillon -> préserver valeur nominale
+
+          // Prépare valeurs numériques en mode brouillon (préserver saisies partielles)
+          const mesurements = sanitizeMesurements(l, true);
+
+          // Si tolérances / valeur nominale numériques présentes => PRIORITÉ numérique
+          const hasNumeric = mesurements.valeurNominale != null || mesurements.toleranceInferieure != null || mesurements.toleranceSuperieure != null;
+
+          const valeurNominale = hasNumeric ? mesurements.valeurNominale : null;
+          const toleranceSuperieure = hasNumeric ? mesurements.toleranceSuperieure : null;
+          const toleranceInferieure = hasNumeric ? mesurements.toleranceInferieure : null;
+
+          // Limite texte n'est utilisée QUE si PAS de valeurs numériques (et si l'utilisateur a saisi un texte)
+          const limiteSpecTexte = !hasNumeric && l.limiteSpecTexte ? String(l.limiteSpecTexte).trim() : '';
 
           const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
           const nomCaract = caractMatch?.libelle || 'Caractéristique sans nom';
@@ -875,11 +897,11 @@
             moyenControleId: l.moyenControleId || null,
             instrumentCode: l.instrumentCode,
             moyenTexteLibre: l.moyenTexteLibre,
-            valeurNominale: mesurements.valeurNominale,
-            toleranceSuperieure: mesurements.toleranceSuperieure,
-            toleranceInferieure: mesurements.toleranceInferieure,
+            valeurNominale: valeurNominale,
+            toleranceSuperieure: toleranceSuperieure,
+            toleranceInferieure: toleranceInferieure,
             unite: l.unite || '',
-            limiteSpecTexte: l.limiteSpecTexte || '',
+            limiteSpecTexte: limiteSpecTexte,
             instruction: l.instruction || '',
             observations: l.observations || '',
             estCritique: l.estCritique,
@@ -889,20 +911,20 @@
 
         let finalFrequenceLibelle = '';
         if (originalSection.modeFreq === 'VARIABLE') {
-           if (originalSection.typeVariable === 'HEURE') {
-               finalFrequenceLibelle = `${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''} / ${originalSection.freqHours} heure${originalSection.freqHours > 1 ? 's' : ''}`;
-           } else {
-               finalFrequenceLibelle = `série de ${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''}`;
-           }
+          if (originalSection.typeVariable === 'HEURE') {
+            finalFrequenceLibelle = `${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''} / ${originalSection.freqHours} heure${originalSection.freqHours > 1 ? 's' : ''}`;
+          } else {
+            finalFrequenceLibelle = `série de ${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''}`;
+          }
         } else if (s.periodiciteId || originalSection.periodiciteId) {
-           finalFrequenceLibelle = store.periodicites.find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
+          finalFrequenceLibelle = store.periodicites.find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
         }
 
         return {
           id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
           modeleSectionId: originalSection.modeleSectionId,
           ordreAffiche: idx + 1,
-          typeSectionId: s.typeSectionId || originalSection.typeSectionId,
+          typeSectionId: s.typeSectionId || originalSection.typeSectionId || null,
           libelleSection: tsMatch ? tsMatch.libelle : (s.libelleSection || originalSection.nom || 'SECTION SANS NOM'),
           frequenceLibelle: finalFrequenceLibelle,
           periodiciteId: s.periodiciteId || originalSection.periodiciteId,
@@ -962,20 +984,20 @@
 
         let finalFrequenceLibelle = '';
         if (originalSection.modeFreq === 'VARIABLE') {
-           if (originalSection.typeVariable === 'HEURE') {
-               finalFrequenceLibelle = `${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''} / ${originalSection.freqHours} heure${originalSection.freqHours > 1 ? 's' : ''}`;
-           } else {
-               finalFrequenceLibelle = `série de ${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''}`;
-           }
+          if (originalSection.typeVariable === 'HEURE') {
+            finalFrequenceLibelle = `${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''} / ${originalSection.freqHours} heure${originalSection.freqHours > 1 ? 's' : ''}`;
+          } else {
+            finalFrequenceLibelle = `série de ${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''}`;
+          }
         } else if (s.periodiciteId || originalSection.periodiciteId) {
-           finalFrequenceLibelle = store.periodicites.find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
+          finalFrequenceLibelle = store.periodicites.find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
         }
 
         return {
           id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
           modeleSectionId: originalSection.modeleSectionId,
           ordreAffiche: idx + 1,
-          typeSectionId: s.typeSectionId || originalSection.typeSectionId,
+          typeSectionId: s.typeSectionId || originalSection.typeSectionId || null,
           libelleSection: generatedLibelle,
           frequenceLibelle: finalFrequenceLibelle,
           periodiciteId: s.periodiciteId || originalSection.periodiciteId,
@@ -983,7 +1005,19 @@
             const originalLigne = originalSection.lignes[lIdx];
             const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
             const nomCaract = caractMatch?.libelle || 'Caractéristique sans nom';
-            const mesurements = sanitizeMesurements(l);
+
+            // Préparer mesures pour activation (isDraft = false -> validation stricte)
+            const mesurements = sanitizeMesurements(l, false);
+
+            // PRIORITÉ NUMÉRIQUE : si valeur nominale ou tolérances sont présentes on enregistre les numériques
+            const hasNumeric = mesurements.valeurNominale != null || mesurements.toleranceInferieure != null || mesurements.toleranceSuperieure != null;
+
+            const valeurNominale = hasNumeric ? mesurements.valeurNominale : null;
+            const toleranceSuperieure = hasNumeric ? mesurements.toleranceSuperieure : null;
+            const toleranceInferieure = hasNumeric ? mesurements.toleranceInferieure : null;
+
+            // Sinon on enregistre le texte saisi (s'il existe)
+            const limiteSpecTexte = !hasNumeric && l.limiteSpecTexte ? String(l.limiteSpecTexte).trim() : '';
 
             return {
               id: originalLigne.isFromDb ? normalizeId(originalLigne.id) : null,
@@ -994,11 +1028,11 @@
               moyenControleId: l.moyenControleId,
               moyenTexteLibre: l.moyenTexteLibre,
               instrumentCode: l.instrumentCode,
-              valeurNominale: mesurements.valeurNominale,
-              toleranceSuperieure: mesurements.toleranceSuperieure,
-              toleranceInferieure: mesurements.toleranceInferieure,
+              valeurNominale: valeurNominale,
+              toleranceSuperieure: toleranceSuperieure,
+              toleranceInferieure: toleranceInferieure,
               unite: l.unite,
-              limiteSpecTexte: l.limiteSpecTexte,
+              limiteSpecTexte: limiteSpecTexte,
               observations: l.observations,
               instruction: l.instruction,
               estCritique: l.estCritique,
@@ -1018,7 +1052,6 @@
       } else {
         await chargerPlan(currentPlanId);
       }
-
     } catch (error) {
       console.error('Erreur sauvegarde:', error);
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Une erreur est survenue lors de la sauvegarde.', life: 4000 });

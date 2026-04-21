@@ -15,15 +15,11 @@ public partial class RefFormulaire
 
     public string? PosteCode { get; set; }
 
-    public string? MachineCode { get; set; }
-
     public int Version { get; set; }
 
     public bool Actif { get; set; }
 
     public DateTime CreeLe { get; set; }
-
-    public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual ICollection<ModeleFabEntete> ModeleFabEntetes { get; set; } = new List<ModeleFabEntete>();
 

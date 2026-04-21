@@ -47,16 +47,6 @@ export const qualityPlansService = {
       params: { articleCode, modeleId }
     });
   },
-  instantiatePlan(payload) {
-  return apiClient.post('/plans-fabrication/instancier', payload);
-},
-
-verifierEtatPlan(articleCode, modeleId, operationCode) {
-  return apiClient.get('/plans-fabrication/verifier-etat', {
-    params: { articleCode, modeleId, operationCode }
-  });
-},
-
   annulerBrouillonPlan(planId) {
     return apiClient.delete(`/hub/plans/FAB/${planId}`);
   },

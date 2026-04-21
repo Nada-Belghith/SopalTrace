@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 using SopalTrace.Application.Interfaces;
@@ -44,7 +44,7 @@ public class PlanFabricationService : IPlanFabricationService
             ? request.ModeleSourceId
             : null;
 
-        var brouillonExistant = await _repository.GetBrouillonLePlusRecentAsync(request.CodeArticleSage, modeleSourceId);
+        var brouillonExistant = await _repository.GetBrouillonLePlusRecentAsync(request.CodeArticleSage, modeleSourceId, request.OperationCode);
         if (brouillonExistant != null) return brouillonExistant.Id;
 
         PlanFabEntete nouveauPlan;

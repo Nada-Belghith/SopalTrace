@@ -39,6 +39,11 @@ public record LigneModeleEditDto
     public Guid? PeriodiciteId { get; init; }
     public string? Instruction { get; init; }
     public required bool EstCritique { get; init; }
+    public string? LimiteSpecTexte { get; init; }
+
+    // Ajoutés : valeurs numériques du modèle
+    public double? ToleranceSuperieure { get; init; }
+    public double? ToleranceInferieure { get; init; }
 }
 
 public record ChangeModeleStatusRequestDto
@@ -106,6 +111,11 @@ public record ModeleLigneResponseDto
     public Guid? PeriodiciteId { get; init; }
     public string? Instruction { get; init; }
     public required bool EstCritique { get; init; }
+
+    public string? LimiteSpecTexte { get; init; }
+
+    public double? ToleranceSuperieure { get; init; }
+    public double? ToleranceInferieure { get; init; }
 }
 
 public record RestaurerModeleRequestDto(

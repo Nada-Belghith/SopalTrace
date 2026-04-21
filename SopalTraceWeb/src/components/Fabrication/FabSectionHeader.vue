@@ -8,12 +8,12 @@
               {{ label }} {{ index + 1 }}
           </span>
           
-          <select v-model="localSection.typeSectionId" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
+          <select v-model="localSection.typeSectionId" :disabled="isArchived" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
             <option value="" disabled>--Nature de la section--</option>
             <option v-for="ts in (store.typesSection || [])" :key="ts.id" :value="ts.id">{{ ts.libelle }}</option>
           </select>
 
-          <select v-model="localSection.modeFreq" class="bg-slate-100 border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-600 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
+          <select v-model="localSection.modeFreq" :disabled="isArchived" class="bg-slate-100 border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-600 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed">
             <option value="SANS">Sans fréquence</option>
             <option value="VARIABLE">➕ Fréquence des pièces par heure</option>
             <option value="FIXE">➕ Règle d'Échantillonnage</option>
@@ -21,24 +21,24 @@
 
           <!-- SI VARIABLE -->
           <div v-if="localSection.modeFreq === 'VARIABLE'" class="flex items-center gap-2 animate-in fade-in slide-in-from-left-4 bg-white border border-slate-300 rounded-lg p-1 shadow-sm">
-              <input type="number" v-model.number="localSection.freqNum" min="1" max="1000" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs" />
+              <input type="number" v-model.number="localSection.freqNum" :disabled="isArchived" min="1" max="1000" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed" />
               <span class="text-[10px] font-bold text-slate-500 uppercase">Pièce(s)</span>
               
-              <select v-model="localSection.typeVariable" class="bg-transparent text-slate-700 font-bold outline-none cursor-pointer text-xs ml-1 border-l border-slate-200 pl-2">
+              <select v-model="localSection.typeVariable" :disabled="isArchived" class="bg-transparent text-slate-700 font-bold outline-none cursor-pointer text-xs ml-1 border-l border-slate-200 pl-2 disabled:text-slate-400 disabled:cursor-not-allowed">
                 <option value="HEURE">/ Heure(s)</option>
                 <option value="SERIE">par Série</option>
               </select>
 
               <template v-if="localSection.typeVariable === 'HEURE'">
                   <span class="text-[10px] font-bold text-slate-500 uppercase ml-1">Toutes les</span>
-                  <input type="number" v-model.number="localSection.freqHours" min="1" max="24" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs" />
+                  <input type="number" v-model.number="localSection.freqHours" :disabled="isArchived" min="1" max="24" class="w-12 bg-slate-100 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed" />
                   <span class="text-[10px] font-bold text-slate-500 uppercase pr-1">H</span>
               </template>
           </div>
 
           <!-- SI FIXE -->
           <div v-if="localSection.modeFreq === 'FIXE'" class="flex items-center animate-in fade-in slide-in-from-left-4">
-              <select v-model="localSection.periodiciteId" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm cursor-pointer">
+              <select v-model="localSection.periodiciteId" :disabled="isArchived" class="w-64 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
                 <option :value="null" disabled>Sélectionner la règle...</option>
                 <option v-for="p in periodicites" :key="p.id" :value="p.id">{{ p.libelle.substring(0, 35) }}{{ p.libelle.length > 35 ? '...' : '' }}</option>
               </select>
@@ -52,10 +52,10 @@
 
       <!-- Boutons de droite -->
       <div class="flex items-center gap-4 absolute right-4 top-1/2 -translate-y-1/2">
-        <button @click="$emit('add-ligne')" class="text-blue-600 text-[11px] font-black uppercase tracking-widest hover:text-blue-800 flex items-center gap-1 transition-colors">
+        <button v-if="!isArchived" @click="$emit('add-ligne')" class="text-blue-600 text-[11px] font-black uppercase tracking-widest hover:text-blue-800 flex items-center gap-1 transition-colors">
           <i class="pi pi-plus"></i> Ajouter ligne
         </button>
-        <button @click="$emit('remove')" class="text-slate-400 hover:text-red-600 transition-colors ml-2" title="Supprimer la section">
+        <button v-if="!isArchived" @click="$emit('remove')" class="text-slate-400 hover:text-red-600 transition-colors ml-2" title="Supprimer la section">
           <i class="pi pi-times-circle text-base"></i>
         </button>
       </div>
@@ -72,7 +72,8 @@ const props = defineProps({
   index: { type: Number, required: true },
   colspan: { type: Number, default: 8 },
   label: { type: String, default: 'SEC' },
-  periodicites: { type: Array, default: () => [] }
+  periodicites: { type: Array, default: () => [] },
+  isArchived: { type: Boolean, default: false }
 });
 
 const emit = defineEmits(['add-ligne', 'remove', 'update:section']);

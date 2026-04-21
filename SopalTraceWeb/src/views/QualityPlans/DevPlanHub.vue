@@ -40,13 +40,15 @@
     </div>
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      
       <div v-for="plan in plansFiltres" :key="plan.id"
-           class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all overflow-hidden flex flex-col group"
+           @click.self="consulter(plan.category, plan.id)"
+           class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all overflow-hidden flex flex-col group cursor-pointer"
            :class="plan.statut === 'ARCHIVE' ? 'opacity-75 grayscale-[30%]' : 'hover:border-blue-400'">
 
-        <div class="p-6 flex-1">
+        <div @click="consulter(plan.category, plan.id)" class="p-6 flex-1">
           <div class="flex justify-between items-start mb-4">
-            <h3 class="text-base font-black text-slate-900 leading-tight">{{ plan.libelle }}</h3>
+            <h3 class="text-base font-black text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">{{ plan.libelle }}</h3>
             <div class="flex flex-col gap-1 items-end shrink-0">
               <span class="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold uppercase rounded-md tracking-wider">v{{ plan.version }}</span>
               <span v-if="plan.statut === 'ARCHIVE'" class="px-2 py-0.5 bg-red-100 text-red-600 border border-red-200 text-[9px] font-black uppercase rounded-md tracking-widest shadow-sm">Archivé</span>
@@ -72,7 +74,7 @@
           </p>
         </div>
 
-        <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-3">
+        <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-3" @click.stop>
           <template v-if="plan.statut !== 'ARCHIVE'">
             <button @click="editer(plan.category, plan.id)" class="flex-1 bg-slate-800 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
               <i class="pi pi-pencil"></i> Éditer
@@ -216,5 +218,15 @@ const editer = (category, id) => {
   }
 
   toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Redirection non disponible.', life: 3000 });
+};
+
+// Fonction de consultation (Ajoute ?view=true dans l'URL)
+const consulter = (category, id) => {
+  if (category === 'FAB') {
+    router.push({ path: `/dev/fab/plans/editer/${id}`, query: { view: 'true' } });
+    return;
+  }
+
+  toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Consultation non disponible.', life: 3000 });
 };
 </script>

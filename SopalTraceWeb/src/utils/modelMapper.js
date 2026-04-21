@@ -56,7 +56,14 @@ export function mapBackendLigneToEditor(ligne) {
     instrumentCode: ligne.instrumentCode || null,
     periodiciteId: ligne.periodiciteId || null,
     instruction: ligne.instruction || '',
-    estCritique: ligne.estCritique || false
+    estCritique: ligne.estCritique || false,
+    valeurNominale: ligne.valeurNominale ?? null,
+    toleranceInferieure: ligne.toleranceInferieure ?? null,
+    toleranceSuperieure: ligne.toleranceSuperieure ?? null,
+    unite: ligne.unite || '',
+    limiteSpecTexte: ligne.limiteSpecTexte || '',
+    observations: ligne.observations || '',
+    moyenTexteLibre: ligne.moyenTexteLibre || ''
   };
 }
 
@@ -73,22 +80,29 @@ export function prepareModelePayload(entete, sections) {
     notes: entete.notes || '',
     sections: sections.map((s, idx) => ({
       ordreAffiche: idx + 1,
-      typeSectionId: s.typeSectionId,
+      typeSectionId: s.typeSectionId || null,
       libelleSection: s.libelleSection || 'SECTION SANS NOM',
       periodiciteId: s.periodiciteId || null,
       frequenceLibelle: s.frequenceLibelle || '',
       notes: s.notes || '',
       lignes: s.lignes.map((l, lIdx) => ({
         ordreAffiche: lIdx + 1,
-        typeCaracteristiqueId: l.typeCaracteristiqueId,
+        typeCaracteristiqueId: l.typeCaracteristiqueId || null,
         libelleAffiche: l.libelleAffiche,
-        typeControleId: l.typeControleId,
-        moyenControleId: l.moyenControleId,
+        typeControleId: l.typeControleId || null,
+        moyenControleId: l.moyenControleId || null,
         // ⚠️ groupeInstrumentId supprimé
         instrumentCode: l.instrumentCode,
         periodiciteId: l.periodiciteId,
         instruction: l.instruction,
-        estCritique: l.estCritique
+        estCritique: l.estCritique,
+        valeurNominale: l.valeurNominale ?? null,
+        toleranceInferieure: l.toleranceInferieure ?? null,
+        toleranceSuperieure: l.toleranceSuperieure ?? null,
+        unite: l.unite || '',
+        limiteSpecTexte: l.limiteSpecTexte || '',
+        observations: l.observations || '',
+        moyenTexteLibre: l.moyenTexteLibre || ''
       }))
     }))
   };
@@ -122,7 +136,14 @@ export function createModeleSnapshot(entete, sections) {
         // ⚠️ groupeInstrumentId supprimé
         instrumentCode: l.instrumentCode,
         instruction: l.instruction,
-        estCritique: l.estCritique
+        estCritique: l.estCritique,
+        valeurNominale: l.valeurNominale,
+        toleranceInferieure: l.toleranceInferieure,
+        toleranceSuperieure: l.toleranceSuperieure,
+        unite: l.unite,
+        limiteSpecTexte: l.limiteSpecTexte,
+        observations: l.observations,
+        moyenTexteLibre: l.moyenTexteLibre
       }))
     }))
   });
@@ -200,7 +221,7 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
   return sections.map((g, idx) => ({
     id: g.isFromDb ? g.id : null,
     ordreAffiche: idx + 1,
-    typeSectionId: g.typeSectionId,
+    typeSectionId: g.typeSectionId || null,
     libelleSection: g.nom,
     periodiciteId: g.periodiciteId,
     frequenceLibelle: g.periodiciteId
@@ -209,10 +230,10 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
     lignes: g.lignes.map((l, lIdx) => ({
       id: l.isFromDb ? l.id : null,
       ordreAffiche: lIdx + 1,
-      typeCaracteristiqueId: l.typeCaracteristiqueId,
+      typeCaracteristiqueId: l.typeCaracteristiqueId || null,
       libelleAffiche: l.libelleAffiche,
-      typeControleId: l.typeControleId,
-      moyenControleId: l.moyenControleId,
+      typeControleId: l.typeControleId || null,
+      moyenControleId: l.moyenControleId || null,
       // ⚠️ groupeInstrumentId supprimé
       instrumentCode: l.instrumentCode,
       periodiciteId: g.periodiciteId,

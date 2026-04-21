@@ -14,6 +14,7 @@
         <div class="bg-[#1e293b] text-white px-5 py-3.5 flex justify-between items-center">
           <div class="flex items-center gap-3 font-bold tracking-wide">
             <i class="pi pi-book text-lg"></i> Éditeur de Structure
+            <span v-if="isForcedView" class="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-xs ml-2 uppercase tracking-widest border border-blue-400/30">Mode Lecture</span>
           </div>
           <button @click="$router.push('/dev/hub')" class="text-slate-400 hover:text-white transition-colors">
             <i class="pi pi-times text-lg"></i>
@@ -52,6 +53,7 @@
                   :key="ligne.id" 
                   :ligne="ligne"
                   :is-read-only="isReadOnly"
+                  :operation-code="store.entete?.operationCode"
                   @remove="(id) => supprimerLigne(groupe.id, id)"
                   @update="(updatedLigne) => mettreAJourLigne(groupe.id, updatedLigne)"
                 />
@@ -66,7 +68,7 @@
           </div>
 
           <div
-            v-if="hasCustomInstrumentsGlobal"
+            v-if="hasCustomInstrumentsGlobal && !isForcedView"
             :class="[
               'mt-6 px-4 py-3 rounded-lg',
               showLegendValidation && !legendeMoyens
@@ -106,19 +108,26 @@
               v-model="legendeMoyens"
               placeholder="Ex: PAC*=PAC512,PAC612"
               rows="2"
+              :disabled="isReadOnly"
               :class="[
-                'w-full border rounded px-3 py-2 text-xs text-slate-700 outline-none shadow-sm',
-                showLegendValidation && !legendeMoyens
+                'w-full border rounded px-3 py-2 text-xs outline-none shadow-sm transition-opacity',
+                isReadOnly ? 'opacity-60 bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-white text-slate-700',
+                showLegendValidation && !legendeMoyens && !isReadOnly
                   ? 'bg-red-50 border-red-300 focus:border-red-500'
-                  : 'bg-white border-slate-300 focus:border-blue-500'
+                  : 'border-slate-300 focus:border-blue-500'
               ]"
             ></textarea>
-            <p v-if="showLegendValidation && !legendeMoyens" class="text-[9px] text-red-600 font-bold mt-1">❌ Remplissez la légende avant d'enregistrer!</p>
+            <p v-if="showLegendValidation && !legendeMoyens && !isReadOnly" class="text-[9px] text-red-600 font-bold mt-1">❌ Remplissez la légende avant d'enregistrer!</p>
           </div>
         </div>
 
-        <div class="bg-slate-50 border-t border-slate-200 p-6">
+        <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-4">
+          <button v-if="isForcedView" @click="$router.push('/dev/hub')" class="px-6 py-3 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 transition-colors shadow-sm flex items-center gap-2 text-sm">
+            <i class="pi pi-arrow-left"></i> Retour à la liste
+          </button>
+          
           <EditorActions
+            v-else
             :label="actionButtonLabel"
             loading-label="Enregistrement..."
             :icon="actionButtonIcon"
@@ -170,12 +179,14 @@ const showLegendValidation = ref(false);
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
 const { restaurerModele, creerNouvelleVersionModele } = useModeleVersioning();
 
-// ⚠️ CORRECTION : Le watch est maintenant APRES la déclaration des variables !
+// 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
+const isForcedView = computed(() => route.query.view === 'true');
+
 watch(
   [() => store.entete, () => groupes.value],
   ([newEntete, newGroupes]) => {
-    if (modeleEditionId.value) {
-      // JSON.parse(JSON.stringify(...)) fait une copie "morte" sans réactivité
+    // Ne pas tracer la dirty checking si on est juste en mode vue
+    if (modeleEditionId.value && !isForcedView.value) {
       const enteteClone = JSON.parse(JSON.stringify(newEntete));
       const groupesClone = JSON.parse(JSON.stringify(newGroupes));
       updateCurrentSnapshot(createModeleSnapshot(enteteClone, groupesClone));
@@ -200,7 +211,10 @@ const modeleColumns = [
 const isLoading = computed(() => store.isLoading);
 const isEditMode = computed(() => !!modeleEditionId.value);
 const isArchived = computed(() => statut.value === 'ARCHIVE');
-const isReadOnly = computed(() => isEditMode.value && isArchived.value);
+
+// 🔒 NOUVEAU : On verrouille tout si c'est une archive OU si on est en mode aperçu (view)
+const isReadOnly = computed(() => (isEditMode.value && isArchived.value) || isForcedView.value);
+
 const hasCustomInstrumentsGlobal = computed(() =>
   groupes.value.some(group =>
     (group.lignes || []).some(ligne => /[\*~!@#$%^&]/.test(ligne.instrumentCode || ''))
@@ -221,11 +235,13 @@ const codeAffiche = computed(() => {
 });
 
 const headerTitle = computed(() => {
+  if (isForcedView.value) return 'Consultation du Modèle'; // Titre adapté
   if (isEditMode.value) return isArchived.value ? 'Restauration d\'Archive' : `Édition du Modèle`;
   return 'Création d\'un Modèle';
 });
 
 const headerSubtitle = computed(() => {
+  if (isForcedView.value) return 'Mode lecture seule (Aperçu de la structure).'; // Sous-titre adapté
   if (isEditMode.value) {
     return isArchived.value 
       ? 'Vous consultez une archive. Enregistrer restaurera cette version en production.'
@@ -362,9 +378,11 @@ const chargerModelePourEdition = async (id) => {
       };
     });
     
-    setTimeout(() => {
-      initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
-    }, 100);
+    if (!isForcedView.value) {
+      setTimeout(() => {
+        initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
+      }, 100);
+    }
 
   } catch (e) {
     console.error(e);
@@ -465,7 +483,6 @@ const validerSaisieValeurs = () => {
     }
     
     (groupe.lignes || []).forEach(ligne => {
-      // ⚠️ CORRECTION : Validation assouplie (accepte les GUID et les strings)
       if (!isIdValide(ligne.typeControleId) || !isIdValide(ligne.typeCaracteristiqueId)) {
         hasIncompleteLines = true;
       }

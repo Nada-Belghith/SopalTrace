@@ -31,8 +31,6 @@ public partial class Machine
 
     public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
 
-    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
-
     public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 
     public virtual ICollection<PosteTravail> CodePostes { get; set; } = new List<PosteTravail>();

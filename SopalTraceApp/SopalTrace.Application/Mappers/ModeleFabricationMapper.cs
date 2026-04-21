@@ -150,7 +150,10 @@ public static class ModeleFabricationMapper
                 InstrumentCode = l.InstrumentCode ?? l.MoyenTexteLibre,
                 PeriodiciteId = l.PeriodiciteId,
                 Instruction = l.Instruction,
-                EstCritique = l.EstCritique
+                EstCritique = l.EstCritique,
+                LimiteSpecTexte = l.LimiteSpecTexte,
+                ToleranceInferieure = l.ToleranceInferieure,
+                ToleranceSuperieure = l.ToleranceSuperieure
             }).ToList()
         });
     }
@@ -170,14 +173,25 @@ public static class ModeleFabricationMapper
             {
                 var instrumentData = NormalizeInstrumentCode(lignDto.InstrumentCode);
 
+                // DupliquerSections: création ModeleFabLigne
                 section.ModeleFabLignes.Add(new ModeleFabLigne
                 {
-                    Id = Guid.NewGuid(), ModeleEnteteId = modele.Id, SectionId = sectionId, OrdreAffiche = lignDto.OrdreAffiche,
-                    TypeCaracteristiqueId = lignDto.TypeCaracteristiqueId, LibelleAffiche = lignDto.LibelleAffiche,
-                    TypeControleId = lignDto.TypeControleId, MoyenControleId = NullIfEmpty(lignDto.MoyenControleId),
-                    InstrumentCode = instrumentData.InstrumentCode, MoyenTexteLibre = instrumentData.MoyenTexteLibre,
+                    Id = Guid.NewGuid(),
+                    ModeleEnteteId = modele.Id,
+                    SectionId = sectionId,
+                    OrdreAffiche = lignDto.OrdreAffiche,
+                    TypeCaracteristiqueId = lignDto.TypeCaracteristiqueId,
+                    LibelleAffiche = lignDto.LibelleAffiche,
+                    TypeControleId = lignDto.TypeControleId,
+                    MoyenControleId = NullIfEmpty(lignDto.MoyenControleId),
+                    InstrumentCode = instrumentData.InstrumentCode,
+                    MoyenTexteLibre = instrumentData.MoyenTexteLibre,
                     PeriodiciteId = NullIfEmpty(lignDto.PeriodiciteId),
-                    Instruction = lignDto.Instruction, EstCritique = lignDto.EstCritique
+                    Instruction = lignDto.Instruction,
+                    EstCritique = lignDto.EstCritique,
+                    ToleranceInferieure = lignDto.ToleranceInferieure,
+                    ToleranceSuperieure = lignDto.ToleranceSuperieure,
+                    LimiteSpecTexte = string.IsNullOrWhiteSpace(lignDto.LimiteSpecTexte) ? null : lignDto.LimiteSpecTexte
                 });
             }
             modele.ModeleFabSections.Add(section);
@@ -206,7 +220,10 @@ public static class ModeleFabricationMapper
                     InstrumentCode = l.InstrumentCode ?? l.MoyenTexteLibre,
                     PeriodiciteId = l.PeriodiciteId,
                     Instruction = l.Instruction ?? string.Empty,
-                    EstCritique = l.EstCritique
+                    EstCritique = l.EstCritique,
+                    LimiteSpecTexte = l.LimiteSpecTexte ?? string.Empty,
+                    ToleranceInferieure = l.ToleranceInferieure,
+                    ToleranceSuperieure = l.ToleranceSuperieure
                 }).ToList() ?? new List<ModeleLigneResponseDto>()
             }).ToList() ?? new List<ModeleSectionResponseDto>()
         };

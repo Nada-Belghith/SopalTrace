@@ -12,7 +12,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const moyensControle = ref([]);
   const periodicites = ref([]);
   const typesSection = ref([]); 
-  const groupesInstruments = ref([]); 
+  // const groupesInstruments = ref([]); 
   const instruments = ref([]); 
   const gammesOperatoires = ref([]); // <-- NOUVEAU
   const isDicosLoaded = ref(false);
@@ -51,7 +51,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       moyensControle.value = data.moyensControle || [];
       periodicites.value = data.periodicites || [];
       typesSection.value = data.typesSection || data.typesSections || []; 
-      groupesInstruments.value = data.groupesInstruments || []; 
+      // groupesInstruments.value = data.groupesInstruments || []; 
       instruments.value = data.instruments || []; 
       
       gammesOperatoires.value = data.gammes || []; // <-- NOUVEAU
@@ -92,11 +92,13 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       typeControleId: null, 
       libelleAffiche: '',
       moyenControleId: null,
-      groupeInstrumentId: null,
+      // groupeInstrumentId: null,
       instrumentCode: null, 
       periodiciteId: null,
       instruction: '',
-      estCritique: false
+      estCritique: false,
+      limiteSpecTexte: ''
+
     });
   };
 
@@ -132,11 +134,12 @@ export const useFabModeleStore = defineStore('fabModele', () => {
             libelleAffiche: l.libelleAffiche,
             typeControleId: l.typeControleId,
             moyenControleId: l.moyenControleId,
-            groupeInstrumentId: l.groupeInstrumentId,
+            // groupeInstrumentId: l.groupeInstrumentId,
             instrumentCode: l.instrumentCode, // <-- NOUVEAU
             periodiciteId: l.periodiciteId,
             instruction: l.instruction,
-            estCritique: l.estCritique
+            estCritique: l.estCritique,
+            limiteSpecTexte: l.limiteSpecTexte || null
           }))
         }))
       };
@@ -150,7 +153,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   return {
     operations, typesRobinet, naturesComposant, 
     typesCaracteristique, typesControle, moyensControle, 
-    periodicites, typesSection, groupesInstruments, instruments, gammesOperatoires, isDicosLoaded, 
+    periodicites, typesSection, instruments, gammesOperatoires, isDicosLoaded, 
     entete, sections, isLoading, version, codeModeleAuto,
     fetchDictionnaires, addSection, removeSection, addLigneLibre, removeLigne, saveModele
   };
