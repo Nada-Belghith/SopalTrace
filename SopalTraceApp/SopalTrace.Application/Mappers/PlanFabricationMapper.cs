@@ -86,6 +86,7 @@ public static class PlanFabricationMapper
             Id = Guid.NewGuid(), ModeleSourceId = source.ModeleSourceId, CodeArticleSage = nouveauCode,
             Designation = nouvelleDesig, Nom = comm == null ? $"PC-{nouveauCode}-V1" : ModeleFabricationMapper.IncrementerSuffixeVersion(source.Nom, nouvelleVersion),
             Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, MachineDefautCode = source.MachineDefautCode,
+            OperationCode = source.OperationCode, // ⚠️ COPIE OBLIGATOIRE
             LegendeMoyens = source.LegendeMoyens,
             CreePar = creePar ?? "SYSTEM", CreeLe = DateTime.UtcNow, CommentaireVersion = comm ?? $"Cloné à partir de l'article {source.CodeArticleSage}",
             PlanFabSections = new List<PlanFabSection>()
@@ -168,13 +169,29 @@ public static class PlanFabricationMapper
     {
         return new PlanResponseDto
         {
-            Id = plan.Id, ModeleSourceId = plan.ModeleSourceId, OperationCode = plan.ModeleSource?.OperationCode ?? string.Empty, CodeArticleSage = plan.CodeArticleSage, Nom = plan.Nom, Designation = plan.Designation ?? string.Empty,
-            Version = plan.Version, Statut = plan.Statut, DateApplication = plan.DateApplication?.ToDateTime(TimeOnly.MinValue), MachineDefautCode = plan.MachineDefautCode,
+            Id = plan.Id,
+            ModeleSourceId = plan.ModeleSourceId ?? Guid.Empty,
+            OperationCode = !string.IsNullOrWhiteSpace(plan.OperationCode) ? plan.OperationCode : plan.ModeleSource?.OperationCode ?? string.Empty, // << PRISE EN COMPTE DU NOYAU SAUVEGARDÉ
+            CodeArticleSage = plan.CodeArticleSage,
+            Nom = plan.Nom,
+            Designation = plan.Designation ?? string.Empty,
+            Version = plan.Version,
+            Statut = plan.Statut,
+            DateApplication = plan.DateApplication?.ToDateTime(TimeOnly.MinValue),
+            MachineDefautCode = plan.MachineDefautCode,
             LegendeMoyens = plan.LegendeMoyens ?? string.Empty,
-            CreePar = plan.CreePar, CreeLe = plan.CreeLe, ModifiePar = plan.ModifiePar ?? string.Empty, ModifieLe = plan.ModifieLe, CommentaireVersion = plan.CommentaireVersion ?? string.Empty,
+            CreePar = plan.CreePar,
+            CreeLe = plan.CreeLe,
+            ModifiePar = plan.ModifiePar ?? string.Empty,
+            ModifieLe = plan.ModifieLe,
+            CommentaireVersion = plan.CommentaireVersion ?? string.Empty,
             Sections = plan.PlanFabSections?.Select(s => new PlanSectionResponseDto
             {
-                Id = s.Id, ModeleSectionId = s.ModeleSectionId, OrdreAffiche = s.OrdreAffiche, LibelleSection = s.LibelleSection, FrequenceLibelle = s.FrequenceLibelle ?? string.Empty,
+                Id = s.Id,
+                ModeleSectionId = s.ModeleSectionId,
+                OrdreAffiche = s.OrdreAffiche,
+                LibelleSection = s.LibelleSection,
+                FrequenceLibelle = s.FrequenceLibelle ?? string.Empty,
                 Lignes = s.PlanFabLignes?.Select(l => new PlanLigneResponseDto
                 {
                     Id = l.Id,
@@ -197,6 +214,25 @@ public static class PlanFabricationMapper
                     EstCritique = l.EstCritique
                 }).ToList() ?? new List<PlanLigneResponseDto>()
             }).ToList() ?? new List<PlanSectionResponseDto>()
+        };
+    }
+
+    public static PlanFabEntete ConstruireEntitePlanVierge(CreatePlanRequestDto dto, string designationSage)
+    {
+        return new PlanFabEntete
+        {
+            Id = Guid.NewGuid(),
+            ModeleSourceId = null,
+            CodeArticleSage = dto.CodeArticleSage,
+            Designation = designationSage,
+            Nom = string.IsNullOrWhiteSpace(dto.Nom) ? $"PC-{dto.CodeArticleSage}-V1" : dto.Nom,
+            Version = 1,
+            Statut = StatutsPlan.Brouillon,
+            CreePar = "Admin",
+            CreeLe = DateTime.UtcNow,
+            CommentaireVersion = dto.CommentaireVersion,
+            LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
+            PlanFabSections = new List<PlanFabSection>()
         };
     }
 }

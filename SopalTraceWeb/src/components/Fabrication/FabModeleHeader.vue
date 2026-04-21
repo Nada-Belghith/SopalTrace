@@ -106,12 +106,12 @@ watch(() => store.entete.operationCode, (newOp) => {
 });
 
 // Si on change le composant, on vérifie l'opération
-watch(() => store.entete.natureComposantCode, (newNat) => {
+watch(() => store.entete.natureComposantCode, (nouvelleNature, ancienneNature) => {
   const op = store.entete.operationCode;
   const gammes = store.gammesOperatoires || [];
   
-  if (newNat) {
-    const operationsCompatibles = gammes.filter(g => g.natureComposantCode === newNat).map(g => g.operationCode);
+  if (nouvelleNature) {
+    const operationsCompatibles = gammes.filter(g => g.natureComposantCode === nouvelleNature).map(g => g.operationCode);
     
     // 1. Si l'opération sélectionnée n'est pas compatible avec la BDD, on la vide
     if (op && !operationsCompatibles.includes(op)) {
@@ -125,20 +125,16 @@ watch(() => store.entete.natureComposantCode, (newNat) => {
     }
   }
   
-  // SI PISTON : On vide le Type de Robinet car la case disparaît
-  if (newNat === 'PISTON') {
+  // LOGIQUE TYPES DE ROBINET (PISTON / VOLANT)
+  if (nouvelleNature === 'PISTON') {
+    // SI PISTON : On vide le Type de Robinet car la case disparaît
     store.entete.typeRobinetCode = ''; 
-  }
-
-  watch(() => store.entete.natureComposantCode, (nouvelleNature, ancienneNature) => {
-  if (nouvelleNature === 'VOLANT') {
+  } else if (nouvelleNature === 'VOLANT') {
     // Si VOLANT est sélectionné, on force automatiquement le type de robinet sur MAN (Manuelle)
     store.entete.typeRobinetCode = 'MAN';
-  } 
-  else if (ancienneNature === 'VOLANT' && ['CORPS', 'PF'].includes(nouvelleNature)) {
+  } else if (ancienneNature === 'VOLANT' && ['CORPS', 'PF'].includes(nouvelleNature)) {
     // Si on quitte VOLANT pour revenir sur CORPS ou PF, on vide le champ pour obliger l'utilisateur à choisir
     store.entete.typeRobinetCode = '';
   }
-});
 });
 </script>

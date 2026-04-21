@@ -92,15 +92,25 @@ public class PlanFabricationRepository : IPlanFabricationRepository
             .FirstOrDefaultAsync(p => p.CodeArticleSage == codeArticleSage && p.Statut == StatutsPlan.Actif);
     }
 
-    public async Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid modeleSourceId)
+    // Méthode publique avec paramètre nullable Guid? — correspond à l'interface
+    public async Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid? modeleSourceId, string? operationCode = null)
     {
-        return await _context.PlanFabEntetes
+        var query = _context.PlanFabEntetes
             .Where(p => p.CodeArticleSage == codeArticleSage
                         && p.ModeleSourceId == modeleSourceId
-                        && p.Statut == StatutsPlan.Brouillon)
+                        && p.Statut == StatutsPlan.Brouillon);
+
+        if (!string.IsNullOrEmpty(operationCode))
+        {
+            query = query.Where(p => p.OperationCode == operationCode);
+        }
+
+        return await query
             .OrderByDescending(p => p.Version)
             .FirstOrDefaultAsync();
     }
+
+
 
     public async Task<PlanFabEntete?> GetPlanAvecRelationsAsync(Guid planId)
     {
@@ -118,6 +128,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         return await _context.PlanFabEntetes
             .Include(p => p.PlanFabSections)
                 .ThenInclude(s => s.PlanFabLignes)
+                    .ThenInclude(l => l.TypeControle)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
@@ -149,7 +160,30 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         await _context.AddAsync(ligne);
     }
 
-    // ⚠️ NOUVELLE MÉTHODE AJOUTÉE ICI
+    /// <summary>
+    /// Supprime un plan et toutes ses sections et lignes associées
+    /// </summary>
+    public async Task DeletePlanWithChildrenAsync(Guid planId)
+    {
+        var plan = await _context.PlanFabEntetes
+            .Include(p => p.PlanFabSections)
+                .ThenInclude(s => s.PlanFabLignes)
+            .FirstOrDefaultAsync(p => p.Id == planId);
+
+        if (plan != null)
+        {
+            // Supprimer toutes les lignes et sections en cascade
+            foreach (var section in plan.PlanFabSections.ToList())
+            {
+                _context.PlanFabLignes.RemoveRange(section.PlanFabLignes);
+                _context.PlanFabSections.Remove(section);
+            }
+
+            _context.PlanFabEntetes.Remove(plan);
+        }
+    }
+
+    // Conservez l'ancienne méthode pour compatibilité
     public void Delete(PlanFabEntete plan)
     {
         _context.PlanFabEntetes.Remove(plan);
@@ -204,11 +238,18 @@ public class PlanFabricationRepository : IPlanFabricationRepository
             .MaxAsync() ?? 0;
     }
 
-    public async Task<int> GetDerniereVersionPlanAsync(string codeArticleSage)
+    public async Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null)
     {
-        return await _context.PlanFabEntetes
+        var query = _context.PlanFabEntetes
             .Where(p => p.CodeArticleSage == codeArticleSage
-                && (p.Statut == StatutsPlan.Brouillon || p.Statut == StatutsPlan.Actif || p.Statut == StatutsPlan.Archive))
+                && (p.Statut == StatutsPlan.Brouillon || p.Statut == StatutsPlan.Actif || p.Statut == StatutsPlan.Archive));
+        
+        if (!string.IsNullOrEmpty(operationCode))
+        {
+            query = query.Where(p => p.OperationCode == operationCode);
+        }
+
+        return await query
             .Select(p => (int?)p.Version)
             .MaxAsync() ?? 0;
     }
@@ -229,5 +270,28 @@ public class PlanFabricationRepository : IPlanFabricationRepository
                                && m.NatureComposantCode == natureComposantCode
                                && m.OperationCode == opCode
                                && m.Statut == StatutsPlan.Actif);
+    }
+
+    public async Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
+    {
+        var query = _context.PlanFabEntetes
+            .Include(p => p.ModeleSource)
+            .Where(p => p.Statut == StatutsPlan.Actif);
+
+        if (!string.IsNullOrWhiteSpace(typeRobinetCode))
+            query = query.Where(p => p.ModeleSource.TypeRobinetCode == typeRobinetCode);
+
+        if (!string.IsNullOrWhiteSpace(natureCode))
+            query = query.Where(p => p.ModeleSource.NatureComposantCode == natureCode);
+
+        if (!string.IsNullOrWhiteSpace(operationCode))
+            query = query.Where(p => p.ModeleSource.OperationCode == operationCode);
+
+        return await query
+            .Include(p => p.PlanFabSections)
+                .ThenInclude(s => s.PlanFabLignes)
+                    .ThenInclude(l => l.TypeCaracteristique)
+            .OrderByDescending(p => p.CreeLe)
+            .ToListAsync();
     }
 }

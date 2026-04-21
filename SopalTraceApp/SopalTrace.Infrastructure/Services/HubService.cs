@@ -189,15 +189,22 @@ public class HubService : IHubService
         {
             case "FAB":
             {
-                var plan = await _context.PlanFabEntetes.FirstOrDefaultAsync(p => p.Id == id);
+                var plan = await _context.PlanFabEntetes
+                    .Include(p => p.PlanFabSections)
+                        .ThenInclude(s => s.PlanFabLignes)
+                    .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null) return false;
                 if (plan.Statut != "BROUILLON") return false;
 
-                // Suppression logique: la suppression physique est bloquée par le trigger SQL trg_no_del_PlanFab.
-                plan.Statut = "OBSOLETE";
-                plan.ModifieLe = DateTime.UtcNow;
-                plan.ModifiePar = "ADMIN";
+                // Suppression complète : sections + lignes + entête
+                foreach (var section in plan.PlanFabSections)
+                {
+                    _context.PlanFabLignes.RemoveRange(section.PlanFabLignes);
+                }
+
+                _context.PlanFabSections.RemoveRange(plan.PlanFabSections);
+                _context.PlanFabEntetes.Remove(plan);
 
                 await _context.SaveChangesAsync();
                 return true;

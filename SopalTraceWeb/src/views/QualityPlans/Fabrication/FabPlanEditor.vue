@@ -369,54 +369,68 @@
 
   const onWizardGenerate = async () => {
     if (isGeneratingPlan.value) return;
-    isGeneratingPlan.value = true;
+    isGeneratingPlan.value = true; // ⚠️ DÉCLENCHE LE BOUCLIER AUTOSAVE PENDANT L'EXÉCUTION
 
     try {
-      if (wizard.sourceType.value === 'MODELE') {
-        const modeleId = wizard.selectedSourceId.value;
-        const codeArticle = wizard.codeArticleSage.value;
+      const sourceType = wizard.sourceType.value;
+      const modeleId = sourceType === 'MODELE' ? wizard.selectedSourceId.value : null;
+      const codeArticle = wizard.codeArticleSage.value;
+      const operationCode = wizard.operationCode.value;
 
-        const resVal = await qualityPlansService.verifierEtatPlan(codeArticle, modeleId);
-        const etat = resVal.data;
+      // Unifié: on vérifie l'état peu importe qu'on clone ou utilise un modèle
+      const resVal = await qualityPlansService.verifierEtatPlan(codeArticle, modeleId, operationCode);
+      const etat = resVal.data;
 
-        if (etat.hasBrouillon) {
-          toast.add({ severity: 'info', summary: 'Reprise', detail: 'Un brouillon existe déjà. Reprise en cours...', life: 4000 });
-          planId.value = etat.brouillonId;
-          isFromWizard.value = true;
-          router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
-          await chargerPlan(etat.brouillonId);
-        }
-        else if (etat.hasActif) {
-          confirm.require({
-            message: `Un plan ACTIF (Version ${etat.actifVersion}) tourne actuellement en production. Voulez-vous créer une nouvelle version ? (L'ancienne sera automatiquement archivée lorsque vous activerez la nouvelle).`,
-            header: 'Confirmation de Nouvelle Version',
-            icon: 'pi pi-exclamation-circle text-blue-500',
-            acceptLabel: 'Oui, Créer la nouvelle version',
-            rejectLabel: 'Annuler',
-            acceptClass: 'p-button-primary',
-            accept: async () => {
-              await preparerNouveauBrouillon(modeleId, codeArticle);
-            },
-            reject: () => {
-              isGeneratingPlan.value = false;
-            }
-          });
-        }
-        else {
-          await preparerNouveauBrouillon(modeleId, codeArticle);
-        }
-      } else {
-        const res = await wizard.genererPlan();
-        const newPlanId = res.data.planId;
-        toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan cloné.', life: 3000 });
-        planId.value = newPlanId;
-        router.replace(`/dev/fab/plans/editer/${newPlanId}`);
-        await chargerPlan(newPlanId);
+      if (etat.hasBrouillon) {
+        toast.add({ severity: 'info', summary: 'Reprise', detail: 'Un brouillon existe déjà pour cette opération. Reprise en cours...', life: 4000 });
+        planId.value = etat.brouillonId;
+        isFromWizard.value = true;
+        router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
+        await chargerPlan(etat.brouillonId);
+        isGeneratingPlan.value = false;
+      } 
+      else if (etat.hasActif) {
+        confirm.require({
+          message: `Un plan ACTIF (Version ${etat.actifVersion}) tourne actuellement en production pour cette opération. Voulez-vous créer une nouvelle version ? L'ancienne sera archivée après activation de la nouvelle.`,
+          header: 'Confirmation',
+          icon: 'pi pi-exclamation-circle text-blue-500',
+          acceptLabel: 'Oui, Continuer',
+          rejectLabel: 'Annuler',
+          acceptClass: 'p-button-primary',
+          accept: async () => {
+            await executerGenerationWizard(modeleId, codeArticle);
+          },
+          reject: () => {
+            isGeneratingPlan.value = false;
+          }
+        });
+      } 
+      else {
+        // Archivé ou rien => Création Libre
+        await executerGenerationWizard(modeleId, codeArticle);
       }
-
     } catch (error) {
       console.error('Erreur génération:', error);
       isGeneratingPlan.value = false;
+    }
+  };
+
+  const executerGenerationWizard = async (modeleId, codeArticle) => {
+    try {
+      if (wizard.sourceType.value === 'MODELE') {
+        await preparerNouveauBrouillon(modeleId, codeArticle);
+      } else {
+        const res = await wizard.genererPlan();
+        const newPlanId = res.data.planId;
+        toast.add({ severity: 'success', summary: 'Succès', detail: wizard.sourceType.value === 'CLONE' ? 'Plan cloné.' : 'Plan créé.', life: 3000 });
+        planId.value = newPlanId;
+        router.replace(`/dev/fab/plans/editer/${newPlanId}`);
+        await chargerPlan(newPlanId);
+        isGeneratingPlan.value = false;
+      }
+    } catch(err) {
+      isGeneratingPlan.value = false;
+      throw err;
     }
   };
 
@@ -818,7 +832,7 @@
 
   const sauvegarderBrouillonSilencieux = async (afficherToast = false, force = false) => {
     // Si 'force' est vrai, on bypass les guards qui empêchent l'auto-save (utilisé pour le bouton "Enregistrer Brouillon")
-    if (!force && (isCanceling.value || isSaving.value || plan.value?.statut === 'ACTIF' || isArchived.value)) return;
+    if (!force && (isGeneratingPlan.value || isCanceling.value || isSaving.value || plan.value?.statut === 'ACTIF' || isArchived.value)) return;
 
     let currentPlanId = planId.value;
 

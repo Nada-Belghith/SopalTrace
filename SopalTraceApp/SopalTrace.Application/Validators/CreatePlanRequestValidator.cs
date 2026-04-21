@@ -7,8 +7,6 @@ public class CreatePlanRequestValidator : AbstractValidator<CreatePlanRequestDto
 {
     public CreatePlanRequestValidator()
     {
-        RuleFor(x => x.ModeleSourceId)
-            .NotEmpty().WithMessage("Le modèle source est obligatoire.");
 
         RuleFor(x => x.CodeArticleSage)
             .NotEmpty().WithMessage("Le code article SAGE est obligatoire.")

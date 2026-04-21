@@ -13,7 +13,7 @@ public interface IPlanFabricationRepository
     Task<string?> GetDesignationArticleSageAsync(string codeArticleSage);
 
     // Modèles
-    Task<bool> ExisteModeleActifAsync(string typeRobinetCode, string natureCode, string operationCode);
+    Task<bool> ExisteModeleActifAsync(string typeRobinetCode, string natureCode, string? operationCode);
     Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode);
     Task<ModeleFabEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId);
     Task<ModeleFabEntete?> GetModeleAvecRelationsAsync(Guid modeleId);
@@ -27,11 +27,15 @@ public interface IPlanFabricationRepository
     Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage);
     Task<bool> ExistePlanActifPourArticleEtOperationAsync(string codeArticleSage, string? operationCode);
     Task<PlanFabEntete?> GetPlanActifPourArticleAsync(string codeArticleSage); // <-- NOUVELLE MÉTHODE
-    Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid modeleSourceId);
+    Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid? modeleSourceId, string? operationCode = null);
     Task<PlanFabEntete?> GetPlanAvecRelationsAsync(Guid planId);
     Task<PlanFabEntete?> GetPlanCompletPourMiseAJourAsync(Guid planId);
     Task<List<PlanFabLigne>> GetLignesDuPlanAsync(Guid planId);
     Task<PlanFabEntete?> GetPlanByIdAsync(Guid planId);
+    
+    // --> AJOUT : Méthode nécessaire pour l'UI de clonage
+    Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode);
+
     void Delete(PlanFabEntete plan);
     void DeleteSection(PlanFabSection section);
     void DeleteLigne(PlanFabLigne ligne);
@@ -44,7 +48,12 @@ public interface IPlanFabricationRepository
 
     // Unité de travail
     Task SaveChangesAsync();
-    Task<int> GetDerniereVersionPlanAsync(string codeArticleSage);
+    Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null);
     Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string typeRobinetCode, string natureCode, string operationCode);
     Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string typeRobinetCode, string natureComposantCode, string opCode);
+
+    /// <summary>
+    /// Supprime un plan et toutes ses sections et lignes en cascade
+    /// </summary>
+    Task DeletePlanWithChildrenAsync(Guid planId);
 }

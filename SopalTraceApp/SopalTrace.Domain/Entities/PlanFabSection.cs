@@ -17,13 +17,9 @@ public partial class PlanFabSection
 
     public string? FrequenceLibelle { get; set; }
 
-    public Guid? TypeSectionId { get; set; }
-
     public virtual ModeleFabSection? ModeleSection { get; set; }
 
     public virtual PlanFabEntete PlanEntete { get; set; } = null!;
 
     public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();
-
-    public virtual TypeSection? TypeSection { get; set; }
 }

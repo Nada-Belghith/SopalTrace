@@ -7,7 +7,7 @@ public partial class PlanFabEntete
 {
     public Guid Id { get; set; }
 
-    public Guid ModeleSourceId { get; set; }
+    public Guid? ModeleSourceId { get; set; }
 
     public string CodeArticleSage { get; set; } = null!;
 
@@ -16,6 +16,8 @@ public partial class PlanFabEntete
     public string Nom { get; set; } = null!;
 
     public int Version { get; set; }
+
+    public string? OperationCode { get; set; }
 
     public string Statut { get; set; } = null!;
 
@@ -41,7 +43,7 @@ public partial class PlanFabEntete
 
     public virtual Machine? MachineDefautCodeNavigation { get; set; }
 
-    public virtual ModeleFabEntete ModeleSource { get; set; } = null!;
+    public virtual ModeleFabEntete? ModeleSource { get; set; }
 
     public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();
 

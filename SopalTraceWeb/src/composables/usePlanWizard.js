@@ -213,11 +213,12 @@ export function usePlanWizard() {
     try {
       let payload = {};
 
-      if (sourceType.value === 'MODELE') {
+      if (sourceType.value === 'MODELE' || sourceType.value === 'VIERGE') {
         payload = {
-          modeleSourceId: selectedSourceId.value,
+          modeleSourceId: sourceType.value === 'MODELE' ? selectedSourceId.value : null, // null pour un plan vierge
           codeArticleSage: codeArticleSage.value,
           designation: designationArticle.value,
+          operationCode: operationCode.value, // Requis pour déterminer à quel atelier appartient ce plan vierge
           nom: `PC-${codeArticleSage.value}-V1`,
           creePar: 'ADMIN_QUALITE'
         };
@@ -241,6 +242,9 @@ export function usePlanWizard() {
 
   const canGeneratePlan = () => {
     if (isGenerique.value === 1) return false;
+    if (sourceType.value === 'VIERGE') {
+      return isArticleValid.value && operationCode.value && !isGenerating.value;
+    }
     return isArticleValid.value && operationCode.value && selectedSourceId.value !== null && !isGenerating.value;
   };
 

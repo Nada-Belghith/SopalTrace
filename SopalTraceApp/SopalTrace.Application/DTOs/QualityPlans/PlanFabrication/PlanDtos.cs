@@ -11,10 +11,11 @@ namespace SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 
 public record CreatePlanRequestDto
 {
-    public Guid ModeleSourceId { get; init; }
+    public Guid? ModeleSourceId { get; init; } // Ajoutez le ? ici
     public string CodeArticleSage { get; init; }
     public string Designation { get; init; }
     public string Nom { get; init; }
+    public string OperationCode { get; init; } // << AJOUTÉ
     public string MachineDefautCode { get; set; }
     public string CommentaireVersion { get; init; }
     public string LegendeMoyens { get; init; } 
@@ -167,6 +168,7 @@ public record UpdateValeursPlanRequestDto
 {
     public List<SectionEditDto> Sections { get; init; } = new();
     public string LegendeMoyens { get; init; }
+    public string Nom { get; init; }
     public bool Finaliser { get; init; } = true;
 }
 

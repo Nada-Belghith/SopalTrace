@@ -10,7 +10,6 @@
         :is-edit-mode="isEditMode"
       />
       
-
       <div class="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
         <div class="bg-[#1e293b] text-white px-5 py-3.5 flex justify-between items-center">
           <div class="flex items-center gap-3 font-bold tracking-wide">
@@ -54,7 +53,7 @@
                   :ligne="ligne"
                   :is-read-only="isReadOnly"
                   @remove="(id) => supprimerLigne(groupe.id, id)"
-                  @update-ligne="(updatedLigne) => mettreAJourLigne(groupe.id, updatedLigne)"
+                  @update="(updatedLigne) => mettreAJourLigne(groupe.id, updatedLigne)"
                 />
               </FabSectionCard>
             </table>
@@ -171,6 +170,20 @@ const showLegendValidation = ref(false);
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
 const { restaurerModele, creerNouvelleVersionModele } = useModeleVersioning();
 
+// ⚠️ CORRECTION : Le watch est maintenant APRES la déclaration des variables !
+watch(
+  [() => store.entete, () => groupes.value],
+  ([newEntete, newGroupes]) => {
+    if (modeleEditionId.value) {
+      // JSON.parse(JSON.stringify(...)) fait une copie "morte" sans réactivité
+      const enteteClone = JSON.parse(JSON.stringify(newEntete));
+      const groupesClone = JSON.parse(JSON.stringify(newGroupes));
+      updateCurrentSnapshot(createModeleSnapshot(enteteClone, groupesClone));
+    }
+  },
+  { deep: true }
+);
+
 // ============================================================================
 // COLONNES RÉUTILISABLES
 // ============================================================================
@@ -183,14 +196,6 @@ const modeleColumns = [
   { label: 'Observations', width: 'flex-1' },
   { label: '', width: 'w-12', textAlign: 'center' }
 ];
-
-watch(() => store.entete, () => {
-  if (modeleEditionId.value) updateCurrentSnapshot(createModeleSnapshot(store.entete, groupes.value));
-}, { deep: true });
-
-watch(() => groupes.value, () => {
-  if (modeleEditionId.value) updateCurrentSnapshot(createModeleSnapshot(store.entete, groupes.value));
-}, { deep: true });
 
 const isLoading = computed(() => store.isLoading);
 const isEditMode = computed(() => !!modeleEditionId.value);
@@ -343,10 +348,16 @@ const chargerModelePourEdition = async (id) => {
           libelleAffiche: lig.libelleAffiche || '',
           typeControleId: lig.typeControleId,
           moyenControleId: lig.moyenControleId,
-          // ⚠️ CORRECTION : Suppression de groupeInstrumentId qui causait le plantage
           instrumentCode: lig.instrumentCode,
           instruction: lig.instruction || '',
-          estCritique: lig.estCritique
+          estCritique: lig.estCritique,
+          valeurNominale: lig.valeurNominale ?? null,
+          toleranceSuperieure: lig.toleranceSuperieure ?? null,
+          toleranceInferieure: lig.toleranceInferieure ?? null,
+          unite: lig.unite || '',
+          limiteSpecTexte: lig.limiteSpecTexte || '',
+          observations: lig.observations || '',
+          moyenTexteLibre: lig.moyenTexteLibre || ''
         }))
       };
     });
@@ -413,7 +424,6 @@ const mettreAJourLigne = (groupeId, updatedLigne) => {
 };
 
 const preparerDonneesEtFrequences = async () => {
-  // ⚠️ CORRECTION IMPORTANTE : On passe 'groupes.value' en PREMIER paramètre
   const sections = await prepareModeleDataAndFrequencies(
     groupes.value,
     store.periodicites,
@@ -436,8 +446,10 @@ const validerLegendeMoyens = () => {
   return true;
 };
 
+const isNullOrEmpty = (v) => v === null || v === undefined || v === '';
+const isIdValide = (id) => !isNullOrEmpty(id) && id !== '00000000-0000-0000-0000-000000000000';
+
 const validerSaisieValeurs = () => {
-  // 1. On exige au moins UNE SECTION (mais plus forcément de lignes)
   const hasSections = groupes.value.length > 0;
   if (!hasSections) {
     toast.add({ severity: 'warn', summary: 'Saisie requise', detail: 'Le modèle doit contenir au moins une section.', life: 5000 });
@@ -448,14 +460,13 @@ const validerSaisieValeurs = () => {
   let hasIncompleteSections = false;
 
   groupes.value.forEach(groupe => {
-    // 2. On vérifie que la section a bien une nature définie
     if (!groupe.typeSectionId) {
       hasIncompleteSections = true;
     }
     
-    // 3. SI on a ajouté des lignes, on vérifie qu'elles sont bien complètes
     (groupe.lignes || []).forEach(ligne => {
-      if (!ligne.typeControleId || !ligne.typeCaracteristiqueId) {
+      // ⚠️ CORRECTION : Validation assouplie (accepte les GUID et les strings)
+      if (!isIdValide(ligne.typeControleId) || !isIdValide(ligne.typeCaracteristiqueId)) {
         hasIncompleteLines = true;
       }
     });
@@ -480,7 +491,6 @@ const declencherSauvegarde = async () => {
     return;
   }
   
-  // ⚠️ ON APPELLE LA VALIDATION STRICTE ICI
   if (!validerSaisieValeurs()) {
     return;
   }
@@ -534,7 +544,6 @@ const sauvegarderV2 = async () => {
         libelleAffiche: l.libelleAffiche,
         typeControleId: l.typeControleId,
         moyenControleId: l.moyenControleId,
-        // ⚠️ CORRECTION : Plus de groupeInstrumentId ici non plus
         instrumentCode: l.instrumentCode,
         periodiciteId: l.periodiciteId,
         instruction: l.instruction,

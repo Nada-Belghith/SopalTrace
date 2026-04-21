@@ -27,6 +27,17 @@ public class PlanFabricationController : ControllerBase
         _context = context;
     }
 
+    // ⚠️ NOUVELLE ROUTE : Permet de renvoyer la liste des plans actifs pour l'UI de clonage
+    [HttpGet("liste")]
+    public async Task<IActionResult> GetPlansByFilters(
+        [FromQuery] string? typeRobinet, 
+        [FromQuery] string? natureComposant, 
+        [FromQuery] string? operation)
+    {
+        var data = await _planService.GetPlansByFiltersAsync(typeRobinet, natureComposant, operation);
+        return Ok(new { success = true, data });
+    }
+
     [HttpPost("instancier")]
     public async Task<IActionResult> InstancierPlan([FromBody] CreatePlanRequestDto request)
     {
@@ -36,33 +47,65 @@ public class PlanFabricationController : ControllerBase
 
     // ⚠️ NOUVELLE ROUTE : Vérifie l'état complet (Brouillon ET Actif)
     [HttpGet("verifier-etat")]
-    public async Task<IActionResult> VerifierEtatPlan([FromQuery] string articleCode, [FromQuery] Guid? modeleId)
+    public async Task<IActionResult> VerifierEtatPlan(
+        [FromQuery] string articleCode,
+        [FromQuery] Guid? modeleId,
+        [FromQuery] string? typeRobinetCode,
+        [FromQuery] string? natureComposantCode,
+        [FromQuery] string? operationCode = null) // <-- Prise en charge operationCode!
     {
         var planQuery = _context.PlanFabEntetes
             .Where(p => p.CodeArticleSage == articleCode);
 
-        string? operationCode = null;
-        if (modeleId.HasValue && modeleId.Value != Guid.Empty)
+        string? opCode = operationCode;
+        if (string.IsNullOrEmpty(opCode) && modeleId.HasValue && modeleId.Value != Guid.Empty)
         {
-            operationCode = await _context.ModeleFabEntetes
+            opCode = await _context.ModeleFabEntetes
                 .Where(m => m.Id == modeleId.Value)
                 .Select(m => m.OperationCode)
                 .FirstOrDefaultAsync();
         }
 
-        var brouillonQuery = planQuery.Where(p => p.Statut == "BROUILLON");
-        if (modeleId.HasValue && modeleId.Value != Guid.Empty)
+        var brouillonQuery = planQuery
+            .Where(p => p.Statut == "BROUILLON")
+            .Include(p => p.ModeleSource)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(typeRobinetCode))
         {
-            brouillonQuery = brouillonQuery.Where(p => p.ModeleSourceId == modeleId.Value);
+            brouillonQuery = brouillonQuery.Where(p =>
+                p.ModeleSourceId == null || p.ModeleSource!.TypeRobinetCode == typeRobinetCode);
         }
 
-        var actifQuery = planQuery.Where(p => p.Statut == "ACTIF");
-        if (!string.IsNullOrWhiteSpace(operationCode))
+        if (!string.IsNullOrWhiteSpace(natureComposantCode))
         {
-            actifQuery = actifQuery.Where(p => p.ModeleSource.OperationCode == operationCode);
+            brouillonQuery = brouillonQuery.Where(p =>
+                p.ModeleSourceId == null || p.ModeleSource!.NatureComposantCode == natureComposantCode);
+        }
+        
+        // <-- NOUVEAU: Applique le contrôle d'Opération sur le Brouillon également
+        if (!string.IsNullOrWhiteSpace(opCode))
+        {
+            brouillonQuery = brouillonQuery.Where(p => 
+                p.OperationCode == opCode || 
+                (p.ModeleSourceId != null && p.ModeleSource!.OperationCode == opCode));
+        }
+
+        var actifQuery = planQuery
+            .Where(p => p.Statut == "ACTIF")
+            .Include(p => p.ModeleSource)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(opCode))
+        {
+            // Tolérer les Plans avec Source Nulle (Vierge) ou correspondants à l'opération
+            actifQuery = actifQuery.Where(p => 
+                p.OperationCode == opCode || 
+                (p.ModeleSourceId != null && p.ModeleSource!.OperationCode == opCode));
         }
 
         var brouillon = await brouillonQuery
+            .OrderByDescending(p => p.Version)
             .Select(p => p.Id)
             .FirstOrDefaultAsync();
 
@@ -94,7 +137,8 @@ public class PlanFabricationController : ControllerBase
             id,
             request.Sections,
             request.LegendeMoyens,
-            request.Finaliser
+            request.Finaliser,
+            request.Nom 
         );
 
         if (!success) return NotFound(new { success = false, message = "Plan introuvable." });
@@ -182,4 +226,6 @@ public class PlanFabricationController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
+
+ 
 }

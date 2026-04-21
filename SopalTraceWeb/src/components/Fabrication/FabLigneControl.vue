@@ -175,18 +175,35 @@ const isVisuel = computed(() => {
 // 2. Si on bascule sur Visuel, on nettoie automatiquement les instruments physiques uniquement
 watch(isVisuel, (devenuVisuel) => {
   if (devenuVisuel) {
-    // ⚠️ On a bien retiré la notion de groupeInstrumentId ici !
     localLigne.value.instrumentCode = null;
   }
 });
 
+// =========================================================================
+// CORRECTION DE LA BOUCLE INFINIE DE REACTIVITÉ
+// =========================================================================
+
 // Watch prop updates (from parent) and sync to local copy
 watch(() => props.ligne, (newVal) => {
-  localLigne.value = { ...newVal };
+  if (!newVal) return;
+  const sourceSource = JSON.stringify(newVal);
+  const sourceLocale = JSON.stringify(localLigne.value);
+  
+  // Ne met à jour que si les données venant du parent sont différentes
+  if (sourceSource !== sourceLocale) {
+    localLigne.value = JSON.parse(sourceSource);
+  }
 }, { deep: true });
 
 // Watch local copy and emit updates to parent
 watch(localLigne, (newVal) => {
-  emit('update', { ...newVal });
+  const sourceLocale = JSON.stringify(newVal);
+  const sourceSource = JSON.stringify(props.ligne);
+  
+  // N'émet un changement que si l'utilisateur a réellement modifié la valeur
+  if (sourceLocale !== sourceSource) {
+    emit('update', JSON.parse(sourceLocale));
+  }
 }, { deep: true });
+
 </script>

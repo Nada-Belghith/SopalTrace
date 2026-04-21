@@ -109,8 +109,21 @@
           <i class="pi pi-sitemap mr-2"></i> 3. Méthode de création
         </h3>
         
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-          <!-- Option 1: From Template (Modèle) -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+          <!-- Option 1: Vierge -->
+          <label 
+            :class="wizard.sourceType.value === 'VIERGE' ? 'border-purple-500 bg-purple-50 ring-4 ring-purple-500/20' : 'border-slate-200 hover:bg-slate-50'" 
+            class="p-6 rounded-2xl border-2 cursor-pointer transition-all flex flex-col items-center text-center gap-3"
+          >
+            <input type="radio" v-model="wizard.sourceType.value" value="VIERGE" class="hidden">
+            <i class="pi pi-file text-3xl" :class="wizard.sourceType.value === 'VIERGE' ? 'text-purple-600' : 'text-slate-400'"></i>
+            <div>
+              <p class="font-bold text-slate-800 text-lg">Plan Vierge</p>
+              <p class="text-xs text-slate-500 mt-2">Partir de zéro (vide)</p>
+            </div>
+          </label>
+
+          <!-- Option 2: From Template (Modèle) -->
           <label 
             @click="handleModeleCardClick" 
             :class="[
@@ -131,7 +144,7 @@
             </div>
           </label>
 
-          <!-- Option 2: Clone Existing -->
+          <!-- Option 3: Clone Existing -->
           <label :class="wizard.sourceType.value === 'CLONE' ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-500/20' : 'border-slate-200 hover:bg-slate-50'" class="p-6 rounded-2xl border-2 cursor-pointer transition-all flex flex-col items-center text-center gap-3">
             <input type="radio" v-model="wizard.sourceType.value" value="CLONE" class="hidden">
             <i class="pi pi-copy text-3xl" :class="wizard.sourceType.value === 'CLONE' ? 'text-emerald-600' : 'text-slate-400'"></i>
@@ -143,6 +156,22 @@
         </div>
 
         <!-- SOURCE SELECTION -->
+        <!-- VIERGE -->
+        <div v-if="wizard.sourceType.value === 'VIERGE'" class="animate-in fade-in">
+          <div class="p-6 bg-purple-50 border border-purple-200 rounded-xl text-purple-800 text-sm mb-4">
+            <i class="pi pi-info-circle text-xl mb-2 block"></i>
+            Vous allez créer un plan de contrôle totalement vide. Vous devrez configurer manuellement l'intégralité de la structure (sections, contrôles).
+          </div>
+          <button 
+            @click="$emit('load-model', { wizard })"
+            :disabled="!wizard.canGeneratePlan()"
+            class="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-black uppercase tracking-widest hover:bg-purple-700 transition-all shadow-lg flex items-center justify-center gap-3 text-sm"
+          >
+            <i class="pi pi-file-edit"></i>
+            Créer le Plan Vierge
+          </button>
+        </div>
+
         <div v-if="wizard.sourceType.value === 'MODELE'" class="animate-in fade-in">
           <!-- Si un seul modèle disponible, l'afficher et le sélectionner automatiquement -->
           <label v-if="wizard.availableModeles.value.length === 1" class="block text-xs font-bold text-slate-700 uppercase mb-2">Choisir le Modèle de base *</label>

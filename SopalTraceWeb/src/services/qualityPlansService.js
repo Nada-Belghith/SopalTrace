@@ -47,6 +47,15 @@ export const qualityPlansService = {
       params: { articleCode, modeleId }
     });
   },
+  instantiatePlan(payload) {
+  return apiClient.post('/plans-fabrication/instancier', payload);
+},
+
+verifierEtatPlan(articleCode, modeleId, operationCode) {
+  return apiClient.get('/plans-fabrication/verifier-etat', {
+    params: { articleCode, modeleId, operationCode }
+  });
+},
 
   annulerBrouillonPlan(planId) {
     return apiClient.delete(`/hub/plans/FAB/${planId}`);
@@ -62,6 +71,16 @@ export const qualityPlansService = {
 
   newPlanVersion(payload) {
     return apiClient.post('/plans-fabrication/nouvelle-version', payload);
+  },
+    // Modification de la méthode pour passer l'operationCode
+  verifierEtatPlan(articleCode, modeleId, operationCode = null) {
+    return apiClient.get('/plans-fabrication/verifier-etat', {
+      params: { 
+        articleCode, 
+        modeleId: modeleId || '', 
+        operationCode: operationCode || '' 
+      }
+    });
   },
 
   mettreAJourValeurs(planId, sectionsPayload, legendeMoyens, finaliser = true) {

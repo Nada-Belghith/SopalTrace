@@ -115,8 +115,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         code: codeModeleAuto.value,
         libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value}`,
         typeRobinetCode: entete.value.typeRobinetCode || null,
-        natureComposantCode: entete.value.natureComposantCode || null,
-        operationCode: entete.value.operationCode || null, 
+        natureComposantCode: entete.value.natureComposantCode || '',
+        operationCode: entete.value.operationCode || '', 
         notes: entete.value.notes || "",
         legendeMoyens: legendeMoyens || '',
         sections: sections.value.map(s => ({

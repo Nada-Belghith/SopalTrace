@@ -28,15 +28,28 @@ public class PlanActivationValidator : AbstractValidator<PlanFabEntete>
                         ligne.RuleFor(l => l.TypeControleId)
                             .NotEmpty().WithMessage("Chaque ligne doit avoir un type de contrôle.")
                             .Must(id => id.HasValue && id.Value != Guid.Empty).WithMessage("Le type de contrôle ne peut pas être vide.");
+
+                        // ValeurNominale obligatoire sauf si contrôle visuel
+                        ligne.RuleFor(l => l.ValeurNominale)
+                            .NotNull().WithMessage("La valeur nominale est obligatoire.")
+                            .When(l => l.TypeControle?.Code != "VISUEL");
+
+                        // Tolérance supérieure obligatoire sauf si contrôle visuel
+                        ligne.RuleFor(l => l.ToleranceSuperieure)
+                            .NotNull().WithMessage("La tolérance supérieure est obligatoire.")
+                            .When(l => l.TypeControle?.Code != "VISUEL");
+
+                        // Tolérance inférieure obligatoire sauf si contrôle visuel
+                        ligne.RuleFor(l => l.ToleranceInferieure)
+                            .NotNull().WithMessage("La tolérance inférieure est obligatoire.")
+                            .When(l => l.TypeControle?.Code != "VISUEL");
+
                         // Vérification : chaque ligne doit fournir au moins une information
                         // utile pour l'opérateur : soit une caractéristique, soit une valeur nominale (ou les deux).
                         // On n'autorise pas les deux à être vides en même temps.
                         ligne.RuleFor(l => l)
                             .Must(l => (l.TypeCaracteristiqueId.HasValue && l.TypeCaracteristiqueId.Value != Guid.Empty) || l.ValeurNominale.HasValue)
                             .WithMessage("Chaque ligne doit avoir soit une caractéristique, soit une valeur nominale (ou les deux).");
-
-                        ligne.RuleFor(l => l.LibelleAffiche)
-                            .NotEmpty().WithMessage("Chaque ligne doit avoir un libellé.");
 
                         // Validation conditionnelle : si une valeur nominale est renseignée,
                         // les tolérances doivent l'être aussi (unité non obligatoire)
