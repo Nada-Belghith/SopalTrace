@@ -105,10 +105,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
+// import { useConfirm } from 'primevue/useconfirm';
 
 import { usePfPlanStore } from '@/stores/pfPlanStore';
 import { useEditorSections } from '@/composables/useEditorSections';
@@ -121,13 +121,13 @@ import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
-import ConfirmDialog from 'primevue/confirmdialog';
+// import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
 
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
-const confirm = useConfirm();
+// const confirm = useConfirm();
 const store = usePfPlanStore();
 
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
@@ -143,9 +143,9 @@ const {
   ajouterSection,
   supprimerSection,
   mettreAJourSection,
-  ajouterLigneASection,
   supprimerLigneASection,
   mettreAJourLigne
+  // ajouterLigneASection (inutilisé)
 } = useEditorSections();
 
 const dummyLegende = ref('');
@@ -232,6 +232,7 @@ onMounted(async () => {
       // Synchroniser le state local des sections
       sections.value = JSON.parse(JSON.stringify(store.sections));
     } catch (error) {
+      console.error("Erreur chargement plan PF :", error);
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger le plan PF', life: 3000 });
       router.push('/dev/hub');
     } finally {
@@ -278,7 +279,7 @@ const onEditorSubmit = async () => {
     isSaving.value = true;
     try {
       store.sections = sections.value;
-      const newId = await store.createPlan();
+      await store.createPlan();
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
       router.push('/dev/hub');
     } catch (error) {
@@ -289,20 +290,19 @@ const onEditorSubmit = async () => {
   }
 };
 
-const onVersioningConfirm = async ({ type, motif }) => {
+const onVersioningConfirm = async (motif) => {
   showVersioningDialog.value = false;
   isVersioningSaving.value = true;
   try {
     store.sections = sections.value;
     
-    let newId;
     if (isArchived.value) {
       // Cas Restauration : on appelle l'endpoint dédié
-      newId = await store.restaurerPlan(motif);
+      await store.restaurerPlan(motif);
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Version restaurée et activée.', life: 3000 });
     } else {
       // Cas Nouvelle Version (depuis un plan Actif)
-      newId = await store.creerNouvelleVersion(motif);
+      await store.creerNouvelleVersion(motif);
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version activée.', life: 3000 });
     }
     

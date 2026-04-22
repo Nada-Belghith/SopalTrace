@@ -75,9 +75,7 @@ watch(() => props.section, (newVal) => {
 
 // NOTE: We intentionally do NOT emit on every deep change of localSection to avoid
 // recursive update loops. Updates are emitted explicitly from handlers below when
-// user actions occur (add/remove/update lignes or header changes).
-
-const store = useFabModeleStore();
+// const store = useFabModeleStore(); // Removed because it was unused
 
 const isAssTrn = computed(() => ['ASS', 'TRN'].includes((props.operationCode || '').toUpperCase()));
 

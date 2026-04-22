@@ -194,8 +194,8 @@
     supprimerSection,
     mettreAJourSection,
     ajouterLigneASection,
-    supprimerLigneASection,
-    mettreAJourLigne
+    supprimerLigneASection
+    // mettreAJourLigne (inutilisé)
   } = useEditorSections();
   const {
     showLegendValidation,
