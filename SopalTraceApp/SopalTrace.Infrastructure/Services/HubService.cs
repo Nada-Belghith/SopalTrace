@@ -84,6 +84,21 @@ public class HubService : IHubService
             .ToListAsync();
         result.AddRange(echModeles);
 
+        var pfModeles = await _context.PlanPfEntetes
+            .AsNoTracking()
+            .Select(m => new HubModeleDto(
+                m.Id,
+                "PF",
+                string.IsNullOrWhiteSpace(m.Designation) ? $"Plan PF {m.TypeRobinetCode}" : m.Designation,
+                "PRODUIT FINI", // NatureComposant
+                m.TypeRobinetCode,
+                "CONTRÔLE FINAL", // OperationCode
+                m.Version,
+                m.Statut,
+                "Gabarit de contrôle final pour produit fini."))
+            .ToListAsync();
+        result.AddRange(pfModeles);
+
         return result;
     }
 
@@ -146,6 +161,15 @@ public class HubService : IHubService
                 var m = await _context.PlanEchantillonnageEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
+                break;
+            }
+            case "PF":
+            {
+                var m = await _context.PlanPfEntetes.FindAsync(id);
+                if (m is null) return false;
+                m.Statut = statut;
+                m.ModifieLe = DateTime.UtcNow;
+                m.ModifiePar = "ADMIN";
                 break;
             }
             default:

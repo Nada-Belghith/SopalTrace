@@ -32,7 +32,7 @@
         </button>
       </div>
 
-      <div v-if="operationsDisponibles.length > 0" class="flex items-center gap-3">
+      <div v-if="operationsDisponibles.length > 0 && filtreActif !== 'PF'" class="flex items-center gap-3">
         <label class="text-xs font-bold text-slate-500 uppercase tracking-widest hidden md:block" title="Filtrer par opération">
           <i class="pi pi-filter mr-1"></i> Opération :
         </label>
@@ -131,7 +131,8 @@ const categories = [
   { id: 'FAB', label: 'Fabrication' },
   { id: 'ASS', label: 'Assemblage' },
   { id: 'VM', label: 'Vérif Machine' },
-  { id: 'ECH', label: 'Échantillonnage' }
+  { id: 'ECH', label: 'Échantillonnage' },
+  { id: 'PF', label: 'Produit Fini' }
 ];
 
 onMounted(async () => {
@@ -154,7 +155,7 @@ const chargerModeles = async () => {
 const modelesFiltres = computed(() => {
   return modeles.value.filter(m => {
     const matchCategory = filtreActif.value === 'ALL' || m.category === filtreActif.value;
-    const matchStatut = vueActuelle.value === 'ACTIFS' ? m.statut !== 'ARCHIVE' : m.statut === 'ARCHIVE';
+    const matchStatut = vueActuelle.value === 'ACTIFS' ? m.statut === 'ACTIF' : m.statut === 'ARCHIVE';
     const matchOperation = operationFiltre.value === '' || m.poste === operationFiltre.value;
     return matchCategory && matchStatut && matchOperation;
   });
@@ -163,7 +164,8 @@ const modelesFiltres = computed(() => {
 const operationsDisponibles = computed(() => {
   const ops = new Set();
   modeles.value.forEach(m => {
-    const matchCategory = filtreActif.value === 'ALL' || m.category === filtreActif.value;
+    // On n'inclut pas les opérations pour le Produit Fini (PF)
+    const matchCategory = (filtreActif.value === 'ALL' || m.category === filtreActif.value) && m.category !== 'PF';
     if (matchCategory && m.poste && m.poste !== 'N/A') {
       ops.add(m.poste);
     }
@@ -180,7 +182,8 @@ const getHoverBorderColor = (category) => {
     FAB: 'hover:border-blue-400',
     ASS: 'hover:border-indigo-400',
     VM: 'hover:border-orange-400',
-    ECH: 'hover:border-purple-400'
+    ECH: 'hover:border-purple-400',
+    PF: 'hover:border-emerald-400'
   };
   return colors[category] || 'hover:border-slate-400';
 };
@@ -228,6 +231,9 @@ const editer = (category, id) => {
     case 'ECH':
       router.push(`/dev/echantillonnage/editer/${id}`);
       break;
+    case 'PF':
+      router.push(`/dev/produit-fini/editer/${id}`);
+      break;
     default:
       toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Redirection non disponible.', life: 3000 });
   }
@@ -247,6 +253,9 @@ const consulter = (category, id) => {
       break;
     case 'ECH':
       router.push({ path: `/dev/echantillonnage/editer/${id}`, query: { view: 'true' } });
+      break;
+    case 'PF':
+      router.push({ path: `/dev/produit-fini/editer/${id}`, query: { view: 'true' } });
       break;
   }
 };

@@ -46,7 +46,7 @@
                 :is-read-only="isReadOnly"
                 @remove="supprimerGroupe(groupe.id)"
                 @update-groupe="(updatedGroupe) => mettreAJourGroupe(index, updatedGroupe)"
-                @section-type-required="alerterTypeSectionRequis"
+                @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
               >
                 <FabLigneControl 
                   v-for="ligne in groupe.lignes" 
@@ -54,8 +54,8 @@
                   :ligne="ligne"
                   :is-read-only="isReadOnly"
                   :operation-code="store.entete?.operationCode"
-                  @remove="(id) => supprimerLigne(groupe.id, id)"
-                  @update="(updatedLigne) => mettreAJourLigne(groupe.id, updatedLigne)"
+                  @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
+                  @update="(updatedLigne) => mettreAJourLigne(index, updatedLigne)"
                 />
               </FabSectionCard>
             </table>
@@ -67,58 +67,13 @@
             </button>
           </div>
 
-          <div
-            v-if="hasCustomInstrumentsGlobal && !isForcedView"
-            :class="[
-              'mt-6 px-4 py-3 rounded-lg',
-              showLegendValidation && !legendeMoyens
-                ? 'bg-yellow-50 border-2 border-yellow-300'
-                : 'bg-slate-50 border border-slate-200'
-            ]"
-          >
-            <div class="flex items-start gap-2 mb-2">
-              <i
-                :class="[
-                  'pi text-base mt-0.5',
-                  showLegendValidation && !legendeMoyens
-                    ? 'pi-exclamation-circle text-yellow-600'
-                    : 'pi-info-circle text-slate-500'
-                ]"
-              ></i>
-              <div>
-                <label
-                  :class="[
-                    'block text-[10px] font-black uppercase tracking-widest',
-                    showLegendValidation && !legendeMoyens ? 'text-yellow-800' : 'text-slate-700'
-                  ]"
-                >
-                  {{ showLegendValidation && !legendeMoyens ? '⚠️ Légende OBLIGATOIRE' : 'Légende des moyens' }}
-                </label>
-                <p
-                  :class="[
-                    'text-[9px] mt-0.5',
-                    showLegendValidation && !legendeMoyens ? 'text-yellow-700' : 'text-slate-500'
-                  ]"
-                >
-                  Texte personnalisé utilisé - veuillez documenter les abréviations
-                </p>
-              </div>
-            </div>
-            <textarea
-              v-model="legendeMoyens"
-              placeholder="Ex: PAC*=PAC512,PAC612"
-              rows="2"
-              :disabled="isReadOnly"
-              :class="[
-                'w-full border rounded px-3 py-2 text-xs outline-none shadow-sm transition-opacity',
-                isReadOnly ? 'opacity-60 bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-white text-slate-700',
-                showLegendValidation && !legendeMoyens && !isReadOnly
-                  ? 'bg-red-50 border-red-300 focus:border-red-500'
-                  : 'border-slate-300 focus:border-blue-500'
-              ]"
-            ></textarea>
-            <p v-if="showLegendValidation && !legendeMoyens && !isReadOnly" class="text-[9px] text-red-600 font-bold mt-1">❌ Remplissez la légende avant d'enregistrer!</p>
-          </div>
+          <LegendValidationBox 
+            v-model="legendeMoyens"
+            :show-validation="showLegendValidation"
+            :has-custom-instruments="hasCustomInstrumentsGlobal"
+            :is-read-only="isReadOnly"
+            :is-forced-view="isForcedView"
+          />
         </div>
 
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-4">
@@ -155,10 +110,14 @@ import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/m
 
 import EditorHeader from '@/components/Shared/EditorHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
+import LegendValidationBox from '@/components/Shared/LegendValidationBox.vue';
 import FabModeleHeader from '@/components/Fabrication/FabModeleHeader.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import FabSectionCard from '@/components/Fabrication/FabSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
+
+import { useEditorSections } from '@/composables/useEditorSections';
+import { useEditorValidation } from '@/composables/useEditorValidation';
 
 const store = useFabModeleStore();
 const toast = useToast();
@@ -168,13 +127,27 @@ const router = useRouter();
 // ============================================================================
 // ÉTAT LOCAL (Métier)
 // ============================================================================
-const groupes = ref([]);
+const { 
+  sections: groupes, 
+  ajouterSection: ajouterGroupe, 
+  supprimerSection: supprimerGroupe, 
+  mettreAJourSection: mettreAJourGroupe, 
+  supprimerLigneASection, 
+  mettreAJourLigne 
+} = useEditorSections();
+
 const modeleEditionId = ref(null);
 const codeOriginal = ref('');
 const statut = ref('BROUILLON');
 const version = ref(1);
 const legendeMoyens = ref('');
-const showLegendValidation = ref(false);
+
+const { 
+  showLegendValidation, 
+  hasCustomInstrumentsGlobal, 
+  validerLegendeMoyens, 
+  validerSaisieValeurs 
+} = useEditorValidation(groupes, legendeMoyens, toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
 const { restaurerModele, creerNouvelleVersionModele } = useModeleVersioning();
@@ -215,17 +188,6 @@ const isArchived = computed(() => statut.value === 'ARCHIVE');
 // 🔒 NOUVEAU : On verrouille tout si c'est une archive OU si on est en mode aperçu (view)
 const isReadOnly = computed(() => (isEditMode.value && isArchived.value) || isForcedView.value);
 
-const hasCustomInstrumentsGlobal = computed(() =>
-  groupes.value.some(group =>
-    (group.lignes || []).some(ligne => /[\*~!@#$%^&]/.test(ligne.instrumentCode || ''))
-  )
-);
-
-watch(legendeMoyens, (value) => {
-  if (value?.trim()) {
-    showLegendValidation.value = false;
-  }
-});
 
 const codeAffiche = computed(() => {
   if (isEditMode.value && codeOriginal.value) {
@@ -393,53 +355,6 @@ const chargerModelePourEdition = async (id) => {
   }
 };
 
-const ajouterGroupe = () => {
-  groupes.value.push({
-    id: crypto.randomUUID(),
-    isFromDb: false,
-    typeSectionId: '',
-    modeFreq: 'SANS',
-    periodiciteId: null,
-    freqNum: 1,
-    typeVariable: 'HEURE',
-    freqHours: 1,
-    isNewFreq: false,
-    nom: '',
-    lignes: []
-  });
-};
-
-const supprimerGroupe = (id) => {
-  groupes.value = groupes.value.filter(g => g.id !== id);
-};
-
-const mettreAJourGroupe = (index, updatedGroupe) => {
-  groupes.value[index] = updatedGroupe;
-};
-
-const alerterTypeSectionRequis = () => {
-  toast.add({
-    severity: 'warn',
-    summary: 'Type de section requis',
-    detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.',
-    life: 4000
-  });
-};
-
-const supprimerLigne = (groupeId, ligneId) => {
-  const g = groupes.value.find(g => g.id === groupeId);
-  if (g) {
-    g.lignes = g.lignes.filter(l => l.id !== ligneId);
-  }
-};
-
-const mettreAJourLigne = (groupeId, updatedLigne) => {
-  const g = groupes.value.find(g => g.id === groupeId);
-  if (g) {
-    const idx = g.lignes.findIndex(l => l.id === updatedLigne.id);
-    if (idx !== -1) g.lignes[idx] = updatedLigne;
-  }
-};
 
 const preparerDonneesEtFrequences = async () => {
   const sections = await prepareModeleDataAndFrequencies(
@@ -454,53 +369,7 @@ const preparerDonneesEtFrequences = async () => {
   return sections;
 };
 
-const validerLegendeMoyens = () => {
-  if (hasCustomInstrumentsGlobal.value && !legendeMoyens.value?.trim()) {
-    showLegendValidation.value = true;
-    toast.add({ severity: 'warn', summary: '⚠️ Légende OBLIGATOIRE', detail: 'Vous utilisez du texte personnalisé (* *** etc.) - veuillez remplir la légende des moyens.', life: 5000 });
-    return false;
-  }
-  showLegendValidation.value = false;
-  return true;
-};
 
-const isNullOrEmpty = (v) => v === null || v === undefined || v === '';
-const isIdValide = (id) => !isNullOrEmpty(id) && id !== '00000000-0000-0000-0000-000000000000';
-
-const validerSaisieValeurs = () => {
-  const hasSections = groupes.value.length > 0;
-  if (!hasSections) {
-    toast.add({ severity: 'warn', summary: 'Saisie requise', detail: 'Le modèle doit contenir au moins une section.', life: 5000 });
-    return false;
-  }
-
-  let hasIncompleteLines = false;
-  let hasIncompleteSections = false;
-
-  groupes.value.forEach(groupe => {
-    if (!groupe.typeSectionId) {
-      hasIncompleteSections = true;
-    }
-    
-    (groupe.lignes || []).forEach(ligne => {
-      if (!isIdValide(ligne.typeControleId) || !isIdValide(ligne.typeCaracteristiqueId)) {
-        hasIncompleteLines = true;
-      }
-    });
-  });
-
-  if (hasIncompleteSections) {
-    toast.add({ severity: 'error', summary: 'Section incomplète', detail: 'Veuillez définir la nature de toutes vos sections.', life: 6000 });
-    return false;
-  }
-
-  if (hasIncompleteLines) {
-    toast.add({ severity: 'error', summary: 'Ligne incomplète', detail: 'Les lignes de contrôle ajoutées doivent obligatoirement avoir une "Caractéristique" et un "Type de contrôle".', life: 6000 });
-    return false;
-  }
-
-  return true;
-};
 
 const declencherSauvegarde = async () => {
   if (isEditMode.value && isArchived.value) {

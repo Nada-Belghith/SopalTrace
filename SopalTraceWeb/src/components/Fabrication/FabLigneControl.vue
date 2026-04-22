@@ -92,7 +92,7 @@
     <td class="p-2 border-r border-slate-200 align-top">
       <select v-model="localLigne.moyenControleId" :disabled="isReadOnly" 
               :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-900 font-bold cursor-not-allowed' : 'cursor-pointer bg-white border border-slate-200 text-slate-700 focus:border-blue-500']">
-        <option :value="null" disabled>-- Moyen * --</option>
+        <option :value="null" disabled>-- Moyen  --</option>
         <option v-for="mc in (store.moyensControle || [])" :key="mc.id" :value="mc.id">{{ mc.libelle }}</option>
       </select>
     </td>
@@ -135,6 +135,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { usePfPlanStore } from '@/stores/pfPlanStore';
 import { qualityPlansService } from '@/services/qualityPlansService';
 import { useToast } from 'primevue/usetoast';
 import Dialog from 'primevue/dialog';
@@ -151,16 +152,18 @@ const props = defineProps({
 
 const isReadOnly = computed(() => props.isReadOnly);
 const emit = defineEmits(['remove', 'update']);
-const store = useFabModeleStore();
+const fabStore = useFabModeleStore();
+const pfStore = usePfPlanStore();
+const store = props.operationCode === 'PF' ? pfStore : fabStore;
 
 const localLigne = ref({ ...props.ligne });
 const isSyncingFromParent = ref(false);
 
 const safeCaracteristiques = computed(() => store.caracteristiques || store.typesCaracteristiques || store.typesCaracteristique || []);
 
-const currentOp = computed(() => store.entete?.operationCode || '');
+const currentOp = computed(() => props.operationCode || store.entete?.operationCode || '');
 const isModeleGenerique = computed(() => {
-  return ['ASS', 'TRN', 'TRONC'].includes(currentOp.value.toUpperCase());
+  return ['ASS', 'TRN', 'TRONC', 'PF'].includes(currentOp.value.toUpperCase());
 });
 
 const typeLimite = ref('NUM');

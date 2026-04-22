@@ -11,6 +11,13 @@ public record ReferenceItemDto(
     bool? EstGenerique
 );
 
+public record ReferenceItemIntDto(
+    int? Id,
+    string Code,
+    string Libelle,
+    bool Actif
+);
+
 public record InstrumentDto(
     string CodeInstrument,
     string Designation,
@@ -59,11 +66,13 @@ public record ReferentielsResponseDto(
     List<PeriodiciteDto> Periodicites,
     List<ReferenceItemDto> TypesSections,
     List<InstrumentDto> Instruments,
-    List<GammeDto> Gammes // Ajout de Gammes
+    List<GammeDto> Gammes,
+    List<ReferenceItemIntDto> Nqa,
+    List<ReferenceItemDto> Defautheque
 )
 {
     public ReferentielsResponseDto()
-        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new()) // Ajout d'une liste vide pour l'initialisation
+        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new()) 
     {
     }
 }

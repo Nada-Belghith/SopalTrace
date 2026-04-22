@@ -64,6 +64,7 @@ const userName = ref('Jean Dupont')
 
 const menuItems = [
   { path: '/dashboard', label: 'Tableau de bord', icon: 'pi-home', badge: null },
+  { path: '/dev/produit-fini/nouveau', label: 'Produit Fini', icon: 'pi-box', badge: null },
   { path: '/traces', label: 'Traces', icon: 'pi-list', badge: '5' },
   { path: '/reports', label: 'Rapports', icon: 'pi-file', badge: null },
   { path: '/analytics', label: 'Analytiques', icon: 'pi-chart-bar', badge: null },

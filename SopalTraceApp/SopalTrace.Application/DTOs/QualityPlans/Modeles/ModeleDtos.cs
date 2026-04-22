@@ -114,6 +114,7 @@ public record ModeleLigneResponseDto
 
     public string? LimiteSpecTexte { get; init; }
 
+    public double? ValeurNominale { get; init; }
     public double? ToleranceSuperieure { get; init; }
     public double? ToleranceInferieure { get; init; }
 }

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+ï»¿using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
@@ -101,7 +101,19 @@ public class ReferentielService : IReferentielService
 
             Gammes: await _context.NatureComposantOperations
                 .Select(g => new GammeDto(g.NatureComposantCode, g.OperationCode))
-                .ToListAsync()
+                .ToListAsync(),
+
+            Nqa: (await _context.Nqas
+                .Select(x => new { x.Id, x.ValeurNqa })
+                .ToListAsync())
+                .Select(x => new ReferenceItemIntDto(x.Id, x.ValeurNqa.ToString(), x.ValeurNqa.ToString(), true))
+                .ToList(),
+
+            Defautheque: (await _context.Defautheques
+                .Select(x => new { x.Id, x.Code, x.Description })
+                .ToListAsync())
+                .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Description ?? x.Code, true, null))
+                .ToList()
         );
     }
 
@@ -124,7 +136,7 @@ public class ReferentielService : IReferentielService
     {
         var existeDeja = await _context.Periodicites.AnyAsync(x => x.Code == request.Code);
         if (existeDeja)
-            throw new InvalidOperationException("Une périodicité avec ce code existe déjà.");
+            throw new InvalidOperationException("Une pï¿½riodicitï¿½ avec ce code existe dï¿½jï¿½.");
 
         var periodicite = PeriodiciteMapper.MapToEntity(request);
         _context.Periodicites.Add(periodicite);
@@ -140,7 +152,7 @@ public class ReferentielService : IReferentielService
         var existeDeja = await _context.TypeCaracteristiques.AnyAsync(
             x => x.Code == caracteristique.Code || x.Libelle == request.Libelle);
         if (existeDeja)
-            throw new InvalidOperationException("Une caractéristique avec ce nom existe déjà.");
+            throw new InvalidOperationException("Une caractï¿½ristique avec ce nom existe dï¿½jï¿½.");
 
         _context.TypeCaracteristiques.Add(caracteristique);
         await _context.SaveChangesAsync();

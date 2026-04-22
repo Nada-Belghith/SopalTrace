@@ -57,12 +57,17 @@ const router = createRouter({
         //   component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
         // },
 
-        // // 4. ÉDITEUR PRODUIT FINI
-        // {
-        //   path: 'produit-fini/nouveau',
-        //   name: 'dev-pf-create',
-        //   component: () => import('@/views/QualityPlans/ProduitFini/PfModeleEditor.vue'),
-        // },
+        // 4. ÉDITEUR PRODUIT FINI
+        {
+          path: 'produit-fini/nouveau',
+          name: 'dev-pf-create',
+          component: () => import('@/views/QualityPlans/ProduitFini/PfPlanEditor.vue'),
+        },
+        {
+          path: 'produit-fini/editer/:id',
+          name: 'dev-pf-edit',
+          component: () => import('@/views/QualityPlans/ProduitFini/PfPlanEditor.vue'),
+        },
 
         // // 5. ÉDITEUR VÉRIF MACHINE (BEE, MAS, SER...)
         // {

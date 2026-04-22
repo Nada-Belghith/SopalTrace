@@ -46,7 +46,6 @@ import { defineProps, defineEmits, ref, watch, nextTick, computed } from 'vue';
 import FabTableHeader from './FabTableHeader.vue';
 import FabSectionHeader from './FabSectionHeader.vue';
 import FabPlanLigneControl from './FabPlanLigneControl.vue';
-import { useFabModeleStore } from '@/stores/fabModeleStore';
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -75,9 +74,7 @@ watch(() => props.section, (newVal) => {
 
 // NOTE: We intentionally do NOT emit on every deep change of localSection to avoid
 // recursive update loops. Updates are emitted explicitly from handlers below when
-// user actions occur (add/remove/update lignes or header changes).
-
-const store = useFabModeleStore();
+// const store = useFabModeleStore(); // Removed because it was unused
 
 const isAssTrn = computed(() => ['ASS', 'TRN'].includes((props.operationCode || '').toUpperCase()));
 

@@ -9,15 +9,11 @@ public partial class PlanPfEntete
 
     public string TypeRobinetCode { get; set; } = null!;
 
-    public string? CodeArticleSage { get; set; }
-
     public string? Designation { get; set; }
 
     public int Version { get; set; }
 
     public string Statut { get; set; } = null!;
-
-    public bool VisibleOperateur { get; set; }
 
     public DateOnly? DateApplication { get; set; }
 

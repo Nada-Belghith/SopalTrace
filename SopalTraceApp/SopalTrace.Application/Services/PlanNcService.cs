@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using SopalTrace.Application.DTOs.QualityPlans.PlansNC;
 using SopalTrace.Application.Interfaces;
@@ -122,7 +122,7 @@ public class PlanNcService : IPlanNcService
         {
             plan.Statut = StatutsPlan.Actif;
 
-            var ancienPlanActif = await _repository.GetPlanActifAsync(plan.TypeRobinetCode, plan.OperationCode, plan.PosteCode);
+            var ancienPlanActif = await _repository.GetPlanActifAsync(plan.TypeRobinetCode ?? string.Empty, plan.OperationCode, plan.PosteCode);
             if (ancienPlanActif != null && ancienPlanActif.Id != plan.Id)
             {
                 ancienPlanActif.Statut = StatutsPlan.Archive;
