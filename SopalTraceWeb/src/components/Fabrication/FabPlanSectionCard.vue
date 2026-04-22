@@ -46,7 +46,6 @@ import { defineProps, defineEmits, ref, watch, nextTick, computed } from 'vue';
 import FabTableHeader from './FabTableHeader.vue';
 import FabSectionHeader from './FabSectionHeader.vue';
 import FabPlanLigneControl from './FabPlanLigneControl.vue';
-import { useFabModeleStore } from '@/stores/fabModeleStore';
 
 const props = defineProps({
   section: { type: Object, required: true },
