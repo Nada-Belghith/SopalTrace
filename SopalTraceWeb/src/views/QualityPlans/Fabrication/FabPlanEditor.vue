@@ -97,46 +97,13 @@
               </button>
             </div>
 
-            <div v-if="hasCustomInstrumentsGlobal"
-                 :class="[
-                'mt-6 px-4 py-3 rounded-lg',
-                showLegendValidation && !legendeMoyens
-                  ? 'bg-yellow-50 border-2 border-yellow-300'
-                  : 'bg-slate-50 border border-slate-200'
-              ]">
-              <div class="flex items-start gap-2 mb-2">
-                <i :class="[
-                    'pi text-base mt-0.5',
-                    showLegendValidation && !legendeMoyens
-                      ? 'pi-exclamation-circle text-yellow-600'
-                      : 'pi-info-circle text-slate-500'
-                  ]"></i>
-                <div>
-                  <label :class="[
-                      'block text-[10px] font-black uppercase tracking-widest',
-                      showLegendValidation && !legendeMoyens ? 'text-yellow-800' : 'text-slate-700'
-                    ]">
-                    {{ showLegendValidation && !legendeMoyens ? '⚠️ Légende OBLIGATOIRE' : 'Légende des moyens' }}
-                  </label>
-                  <p :class="[
-                      'text-[9px] mt-0.5',
-                      showLegendValidation && !legendeMoyens ? 'text-yellow-700' : 'text-slate-500'
-                    ]">
-                    Texte personnalisé utilisé - veuillez documenter les abréviations
-                  </p>
-                </div>
-              </div>
-              <textarea v-model="legendeMoyens"
-                        :disabled="isReadOnly"
-                        placeholder="Ex: PAC*=PAC512,PAC612"
-                        rows="2"
-                        :class="[
-                  'w-full border rounded px-3 py-2 text-xs outline-none shadow-sm',
-                  isReadOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'text-slate-700 bg-white border-slate-300 focus:border-blue-500',
-                  showLegendValidation && !legendeMoyens && !isReadOnly ? 'bg-red-50 border-red-300 focus:border-red-500' : ''
-                ]"></textarea>
-              <p v-if="showLegendValidation && !legendeMoyens && !isReadOnly" class="text-[9px] text-red-600 font-bold mt-1">❌ Remplissez la légende avant d'enregistrer!</p>
-            </div>
+            <LegendValidationBox 
+              v-model="legendeMoyens"
+              :show-validation="showLegendValidation"
+              :has-custom-instruments="hasCustomInstrumentsGlobal"
+              :is-read-only="isReadOnly"
+              :is-forced-view="isForcedView"
+            />
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
@@ -197,8 +164,12 @@
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
   import FabPlanSectionCard from '@/components/Fabrication/FabPlanSectionCard.vue';
   import EditorActions from '@/components/Shared/EditorActions.vue';
+  import LegendValidationBox from '@/components/Shared/LegendValidationBox.vue';
   import ConfirmDialog from 'primevue/confirmdialog';
 
+  import { useEditorSections } from '@/composables/useEditorSections';
+  import { useEditorValidation } from '@/composables/useEditorValidation';
+  import { usePlanAutosave } from '@/composables/usePlanAutosave';
   const route = useRoute();
   const router = useRouter();
   const toast = useToast();
@@ -213,18 +184,25 @@
   const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
   const isForcedView = ref(route.query.view === 'true');
   const plan = ref(null);
-  const sections = ref([]);
   const legendeMoyens = ref('');
-  const showLegendValidation = ref(false);
   const isLoadingData = ref(false);
-  const isSaving = ref(false);
   const isVersioningSaving = ref(false);
 
-  const hasCustomInstrumentsGlobal = computed(() =>
-    sections.value.some(section =>
-      (section.lignes || []).some(ligne => /[\*~!@#$%^&]/.test(ligne.instrumentCode || ''))
-    )
-  );
+  const {
+    sections,
+    ajouterSection,
+    supprimerSection,
+    mettreAJourSection,
+    ajouterLigneASection,
+    supprimerLigneASection,
+    mettreAJourLigne
+  } = useEditorSections();
+  const {
+    showLegendValidation,
+    hasCustomInstrumentsGlobal,
+    validerLegendeMoyens,
+    validerSaisiePlan: validerSaisieValeurs
+  } = useEditorValidation(sections, legendeMoyens, toast);
 
   const isEditMode = computed(() => !!planId.value);
   const isArchived = computed(() => plan.value?.statut === 'ARCHIVE');
@@ -279,7 +257,6 @@
 
   const isExitingEditor = ref(false);
   const isCanceling = ref(false);
-  let autoSaveInterval = null;
   const planCreationPayload = ref(null);
   const aEteCreePendantCetteSession = ref(false);
 
@@ -334,26 +311,22 @@
   const versioningMode = ref('new-version');
   // Assure la cohérence des flags de chargement entre l'éditeur et la boîte de versioning
 
+  const { isSaving, startAutoSave, stopAutoSave } = usePlanAutosave(async () => {
+    if (plan.value?.statut === 'BROUILLON' || planCreationPayload.value) {
+      await sauvegarderBrouillonSilencieux(false);
+    }
+  }, 30000);
+
   onMounted(async () => {
     if (!store.isDicosLoaded) await store.fetchDictionnaires();
     if (planId.value && planId.value !== 'nouveau') await chargerPlan(planId.value);
-
-    autoSaveInterval = setInterval(() => {
-      if (plan.value?.statut === 'BROUILLON' || planCreationPayload.value) {
-        sauvegarderBrouillonSilencieux(false);
-      }
-    }, 30000);
+    startAutoSave();
   });
 
   onUnmounted(() => {
-    if (autoSaveInterval) {
-      clearInterval(autoSaveInterval);
-    }
+    stopAutoSave();
   });
 
-  watch(legendeMoyens, (value) => {
-    if (value?.trim()) showLegendValidation.value = false;
-  });
 
   const preparerNouveauBrouillon = async (modeleId, codeArticle) => {
     const modRes = await qualityPlansService.getModeleById(modeleId);
@@ -663,121 +636,7 @@
     }
   };
 
-  const ajouterSection = () => {
-    sections.value.push({ id: crypto.randomUUID(), isFromDb: false, typeSectionId: '', modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1, isNewFreq: false, nom: '', lignes: [] });
-  };
-  const supprimerSection = (id) => { sections.value = sections.value.filter(s => s.id !== id); };
-  const mettreAJourSection = (index, updatedSection) => {
-    if (!sections.value[index]) return;
-    // Merge updated fields into existing object to keep the same reference and avoid recursive watcher loops
-    Object.assign(sections.value[index], updatedSection);
-  };
-
-  const ajouterLigneASection = (sectionIndex) => {
-    if (sections.value[sectionIndex]) {
-      if (!sections.value[sectionIndex].typeSectionId) {
-        toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 });
-        return;
-      }
-      const nouvelleLigne = {
-        id: crypto.randomUUID(),
-        isFromDb: false,
-        modeleLigneSourceId: null,
-        typeCaracteristiqueId: null,
-        typeControleId: null,
-        moyenControleId: null,
-        moyenTexteLibre: '',
-        instrumentCode: null,
-        libelleAffiche: '',
-        valeurNominale: null,
-        toleranceInferieure: null,
-        toleranceSuperieure: null,
-        unite: '',
-        limiteSpecTexte: '',
-        instruction: '',
-        observations: '',
-        estCritique: false
-      };
-
-      sections.value[sectionIndex].lignes.push(nouvelleLigne);
-    }
-  };
-
-  const supprimerLigneASection = (sectionIndex, ligneId) => {
-    if (sections.value[sectionIndex]) {
-      sections.value[sectionIndex].lignes = sections.value[sectionIndex].lignes.filter(l => l.id !== ligneId);
-    }
-  };
-
   const normalizeId = (id) => (typeof id === 'string' && id.length <= 36 ? id : null);
-
-  const validerSaisieValeurs = () => {
-    const hasLignes = sections.value.some(section => (section.lignes || []).length > 0);
-    if (!hasLignes) {
-      toast.add({ severity: 'warn', summary: 'Saisie requise', detail: 'Veuillez ajouter au moins une ligne de contrôle.', life: 5000 });
-      return false;
-    }
-
-    let hasMissingTypeControle = false;
-    let hasMissingActivationFields = false;
-
-    sections.value.forEach(section => {
-      (section.lignes || []).forEach(ligne => {
-        if (!ligne.typeControleId) {
-          hasMissingTypeControle = true;
-        }
-
-        const hasValeurNominale =
-          ligne.valeurNominale !== null &&
-          ligne.valeurNominale !== undefined &&
-          ligne.valeurNominale !== '';
-
-        if (hasValeurNominale) {
-          const tolSupMissing = ligne.toleranceSuperieure === null || ligne.toleranceSuperieure === undefined;
-          const tolInfMissing = ligne.toleranceInferieure === null || ligne.toleranceInferieure === undefined;
-
-          if (tolSupMissing || tolInfMissing) {
-            hasMissingActivationFields = true;
-          }
-        }
-      });
-    });
-
-    if (hasMissingTypeControle) {
-      toast.add({
-        severity: 'error',
-        summary: 'Ligne incomplète',
-        detail: 'Veuillez définir le "Type de contrôle" pour toutes vos lignes, ou supprimez les lignes vides avant d\'activer le plan.',
-        life: 6000
-      });
-      return false;
-    }
-
-    if (hasMissingActivationFields) {
-      toast.add({
-        severity: 'error',
-        summary: 'Champs obligatoires manquants',
-        detail: 'Si une valeur nominale est saisie, renseignez aussi Tolérance min, Tolérance max.',
-        life: 7000
-      });
-      return false;
-    }
-
-    return true;
-  };
-
-  const validerLegendeMoyens = () => {
-    const hasCustomInstruments = sections.value.some(section =>
-      section.lignes.some(ligne => /[\*~!@#$%^&]/.test(ligne.instrumentCode || ''))
-    );
-    if (hasCustomInstruments && !legendeMoyens.value?.trim()) {
-      showLegendValidation.value = true;
-      toast.add({ severity: 'warn', summary: '⚠️ Légende OBLIGATOIRE', detail: 'Vous utilisez du texte personnalisé (* *** etc.) - veuillez remplir la légende des moyens.', life: 5000 });
-      return false;
-    }
-    showLegendValidation.value = false;
-    return true;
-  };
 
   const syncIdsFromDb = (dbPlanData) => {
     if (!dbPlanData || !dbPlanData.sections) return;

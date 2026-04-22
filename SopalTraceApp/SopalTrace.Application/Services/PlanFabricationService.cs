@@ -306,7 +306,7 @@ public class PlanFabricationService : IPlanFabricationService
         await ArchiverPlanActifExistantAsync(planArchive.CodeArticleSage, auteurSecure, $"Archivé suite à la restauration de la version: {planArchive.Id}");
         
         var commentaireResto = $"[Restauré depuis archive] {request.MotifRestoration}";
-        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation, auteurSecure, commentaireResto);
+        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, auteurSecure, commentaireResto);
 
         var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(planArchive.CodeArticleSage) + 1;
         nouveauPlan.Version = prochaineVersion;

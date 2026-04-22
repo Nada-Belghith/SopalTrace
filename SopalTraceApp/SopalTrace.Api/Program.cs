@@ -98,6 +98,8 @@ builder.Services.AddScoped<IPlanEchanService, PlanEchanService>();
 builder.Services.AddScoped<IReferentielService, ReferentielService>();
 builder.Services.AddScoped<IHubService, HubService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
+builder.Services.AddScoped<IPlanPfRepository, PlanPfRepository>();
+builder.Services.AddScoped<IPlanPfService, PlanPfService>();
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---
 var secretKey = builder.Configuration["Jwt:Secret"] ?? "VotreCleSecreteDePlusDe32Caracteres";

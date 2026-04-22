@@ -71,6 +71,8 @@ public static class PlanFabricationMapper
                     InstrumentCode = instrumentData.InstrumentCode,
                     MoyenTexteLibre = instrumentData.MoyenTexteLibre,
                     PeriodiciteId = NullIfEmpty(modeleLigne.PeriodiciteId), Instruction = modeleLigne.Instruction, EstCritique = modeleLigne.EstCritique,
+                    ValeurNominale = modeleLigne.ValeurNominale, ToleranceSuperieure = modeleLigne.ToleranceSuperieure,
+                    ToleranceInferieure = modeleLigne.ToleranceInferieure,
                     LimiteSpecTexte = string.IsNullOrWhiteSpace(modeleLigne.LimiteSpecTexte) ? null : modeleLigne.LimiteSpecTexte
                 });
             }
