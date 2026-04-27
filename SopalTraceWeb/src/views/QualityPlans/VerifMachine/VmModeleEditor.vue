@@ -44,7 +44,7 @@ onMounted(async () => {
   if (id && id !== 'nouveau') {
     try {
       await store.chargerPlanVerif(id);
-    } catch (err) {
+    } catch {
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger le plan.', life: 3000 });
     }
   } else {
@@ -92,7 +92,7 @@ const confirmRestaurer = () => {
           toast.add({ severity: 'success', summary: 'Restauré', detail: 'Le plan a été restauré avec succès.', life: 3000 });
           router.replace(`/dev/verif-machine/editer/${res.planId}`);
         }
-      } catch (err) {
+      } catch {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de la restauration.', life: 3000 });
       }
     }

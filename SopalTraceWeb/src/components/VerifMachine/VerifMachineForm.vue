@@ -357,7 +357,6 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import EditorActions from '@/components/Shared/EditorActions.vue';
-import ToggleOption from './ToggleOption.vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 

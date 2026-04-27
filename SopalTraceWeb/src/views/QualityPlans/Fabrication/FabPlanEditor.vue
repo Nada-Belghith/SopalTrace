@@ -239,12 +239,6 @@
   const planCreationPayload = ref(null);
   const aEteCreePendantCetteSession = ref(false);
 
-  const onCloseEditor = async () => {
-    await sauvegarderBrouillonSilencieux(true);
-    isExitingEditor.value = true;
-    router.push('/dev/hub-plans');
-  };
-
   const onEditorCancel = () => {
     if (plan.value?.statut !== 'BROUILLON') {
       isExitingEditor.value = true;

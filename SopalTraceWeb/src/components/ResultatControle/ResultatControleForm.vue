@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { onMounted, computed, ref } from 'vue';
+import { onMounted, computed } from 'vue';
 import { usePlanNcStore } from '@/stores/planNcStore';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
@@ -83,7 +83,7 @@ import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 
-const props = defineProps({
+defineProps({
     isReadOnly: { type: Boolean, default: false }
 });
 
@@ -161,7 +161,7 @@ const handleSauvegarder = async () => {
             toast.add({ severity: 'success', summary: 'Succès', detail: res.message || 'Sauvegarde réussie.', life: 3000 });
             await store.fetchTousLesPlans();
         }
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'Une erreur est survenue lors de la sauvegarde.', life: 3000 });
     }
 };

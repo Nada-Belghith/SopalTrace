@@ -36,7 +36,6 @@ const router = useRouter();
 const confirm = useConfirm();
 const toast = useToast();
 
-const id = computed(() => route.params.id);
 const isReadOnly = computed(() => route.query.view === 'true');
 
 const confirmRestaurer = () => {
@@ -56,7 +55,7 @@ const confirmRestaurer = () => {
              router.replace(`/dev/resultat-controle/editer/${res.planId}`);
           }
         }
-      } catch (error) {
+      } catch {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de la restauration', life: 3000 });
       }
     }
