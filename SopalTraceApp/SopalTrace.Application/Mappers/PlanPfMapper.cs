@@ -113,7 +113,7 @@ public static class PlanPfMapper
             if (!forceNewIds && sectionsExistantes.TryGetValue(sectionId, out var existingSec))
             {
                 sectionEntity = existingSec;
-                sectionEntity.TypeSectionId = secDto.TypeSectionId;
+                sectionEntity.TypeSectionId = secDto.TypeSectionId ?? sectionEntity.TypeSectionId;
                 sectionEntity.LibelleSection = secDto.LibelleSection;
                 sectionEntity.OrdreAffiche = secDto.OrdreAffiche;
                 sectionEntity.Notes = secDto.Notes;
@@ -125,7 +125,7 @@ public static class PlanPfMapper
                 {
                     Id = sectionId,
                     PlanEnteteId = entite.Id,
-                    TypeSectionId = secDto.TypeSectionId,
+                    TypeSectionId = secDto.TypeSectionId ?? Guid.Empty,
                     LibelleSection = secDto.LibelleSection,
                     OrdreAffiche = secDto.OrdreAffiche,
                     Notes = secDto.Notes,
@@ -147,10 +147,10 @@ public static class PlanPfMapper
                     ligneEntity = existingLigne;
                     ligneEntity.SectionId = sectionId;
                     ligneEntity.OrdreAffiche = lDto.OrdreAffiche;
-                    ligneEntity.TypeCaracteristiqueId = NullIfEmpty(lDto.TypeCaracteristiqueId);
+                    ligneEntity.TypeCaracteristiqueId = NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty;
                     ligneEntity.LibelleAffiche = NullIfEmpty(lDto.LibelleAffiche);
-                    ligneEntity.TypeControleId = NullIfEmpty(lDto.TypeControleId);
-                    ligneEntity.MoyenControleId = NullIfEmpty(lDto.MoyenControleId);
+                    ligneEntity.TypeControleId = NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty;
+                    ligneEntity.MoyenControleId = NullIfEmpty(lDto.MoyenControleId) ?? Guid.Empty;
                     ligneEntity.InstrumentCode = NullIfEmpty(instrumentData.InstrumentCode);
                     ligneEntity.MoyenTexteLibre = NullIfEmpty(instrumentData.MoyenTexteLibre);
                     ligneEntity.ToleranceSuperieure = lDto.ToleranceSuperieure;
@@ -168,10 +168,10 @@ public static class PlanPfMapper
                         PlanEnteteId = entite.Id,
                         SectionId = sectionId,
                         OrdreAffiche = lDto.OrdreAffiche,
-                        TypeCaracteristiqueId = NullIfEmpty(lDto.TypeCaracteristiqueId),
+                        TypeCaracteristiqueId = NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty,
                         LibelleAffiche = NullIfEmpty(lDto.LibelleAffiche),
-                        TypeControleId = NullIfEmpty(lDto.TypeControleId),
-                        MoyenControleId = NullIfEmpty(lDto.MoyenControleId),
+                        TypeControleId = NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty,
+                        MoyenControleId = NullIfEmpty(lDto.MoyenControleId) ?? Guid.Empty,
                         InstrumentCode = NullIfEmpty(instrumentData.InstrumentCode),
                         MoyenTexteLibre = NullIfEmpty(instrumentData.MoyenTexteLibre),
                         ToleranceSuperieure = lDto.ToleranceSuperieure,

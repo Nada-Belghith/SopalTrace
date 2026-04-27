@@ -75,5 +75,5 @@ public static class PlanAssSpecification
     /// Retourne le nom pour un plan dupliqué (exception)
     /// </summary>
     public static string GetNameForDuplicatedPlanException(string? codeArticle) 
-        => $"PC-{codeArticle}-v1";
+        => $"PC-{codeArticle}";
 }

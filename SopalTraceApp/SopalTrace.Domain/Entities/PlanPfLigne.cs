@@ -13,11 +13,11 @@ public partial class PlanPfLigne
 
     public int OrdreAffiche { get; set; }
 
-    public Guid? TypeCaracteristiqueId { get; set; }
+    public Guid TypeCaracteristiqueId { get; set; }
 
     public string? LibelleAffiche { get; set; }
 
-    public Guid? TypeControleId { get; set; }
+    public Guid TypeControleId { get; set; }
 
     public Guid? MoyenControleId { get; set; }
 
@@ -25,9 +25,13 @@ public partial class PlanPfLigne
 
     public string? MoyenTexteLibre { get; set; }
 
+    public double? ValeurNominale { get; set; }
+
     public double? ToleranceSuperieure { get; set; }
 
     public double? ToleranceInferieure { get; set; }
+
+    public string? Unite { get; set; }
 
     public string? LimiteSpecTexte { get; set; }
 
@@ -36,6 +40,8 @@ public partial class PlanPfLigne
     public string? Instruction { get; set; }
 
     public string? Observations { get; set; }
+
+    public bool EstCritique { get; set; }
 
     public virtual Defautheque? Defautheque { get; set; }
 
@@ -47,7 +53,7 @@ public partial class PlanPfLigne
 
     public virtual PlanPfSection Section { get; set; } = null!;
 
-    public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
+    public virtual TypeCaracteristique TypeCaracteristique { get; set; } = null!;
 
-    public virtual TypeControle? TypeControle { get; set; }
+    public virtual TypeControle TypeControle { get; set; } = null!;
 }

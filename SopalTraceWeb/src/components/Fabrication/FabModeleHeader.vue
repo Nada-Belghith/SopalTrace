@@ -57,7 +57,7 @@ defineProps({
 });
 
 // =========================================================================
-// FILTRES INTELLIGENTS DATA-DRIVEN (Basés sur la BDD)
+// FILTRES DYNAMIQUES BASÉS SUR LA GAMME OPÉRATOIRE (BDD)
 // =========================================================================
 
 // 1. Filtre les opérations possibles selon le composant sélectionné
@@ -68,10 +68,17 @@ const operationsFiltrees = computed(() => {
 
   if (!nat) return toutesLesOperations;
 
-  // On cherche dans la BDD quelles opérations sont liées à ce composant
-  const operationsPermises = gammes.filter(g => g.natureComposantCode === nat).map(g => g.operationCode);
+  // On cherche les opérations autorisées pour cette nature dans la table de gammes
+  const operationsPermises = gammes
+    .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === nat.trim().toUpperCase())
+    .map(g => (g.operationCode || '').trim().toUpperCase());
   
-  return toutesLesOperations.filter(op => operationsPermises.includes(op.code));
+  if (operationsPermises.length > 0) {
+    return toutesLesOperations.filter(op => operationsPermises.includes((op.code || '').trim().toUpperCase()));
+  }
+
+  // Fallback : Si aucune règle n'est définie en BDD, on affiche tout pour ne pas bloquer l'utilisateur
+  return toutesLesOperations;
 });
 
 // 2. Filtre les composants possibles selon l'opération sélectionnée
@@ -82,58 +89,83 @@ const composantsFiltres = computed(() => {
 
   if (!op) return tousLesComposants;
 
-  // On cherche dans la BDD quels composants sont liés à cette opération
-  const composantsPermis = gammes.filter(g => g.operationCode === op).map(g => g.natureComposantCode);
+  // On cherche les natures autorisées pour cette opération dans la table de gammes
+  const composantsPermis = gammes
+    .filter(g => (g.operationCode || '').trim().toUpperCase() === op.trim().toUpperCase())
+    .map(g => (g.natureComposantCode || '').trim().toUpperCase());
   
-  return tousLesComposants.filter(n => composantsPermis.includes(n.code));
+  if (composantsPermis.length > 0) {
+    return tousLesComposants.filter(n => composantsPermis.includes((n.code || '').trim().toUpperCase()));
+  }
+
+  return tousLesComposants;
 });
 
 // =========================================================================
 // SÉCURITÉS ET AFFECTATIONS AUTOMATIQUES (Réactives)
 // =========================================================================
 
-// Si on change l'opération, on vérifie si le composant actuel est toujours compatible
+// Si on change l'opération, on vérifie si le composant actuel est toujours compatible via la BDD
 watch(() => store.entete.operationCode, (newOp) => {
   const nat = store.entete.natureComposantCode;
-  const gammes = store.gammesOperatoires || [];
+  if (!newOp || !nat) return;
 
-  if (newOp && nat) {
-    const estCompatible = gammes.some(g => g.operationCode === newOp && g.natureComposantCode === nat);
-    if (!estCompatible) {
-      store.entete.natureComposantCode = ''; // On vide le composant si la matrice BDD dit non
-    }
+  const gammes = store.gammesOperatoires || [];
+  // On vérifie si le couple (nat, newOp) existe dans la gamme
+  const estCompatible = gammes.some(g => 
+    (g.operationCode || '').trim().toUpperCase() === newOp.trim().toUpperCase() && 
+    (g.natureComposantCode || '').trim().toUpperCase() === nat.trim().toUpperCase()
+  );
+
+  // Fallback : si aucune gamme n'est définie pour cette opération en BDD, on considère que c'est libre
+  const opADesRegles = gammes.some(g => (g.operationCode || '').trim().toUpperCase() === newOp.trim().toUpperCase());
+
+  if (opADesRegles && !estCompatible) {
+    store.entete.natureComposantCode = '';
   }
 });
 
-// Si on change le composant, on vérifie l'opération
+// Si on change le composant, on vérifie l'opération et on tente une auto-sélection
 watch(() => store.entete.natureComposantCode, (nouvelleNature, ancienneNature) => {
   const op = store.entete.operationCode;
   const gammes = store.gammesOperatoires || [];
   
   if (nouvelleNature) {
-    const operationsCompatibles = gammes.filter(g => g.natureComposantCode === nouvelleNature).map(g => g.operationCode);
+    const targetNature = nouvelleNature.trim().toUpperCase();
     
-    // 1. Si l'opération sélectionnée n'est pas compatible avec la BDD, on la vide
-    if (op && !operationsCompatibles.includes(op)) {
-      store.entete.operationCode = ''; 
+    // 1. Vérification de compatibilité de l'opération actuelle
+    if (op) {
+      const targetOp = op.trim().toUpperCase();
+      const estCompatible = gammes.some(g => 
+        (g.natureComposantCode || '').trim().toUpperCase() === targetNature && 
+        (g.operationCode || '').trim().toUpperCase() === targetOp
+      );
+      
+      const natADesRegles = gammes.some(g => (g.natureComposantCode || '').trim().toUpperCase() === targetNature);
+
+      if (natADesRegles && !estCompatible) {
+        store.entete.operationCode = ''; 
+      }
     }
 
-    // 2. AUTO-SÉLECTION : S'il n'y a qu'une seule opération possible dans la BDD, on la choisit tout de suite !
-    // (ex: Si "PF" n'a que "ASS", la liste déroulante se met sur "ASS" toute seule)
-    if (!store.entete.operationCode && operationsCompatibles.length === 1) {
-      store.entete.operationCode = operationsCompatibles[0];
+    // 2. AUTO-SÉLECTION : Si une SEULE opération est possible pour ce composant en BDD, on l'affecte
+    if (!store.entete.operationCode) {
+      const opsPossibles = gammes
+        .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === targetNature)
+        .map(g => g.operationCode);
+      
+      if (opsPossibles.length === 1) {
+        store.entete.operationCode = opsPossibles[0];
+      }
     }
   }
   
-  // LOGIQUE TYPES DE ROBINET (PISTON / VOLANT)
+  // LOGIQUE SPÉCIFIQUE (Non liée aux gammes)
   if (nouvelleNature === 'PISTON') {
-    // SI PISTON : On vide le Type de Robinet car la case disparaît
     store.entete.typeRobinetCode = ''; 
   } else if (nouvelleNature === 'VOLANT') {
-    // Si VOLANT est sélectionné, on force automatiquement le type de robinet sur MAN (Manuelle)
     store.entete.typeRobinetCode = 'MAN';
   } else if (ancienneNature === 'VOLANT' && ['CORPS', 'PF'].includes(nouvelleNature)) {
-    // Si on quitte VOLANT pour revenir sur CORPS ou PF, on vide le champ pour obliger l'utilisateur à choisir
     store.entete.typeRobinetCode = '';
   }
 });

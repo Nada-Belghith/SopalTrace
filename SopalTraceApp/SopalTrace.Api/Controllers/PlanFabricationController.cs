@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
@@ -42,7 +42,7 @@ public class PlanFabricationController : ControllerBase
     public async Task<IActionResult> InstancierPlan([FromBody] CreatePlanRequestDto request)
     {
         var id = await _planService.InstancierPlanDepuisModeleAsync(request);
-        return Ok(new { success = true, planId = id, message = "Plan instancié en BROUILLON." });
+        return Ok(new { success = true, planId = id, message = "Plan initialisé avec succès." });
     }
 
     // ⚠️ NOUVELLE ROUTE : Vérifie l'état complet (Brouillon ET Actif)

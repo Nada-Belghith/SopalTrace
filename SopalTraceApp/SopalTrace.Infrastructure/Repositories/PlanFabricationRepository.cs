@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Domain.Constants;
@@ -90,6 +90,14 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     {
         return await _context.PlanFabEntetes
             .FirstOrDefaultAsync(p => p.CodeArticleSage == codeArticleSage && p.Statut == StatutsPlan.Actif);
+    }
+
+    public async Task<PlanFabEntete?> GetPlanActifPourArticleEtOperationAsync(string codeArticleSage, string operationCode)
+    {
+        return await _context.PlanFabEntetes
+            .FirstOrDefaultAsync(p => p.CodeArticleSage == codeArticleSage 
+                                 && p.OperationCode == operationCode 
+                                 && p.Statut == StatutsPlan.Actif);
     }
 
     // Méthode publique avec paramètre nullable Guid? — correspond à l'interface
@@ -274,24 +282,43 @@ public class PlanFabricationRepository : IPlanFabricationRepository
 
     public async Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
     {
+        // On part d'une requête de base qui joint le Plan avec les infos Article de SAGE (Itmmasters)
+        // car un plan peut être "Vierge" (sans modèle source) mais il appartient toujours à un article
+        // qui possède lui-même une Nature et un Type de Robinet.
         var query = _context.PlanFabEntetes
-            .Include(p => p.ModeleSource)
-            .Where(p => p.Statut == StatutsPlan.Actif);
+            .Join(_context.Itmmasters, 
+                p => p.CodeArticleSage, 
+                a => a.CodeArticle, 
+                (p, a) => new { Plan = p, Article = a })
+            .Where(x => x.Plan.Statut == StatutsPlan.Actif);
 
-        if (!string.IsNullOrWhiteSpace(typeRobinetCode))
-            query = query.Where(p => p.ModeleSource.TypeRobinetCode == typeRobinetCode);
-
-        if (!string.IsNullOrWhiteSpace(natureCode))
-            query = query.Where(p => p.ModeleSource.NatureComposantCode == natureCode);
-
+        // Filtre par Opération
         if (!string.IsNullOrWhiteSpace(operationCode))
-            query = query.Where(p => p.ModeleSource.OperationCode == operationCode);
+        {
+            query = query.Where(x => x.Plan.OperationCode == operationCode);
+        }
 
-        return await query
+        // Filtre par Type de Robinet (Depuis l'article ou le modèle)
+        if (!string.IsNullOrWhiteSpace(typeRobinetCode))
+        {
+            query = query.Where(x => x.Article.TypeRobinetCode == typeRobinetCode);
+        }
+
+        // Filtre par Nature de Composant (Depuis l'article ou le modèle)
+        if (!string.IsNullOrWhiteSpace(natureCode))
+        {
+            query = query.Where(x => x.Article.NatureComposantCode == natureCode);
+        }
+
+        var results = await query
+            .Select(x => x.Plan)
+            .Include(p => p.ModeleSource)
             .Include(p => p.PlanFabSections)
                 .ThenInclude(s => s.PlanFabLignes)
                     .ThenInclude(l => l.TypeCaracteristique)
             .OrderByDescending(p => p.CreeLe)
             .ToListAsync();
+
+        return results;
     }
 }

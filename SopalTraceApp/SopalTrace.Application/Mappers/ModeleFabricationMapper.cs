@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Domain.Constants;
@@ -43,6 +43,12 @@ public static class ModeleFabricationMapper
     {
         if (string.IsNullOrWhiteSpace(original)) return original;
         var regex = new Regex(@"-[Vv]\d+$");
+
+        if (nouvelleVersion == 1)
+        {
+            return regex.IsMatch(original) ? regex.Replace(original, "") : original;
+        }
+
         if (regex.IsMatch(original)) return regex.Replace(original, $"-V{nouvelleVersion}");
         return $"{original}-V{nouvelleVersion}";
     }

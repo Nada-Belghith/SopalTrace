@@ -11,13 +11,15 @@ public partial class PlanVerifMachineEcheance
 
     public Guid PeriodiciteId { get; set; }
 
-    public int OrdreAffiche { get; set; }
+    public Guid? RefMoyenDetectionId { get; set; }
 
-    public string? LibelleMoyen { get; set; }
+    public int OrdreAffiche { get; set; }
 
     public virtual Periodicite Periodicite { get; set; } = null!;
 
     public virtual PlanVerifMachineLigne PlanLigne { get; set; } = null!;
 
-    public virtual ICollection<PlanVerifMachinePieceRef> PlanVerifMachinePieceRefs { get; set; } = new List<PlanVerifMachinePieceRef>();
+    public virtual ICollection<PlanVerifMachineMatricePiece> PlanVerifMachineMatricePieces { get; set; } = new List<PlanVerifMachineMatricePiece>();
+
+    public virtual RefMoyenDetection? RefMoyenDetection { get; set; }
 }

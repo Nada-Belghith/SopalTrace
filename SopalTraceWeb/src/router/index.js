@@ -24,8 +24,8 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/DevPlanHub.vue'),
         },
 
-        // 2. ÉDITEUR FABRICATION (TRN, ESP, USI) - GABARITS
-        // Gère les Corps et Volants pour les 3 premières opérations
+        // 2. Ã‰DITEUR FABRICATION (TRN, ESP, USI) - GABARITS
+        // GÃ¨re les Corps et Volants pour les 3 premiÃ¨res opÃ©rations
         {
           path: 'fab/nouveau', 
           name: 'dev-fab-modele-create',
@@ -37,7 +37,7 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
         },
 
-        // === NOUVEAU : ÉDITEUR PLANS PAR ARTICLE (Production) ===
+        // === NOUVEAU : Ã‰DITEUR PLANS PAR ARTICLE (Production) ===
         {
           path: 'fab/plans/nouveau',
           name: 'dev-fab-plan-create',
@@ -49,15 +49,15 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/Fabrication/FabPlanEditor.vue'),
         },
 
-        // 3. ÉDITEUR ASSEMBLAGE (Plan Maître & Résultats)
-        // Gère RGAFM (Manu), RGAFA (Auto), Soupape
+        // 3. Ã‰DITEUR ASSEMBLAGE (Plan MaÃ®tre & RÃ©sultats)
+        // GÃ¨re RGAFM (Manu), RGAFA (Auto), Soupape
         // {
         //   path: 'assemblage/nouveau',
         //   name: 'dev-ass-create',
         //   component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
         // },
 
-        // 4. ÉDITEUR PRODUIT FINI
+        // 4. Ã‰DITEUR PRODUIT FINI
         {
           path: 'produit-fini/nouveau',
           name: 'dev-pf-create',
@@ -69,19 +69,36 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/ProduitFini/PfPlanEditor.vue'),
         },
 
-        // // 5. ÉDITEUR VÉRIF MACHINE (BEE, MAS, SER...)
-        // {
-        //   path: 'verif-machine/nouveau',
-        //   name: 'dev-vm-create',
-        //   component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue'),
-        // },
+        // 5. Ã‰DITEUR VÃ‰RIF MACHINE (BEE, MAS, SER...)
+        {
+          path: 'verif-machine/nouveau',
+          name: 'dev-vm-create',
+          component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue'),
+        },
+        {
+          path: 'verif-machine/editer/:id',
+          name: 'dev-vm-edit',
+          component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue'),
+        },
 
-        // // 6. ÉDITEUR ÉCHANTILLONNAGE (Niveaux ISO)
-        // {
-        //   path: 'echantillonnage/nouveau',
-        //   name: 'dev-ech-create',
-        //   component: () => import('@/views/QualityPlans/Echantillonnage/EchModeleEditor.vue'),
-        // }
+        // 6. RÃ‰SULTAT DE CONTRÃ”LE (NC)
+        {
+          path: 'resultat-controle/nouveau',
+          name: 'dev-rc-create',
+          component: () => import('@/views/QualityPlans/ResultatControle/RcModeleEditor.vue'),
+        },
+        {
+          path: 'resultat-controle/editer/:id',
+          name: 'dev-rc-edit',
+          component: () => import('@/views/QualityPlans/ResultatControle/RcModeleEditor.vue'),
+        },
+
+        // 7. ÉDITEUR ÉCHANTILLONNAGE (Niveaux ISO)
+        {
+          path: 'echantillonnage/nouveau',
+          name: 'dev-ech-create',
+          component: () => import('@/views/QualityPlans/Echantillonnage/EchModeleEditor.vue'),
+        }
       ]
     }
   ]

@@ -13,15 +13,25 @@
     <div class="max-w-[1600px] mx-auto">
       <div class="animate-in fade-in zoom-in-95 duration-500">
 
-        <EditorHeader
+        <PlanHeader 
+          :id="planId"
           :title="headerTitle"
           :subtitle="headerSubtitle"
-          :code="codeAffiche"
-          code-label="Identifiant PF"
+          icon="pi pi-box"
+          iconColorClass="text-blue-500"
+          :is-read-only="isReadOnly"
+          :version="store.entete?.version"
           :statut="statut"
-          :is-edit-mode="isEditMode"
-          @close="onCloseEditor"
-        />
+          :is-restoring="isVersioningSaving"
+          @restaurer="onEditorSubmit"
+        >
+          <template #actions>
+            <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-4 hidden md:flex">
+              <span class="text-[10px] font-black text-slate-400 uppercase">Identifiant PF:</span>
+              <span class="font-mono font-bold text-sm text-slate-700">{{ codeAffiche }}</span>
+            </div>
+          </template>
+        </PlanHeader>
 
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-6">
           <div class="p-6 md:p-8">
@@ -82,20 +92,14 @@
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
-            <template v-if="isForcedView">
-              <button @click="onCloseEditor" class="px-6 py-3 bg-slate-500 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2 shadow-sm font-bold">
-                <i class="pi pi-times"></i> Fermer
-              </button>
-            </template>
-            <template v-else>
-              <EditorActions :label="editorLabel"
-                             loading-label="Traitement..."
-                             :icon="editorIcon"
-                             :variant="editorVariant"
-                             :is-loading="isSaving && !showVersioningDialog"
-                             @submit="onEditorSubmit"
-                             @cancel="onCloseEditor" />
-            </template>
+            <EditorActions v-if="!isForcedView" 
+                           :label="editorLabel"
+                           loading-label="Traitement..."
+                           :icon="editorIcon"
+                           :variant="editorVariant"
+                           :is-loading="isSaving && !showVersioningDialog"
+                           @submit="onEditorSubmit"
+                           @cancel="onCloseEditor" />
           </div>
         </div>
 
@@ -114,7 +118,7 @@ import { usePfPlanStore } from '@/stores/pfPlanStore';
 import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
 
-import EditorHeader from '@/components/Shared/EditorHeader.vue';
+import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import PfHeader from '@/components/ProduitFini/PfHeader.vue';
 import PfSectionCard from '@/components/ProduitFini/PfSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';

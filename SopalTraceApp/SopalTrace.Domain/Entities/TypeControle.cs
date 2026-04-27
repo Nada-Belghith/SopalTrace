@@ -22,6 +22,4 @@ public partial class TypeControle
     public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();
 
     public virtual ICollection<PlanPfLigne> PlanPfLignes { get; set; } = new List<PlanPfLigne>();
-
-    public virtual ICollection<RisqueDefaut> RisqueDefauts { get; set; } = new List<RisqueDefaut>();
 }

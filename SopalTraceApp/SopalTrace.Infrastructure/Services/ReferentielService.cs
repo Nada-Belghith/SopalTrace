@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
@@ -115,6 +115,75 @@ public class ReferentielService : IReferentielService
                 .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Description ?? x.Code, true, null))
                 .ToList()
         );
+    }
+
+    public async Task<PlanNcReferentielsDto> GetPlanNcReferentielsAsync()
+    {
+        var postes = (await _context.PosteTravails
+            .Where(p => p.Actif)
+            .Select(p => new { p.CodePoste, p.Libelle })
+            .ToListAsync())
+            .Select(p => new ReferenceItemDto(null, p.CodePoste, p.Libelle, true, null))
+            .ToList();
+
+        // Pour les machines, on inclut le code du poste si associ
+        var machines = await _context.Machines
+            .Where(m => m.Actif)
+            .Select(m => new MachinePosteDto(
+                m.CodeMachine,
+                m.Libelle,
+                m.CodePostes.Select(cp => cp.CodePoste).FirstOrDefault()
+            ))
+            .ToListAsync();
+
+        var risquesDefauts = (await _context.RisqueDefauts
+            .Where(r => r.Actif)
+            .Select(r => new { r.Id, r.CodeDefaut, r.LibelleDefaut })
+            .ToListAsync())
+            .Select(r => new ReferenceItemDto(r.Id, r.CodeDefaut, r.LibelleDefaut, true, null))
+            .ToList();
+
+        return new PlanNcReferentielsDto(postes, machines, risquesDefauts);
+    }
+
+    public async Task<VerifMachineReferentielsDto> GetVerifMachineReferentielsAsync()
+    {
+        var machines = (await _context.Machines
+            .Where(m => m.Actif)
+            .Select(m => new { m.CodeMachine, m.Libelle })
+            .ToListAsync())
+            .Select(m => new ReferenceItemDto(null, m.CodeMachine, m.Libelle, true, null))
+            .ToList();
+
+        var periodicites = await _context.Periodicites
+            .Where(p => p.Actif)
+            .OrderBy(p => p.OrdreAffichage)
+            .Select(p => new PeriodiciteDto(p.Id, p.Code, p.Libelle, p.FrequenceNum, p.FrequenceUnite, p.OrdreAffichage, true))
+            .ToListAsync();
+
+        var allPieces = await _context.PieceReferences
+            .Where(p => p.Actif)
+            .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.FamilleDesc, p.MachineCode, p.TypePiece))
+            .ToListAsync();
+
+        var piecesRef = allPieces.Where(p => p.TypePiece == "PRC" || p.TypePiece == "PRNC").ToList();
+        var fuitesEtalon = allPieces.Where(p => p.TypePiece == "FEC" || p.TypePiece == "FENC").ToList();
+
+        var famillesCorps = (await _context.RefFamilleCorps
+            .Where(f => f.Actif)
+            .Select(f => new { f.Id, f.Code, f.Designation })
+            .ToListAsync())
+            .Select(f => new ReferenceItemDto(f.Id, f.Code, f.Designation, true, null))
+            .ToList();
+
+        var moyensDetection = (await _context.RefMoyenDetections
+            .Where(m => m.Actif)
+            .Select(m => new { m.Id, m.Code, m.Designation })
+            .ToListAsync())
+            .Select(m => new ReferenceItemDto(m.Id, m.Code, m.Designation, true, null))
+            .ToList();
+
+        return new VerifMachineReferentielsDto(machines, periodicites, piecesRef, fuitesEtalon, famillesCorps, moyensDetection);
     }
 
     public async Task<ArticleDto?> GetArticleInfosAsync(string codeArticle)

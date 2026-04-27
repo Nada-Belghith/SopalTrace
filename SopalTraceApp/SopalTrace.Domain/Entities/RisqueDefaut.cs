@@ -11,11 +11,7 @@ public partial class RisqueDefaut
 
     public string LibelleDefaut { get; set; } = null!;
 
-    public Guid? TypeControleId { get; set; }
-
     public bool Actif { get; set; }
 
-    public virtual ICollection<PlanVerifMachineLigne> PlanVerifMachineLignes { get; set; } = new List<PlanVerifMachineLigne>();
-
-    public virtual TypeControle? TypeControle { get; set; }
+    public virtual ICollection<PlanNcLigne> PlanNcLignes { get; set; } = new List<PlanNcLigne>();
 }

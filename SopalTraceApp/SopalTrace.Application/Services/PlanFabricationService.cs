@@ -64,11 +64,11 @@ public class PlanFabricationService : IPlanFabricationService
             nouveauPlan = PlanFabricationMapper.ConstruireEntitePlanVierge(request, designationSage);
         }
 
-        var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(request.CodeArticleSage) + 1;
+        var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(request.CodeArticleSage, request.OperationCode) + 1;
         nouveauPlan.Version = prochaineVersion;
 
         if (string.IsNullOrWhiteSpace(request.Nom))
-            nouveauPlan.Nom = $"PC-{request.CodeArticleSage}-V{prochaineVersion}";
+            nouveauPlan.Nom = prochaineVersion == 1 ? $"PC-{request.CodeArticleSage}" : $"PC-{request.CodeArticleSage}-V{prochaineVersion}";
 
         try
         {
@@ -77,7 +77,7 @@ public class PlanFabricationService : IPlanFabricationService
         }
         catch (ConflitConcurrenceException)
         {
-            var draft = await _repository.GetBrouillonLePlusRecentAsync(request.CodeArticleSage, modeleSourceId);
+            var draft = await _repository.GetBrouillonLePlusRecentAsync(request.CodeArticleSage, modeleSourceId, request.OperationCode);
             if (draft != null) return draft.Id;
             throw;
         }
@@ -186,7 +186,7 @@ public class PlanFabricationService : IPlanFabricationService
              // Validation stricte avant d'activer le plan
              await ValiderPlanPourActivationAsync(plan);
 
-             await ArchiverPlanActifExistantAsync(plan.CodeArticleSage, plan.ModifiePar ?? "SYSTEM");
+             await ArchiverPlanActifExistantAsync(plan.CodeArticleSage, plan.OperationCode, plan.ModifiePar ?? "SYSTEM");
              await _repository.SaveChangesAsync();
 
              plan.Statut = StatutsPlan.Actif;
@@ -194,7 +194,7 @@ public class PlanFabricationService : IPlanFabricationService
 
              if (string.IsNullOrWhiteSpace(plan.Nom))
              {
-                 plan.Nom = $"PC-{plan.CodeArticleSage}-V{plan.Version}";
+                 plan.Nom = plan.Version == 1 ? $"PC-{plan.CodeArticleSage}" : $"PC-{plan.CodeArticleSage}-V{plan.Version}";
              }
          }
 
@@ -242,7 +242,7 @@ public class PlanFabricationService : IPlanFabricationService
         // Prendre la version max relative à cette opération uniquement
         var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(request.NouveauCodeArticleSage, planSource.OperationCode) + 1;
         planClone.Version = prochaineVersion;
-        planClone.Nom = $"PC-{request.NouveauCodeArticleSage}-V{prochaineVersion}";
+        planClone.Nom = prochaineVersion == 1 ? $"PC-{request.NouveauCodeArticleSage}" : $"PC-{request.NouveauCodeArticleSage}-V{prochaineVersion}";
 
         try
         {
@@ -277,7 +277,7 @@ public class PlanFabricationService : IPlanFabricationService
         var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode) + 1;
         nouveauPlan.Version = prochaineVersion;
         nouveauPlan.Nom = string.IsNullOrWhiteSpace(nouveauPlan.Nom)
-            ? $"PC-{ancienPlan.CodeArticleSage}-V{prochaineVersion}"
+            ? (prochaineVersion == 1 ? $"PC-{ancienPlan.CodeArticleSage}" : $"PC-{ancienPlan.CodeArticleSage}-V{prochaineVersion}")
             : ModeleFabricationMapper.IncrementerSuffixeVersion(nouveauPlan.Nom, prochaineVersion);
 
         try
@@ -303,15 +303,15 @@ public class PlanFabricationService : IPlanFabricationService
 
         var auteurSecure = SecuriserNomAuteur(request.RestaurePar);
         
-        await ArchiverPlanActifExistantAsync(planArchive.CodeArticleSage, auteurSecure, $"Archivé suite à la restauration de la version: {planArchive.Id}");
+        await ArchiverPlanActifExistantAsync(planArchive.CodeArticleSage, planArchive.OperationCode, auteurSecure, $"Archivé suite à la restauration de la version: {planArchive.Id}");
         
         var commentaireResto = $"[Restauré depuis archive] {request.MotifRestoration}";
         var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, auteurSecure, commentaireResto);
 
-        var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(planArchive.CodeArticleSage) + 1;
+        var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(planArchive.CodeArticleSage, planArchive.OperationCode) + 1;
         nouveauPlan.Version = prochaineVersion;
         nouveauPlan.Nom = string.IsNullOrWhiteSpace(nouveauPlan.Nom)
-            ? $"PC-{planArchive.CodeArticleSage}-V{prochaineVersion}"
+            ? (prochaineVersion == 1 ? $"PC-{planArchive.CodeArticleSage}" : $"PC-{planArchive.CodeArticleSage}-V{prochaineVersion}")
             : ModeleFabricationMapper.IncrementerSuffixeVersion(nouveauPlan.Nom, prochaineVersion);
 
         nouveauPlan.Statut = StatutsPlan.Actif;
@@ -340,9 +340,9 @@ public class PlanFabricationService : IPlanFabricationService
         }
     }
 
-    private async Task ArchiverPlanActifExistantAsync(string codeArticleSage, string auteur, string commentaireVersion = null)
+    private async Task ArchiverPlanActifExistantAsync(string codeArticleSage, string operationCode, string auteur, string commentaireVersion = null)
     {
-        var planActifExiste = await _repository.GetPlanActifPourArticleAsync(codeArticleSage);
+        var planActifExiste = await _repository.GetPlanActifPourArticleEtOperationAsync(codeArticleSage, operationCode);
         if (planActifExiste != null)
         {
             planActifExiste.Statut = StatutsPlan.Archive;

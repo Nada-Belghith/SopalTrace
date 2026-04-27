@@ -44,23 +44,33 @@ public class PlanNcService : IPlanNcService
 
         if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
 
-        if (await _repository.ExistePlanActifAsync(request.TypeRobinetCode, request.OperationCode, request.PosteCode))
-            throw new InvalidOperationException($"Un plan ACTIF existe déjà pour ce poste ({request.PosteCode}).");
+        // 1. Archiver l'ancien plan actif s'il existe
+        var planActif = await _repository.GetPlanActifAsync(request.PosteCode);
+        if (planActif != null)
+        {
+            planActif.Statut = StatutsPlan.Archive;
+            planActif.ModifiePar = creePar;
+            planActif.ModifieLe = DateTime.UtcNow;
+            // On commit l'archivage
+            await _repository.SaveChangesAsync();
+        }
+
+        // 2. Déterminer la version
+        var tousLesPlans = await _repository.GetTousLesPlansAsync();
+        var maxVersion = tousLesPlans
+            .Where(p => p.PosteCode == request.PosteCode)
+            .Max(p => p.Version) ?? 0;
 
         var nouveauPlan = new PlanNcEntete
         {
             Id = Guid.NewGuid(),
-            TypeRobinetCode = request.TypeRobinetCode,
-            OperationCode = request.OperationCode,
             PosteCode = request.PosteCode,
-            FormulaireId = request.FormulaireId,
             Nom = request.Nom,
-            Version = 1,
-            Statut = StatutsPlan.Brouillon,
+            Version = maxVersion + 1,
+            Statut = StatutsPlan.Actif,
             CreePar = creePar,
             CreeLe = DateTime.UtcNow,
-            CommentaireVersion = request.CommentaireVersion ?? "Création initiale",
-            PlanNcColonnes = new List<PlanNcColonne>()
+            PlanNcLignes = new List<PlanNcLigne>()
         };
 
         await _repository.AddPlanAsync(nouveauPlan);
@@ -71,49 +81,97 @@ public class PlanNcService : IPlanNcService
 
     public async Task<PlanNcResponseDto> GetPlanByIdAsync(Guid planId)
     {
-        // On passe par _unitOfWork.PlanNcRepository
-        var plan = await _unitOfWork.PlanNcRepository.GetPlanAvecRelationsAsync(planId);
+        var plan = await _repository.GetPlanAvecRelationsAsync(planId);
         if (plan == null) throw new InvalidOperationException("Plan introuvable.");
         return PlanNcMapper.MapperEntiteVersDto(plan);
     }
 
-    // Le "Tree Update" simplifié (pas de sections, juste des colonnes)
-    public async Task<bool> MettreAJourColonnesAsync(Guid planId, List<ColonneNcEditDto> colonnesModifiees)
+    public async Task<List<PlanNcResponseDto>> GetTousLesPlansAsync()
+    {
+        var plans = await _repository.GetTousLesPlansAsync();
+        return plans.Select(p => PlanNcMapper.MapperEntiteVersDto(p)).ToList();
+    }
+
+    public async Task<Guid> MettreAJourPlanAsync(Guid planId, SavePlanNcDto request, string modifiePar)
+    {
+        var planActuel = await _repository.GetPlanAvecRelationsAsync(planId);
+        if (planActuel == null) throw new InvalidOperationException("Plan introuvable.");
+
+        if (planActuel.Statut == StatutsPlan.Archive)
+            throw new InvalidOperationException("Ce plan est déjà archivé.");
+
+        // 1. Archiver l'actuel
+        planActuel.Statut = StatutsPlan.Archive;
+        planActuel.ModifiePar = modifiePar;
+        planActuel.ModifieLe = DateTime.UtcNow;
+
+        // 2. Créer le nouveau (V+1)
+        var tousLesPlans = await _repository.GetTousLesPlansAsync();
+        var maxVersion = tousLesPlans
+            .Where(p => p.PosteCode == planActuel.PosteCode)
+            .Max(p => p.Version) ?? 0;
+
+        var nouveauPlan = new PlanNcEntete
+        {
+            Id = Guid.NewGuid(),
+            PosteCode = planActuel.PosteCode,
+            Nom = request.Nom,
+            Version = maxVersion + 1,
+            Statut = StatutsPlan.Actif,
+            CreePar = modifiePar,
+            CreeLe = DateTime.UtcNow,
+            PlanNcLignes = request.Lignes.Select(l => new PlanNcLigne
+            {
+                Id = Guid.NewGuid(),
+                OrdreAffiche = l.OrdreAffiche,
+                MachineCode = l.MachineCode,
+                RisqueDefautId = l.RisqueDefautId
+            }).ToList()
+        };
+
+        await _repository.AddPlanAsync(nouveauPlan);
+        await _repository.SaveChangesAsync();
+
+        return nouveauPlan.Id;
+    }
+
+    // Le "Tree Update" simplifié (pas de sections, juste des Lignes)
+    public async Task<bool> MettreAJourLignesAsync(Guid planId, List<LigneNcEditDto> LignesModifiees)
     {
         var plan = await _repository.GetPlanAvecRelationsAsync(planId);
         if (plan == null) return false;
 
-        // 1. Supprimer les colonnes qui ne sont plus dans la liste (Liberté Totale)
+        // 1. Supprimer les Lignes qui ne sont plus dans la liste (Liberté Totale)
         // Utilisation explicite de .Value pour éviter l'erreur de conversion implicite Guid? vers Guid
-        var dtoIds = colonnesModifiees
+        var dtoIds = LignesModifiees
             .Select(c => c.Id)
             .OfType<Guid>()
             .ToList();
 
-        var colonnesASupprimer = plan.PlanNcColonnes.Where(c => !dtoIds.Contains(c.Id)).ToList();
+        var lignesASupprimer = plan.PlanNcLignes.Where(c => !dtoIds.Contains(c.Id)).ToList();
 
-        foreach (var col in colonnesASupprimer)
+        foreach (var ligne in lignesASupprimer)
         {
-            _repository.RemoveColonne(col);
+            _repository.RemoveLigne(ligne);
         }
 
         // 2. Mettre à jour ou Ajouter
-        foreach (var colDto in colonnesModifiees)
+        foreach (var ligneDto in LignesModifiees)
         {
-            var isNew = !colDto.Id.HasValue || colDto.Id.Value == Guid.Empty;
+            var isNew = !ligneDto.Id.HasValue || ligneDto.Id.Value == Guid.Empty;
 
-            var colonneEnBase = !isNew && colDto.Id is Guid colId
-                ? plan.PlanNcColonnes.FirstOrDefault(c => c.Id == colId)
+            var LigneEnBase = !isNew && ligneDto.Id is Guid ligneId
+                ? plan.PlanNcLignes.FirstOrDefault(c => c.Id == ligneId)
                 : null;
 
-            if (colonneEnBase != null)
+            if (LigneEnBase != null)
             {
-                PlanNcMapper.MettreAJourColonne(colonneEnBase, colDto);
+                PlanNcMapper.MettreAJourLigne(LigneEnBase, ligneDto);
             }
             else
             {
-                var nouvelleColonne = PlanNcMapper.ConstruireNouvelleColonne(planId, colDto);
-                _repository.AddColonne(nouvelleColonne);
+                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(planId, ligneDto);
+                _repository.AddLigne(nouvelleLigne);
             }
         }
 
@@ -122,13 +180,10 @@ public class PlanNcService : IPlanNcService
         {
             plan.Statut = StatutsPlan.Actif;
 
-            var ancienPlanActif = await _repository.GetPlanActifAsync(plan.TypeRobinetCode ?? string.Empty, plan.OperationCode, plan.PosteCode);
+            var ancienPlanActif = await _repository.GetPlanActifAsync(plan.PosteCode);
             if (ancienPlanActif != null && ancienPlanActif.Id != plan.Id)
             {
                 ancienPlanActif.Statut = StatutsPlan.Archive;
-                ancienPlanActif.ModifiePar = plan.ModifiePar ?? "SYSTEM";
-                ancienPlanActif.ModifieLe = DateTime.UtcNow;
-                ancienPlanActif.CommentaireVersion = $"Archivé automatiquement suite à l'activation de la version {plan.Version}";
             }
         }
 
@@ -138,17 +193,78 @@ public class PlanNcService : IPlanNcService
 
     public async Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionNcRequestDto request)
     {
-        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        var ancienPlan = await _repository.GetPlanAvecRelationsAsync(request.AncienId);
+        if (ancienPlan == null) throw new InvalidOperationException("Plan introuvable.");
+
+        var nouveauPlan = new PlanNcEntete
         {
-            var ancienPlan = await _unitOfWork.PlanNcRepository.GetPlanAvecRelationsAsync(request.AncienId);
-            if (ancienPlan == null) throw new InvalidOperationException("Plan introuvable.");
-            if (ancienPlan.Statut == StatutsPlan.Archive) throw new PlanArchiveException();
+            Id = Guid.NewGuid(),
+            PosteCode = ancienPlan.PosteCode,
+            Nom = ancienPlan.Nom,
+            Version = (ancienPlan.Version ?? 0) + 1,
+            Statut = StatutsPlan.Brouillon,
+            CreePar = request.ModifiePar,
+            CreeLe = DateTime.UtcNow,
+            PlanNcLignes = ancienPlan.PlanNcLignes.Select(l => new PlanNcLigne
+            {
+                Id = Guid.NewGuid(),
+                OrdreAffiche = l.OrdreAffiche,
+                MachineCode = l.MachineCode,
+                RisqueDefautId = l.RisqueDefautId
+            }).ToList()
+        };
 
-            var nouveauPlan = PlanNcMapper.DupliquerEntitePlan(ancienPlan, request.ModifiePar, request.MotifModification);
+        await _repository.AddPlanAsync(nouveauPlan);
+        await _repository.SaveChangesAsync();
 
-            await _unitOfWork.PlanNcRepository.AddPlanAsync(nouveauPlan);
+        return nouveauPlan.Id;
+    }
 
-            return nouveauPlan.Id;
-        });
+    public async Task<Guid> RestaurerPlanAsync(Guid planId, string restaurePar, string motif)
+    {
+        var planArchived = await _repository.GetPlanAvecRelationsAsync(planId);
+        if (planArchived == null) throw new InvalidOperationException("Plan archivé introuvable.");
+
+        // 1. Archiver le plan ACTIF actuel pour ce poste
+        var planActuel = await _repository.GetPlanActifAsync(planArchived.PosteCode);
+        if (planActuel != null)
+        {
+            planActuel.Statut = StatutsPlan.Archive;
+            planActuel.ModifiePar = restaurePar;
+            planActuel.ModifieLe = DateTime.UtcNow;
+            // On ne sauvegarde pas tout de suite pour garder l'atomicité
+        }
+
+        // 2. Calculer la version max globale pour ce poste
+        var tousLesPlans = await _repository.GetTousLesPlansAsync();
+        var maxVersion = tousLesPlans
+            .Where(p => p.PosteCode == planArchived.PosteCode)
+            .Max(p => p.Version) ?? 0;
+
+        // 3. Créer une nouvelle version basée sur l'archive
+        var nouveauPlanId = Guid.NewGuid();
+        var nouveauPlan = new PlanNcEntete
+        {
+            Id = nouveauPlanId,
+            PosteCode = planArchived.PosteCode,
+            Nom = planArchived.Nom,
+            Version = maxVersion + 1,
+            Statut = StatutsPlan.Actif,
+            CreePar = restaurePar,
+            CreeLe = DateTime.UtcNow,
+            PlanNcLignes = planArchived.PlanNcLignes.Select(l => new PlanNcLigne
+            {
+                Id = Guid.NewGuid(),
+                PlanNcenteteId = nouveauPlanId,
+                OrdreAffiche = l.OrdreAffiche,
+                MachineCode = l.MachineCode,
+                RisqueDefautId = l.RisqueDefautId
+            }).ToList()
+        };
+
+        await _repository.AddPlanAsync(nouveauPlan);
+        await _repository.SaveChangesAsync();
+
+        return nouveauPlan.Id;
     }
 }

@@ -15,6 +15,8 @@ public partial class Machine
 
     public string TypeAffectation { get; set; } = null!;
 
+    public string? RoleMachine { get; set; }
+
     public bool Actif { get; set; }
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
@@ -27,9 +29,11 @@ public partial class Machine
 
     public virtual ICollection<PlanFabEntete> PlanFabEntetes { get; set; } = new List<PlanFabEntete>();
 
-    public virtual ICollection<PlanNcColonne> PlanNcColonnes { get; set; } = new List<PlanNcColonne>();
+    public virtual ICollection<PlanNcLigne> PlanNcLignes { get; set; } = new List<PlanNcLigne>();
 
-    public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
+    public virtual PlanVerifMachineEntete? PlanVerifMachineEntete { get; set; }
+
+    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
 
     public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 

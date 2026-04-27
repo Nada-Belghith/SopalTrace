@@ -84,6 +84,7 @@
     <None Include="SopalTraceWeb\src\views\QualityPlans\DevPlanHub.vue" />
     <None Include="SopalTraceWeb\src\views\QualityPlans\Fabrication\FabModeleEditor.vue" />
     <None Include="SopalTraceWeb\src\views\QualityPlans\Fabrication\FabPlanEditor.vue" />
+    <None Include="SopalTraceWeb\src\views\QualityPlans\VerifMachine\VmModelHub.vue" />
     <None Include="SopalTraceWeb\src\views\TracesView.vue" />
     <None Include="SopalTraceWeb\tailwind.config.js" />
     <None Include="SopalTraceWeb\vite.config.js" />

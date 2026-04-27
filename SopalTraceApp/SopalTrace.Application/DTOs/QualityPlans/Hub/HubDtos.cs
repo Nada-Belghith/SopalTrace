@@ -23,5 +23,7 @@ public record HubPlanDto(
     string Poste,
     int Version,
     string Statut,
-    string Description
+    string Description,
+    string? CodeArticleSage,
+    string? Designation = null
 );

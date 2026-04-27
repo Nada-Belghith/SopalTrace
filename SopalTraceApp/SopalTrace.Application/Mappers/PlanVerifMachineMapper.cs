@@ -1,7 +1,8 @@
-﻿using SopalTrace.Application.DTOs.QualityPlans.VerifMachine;
+using SopalTrace.Application.DTOs.QualityPlans.VerifMachine;
 using SopalTrace.Domain.Constants;
-using SopalTrace.Domain.Entities; // Adapter si le namespace est différent
+using SopalTrace.Domain.Entities;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace SopalTrace.Application.Mappers;
@@ -17,80 +18,113 @@ public static class PlanVerifMachineMapper
         {
             Id = entete.Id,
             MachineCode = entete.MachineCode,
-            TypeRobinetCode = entete.TypeRobinetCode,
-            TypeRapport = entete.TypeRapport,
-            FormulaireId = entete.FormulaireId,
-            CodeFormulaire = entete.Formulaire?.CodeReference, // Join EF Core
             Nom = entete.Nom,
-            Version = entete.Version,
-            Statut = entete.Statut,
+            Version = entete.Version ?? 0,
+            Statut = entete.Statut ?? "",
             CreePar = entete.CreePar,
-            CreeLe = entete.CreeLe,
-            ModifiePar = entete.ModifiePar,
+            CreeLe = entete.CreeLe ?? DateTime.MinValue,
+            ModifiePar = entete.ModifiePar ?? string.Empty,
             ModifieLe = entete.ModifieLe,
-            CommentaireVersion = entete.CommentaireVersion,
 
-            Lignes = entete.PlanVerifMachineLignes.Select(l => new VerifMachineLigneResponseDto
+            // ✅ CORRECTION ICI : Ajout de "?? false" pour gérer le bool? de la base de données
+            AfficheConformite = entete.AfficheConformite ?? false,
+            AfficheMoyenDetectionRisques = entete.AfficheMoyenDetectionRisques ?? false,
+            AfficheFamilles = entete.AfficheFamilles ?? false,
+            AfficheFuiteEtalon = entete.AfficheFuiteEtalon ?? false,
+
+            Familles = entete.PlanVerifMachineFamilles?.Select(f => new VmFamilleDto
             {
-                Id = l.Id,
-                OrdreAffiche = l.OrdreAffiche,
-                LibelleRisque = l.LibelleRisque,
-                RisqueDefautId = l.RisqueDefautId,
-                LibelleMethode = l.LibelleMethode,
-                TypeSaisie = l.TypeSaisie,
-                ValeurNominale = l.ValeurNominale,
-                ToleranceSup = l.ToleranceSup,
-                ToleranceInf = l.ToleranceInf,
-                Unite = l.Unite,
-                Instruction = l.Instruction,
-                EstCritique = l.EstCritique,
+                Id = f.Id,
+                RefFamilleCorpsId = f.RefFamilleCorpsId,
+                OrdreAffiche = f.OrdreAffiche
+            }).ToList() ?? new List<VmFamilleDto>(),
 
-                Echeances = l.PlanVerifMachineEcheances.Select(e => new VerifMachineEcheanceResponseDto
+            LignesConformite = entete.PlanVerifMachineLignes
+                .Where(l => l.TypeLigne == "CONFORMITE")
+                .OrderBy(l => l.OrdreAffiche)
+                .Select(MapperLigneVersDto)
+                .ToList(),
+
+            LignesRisques = entete.PlanVerifMachineLignes
+                .Where(l => l.TypeLigne == "RISQUE")
+                .OrderBy(l => l.OrdreAffiche)
+                .Select(MapperLigneVersDto)
+                .ToList()
+        };
+    }
+
+    private static VmLigneResponseDto MapperLigneVersDto(PlanVerifMachineLigne ligne)
+    {
+        return new VmLigneResponseDto
+        {
+            Id = ligne.Id,
+            OrdreAffiche = ligne.OrdreAffiche,
+            TypeLigne = ligne.TypeLigne,
+            LibelleRisque = ligne.LibelleRisque,
+            LibelleMethode = ligne.LibelleMethode,
+            Echeances = ligne.PlanVerifMachineEcheances
+                .OrderBy(e => e.OrdreAffiche)
+                .Select(e => new VmEcheanceResponseDto
                 {
                     Id = e.Id,
                     PeriodiciteId = e.PeriodiciteId,
                     OrdreAffiche = e.OrdreAffiche,
-                    LibelleMoyen = e.LibelleMoyen,
-
-                    PiecesRef = e.PlanVerifMachinePieceRefs.Select(p => new VerifMachinePieceRefResponseDto
+                    RefMoyenDetectionId = e.RefMoyenDetectionId, // ✅ 100% Dictionnaire
+                    PiecesRef = e.PlanVerifMachineMatricePieces.Select(p => new VmPieceRefResponseDto
                     {
                         Id = p.Id,
                         PieceRefId = p.PieceRefId,
-                        RoleVerif = p.RoleVerif,
-                        ResultatAttendu = p.ResultatAttendu,
-                        FamilleDesc = p.FamilleDesc,
-                        Notes = p.Notes
+                        RoleVerif = p.RoleVerif ?? "",
+                        FamilleId = p.Famille?.RefFamilleCorpsId
                     }).ToList()
                 }).ToList()
-            }).ToList()
         };
     }
 
     // =======================================================
-    // 2. CREATION DU PLAN BROUILLON (POST)
+    // 2. CONSTRUCTION DU PLAN (POST)
     // =======================================================
-    public static PlanVerifMachineEntete ConstruireNouveauPlan(CreatePlanVerifMachineDto dto, string creePar)
+    public static PlanVerifMachineEntete ConstruireDepuisModeleDto(CreateVerifMachineModeleDto dto, string creePar)
     {
-        return new PlanVerifMachineEntete
+        var planId = Guid.NewGuid();
+
+        var entete = new PlanVerifMachineEntete
         {
-            Id = Guid.NewGuid(),
+            Id = planId,
             MachineCode = dto.MachineCode,
-            TypeRobinetCode = string.IsNullOrWhiteSpace(dto.TypeRobinetCode) ? null : dto.TypeRobinetCode,
-            TypeRapport = dto.TypeRapport,
-            FormulaireId = dto.FormulaireId,
             Nom = dto.Nom,
             Version = 1,
-            Statut = StatutsPlan.Brouillon,
+            Statut = StatutsPlan.Actif,
             CreePar = creePar,
             CreeLe = DateTime.UtcNow,
-            CommentaireVersion = dto.CommentaireVersion ?? "Création initiale"
+            
+            // Flags
+            AfficheConformite = dto.AfficheConformite,
+            AfficheMoyenDetectionRisques = dto.AfficheMoyenDetectionRisques,
+            AfficheFamilles = dto.AfficheFamilles,
+            AfficheFuiteEtalon = dto.AfficheFuiteEtalon
         };
+
+        var famillesDb = dto.Familles?.Select(f => new PlanVerifMachineFamille
+        {
+            Id = Guid.NewGuid(),
+            PlanEnteteId = planId,
+            RefFamilleCorpsId = f.RefFamilleCorpsId,
+            OrdreAffiche = f.OrdreAffiche
+        }).ToList() ?? new List<PlanVerifMachineFamille>();
+
+        entete.PlanVerifMachineFamilles = famillesDb;
+
+        // Lignes
+        var lignes = dto.LignesConformite.Select((l, idx) => ConstruireLigne(planId, l, "CONFORMITE", famillesDb))
+            .Concat(dto.LignesRisques.Select((l, idx) => ConstruireLigne(planId, l, "RISQUE", famillesDb)))
+            .ToList();
+
+        entete.PlanVerifMachineLignes = lignes;
+        return entete;
     }
 
-    // =======================================================
-    // 3. CONSTRUCTION DYNAMIQUE DES ARBRES (PUT Valeurs)
-    // =======================================================
-    public static PlanVerifMachineLigne ConstruireLigneComplete(Guid planId, VerifMachineLigneEditDto dto)
+    private static PlanVerifMachineLigne ConstruireLigne(Guid planId, VmLigneDto dto, string typeLigne, List<PlanVerifMachineFamille> famillesDb)
     {
         var ligneId = Guid.NewGuid();
         return new PlanVerifMachineLigne
@@ -99,148 +133,117 @@ public static class PlanVerifMachineMapper
             PlanEnteteId = planId,
             OrdreAffiche = dto.OrdreAffiche,
             LibelleRisque = dto.LibelleRisque,
-            RisqueDefautId = dto.RisqueDefautId,
             LibelleMethode = dto.LibelleMethode,
-            TypeSaisie = dto.TypeSaisie,
-            ValeurNominale = dto.ValeurNominale,
-            ToleranceSup = dto.ToleranceSup,
-            ToleranceInf = dto.ToleranceInf,
-            Unite = dto.Unite,
-            Instruction = dto.Instruction,
-            EstCritique = dto.EstCritique,
-            // Cascade automatique des enfants
-            PlanVerifMachineEcheances = dto.Echeances.Select(e => ConstruireEcheanceComplete(ligneId, e)).ToList()
+            TypeLigne = typeLigne,
+            PlanVerifMachineEcheances = dto.Echeances.Select(e => ConstruireEcheance(ligneId, e, famillesDb)).ToList()
         };
     }
 
-    public static PlanVerifMachineEcheance ConstruireEcheanceComplete(Guid ligneId, VerifMachineEcheanceEditDto dto)
+    private static PlanVerifMachineEcheance ConstruireEcheance(Guid ligneId, VmEcheanceDto dto, List<PlanVerifMachineFamille> famillesDb)
     {
         var echeanceId = Guid.NewGuid();
         return new PlanVerifMachineEcheance
         {
             Id = echeanceId,
             PlanLigneId = ligneId,
-            PeriodiciteId = dto.PeriodiciteId,
             OrdreAffiche = dto.OrdreAffiche,
-            LibelleMoyen = dto.LibelleMoyen,
-            // Cascade automatique des enfants
-            PlanVerifMachinePieceRefs = dto.PiecesRef.Select(p => ConstruirePieceRef(echeanceId, p)).ToList()
-        };
-    }
+            PeriodiciteId = dto.PeriodiciteId, // ✅ Direct, plus de Guid.TryParse
+            RefMoyenDetectionId = dto.RefMoyenDetectionId, // ✅ Direct
+            PlanVerifMachineMatricePieces = dto.MatricePieces.Select(p => {
+                
+                // Résolution de l'ID interne de la famille depuis l'ID du dictionnaire
+                var familleAssociee = p.FamilleId.HasValue 
+                    ? famillesDb.FirstOrDefault(f => f.RefFamilleCorpsId == p.FamilleId.Value) 
+                    : null;
 
-    public static PlanVerifMachinePieceRef ConstruirePieceRef(Guid echeanceId, VerifMachinePieceRefEditDto dto)
-    {
-        return new PlanVerifMachinePieceRef
-        {
-            Id = Guid.NewGuid(),
-            EcheanceId = echeanceId,
-            PieceRefId = dto.PieceRefId,
-            RoleVerif = dto.RoleVerif,
-            ResultatAttendu = dto.ResultatAttendu,
-            FamilleDesc = dto.FamilleDesc,
-            Notes = dto.Notes
-        };
-    }
-
-    // =======================================================
-    // 4. MISES À JOUR SIMPLES DES PROPRIÉTÉS
-    // =======================================================
-    public static void MettreAJourLigne(PlanVerifMachineLigne ligne, VerifMachineLigneEditDto dto)
-    {
-        ligne.OrdreAffiche = dto.OrdreAffiche;
-        ligne.LibelleRisque = dto.LibelleRisque;
-        ligne.RisqueDefautId = dto.RisqueDefautId;
-        ligne.LibelleMethode = dto.LibelleMethode;
-        ligne.TypeSaisie = dto.TypeSaisie;
-        ligne.ValeurNominale = dto.ValeurNominale;
-        ligne.ToleranceSup = dto.ToleranceSup;
-        ligne.ToleranceInf = dto.ToleranceInf;
-        ligne.Unite = dto.Unite;
-        ligne.Instruction = dto.Instruction;
-        ligne.EstCritique = dto.EstCritique;
-    }
-
-    public static void MettreAJourEcheance(PlanVerifMachineEcheance echeance, VerifMachineEcheanceEditDto dto)
-    {
-        echeance.PeriodiciteId = dto.PeriodiciteId;
-        echeance.OrdreAffiche = dto.OrdreAffiche;
-        echeance.LibelleMoyen = dto.LibelleMoyen;
-    }
-
-    public static void MettreAJourPieceRef(PlanVerifMachinePieceRef piece, VerifMachinePieceRefEditDto dto)
-    {
-        piece.PieceRefId = dto.PieceRefId;
-        piece.RoleVerif = dto.RoleVerif;
-        piece.ResultatAttendu = dto.ResultatAttendu;
-        piece.FamilleDesc = dto.FamilleDesc;
-        piece.Notes = dto.Notes;
-    }
-
-    // =======================================================
-    // 5. VERSIONING (Clonage complet)
-    // =======================================================
-    public static PlanVerifMachineEntete DupliquerEntitePlan(PlanVerifMachineEntete source, string modifiePar, string motif)
-    {
-        var nouveauPlanId = Guid.NewGuid();
-        return new PlanVerifMachineEntete
-        {
-            Id = nouveauPlanId,
-            MachineCode = source.MachineCode,
-            TypeRobinetCode = source.TypeRobinetCode,
-            TypeRapport = source.TypeRapport,
-            FormulaireId = source.FormulaireId,
-            Nom = source.Nom,
-            Version = source.Version + 1,
-            Statut = StatutsPlan.Brouillon,
-            CreePar = modifiePar,
-            CreeLe = DateTime.UtcNow,
-            CommentaireVersion = motif,
-
-            // Clonage des 4 niveaux
-            PlanVerifMachineLignes = source.PlanVerifMachineLignes.Select(l =>
-            {
-                var ligneId = Guid.NewGuid();
-                return new PlanVerifMachineLigne
+                return new PlanVerifMachineMatricePiece
                 {
-                    Id = ligneId,
-                    PlanEnteteId = nouveauPlanId,
-                    OrdreAffiche = l.OrdreAffiche,
-                    LibelleRisque = l.LibelleRisque,
-                    RisqueDefautId = l.RisqueDefautId,
-                    LibelleMethode = l.LibelleMethode,
-                    TypeSaisie = l.TypeSaisie,
-                    ValeurNominale = l.ValeurNominale,
-                    ToleranceSup = l.ToleranceSup,
-                    ToleranceInf = l.ToleranceInf,
-                    Unite = l.Unite,
-                    Instruction = l.Instruction,
-                    EstCritique = l.EstCritique,
-
-                    PlanVerifMachineEcheances = l.PlanVerifMachineEcheances.Select(e =>
-                    {
-                        var echeanceId = Guid.NewGuid();
-                        return new PlanVerifMachineEcheance
-                        {
-                            Id = echeanceId,
-                            PlanLigneId = ligneId,
-                            PeriodiciteId = e.PeriodiciteId,
-                            OrdreAffiche = e.OrdreAffiche,
-                            LibelleMoyen = e.LibelleMoyen,
-
-                            PlanVerifMachinePieceRefs = e.PlanVerifMachinePieceRefs.Select(p => new PlanVerifMachinePieceRef
-                            {
-                                Id = Guid.NewGuid(),
-                                EcheanceId = echeanceId,
-                                PieceRefId = p.PieceRefId,
-                                RoleVerif = p.RoleVerif,
-                                ResultatAttendu = p.ResultatAttendu,
-                                FamilleDesc = p.FamilleDesc,
-                                Notes = p.Notes
-                            }).ToList()
-                        };
-                    }).ToList()
+                    Id = Guid.NewGuid(),
+                    EcheanceId = echeanceId,
+                    PieceRefId = p.PieceRefId, // Nullable pour les champs vides
+                    RoleVerif = p.RoleVerif,
+                    FamilleId = familleAssociee?.Id
                 };
             }).ToList()
+        };
+    }
+
+    // =======================================================
+    // 3. VERSIONING ET DUPLICATION
+    // =======================================================
+    public static CreateVerifMachineModeleDto MapperEntiteVersModeleDto(PlanVerifMachineEntete entete)
+    {
+        return new CreateVerifMachineModeleDto
+        {
+            Nom = entete.Nom,
+            MachineCode = entete.MachineCode,
+            AfficheConformite = entete.AfficheConformite ?? false,
+            AfficheMoyenDetectionRisques = entete.AfficheMoyenDetectionRisques ?? false,
+            AfficheFamilles = entete.AfficheFamilles ?? false,
+            AfficheFuiteEtalon = entete.AfficheFuiteEtalon ?? false,
+            Familles = entete.PlanVerifMachineFamilles?.Select(f => new VmFamilleDto
+            {
+                RefFamilleCorpsId = f.RefFamilleCorpsId,
+                OrdreAffiche = f.OrdreAffiche
+            }).ToList() ?? new List<VmFamilleDto>(),
+            LignesConformite = entete.PlanVerifMachineLignes
+                .Where(l => l.TypeLigne == "CONFORMITE")
+                .OrderBy(l => l.OrdreAffiche)
+                .Select(MapperLigneVersCreateDto).ToList(),
+            LignesRisques = entete.PlanVerifMachineLignes
+                .Where(l => l.TypeLigne == "RISQUE")
+                .OrderBy(l => l.OrdreAffiche)
+                .Select(MapperLigneVersCreateDto).ToList()
+        };
+    }
+
+    private static VmLigneDto MapperLigneVersCreateDto(PlanVerifMachineLigne ligne)
+    {
+        return new VmLigneDto
+        {
+            OrdreAffiche = ligne.OrdreAffiche,
+            LibelleRisque = ligne.LibelleRisque,
+            LibelleMethode = ligne.LibelleMethode,
+            Echeances = ligne.PlanVerifMachineEcheances
+                .OrderBy(e => e.OrdreAffiche)
+                .Select(e => new VmEcheanceDto
+                {
+                    OrdreAffiche = e.OrdreAffiche,
+                    PeriodiciteId = e.PeriodiciteId,
+                    RefMoyenDetectionId = e.RefMoyenDetectionId,
+                    MatricePieces = e.PlanVerifMachineMatricePieces.Select(mp => new VmPieceRefDto
+                    {
+                        FamilleId = mp.Famille?.RefFamilleCorpsId,
+                        RoleVerif = mp.RoleVerif,
+                        PieceRefId = mp.PieceRefId
+                    }).ToList()
+                }).ToList()
+        };
+    }
+
+    public static PlanVerifMachineEntete DupliquerEntitePlan(PlanVerifMachineEntete source, string modifiePar, string motif)
+    {
+        // On convertit en DTO puis on reconstruit (méthode la plus sûre pour cloner tout l'arbre)
+        var dto = MapperEntiteVersModeleDto(source);
+        var nouveauPlan = ConstruireDepuisModeleDto(dto, modifiePar);
+        
+        nouveauPlan.Version = (source.Version ?? 1) + 1;
+        nouveauPlan.Statut = StatutsPlan.Actif;
+        return nouveauPlan;
+    }
+
+    // Compatibilité pour l'ancien contrôleur
+    public static PlanVerifMachineEntete ConstruireNouveauPlan(CreatePlanVerifMachineDto dto, string creePar)
+    {
+        return new PlanVerifMachineEntete
+        {
+            Id = Guid.NewGuid(),
+            MachineCode = dto.MachineCode,
+            Nom = dto.Nom,
+            Version = 1,
+            Statut = StatutsPlan.Brouillon,
+            CreePar = creePar,
+            CreeLe = DateTime.UtcNow
         };
     }
 }
