@@ -41,7 +41,7 @@ public static class PlanFabricationMapper
         var plan = new PlanFabEntete
         {
             Id = Guid.NewGuid(), ModeleSourceId = modele.Id, CodeArticleSage = dto.CodeArticleSage,
-            Designation = designationSage, Nom = dto.Nom ?? $"PC-{dto.CodeArticleSage}-v1",
+            Designation = designationSage, Nom = dto.Nom ?? $"PC-{dto.CodeArticleSage}",
             Version = 1, Statut = StatutsPlan.Brouillon, CreePar = "Admin", CreeLe = DateTime.UtcNow,
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? modele.OperationCode : dto.OperationCode,
             CommentaireVersion = dto.CommentaireVersion,
@@ -88,7 +88,7 @@ public static class PlanFabricationMapper
         var plan = new PlanFabEntete
         {
             Id = Guid.NewGuid(), ModeleSourceId = source.ModeleSourceId, CodeArticleSage = nouveauCode,
-            Designation = nouvelleDesig, Nom = comm == null ? $"PC-{nouveauCode}-V1" : ModeleFabricationMapper.IncrementerSuffixeVersion(source.Nom, nouvelleVersion),
+            Designation = nouvelleDesig, Nom = comm == null ? $"PC-{nouveauCode}" : ModeleFabricationMapper.IncrementerSuffixeVersion(source.Nom, nouvelleVersion),
             Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, MachineDefautCode = source.MachineDefautCode,
             OperationCode = source.OperationCode, // ⚠️ COPIE OBLIGATOIRE
             LegendeMoyens = source.LegendeMoyens,
@@ -230,7 +230,7 @@ public static class PlanFabricationMapper
             CodeArticleSage = dto.CodeArticleSage,
             Designation = designationSage,
             OperationCode = dto.OperationCode,
-            Nom = string.IsNullOrWhiteSpace(dto.Nom) ? $"PC-{dto.CodeArticleSage}-V1" : dto.Nom,
+            Nom = string.IsNullOrWhiteSpace(dto.Nom) ? $"PC-{dto.CodeArticleSage}" : dto.Nom,
             Version = 1,
             Statut = StatutsPlan.Brouillon,
             CreePar = "Admin",

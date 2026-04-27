@@ -11,7 +11,7 @@ public partial class PosteTravail
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<PlanNcEntete> PlanNcEntetes { get; set; } = new List<PlanNcEntete>();
+    public virtual PlanNcEntete? PlanNcEntete { get; set; }
 
     public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
 

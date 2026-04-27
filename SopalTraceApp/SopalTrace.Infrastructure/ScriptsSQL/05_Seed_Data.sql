@@ -36,6 +36,7 @@ INSERT INTO ERP_Operation (Code, Libelle, OrdreProcess) VALUES
 GO
 
 INSERT INTO ERP_Machine (CodeMachine, Libelle, TypeRobinetCode, OperationCode) VALUES
+    ('BEE22', 'Banc d''essai étanchéité 22', 'MAN', 'ASS_PF'),
     ('BEE46', 'Banc d''essai étanchéité automatique 46', 'AUTO', 'ASS_PF'),
     ('BEE47', 'Banc d''essai étanchéité automatique 47', 'MAN', 'ASS_PF'),
     ('MAS22', 'Machine assemblage manuelle 22', 'MAN', 'ASS_MAN'),
@@ -135,15 +136,18 @@ GO
 -- =================================================================================
 
 INSERT INTO PieceReference (Code, TypePiece, Designation, MachineCode) VALUES
-    ('BCF01',  'PRC',  'Pièce référence conforme', 'BEE46'),
-    ('BSJ01',  'PRNC', 'Pièce sans joint siège',   'MAS26'),
-    ('BSB01',  'PRNC', 'Pièce sans bille',         'MAS26'),
-    ('FUI15',  'FEC',  'Fuite étalon conforme',    'MAS22'),
-    ('F2117A', 'FENC', 'Fuite étalon non conforme','BEE46'),
-    ('RCF01',  'PRC',  'Corps référence',          'MAS22'),
-    ('RCF02',  'PRC',  'Corps référence 23',       'MAS22'),
-    ('RCF03',  'PRC',  'Corps référence 40,43',    'MAS22'),
-    ('RCF04',  'PRC',  'Corps référence 49',       'MAS22');
+    ('BCF01',  'PRC',  'Pièce référence conforme',         'BEE46'),
+    ('BCF22',  'PRC',  'Pièce référence conforme BEE22',   'BEE22'),
+    ('BSJ01',  'PRNC', 'Pièce sans joint siège',           'MAS26'),
+    ('BSB01',  'PRNC', 'Pièce sans bille',                 'MAS26'),
+    ('FUI15',  'FEC',  'Fuite étalon conforme',            'MAS22'),
+    ('F2117A', 'FENC', 'Fuite étalon non conforme',        'BEE46'),
+    ('FUI22C', 'FEC',  'Fuite étalon conforme BEE22',      'BEE22'),
+    ('FUI22NC','FENC', 'Fuite étalon non conforme BEE22',  'BEE22'),
+    ('RCF01',  'PRC',  'Corps référence',                  'MAS22'),
+    ('RCF02',  'PRC',  'Corps référence 23',               'MAS22'),
+    ('RCF03',  'PRC',  'Corps référence 40,43',            'MAS22'),
+    ('RCF04',  'PRC',  'Corps référence 49',               'MAS22');
 GO
 
 -- =================================================================================

@@ -1,14 +1,25 @@
 <template>
   <div class="bg-slate-50 min-h-screen p-4 md:p-8 font-sans text-slate-800">
     <div class="max-w-[1600px] mx-auto">
-      <EditorHeader
+      <PlanHeader 
+        :id="modeleEditionId"
         :title="headerTitle"
         :subtitle="headerSubtitle"
-        :code="codeAffiche"
-        code-label="Code Modèle"
+        icon="pi pi-cog"
+        iconColorClass="text-amber-500"
+        :is-read-only="isReadOnly"
+        :version="version"
         :statut="statut"
-        :is-edit-mode="isEditMode"
-      />
+        :is-restoring="isLoading"
+        @restaurer="onEditorSubmit"
+      >
+        <template #actions>
+          <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-4 hidden md:flex">
+            <span class="text-[10px] font-black text-slate-400 uppercase">Code Modèle:</span>
+            <span class="font-mono font-bold text-sm text-slate-700">{{ codeAffiche }}</span>
+          </div>
+        </template>
+      </PlanHeader>
       
       <div class="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
         <div class="bg-[#1e293b] text-white px-5 py-3.5 flex justify-between items-center">
@@ -77,12 +88,8 @@
         </div>
 
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-4">
-          <button v-if="isForcedView" @click="$router.push('/dev/hub')" class="px-6 py-3 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 transition-colors shadow-sm flex items-center gap-2 text-sm">
-            <i class="pi pi-arrow-left"></i> Retour à la liste
-          </button>
-          
           <EditorActions
-            v-else
+            v-if="!isForcedView"
             :label="actionButtonLabel"
             loading-label="Enregistrement..."
             :icon="actionButtonIcon"
@@ -108,7 +115,7 @@ import { useModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
 
-import EditorHeader from '@/components/Shared/EditorHeader.vue';
+import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import LegendValidationBox from '@/components/Shared/LegendValidationBox.vue';
 import FabModeleHeader from '@/components/Fabrication/FabModeleHeader.vue';

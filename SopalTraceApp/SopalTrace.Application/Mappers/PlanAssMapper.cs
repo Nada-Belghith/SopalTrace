@@ -125,7 +125,7 @@ public static class PlanAssMapper
             EstModele = estModele,
             CodeArticleSage = nouveauCodeArticle,
             Designation = nouvelleDesig,
-            Nom = estModele ? source.Nom : $"PC-{nouveauCodeArticle}-v1",
+            Nom = estModele ? source.Nom : $"PC-{nouveauCodeArticle}",
             Version = estModele ? source.Version + 1 : 1,
             Statut = StatutsPlan.Brouillon,
             CreePar = creePar,

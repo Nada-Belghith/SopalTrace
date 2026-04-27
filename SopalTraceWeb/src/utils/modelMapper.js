@@ -162,7 +162,7 @@ export function hasModeleChanged(snapshotBefore, snapshotAfter) {
  */
 export function generateModeleCode(operation, nature, type) {
   if (!operation || !nature || !type) return null;
-  return `MOD-${operation}-${nature}-${type}-V1`.toUpperCase();
+  return `MOD-${operation}-${nature}-${type}`.toUpperCase();
 }
 
 /**

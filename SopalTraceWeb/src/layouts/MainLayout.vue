@@ -42,6 +42,11 @@
                 </router-link>
               </li>
               <li>
+                <router-link to="/dev/resultat-controle/nouveau" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white" active-class="bg-slate-800 text-white">
+                  <i class="pi pi-plus-circle text-rose-400"></i> Résultat Contrôle
+                </router-link>
+              </li>
+              <li>
                 <router-link to="/dev/echantillonnage/nouveau" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white" active-class="bg-slate-800 text-white">
                   <i class="pi pi-plus-circle text-purple-400"></i> Échantillonnage
                 </router-link>

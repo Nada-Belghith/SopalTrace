@@ -3,109 +3,194 @@
     <Toast position="top-right" />
     <ConfirmDialog></ConfirmDialog>
 
-    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-10 gap-6">
-      <div>
-        <h1 class="text-3xl font-black text-slate-900 tracking-tight">Gestion des Plans</h1>
-        <p class="text-slate-500 mt-1 font-medium text-sm">Visualisez et gérez vos plans de contrôle par article.</p>
-      </div>
+    <div class="mb-10">
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">Plans par Article</h1>
+      <p class="text-slate-500 mt-1 font-medium text-sm">Visualisez et gérez vos plans de contrôle instanciés par article.</p>
+    </div>
 
-      <div class="flex items-center bg-slate-200/50 p-1.5 rounded-xl border border-slate-200 shadow-inner">
-        <button @click="vueActuelle = 'ACTIFS'" :class="vueActuelle === 'ACTIFS' ? 'bg-white shadow text-blue-600 ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700'" class="px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2">
-          <i class="pi pi-check-circle"></i> Actifs
-        </button>
-        <button @click="vueActuelle = 'BROUILLONS'" :class="vueActuelle === 'BROUILLONS' ? 'bg-white shadow text-amber-600 ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700'" class="px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2">
-          <i class="pi pi-pencil"></i> Brouillons
-        </button>
-        <button @click="vueActuelle = 'ARCHIVES'" :class="vueActuelle === 'ARCHIVES' ? 'bg-white shadow text-slate-800 ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700'" class="px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2">
-          <i class="pi pi-box"></i> Archives
-        </button>
+    <!-- ========================================== -->
+    <!-- BARRE DE CONTRÔLE : Onglets & Filtres      -->
+    <!-- ========================================== -->
+    <div class="bg-white p-2 rounded-xl shadow-sm border border-slate-200 mb-8">
+      <div class="flex flex-col xl:flex-row justify-between gap-4">
+
+        <!-- Navigation par Onglets (Type de plan) -->
+        <div class="flex flex-wrap gap-1 p-1 bg-slate-100/80 rounded-lg">
+          <button v-for="tab in tabs" :key="tab.id"
+            @click="activeTab = tab.id"
+            :class="[
+              'px-4 py-2 rounded-md text-sm font-semibold transition-all flex items-center gap-2',
+              activeTab === tab.id
+                ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-900/5'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            ]">
+            <i :class="tab.icon"></i>
+            <span class="hidden sm:inline">{{ tab.label }}</span>
+            <span class="sm:hidden">{{ tab.short }}</span>
+          </button>
+        </div>
+
+        <!-- Filtres Rapides -->
+        <div class="flex flex-wrap items-center gap-3 px-2">
+
+          <!-- Filtre Statut -->
+          <div class="relative">
+            <select v-model="vueActuelle" class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer">
+              <option value="ACTIF">Actifs</option>
+              <option value="BROUILLON">Brouillons</option>
+              <option value="ARCHIVE">Archivés</option>
+            </select>
+            <i class="pi pi-angle-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
+          </div>
+
+          <!-- Filtre Opération -->
+          <div class="relative" v-if="operationsDisponibles.length > 0">
+            <select v-model="selectedOperation" class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer">
+              <option value="">Toutes opérations</option>
+              <option v-for="op in operationsDisponibles" :key="op" :value="op">{{ op }}</option>
+            </select>
+            <i class="pi pi-filter absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
+          </div>
+
+          <!-- Barre de recherche intégrée -->
+          <div class="relative group">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 text-sm"></i>
+            <input type="text" v-model="searchQuery" placeholder="Rechercher un plan ou article..."
+              class="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full md:w-72 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
+          </div>
+
+          <!-- Bouton Nouveau Plan -->
+          <button @click="router.push('/dev/fab/plans/nouveau')"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm shrink-0">
+            <i class="pi pi-plus"></i>
+            <span class="hidden md:inline">Nouveau Plan</span>
+          </button>
+        </div>
       </div>
     </div>
 
-    <div class="flex flex-wrap gap-2 mb-8 p-1.5 bg-slate-200/50 rounded-2xl w-max border border-slate-200">
-      <button
-        v-for="cat in categories"
-        :key="cat.id"
-        @click="filtreActif = cat.id"
-        class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
-        :class="filtreActif === cat.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-      >
-        {{ cat.label }}
-      </button>
-    </div>
-
+    <!-- Loading State -->
     <div v-if="isLoading" class="flex flex-col items-center justify-center py-20 text-blue-500">
       <i class="pi pi-spin pi-spinner text-4xl mb-4"></i>
       <p class="text-sm font-bold text-slate-500 uppercase tracking-widest">Chargement des plans...</p>
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-      
-      <div v-for="plan in plansFiltres" :key="plan.id"
-           @click.self="consulter(plan.category, plan.id)"
-           class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all overflow-hidden flex flex-col group cursor-pointer"
-           :class="plan.statut === 'ARCHIVE' ? 'opacity-75 grayscale-[30%]' : 'hover:border-blue-400'">
+    <!-- ========================================== -->
+    <!-- GRILLE DES RÉSULTATS (Cards)               -->
+    <!-- ========================================== -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
 
-        <div @click="consulter(plan.category, plan.id)" class="p-6 flex-1">
-          <div class="flex justify-between items-start mb-4">
-            <h3 class="text-base font-black text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">{{ plan.libelle }}</h3>
-            <div class="flex flex-col gap-1 items-end shrink-0">
-              <span class="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold uppercase rounded-md tracking-wider">v{{ plan.version }}</span>
-              <span v-if="plan.statut === 'ARCHIVE'" class="px-2 py-0.5 bg-red-100 text-red-600 border border-red-200 text-[9px] font-black uppercase rounded-md tracking-widest shadow-sm">Archivé</span>
-              <span v-else-if="plan.statut === 'BROUILLON'" class="px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-black uppercase rounded-md tracking-widest shadow-sm">Brouillon</span>
-              <span v-else-if="plan.statut" class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">{{ plan.statut }}</span>
-            </div>
+      <!-- Boucle sur les plans -->
+      <div v-for="plan in filteredPlans" :key="plan.id"
+        @click="consulter(plan.category, plan.id)"
+        :class="[
+          'group bg-white border rounded-xl p-5 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden flex flex-col h-full',
+          categoryStyles[plan.category]?.hoverClass || 'hover:border-slate-300 border-slate-200',
+          plan.statut === 'ARCHIVE' ? 'opacity-80 grayscale-[20%]' : ''
+        ]">
+
+        <!-- Petite barre de couleur en haut selon le type -->
+        <div class="absolute top-0 left-0 w-full h-1" :class="categoryStyles[plan.category]?.colorClass || 'bg-slate-300'"></div>
+
+        <!-- Header Card: Type & Statut -->
+        <div class="flex justify-between items-start mb-3">
+          <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide" :class="categoryStyles[plan.category]?.textClass || 'text-slate-500'">
+            <i :class="categoryStyles[plan.category]?.icon || 'pi pi-file'" class="text-lg"></i>
+            {{ categoryStyles[plan.category]?.label || plan.category }}
           </div>
 
-          <div class="flex flex-wrap gap-2 mb-6 mt-auto">
-            <div v-if="plan.nature && plan.nature !== 'N/A'" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wide border border-slate-200/60 shadow-sm">
-              <i class="pi pi-box text-slate-400 text-[11px]"></i> {{ plan.nature }}
-            </div>
-            <div v-if="plan.type && plan.type !== 'N/A'" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wide border border-slate-200/60 shadow-sm">
-              <i class="pi pi-tag text-slate-400 text-[11px]"></i> {{ plan.type }}
-            </div>
-            <div v-if="plan.poste && plan.poste !== 'N/A'" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wide border border-slate-200/60 shadow-sm">
-              <i class="pi pi-map-marker text-slate-400 text-[11px]"></i> {{ plan.poste }}
-            </div>
-          </div>
-
-          <p class="text-xs text-slate-500 flex items-center gap-2">
-            <i class="pi pi-list"></i> {{ plan.description }}
-          </p>
+          <!-- Badge Statut -->
+          <span :class="[
+            'px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-sm',
+            plan.statut === 'ACTIF' ? 'bg-emerald-100 text-emerald-700' :
+            plan.statut === 'BROUILLON' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+          ]">
+            {{ plan.statut }}
+          </span>
         </div>
 
-        <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-3" @click.stop>
-          <template v-if="plan.statut !== 'ARCHIVE'">
-            <button @click="editer(plan.category, plan.id)" class="flex-1 bg-slate-800 text-white py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
-              <i class="pi pi-pencil"></i> Éditer
+        <!-- Article Code & Designation (prominant) -->
+        <div v-if="plan.codeArticleSage" class="mb-2">
+          <span class="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+            {{ plan.codeArticleSage }}
+          </span>
+          <div v-if="plan.designation" class="mt-1.5 text-[11px] font-bold text-slate-500 italic line-clamp-1 leading-tight" :title="plan.designation">
+            {{ plan.designation }}
+          </div>
+        </div>
+
+        <!-- Titre & Référence -->
+        <div class="flex-1 mb-3">
+          <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
+            {{ plan.libelle || plan.designation || '(Sans désignation)' }}
+          </h3>
+        </div>
+
+        <!-- Tags: Nature, Type, Opération -->
+        <div class="flex flex-wrap gap-1.5 mb-4">
+          <span v-if="plan.nature && plan.nature !== 'N/A'"
+            class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
+            <i class="pi pi-box text-[9px]"></i> {{ plan.nature }}
+          </span>
+          <span v-if="plan.type && plan.type !== 'N/A'"
+            class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
+            <i class="pi pi-tag text-[9px]"></i> {{ plan.type }}
+          </span>
+          <!-- Badge Opération — affiché en couleur distinctive -->
+          <span v-if="plan.poste && plan.poste !== 'N/A'"
+            class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded">
+            <i class="pi pi-cog text-[9px]"></i> {{ plan.poste }}
+          </span>
+        </div>
+
+        <!-- Footer Card: Version + Actions -->
+        <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+          <div class="flex gap-2">
+            <!-- Badge Version -->
+            <span class="inline-flex items-center justify-center bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded">
+              V{{ plan.version }}
+            </span>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button v-if="plan.statut === 'ACTIF' || plan.statut === 'BROUILLON'" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
+              <i class="pi pi-pencil"></i>
             </button>
-            <button v-if="plan.statut === 'BROUILLON'" @click="confirmSuppressionBrouillon(plan)" class="w-10 shrink-0 bg-red-50 text-red-500 py-2 rounded-lg font-bold text-xs flex items-center justify-center hover:bg-red-500 hover:text-white border border-transparent hover:border-red-600 transition-colors" title="Supprimer définitivement le brouillon">
+            <button v-if="plan.statut === 'BROUILLON'" @click.stop="confirmSuppressionBrouillon(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Supprimer le brouillon">
               <i class="pi pi-trash"></i>
             </button>
-            <button v-else @click="confirmArchivage(plan)" class="w-10 shrink-0 bg-red-50 text-red-500 py-2 rounded-lg font-bold text-xs flex items-center justify-center hover:bg-red-500 hover:text-white border border-transparent hover:border-red-600 transition-colors" title="Archiver le plan">
+            <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Archiver">
               <i class="pi pi-box"></i>
             </button>
-          </template>
-
-          <template v-else>
-            <button @click="editer(plan.category, plan.id)" class="w-full bg-amber-100 text-amber-700 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-amber-200 transition-colors">
-              <i class="pi pi-history"></i> Ouvrir
+            <button v-if="plan.statut === 'ARCHIVE'" @click.stop="consulter(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Restaurer">
+              <i class="pi pi-history"></i>
             </button>
-          </template>
+            <i class="pi pi-eye text-slate-300 ml-1 transition-colors text-sm" :class="categoryStyles[plan.category]?.textClass || 'group-hover:text-blue-500'"></i>
+          </div>
         </div>
-      </div>
 
-      <div v-if="plansFiltres.length === 0" class="col-span-full py-12 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-        <i class="pi pi-inbox text-4xl text-slate-300 mb-3"></i>
-        <h3 class="text-lg font-bold text-slate-700">Aucun plan {{ vueActuelle === 'ARCHIVES' ? 'archivé' : 'trouvé' }}</h3>
-        <p class="text-sm text-slate-500 mt-1">Modifiez vos filtres ou créez un nouveau plan.</p>
       </div>
     </div>
+
+    <!-- Empty State -->
+    <div v-if="!isLoading && filteredPlans.length === 0" class="text-center py-20 bg-white border border-slate-200 rounded-xl mt-4 shadow-sm">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4">
+        <i class="pi pi-search text-2xl"></i>
+      </div>
+      <h3 class="text-lg font-bold text-slate-700">Aucun plan trouvé</h3>
+      <p class="text-slate-500 mt-1">Modifiez vos filtres ou créez un nouveau plan par article.</p>
+      <button @click="router.push('/dev/fab/plans/nouveau')"
+        class="mt-6 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm mx-auto">
+        <i class="pi pi-plus"></i> Créer un Plan
+      </button>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
@@ -117,15 +202,25 @@ const router = useRouter();
 const toast = useToast();
 const confirm = useConfirm();
 
-const filtreActif = ref('ALL');
-const vueActuelle = ref('ACTIFS');
+const activeTab = ref('ALL');
+const searchQuery = ref('');
+const selectedOperation = ref('');
+const vueActuelle = ref('ACTIF');
 const isLoading = ref(true);
 const plans = ref([]);
 
-const categories = [
-  { id: 'ALL', label: 'Tous les plans' },
-  { id: 'FAB', label: 'Fabrication' }
+const tabs = [
+  { id: 'ALL', label: 'Tous', short: 'Tous', icon: 'pi pi-th-large' },
+  { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' },
+  { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
+  { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
 ];
+
+const categoryStyles = {
+  FAB: { label: 'Fabrication', icon: 'pi pi-cog', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300 border-slate-200', titleHoverClass: 'group-hover:text-amber-600' },
+  PF: { label: 'Produit Fini', icon: 'pi pi-box', colorClass: 'bg-blue-500', textClass: 'text-blue-500', hoverClass: 'hover:border-blue-300 border-slate-200', titleHoverClass: 'group-hover:text-blue-600' },
+  ECH: { label: 'Échantillonnage', icon: 'pi pi-check-square', colorClass: 'bg-purple-500', textClass: 'text-purple-500', hoverClass: 'hover:border-purple-300 border-slate-200', titleHoverClass: 'group-hover:text-purple-600' }
+};
 
 onMounted(async () => {
   await chargerPlans();
@@ -136,17 +231,56 @@ const chargerPlans = async () => {
     isLoading.value = true;
     const response = await apiClient.get('/hub/plans');
     plans.value = response.data.data || response.data || [];
-  } catch {
+  } catch (error) {
+    console.error(error);
     toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les plans', life: 3000 });
   } finally {
     isLoading.value = false;
   }
 };
 
+const filteredPlans = computed(() => {
+  return plans.value.filter(plan => {
+    // 1. Filtre par Onglet (Type)
+    const matchTab = activeTab.value === 'ALL' || plan.category === activeTab.value;
+
+    // 2. Filtre par Opération
+    const matchOp = selectedOperation.value === '' || plan.poste === selectedOperation.value;
+
+    // 3. Filtre par Recherche texte
+    const q = searchQuery.value.toLowerCase();
+    const libelle = (plan.libelle || '').toLowerCase();
+    const designation = (plan.designation || '').toLowerCase();
+    const codeRef = `${plan.nature || ''} ${plan.type || ''} ${plan.codeArticleSage || ''}`.toLowerCase();
+    const matchSearch = q === '' || libelle.includes(q) || designation.includes(q) || codeRef.includes(q);
+
+    // 4. Filtre par Statut
+    const matchStatut = plan.statut === vueActuelle.value;
+
+    return matchTab && matchOp && matchSearch && matchStatut;
+  });
+});
+
+const operationsDisponibles = computed(() => {
+  const ops = new Set();
+  plans.value.forEach(p => {
+    const matchCategory = activeTab.value === 'ALL' || p.category === activeTab.value;
+    if (matchCategory && p.poste && p.poste !== 'N/A') {
+      ops.add(p.poste);
+    }
+  });
+  return Array.from(ops).sort();
+});
+
+watch(activeTab, () => {
+  selectedOperation.value = '';
+});
+
+// === ACTIONS ===
 const confirmSuppressionBrouillon = (plan) => {
   confirm.require({
-    message: `Retirer le brouillon "${plan.libelle}" de la liste ?`,
-    header: 'Confirmation de suppression',
+    message: `Retirer définitivement le brouillon "${plan.libelle || plan.codeArticle}" ?`,
+    header: 'Suppression du Brouillon',
     icon: 'pi pi-exclamation-triangle',
     rejectLabel: 'Annuler',
     acceptLabel: 'Supprimer',
@@ -163,29 +297,17 @@ const supprimerBrouillon = async (plan) => {
     isLoading.value = true;
     await apiClient.delete(`/hub/plans/${plan.category}/${plan.id}`);
     plans.value = plans.value.filter(p => p.id !== plan.id);
-    toast.add({ severity: 'success', summary: 'Supprimé', detail: 'Le brouillon a été retiré de la liste.', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Supprimé', detail: 'Le brouillon a été retiré.', life: 3000 });
   } catch {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'La suppression du brouillon a échoué.', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'La suppression a échoué.', life: 3000 });
   } finally {
     isLoading.value = false;
   }
 };
 
-const plansFiltres = computed(() => {
-  return plans.value.filter(p => {
-    const matchCategory = filtreActif.value === 'ALL' || p.category === filtreActif.value;
-    const matchStatut = vueActuelle.value === 'ACTIFS'
-      ? p.statut === 'ACTIF'
-      : vueActuelle.value === 'BROUILLONS'
-        ? p.statut === 'BROUILLON'
-        : p.statut === 'ARCHIVE';
-    return matchCategory && matchStatut;
-  });
-});
-
 const confirmArchivage = (plan) => {
   confirm.require({
-    message: `Voulez-vous vraiment archiver le plan "${plan.libelle}" ?`,
+    message: `Voulez-vous archiver le plan "${plan.libelle || plan.codeArticle}" ?`,
     header: 'Confirmation d\'archivage',
     icon: 'pi pi-exclamation-triangle',
     rejectLabel: 'Annuler',
@@ -203,7 +325,7 @@ const archiver = async (plan) => {
     isLoading.value = true;
     await apiClient.put(`/hub/plans/${plan.category}/${plan.id}/statut?statut=ARCHIVE`);
     plan.statut = 'ARCHIVE';
-    toast.add({ severity: 'success', summary: 'Archivé', detail: 'Le plan a été placé dans les archives.', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Archivé', detail: 'Le plan a été archivé.', life: 3000 });
   } catch {
     toast.add({ severity: 'error', summary: 'Erreur', detail: "L'archivage a échoué.", life: 3000 });
   } finally {
@@ -212,21 +334,22 @@ const archiver = async (plan) => {
 };
 
 const editer = (category, id) => {
-  if (category === 'FAB') {
-    router.push(`/dev/fab/plans/editer/${id}`);
-    return;
-  }
-
-  toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Redirection non disponible.', life: 3000 });
+  const routes = {
+    FAB: `/dev/fab/plans/editer/${id}`,
+    PF: `/dev/produit-fini/editer/${id}`,
+    ECH: `/dev/echantillonnage/editer/${id}`
+  };
+  if (routes[category]) router.push(routes[category]);
+  else toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Redirection non disponible.', life: 3000 });
 };
 
-// Fonction de consultation (Ajoute ?view=true dans l'URL)
 const consulter = (category, id) => {
-  if (category === 'FAB') {
-    router.push({ path: `/dev/fab/plans/editer/${id}`, query: { view: 'true' } });
-    return;
-  }
-
-  toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Consultation non disponible.', life: 3000 });
+  const routes = {
+    FAB: { path: `/dev/fab/plans/editer/${id}`, query: { view: 'true' } },
+    PF: { path: `/dev/produit-fini/editer/${id}`, query: { view: 'true' } },
+    ECH: { path: `/dev/echantillonnage/editer/${id}`, query: { view: 'true' } }
+  };
+  if (routes[category]) router.push(routes[category]);
+  else toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Consultation non disponible.', life: 3000 });
 };
 </script>

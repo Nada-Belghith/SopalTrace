@@ -1,4 +1,4 @@
-﻿using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -26,7 +26,8 @@ public interface IPlanFabricationRepository
     // Plans
     Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage);
     Task<bool> ExistePlanActifPourArticleEtOperationAsync(string codeArticleSage, string? operationCode);
-    Task<PlanFabEntete?> GetPlanActifPourArticleAsync(string codeArticleSage); // <-- NOUVELLE MÉTHODE
+    Task<PlanFabEntete?> GetPlanActifPourArticleAsync(string codeArticleSage);
+    Task<PlanFabEntete?> GetPlanActifPourArticleEtOperationAsync(string codeArticleSage, string operationCode);
     Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid? modeleSourceId, string? operationCode = null);
     Task<PlanFabEntete?> GetPlanAvecRelationsAsync(Guid planId);
     Task<PlanFabEntete?> GetPlanCompletPourMiseAJourAsync(Guid planId);

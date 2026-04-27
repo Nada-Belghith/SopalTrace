@@ -211,7 +211,7 @@
           
           <!-- Si un seul plan disponible, l'afficher directement -->
           <div v-else-if="wizard.availablePlans.value.length === 1" class="p-4 bg-white border-2 border-slate-300 rounded-xl text-base font-semibold text-slate-700 shadow-sm">
-            {{ wizard.availablePlans.value[0].nom }} - v{{ wizard.availablePlans.value[0].versionActuelle }} ({{ wizard.availablePlans.value[0].codeArticleSage }} - {{ wizard.availablePlans.value[0].designation }})
+            {{ wizard.availablePlans.value[0].nom || 'Sans Nom' }} - v{{ wizard.availablePlans.value[0].version }} ({{ wizard.availablePlans.value[0].codeArticleSage }} - {{ wizard.availablePlans.value[0].designation }})
           </div>
           
           <select 
@@ -221,7 +221,7 @@
           >
             <option :value="null" disabled>-- Sélectionner le Plan dans la liste --</option>
             <option v-for="plan in wizard.availablePlans.value" :key="plan.id" :value="plan.id">
-              {{ plan.nom }} - v{{ plan.versionActuelle }} ({{ plan.codeArticleSage }} - {{ plan.designation }})
+              {{ plan.nom || 'Sans Nom' }} - v{{ plan.version }} ({{ plan.codeArticleSage }} - {{ plan.designation }})
             </option>
           </select>
 
@@ -229,11 +229,11 @@
           <button 
             v-if="wizard.availablePlans.value.length > 0"
             @click="$emit('load-model', { wizard })"
-            :disabled="!wizard.selectedSourceId.value"
+            :disabled="!wizard.selectedSourceId.value || wizard.isGenerating.value"
             class="w-full mt-4 px-6 py-3 bg-emerald-600 text-white rounded-lg font-black uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center gap-3 text-sm"
           >
-            <i class="pi pi-copy"></i>
-            Cloner le Plan
+            <i :class="wizard.isGenerating.value ? 'pi pi-spin pi-spinner' : 'pi pi-copy'"></i>
+            {{ wizard.isGenerating.value ? 'Clonage en cours...' : 'Cloner le Plan' }}
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -19,9 +19,5 @@ public partial class TypeRobinet
 
     public virtual ICollection<PlanAssEntete> PlanAssEntetes { get; set; } = new List<PlanAssEntete>();
 
-    public virtual ICollection<PlanNcEntete> PlanNcEntetes { get; set; } = new List<PlanNcEntete>();
-
-    public virtual PlanPfEntete? PlanPfEntete { get; set; }
-
-    public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
+    public virtual ICollection<PlanPfEntete> PlanPfEntetes { get; set; } = new List<PlanPfEntete>();
 }

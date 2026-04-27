@@ -12,45 +12,29 @@
     <div class="max-w-[1600px] mx-auto">
       <div class="animate-in fade-in zoom-in-95 duration-500">
 
-        <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
-          <div class="flex-1 min-w-0">
-            <h1 class="text-3xl font-black text-slate-900 tracking-tight truncate">
-              {{ headerTitle }}
-            </h1>
-            <p class="text-sm text-slate-500 mt-1 font-medium">{{ headerSubtitle }}</p>
-
-            <div v-if="isEditMode" class="mt-4 flex flex-wrap items-center gap-3">
-              <div class="inline-flex items-center gap-3 bg-blue-50/50 border border-blue-100 text-blue-800 px-4 py-2 rounded-xl shadow-sm max-w-full">
-                <i class="pi pi-box text-blue-500 shrink-0"></i>
-                <span class="font-mono font-bold truncate shrink-0">{{ codeAffiche }}</span>
-                <span class="text-blue-300 shrink-0">|</span>
-                <span class="font-semibold text-sm truncate">{{ plan?.designation || wizard.designationArticle }}</span>
-              </div>
-
-              <div class="inline-flex items-center gap-2 bg-slate-100 border border-slate-200 text-slate-700 px-4 py-2 rounded-xl shadow-sm shrink-0">
-                <i class="pi pi-cog text-slate-400"></i>
-                <span class="text-xs font-bold uppercase tracking-widest">Opération :</span>
-                <span class="font-black">{{ plan?.operationCode || 'NON DÉFINIE' }}</span>
-              </div>
+        <PlanHeader 
+          :id="planId"
+          :title="headerTitle"
+          :subtitle="headerSubtitle"
+          icon="pi pi-file-edit"
+          iconColorClass="text-blue-500"
+          :is-read-only="isReadOnly"
+          :version="plan?.version"
+          :statut="plan?.statut"
+          :is-restoring="isVersioningSaving"
+          @restaurer="onEditorSubmit"
+        >
+          <template #actions>
+            <div v-if="isEditMode" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-4 hidden md:flex">
+              <span class="text-[10px] font-black text-slate-400 uppercase">Code Article:</span>
+              <span class="font-mono font-bold text-sm text-slate-700">{{ codeAffiche }}</span>
             </div>
-          </div>
-
-          <div class="flex items-center gap-3 shrink-0">
-            <div v-if="isEditMode" class="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
-              <span v-if="plan?.statut === 'BROUILLON'" class="px-4 py-1.5 bg-amber-50 text-amber-700 font-black text-[10px] uppercase rounded-lg border border-amber-200 tracking-widest"><i class="pi pi-pencil mr-1"></i> Brouillon</span>
-              <span v-else-if="plan?.statut === 'ACTIF'" class="px-4 py-1.5 bg-emerald-50 text-emerald-700 font-black text-[10px] uppercase rounded-lg border border-emerald-200 tracking-widest"><i class="pi pi-check-circle mr-1"></i> Actif (Prod)</span>
-              <span v-else-if="plan?.statut === 'ARCHIVE'" class="px-4 py-1.5 bg-red-50 text-red-700 font-black text-[10px] uppercase rounded-lg border border-red-200 tracking-widest"><i class="pi pi-box mr-1"></i> Archivé</span>
-
-              <div class="px-4 py-1.5 bg-slate-100 text-slate-600 font-black text-[10px] uppercase rounded-lg border border-slate-200 tracking-widest">
-                VERSION {{ plan?.version || 1 }}
-              </div>
+            <div v-if="isEditMode" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-2 hidden md:flex">
+              <span class="text-[10px] font-black text-slate-400 uppercase">Opération:</span>
+              <span class="font-bold text-sm text-slate-700">{{ plan?.operationCode || 'NON DÉFINIE' }}</span>
             </div>
-
-            <button v-if="isEditMode" @click="onCloseEditor" class="text-slate-400 hover:text-red-500 transition-colors ml-2 bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm hover:border-red-200 hover:bg-red-50">
-              <i class="pi pi-times"></i>
-            </button>
-          </div>
-        </div>
+          </template>
+        </PlanHeader>
 
         <PlanWizardStep v-if="!isEditMode"
                         :wizard="wizard"
@@ -107,13 +91,7 @@
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
-            <template v-if="isForcedView">
-              <button @click="onCloseEditor" class="px-6 py-3 bg-slate-500 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2 shadow-sm font-bold">
-                <i class="pi pi-times"></i>
-                Fermer
-              </button>
-            </template>
-            <template v-else-if="isEditMode && plan?.statut === 'BROUILLON'">
+            <template v-if="isEditMode && plan?.statut === 'BROUILLON' && !isForcedView">
               <div class="flex gap-3">
                 <button @click="onSaveDraft"
                         :disabled="isSaving || isVersioningSaving"
@@ -131,7 +109,7 @@
                 </button>
               </div>
             </template>
-            <template v-else>
+            <template v-else-if="!isForcedView">
               <EditorActions :label="editorLabel"
                              loading-label="Traitement..."
                              :icon="editorIcon"
@@ -166,6 +144,7 @@
   import EditorActions from '@/components/Shared/EditorActions.vue';
   import LegendValidationBox from '@/components/Shared/LegendValidationBox.vue';
   import ConfirmDialog from 'primevue/confirmdialog';
+  import PlanHeader from '@/components/Shared/PlanHeader.vue';
 
   import { useEditorSections } from '@/composables/useEditorSections';
   import { useEditorValidation } from '@/composables/useEditorValidation';

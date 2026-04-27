@@ -21,5 +21,5 @@ public partial class PieceReference
 
     public virtual Machine? MachineCodeNavigation { get; set; }
 
-    public virtual ICollection<PlanVerifMachinePieceRef> PlanVerifMachinePieceRefs { get; set; } = new List<PlanVerifMachinePieceRef>();
+    public virtual ICollection<PlanVerifMachineMatricePiece> PlanVerifMachineMatricePieces { get; set; } = new List<PlanVerifMachineMatricePiece>();
 }

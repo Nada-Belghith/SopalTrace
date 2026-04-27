@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Infrastructure.Services;
 using System.Threading.Tasks;
@@ -20,6 +20,20 @@ public class ReferentielController : ControllerBase
     public async Task<IActionResult> GetDictionnairesFabrication()
     {
         var data = await _referentielService.GetFabricationReferentielsAsync();
+        return Ok(new { success = true, data });
+    }
+
+    [HttpGet("verif-machine")]
+    public async Task<IActionResult> GetDictionnairesVerifMachine()
+    {
+        var data = await _referentielService.GetVerifMachineReferentielsAsync();
+        return Ok(new { success = true, data });
+    }
+
+    [HttpGet("plans-nc")]
+    public async Task<IActionResult> GetDictionnairesPlanNc()
+    {
+        var data = await _referentielService.GetPlanNcReferentielsAsync();
         return Ok(new { success = true, data });
     }
     [HttpGet("article/{codeArticle}")]

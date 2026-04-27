@@ -77,9 +77,38 @@ public record ReferentielsResponseDto(
     }
 }
 
+public record VerifMachineReferentielsDto(
+    List<ReferenceItemDto> Machines,
+    List<PeriodiciteDto> Periodicites,
+    List<PieceRefDto> PiecesReferences,
+    List<PieceRefDto> FuitesEtalon,
+    List<ReferenceItemDto> FamillesCorps,
+    List<ReferenceItemDto> MoyensDetection
+);
+
+public record PieceRefDto(
+    Guid Id,
+    string Code,
+    string? Designation,
+    string? FamilleDesc,
+    string? MachineCode,
+    string? TypePiece  // PRC, PRNC, FEC, FENC
+);
+
 public record ArticleDto(
     string CodeArticle,
     string? Designation,
     string? TypeRobinetCode,
     string? NatureComposantCode
+);
+public record MachinePosteDto(
+    string Code,
+    string Libelle,
+    string? PosteCode
+);
+
+public record PlanNcReferentielsDto(
+    List<ReferenceItemDto> Postes,
+    List<MachinePosteDto> Machines,
+    List<ReferenceItemDto> RisquesDefauts
 );

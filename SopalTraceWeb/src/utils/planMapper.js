@@ -140,7 +140,7 @@ export function prepareInstantiatePayload(modeleSourceId, codeArticleSage, desig
     modeleSourceId,
     codeArticleSage,
     designation,
-    nom: `PC-${codeArticleSage}-V1`,
+    nom: `PC-${codeArticleSage}`,
     creePar: 'ADMIN' // Sera remplacé par JWT en prod
   };
 }

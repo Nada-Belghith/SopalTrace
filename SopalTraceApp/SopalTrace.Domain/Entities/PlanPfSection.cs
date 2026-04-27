@@ -11,15 +11,23 @@ public partial class PlanPfSection
 
     public int OrdreAffiche { get; set; }
 
-    public Guid? TypeSectionId { get; set; }
+    public Guid TypeSectionId { get; set; }
 
     public string LibelleSection { get; set; } = null!;
 
+    public string? NormeReference { get; set; }
+
+    public int? NqaId { get; set; }
+
+    public int? NbEchantillons { get; set; }
+
     public string? Notes { get; set; }
+
+    public virtual Nqa? Nqa { get; set; }
 
     public virtual PlanPfEntete PlanEntete { get; set; } = null!;
 
     public virtual ICollection<PlanPfLigne> PlanPfLignes { get; set; } = new List<PlanPfLigne>();
 
-    public virtual TypeSection? TypeSection { get; set; }
+    public virtual TypeSection TypeSection { get; set; } = null!;
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
@@ -16,28 +16,31 @@ public class PlanNcRepository : IPlanNcRepository
         _context = context;
     }
 
-    public async Task<bool> ExistePlanActifAsync(string typeRobinetCode, string operationCode, string posteCode)
+    public async Task<bool> ExistePlanActifAsync(string posteCode)
     {
         return await _context.PlanNcEntetes.AnyAsync(p =>
-            p.TypeRobinetCode == typeRobinetCode &&
-            p.OperationCode == operationCode &&
             p.PosteCode == posteCode &&
             p.Statut == "ACTIF");
     }
 
-    public async Task<PlanNcEntete?> GetPlanActifAsync(string typeRobinetCode, string operationCode, string posteCode)
+    public async Task<PlanNcEntete?> GetPlanActifAsync(string posteCode)
     {
         return await _context.PlanNcEntetes.FirstOrDefaultAsync(p =>
-            p.TypeRobinetCode == typeRobinetCode &&
-            p.OperationCode == operationCode &&
             p.PosteCode == posteCode &&
             p.Statut == "ACTIF");
+    }
+
+    public async Task<List<PlanNcEntete>> GetTousLesPlansAsync()
+    {
+        return await _context.PlanNcEntetes
+            .OrderByDescending(p => p.CreeLe)
+            .ToListAsync();
     }
 
     public async Task<PlanNcEntete?> GetPlanAvecRelationsAsync(Guid planId)
     {
         return await _context.PlanNcEntetes
-            .Include(p => p.PlanNcColonnes)
+            .Include(p => p.PlanNcLignes)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
@@ -46,14 +49,14 @@ public class PlanNcRepository : IPlanNcRepository
         await _context.PlanNcEntetes.AddAsync(plan);
     }
 
-    public void AddColonne(PlanNcColonne colonne)
+    public void AddLigne(PlanNcLigne ligne)
     {
-        _context.PlanNcColonnes.Add(colonne);
+        _context.PlanNcLignes.Add(ligne);
     }
 
-    public void RemoveColonne(PlanNcColonne colonne)
+    public void RemoveLigne(PlanNcLigne ligne)
     {
-        _context.PlanNcColonnes.Remove(colonne);
+        _context.PlanNcLignes.Remove(ligne);
     }
 
     public async Task SaveChangesAsync()

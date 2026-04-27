@@ -15,11 +15,15 @@ public partial class RefFormulaire
 
     public string? PosteCode { get; set; }
 
+    public string? MachineCode { get; set; }
+
     public int Version { get; set; }
 
     public bool Actif { get; set; }
 
     public DateTime CreeLe { get; set; }
+
+    public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual ICollection<ModeleFabEntete> ModeleFabEntetes { get; set; } = new List<ModeleFabEntete>();
 
@@ -30,10 +34,6 @@ public partial class RefFormulaire
     public virtual ICollection<PlanEchantillonnageEntete> PlanEchantillonnageEntetes { get; set; } = new List<PlanEchantillonnageEntete>();
 
     public virtual ICollection<PlanFabEntete> PlanFabEntetes { get; set; } = new List<PlanFabEntete>();
-
-    public virtual ICollection<PlanNcEntete> PlanNcEntetes { get; set; } = new List<PlanNcEntete>();
-
-    public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
 
     public virtual PosteTravail? PosteCodeNavigation { get; set; }
 }

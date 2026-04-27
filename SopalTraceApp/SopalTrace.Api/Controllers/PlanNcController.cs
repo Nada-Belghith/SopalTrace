@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlansNC;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -18,12 +18,18 @@ public class PlanNcController : ControllerBase
         _service = service;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        var data = await _service.GetTousLesPlansAsync();
+        return Ok(new { success = true, data });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePlanNcRequestDto request)
     {
-        // En production, "ADMIN" sera remplacé par le matricule extrait du Token JWT
         var id = await _service.CreerPlanAsync(request, "ADMIN");
-        return Ok(new { success = true, planId = id, message = "Plan NC créé en BROUILLON." });
+        return Ok(new { success = true, planId = id, message = "Plan NC créé et activé." });
     }
 
     [HttpGet("{id}")]
@@ -33,12 +39,11 @@ public class PlanNcController : ControllerBase
         return Ok(new { success = true, data });
     }
 
-    [HttpPut("{id}/colonnes")]
-    public async Task<IActionResult> UpdateColonnes(Guid id, [FromBody] List<ColonneNcEditDto> colonnes)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] SavePlanNcDto request)
     {
-        var ok = await _service.MettreAJourColonnesAsync(id, colonnes);
-        if (!ok) return NotFound(new { success = false, message = "Plan introuvable." });
-        return Ok(new { success = true, message = "Colonnes synchronisées. Le plan est ACTIF." });
+        var newId = await _service.MettreAJourPlanAsync(id, request, "ADMIN");
+        return Ok(new { success = true, planId = newId, message = "Nouvelle version enregistrée et activée." });
     }
 
     [HttpPost("nouvelle-version")]
@@ -46,5 +51,12 @@ public class PlanNcController : ControllerBase
     {
         var id = await _service.CreerNouvelleVersionAsync(request);
         return Ok(new { success = true, planId = id, message = "Nouvelle version générée en BROUILLON." });
+    }
+
+    [HttpPost("restaurer")]
+    public async Task<IActionResult> Restaurer([FromBody] NouvelleVersionNcRequestDto request)
+    {
+        var id = await _service.RestaurerPlanAsync(request.AncienId, request.ModifiePar ?? "ADMIN", request.MotifModification);
+        return Ok(new { success = true, planId = id, message = "Plan restauré avec succès." });
     }
 }

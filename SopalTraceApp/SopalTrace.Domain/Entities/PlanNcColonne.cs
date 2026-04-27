@@ -18,4 +18,14 @@ public partial class PlanNcColonne
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
 
     public virtual PlanNcEntete PlanNcentete { get; set; } = null!;
+    
+    public Guid? FormulaireId { get; set; }
+
+    public string? ModifiePar { get; set; }
+
+    public DateTime? ModifieLe { get; set; }
+
+    public string? CommentaireVersion { get; set; }
+
+    public virtual ICollection<PlanNcColonne> PlanNcColonnes { get; set; } = new List<PlanNcColonne>();
 }
