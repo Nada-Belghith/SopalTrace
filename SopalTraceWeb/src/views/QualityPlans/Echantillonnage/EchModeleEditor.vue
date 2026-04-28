@@ -192,6 +192,7 @@ import EditorActions from '@/components/Shared/EditorActions.vue';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import { usePlanEchanStore } from '@/stores/planEchanStore';
 
+const confirm = useConfirm();
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
@@ -280,23 +281,55 @@ onMounted(async () => {
 
 const onSave = async () => {
   if (isArchived.value) {
-    // Archive: need restoration flow
-    showVersioningDialog.value = true;
+    // Si on restaure une archive, on vérifie d'abord s'il y a déjà un plan actif
+    const planActif = await store.getPlanActif();
+    if (planActif) {
+      confirm.require({
+        message: `Un plan d'échantillonnage est déjà ACTIF (V${planActif.version}). Voulez-vous l'archiver pour restaurer cette version en tant que V${planActif.version + 1} ?`,
+        header: 'Confirmation de Restauration',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'Restaurer et Archiver',
+        rejectLabel: 'Annuler',
+        acceptClass: 'p-button-warning',
+        accept: () => {
+          showVersioningDialog.value = true;
+        }
+      });
+    } else {
+      showVersioningDialog.value = true;
+    }
     return;
   }
 
-  // For new plan creation or edit (create new version)
+  // Pour une nouvelle création
   isSaving.value = true;
   try {
     if (isEditMode.value) {
-      // Automatically create a new version with a default motif
       await store.creerNouvelleVersion('Modification via UI');
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version créée et activée.', life: 3000 });
+      router.push('/dev/hub-plans');
     } else {
-      await store.sauvegarderPlan();
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
+      // Vérifier s'il y a déjà un plan actif avant de créer le tout premier ou un nouveau "NQA global"
+      const planActif = await store.getPlanActif();
+      if (planActif) {
+        confirm.require({
+          message: `Un plan d'échantillonnage est déjà ACTIF (V${planActif.version}). Si vous continuez, il sera archivé et remplacé par ce nouveau plan (V${planActif.version + 1}). Continuer ?`,
+          header: 'Confirmation de Création',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'Créer et Archiver',
+          rejectLabel: 'Annuler',
+          accept: async () => {
+            await store.sauvegarderPlan();
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
+            router.push('/dev/hub-plans');
+          }
+        });
+      } else {
+        await store.sauvegarderPlan();
+        toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
+        router.push('/dev/hub-plans');
+      }
     }
-    router.push('/dev/hub-plans');
   } catch (err) {
     toast.add({ severity: 'error', summary: 'Erreur', detail: err.response?.data?.message || 'Échec de la sauvegarde.', life: 3000 });
   } finally {

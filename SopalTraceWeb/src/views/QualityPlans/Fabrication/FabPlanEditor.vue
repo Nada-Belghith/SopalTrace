@@ -154,7 +154,7 @@
   const toast = useToast();
   const confirm = useConfirm();
   const store = useFabModeleStore();
-  const { creerNouvelleVersionPlan, mettreAJourValeurs, restaurerPlan } = usePlanVersioning();
+  const { creerNouvelleVersionPlan, restaurerPlan } = usePlanVersioning();
 
   const wizard = usePlanWizard();
   const isGeneratingPlan = ref(false);
