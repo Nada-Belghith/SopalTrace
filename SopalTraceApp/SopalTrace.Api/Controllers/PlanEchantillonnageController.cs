@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -45,6 +45,13 @@ public class PlanEchantillonnageController : ControllerBase
     public async Task<IActionResult> CreerVersion([FromBody] NouvelleVersionEchanRequestDto request)
     {
         var id = await _service.CreerNouvelleVersionAsync(request);
-        return Ok(new { success = true, planId = id, message = "V2 générée en BROUILLON. Veuillez modifier les valeurs avec un PUT pour l'activer." });
+        return Ok(new { success = true, planId = id, message = "Nouvelle version générée et activée avec succès." });
+    }
+
+    [HttpPost("restaurer")]
+    public async Task<IActionResult> Restaurer([FromBody] RestaurerEchanRequestDto request)
+    {
+        var id = await _service.RestaurerPlanAsync(request);
+        return Ok(new { success = true, planId = id, message = "Plan restauré et activé avec succès." });
     }
 }

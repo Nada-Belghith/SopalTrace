@@ -89,6 +89,12 @@
                 <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
               </button>
             </div>
+
+            <RemarquesLegendeBox
+              v-model:remarques="store.entete.remarques"
+              v-model:legendeMoyens="store.entete.legendeMoyens"
+              :is-read-only="isReadOnly"
+            />
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
@@ -126,6 +132,7 @@ import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 // import ConfirmDialog from 'primevue/confirmdialog';
+import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import Toast from 'primevue/toast';
 
 const route = useRoute();
@@ -152,8 +159,9 @@ const {
   // ajouterLigneASection (inutilisé)
 } = useEditorSections();
 
-const dummyLegende = ref('');
-const { validerSaisiePlan: validerSaisieValeurs } = useEditorValidation(sections, dummyLegende, toast);
+const {
+  validerSaisiePlan: validerSaisieValeurs
+} = useEditorValidation(sections, computed(() => store.entete.legendeMoyens), toast);
 
 // ============================================================================
 // COLONNES RÉUTILISABLES

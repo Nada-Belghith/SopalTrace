@@ -19,6 +19,7 @@ public record CreatePlanRequestDto
     public string MachineDefautCode { get; set; }
     public string CommentaireVersion { get; init; }
     public string LegendeMoyens { get; init; } 
+    public string Remarques { get; init; }
 }
 
 public record ChangePlanStatusRequestDto
@@ -41,6 +42,7 @@ public record NouvelleVersionRequestDto
     public string ModifiePar { get; init; }
     public string MotifModification { get; init; }
     public string LegendeMoyens { get; init; } // <-- Ajout
+    public string Remarques { get; init; }
     public List<SectionEditDto> SectionsModifiees { get; init; } = new();
 }
 
@@ -118,6 +120,7 @@ public record PlanResponseDto
     public DateTime? DateApplication { get; init; }
     public string MachineDefautCode { get; init; }
     public string LegendeMoyens { get; init; } // <-- Ajout
+    public string Remarques { get; init; }
     public string CreePar { get; init; }
     public DateTime CreeLe { get; init; }
     public string ModifiePar { get; init; }
@@ -168,7 +171,9 @@ public record UpdateValeursPlanRequestDto
 {
     public List<SectionEditDto> Sections { get; init; } = new();
     public string LegendeMoyens { get; init; }
+    public string Remarques { get; init; }
     public string Nom { get; init; }
+    public string ModifiePar { get; init; }
     public bool Finaliser { get; init; } = true;
 }
 

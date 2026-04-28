@@ -19,6 +19,9 @@ public record CreateVerifMachineModeleDto
     public bool AfficheFamilles { get; init; }
     public bool AfficheFuiteEtalon { get; init; }
 
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
+
     public List<VmFamilleDto> Familles { get; init; } = new();
     public List<VmLigneDto> LignesConformite { get; init; } = new();
     public List<VmLigneDto> LignesRisques { get; init; } = new();
@@ -71,6 +74,9 @@ public record PlanVerifMachineResponseDto
     public bool AfficheMoyenDetectionRisques { get; init; }
     public bool AfficheFamilles { get; init; }
     public bool AfficheFuiteEtalon { get; init; }
+
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
 
     public string CreePar { get; init; }
     public DateTime CreeLe { get; init; }

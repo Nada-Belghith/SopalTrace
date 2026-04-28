@@ -71,14 +71,13 @@ public class HubService : IHubService
             .ToListAsync();
         result.AddRange(vmModeles);
 
-        // 4. ÉCHANTILLONNAGE (Modèles uniquement : CodeArticleSage == null)
+        // 4. ÉCHANTILLONNAGE (Global Unique — pas de filtre par article)
         var echModeles = await _context.PlanEchantillonnageEntetes
             .AsNoTracking()
-            .Where(m => m.CodeArticleSage == null)
             .Join(_context.Nqas, m => m.NqaId, n => n.Id, (m, n) => new HubModeleDto(
                 m.Id,
                 "ECH",
-                "Profil: " + m.CodeReference,
+                "Plan Global",
                 "N/A",
                 m.TypePlan,
                 "NQA " + n.ValeurNqa,
@@ -166,32 +165,8 @@ public class HubService : IHubService
             .ToListAsync();
         result.AddRange(pfPlans);
 
-        // 3. PLANS ÉCHANTILLONNAGE (Par article)
-        // Note: Echantillonnage n'a pas de champ Designation en propre, on le récupère via l'article SAGE
-        var echPlans = await _context.PlanEchantillonnageEntetes
-            .AsNoTracking()
-            .Where(m => m.CodeArticleSage != null)
-            .Join(_context.Itmmasters, 
-                p => p.CodeArticleSage, 
-                i => i.CodeArticle, 
-                (p, i) => new { p, i.Designation })
-            .Join(_context.Nqas, 
-                x => x.p.NqaId, 
-                n => n.Id, 
-                (x, n) => new HubPlanDto(
-                    x.p.Id,
-                    "ECH",
-                    "Article: " + x.p.CodeArticleSage,
-                    "N/A",
-                    x.p.TypePlan,
-                    "NQA " + n.ValeurNqa,
-                    x.p.Version,
-                    x.p.Statut,
-                    $"Plan échan. article {x.p.CodeArticleSage}",
-                    x.p.CodeArticleSage,
-                    x.Designation))
-            .ToListAsync();
-        result.AddRange(echPlans);
+        // 3. PLANS ÉCHANTILLONNAGE — désormais Global Unique, pas d'instances par article.
+        // Les plans d'échantillonnage apparaissent uniquement dans la section Modèles/Configuration Globale.
 
         return result;
     }

@@ -28,6 +28,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     afficheFuiteEtalon: false,
     version: 1,
     statut: 'ACTIF',
+    remarques: '',
+    legendeMoyens: '',
   });
 
   const familles = ref([]);
@@ -90,6 +92,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       AfficheMoyenDetectionRisques: entete.value.afficheMoyenDetectionRisques,
       AfficheFamilles: entete.value.afficheFamilles,
       AfficheFuiteEtalon: finalAfficheFuiteEtalon,
+      Remarques: entete.value.remarques || '',
+      LegendeMoyens: entete.value.legendeMoyens || '',
       Familles: familles.value.map((f, idx) => ({
         RefFamilleCorpsId: f.refFamilleCorpsId,
         OrdreAffiche: idx + 1,
@@ -145,7 +149,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const resetPlan = () => {
-    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 1, statut: 'ACTIF' };
+    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 1, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
     familles.value = [];
     lignesConformite.value = [];
     lignesRisques.value = [];
@@ -269,6 +273,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         afficheFuiteEtalon: data.afficheFuiteEtalon,
         version: data.version || 1,
         statut: data.statut || 'ACTIF',
+        remarques: data.remarques || '',
+        legendeMoyens: data.legendeMoyens || '',
       };
 
       familles.value = (data.familles || []).map(f => {

@@ -14,6 +14,8 @@ public record CreatePlanPfRequestDto
     public string TypeRobinetCode { get; init; }
     public string Designation { get; init; }
     public string CommentaireVersion { get; init; }
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
     public List<SectionPfEditDto> Sections { get; init; } = new();
 }
 
@@ -24,6 +26,8 @@ public record NouvelleVersionPfRequestDto
     public string Designation { get; init; }
     public string ModifiePar { get; init; }
     public string MotifModification { get; init; }
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
     public List<SectionPfEditDto> Sections { get; init; } = new();
 }
 
@@ -32,6 +36,14 @@ public record RestaurerPfRequestDto
     public Guid PlanArchiveId { get; init; }
     public string RestaurePar { get; init; }
     public string MotifRestoration { get; init; }
+}
+
+public record UpdateValeursPfRequestDto
+{
+    public List<SectionPfEditDto> Sections { get; init; } = new();
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
+    public string ModifiePar { get; init; }
 }
 
 // ====================================================================
@@ -84,6 +96,8 @@ public record PlanPfEnteteDto
     public string ModifiePar { get; set; }
     public DateTime? ModifieLe { get; set; }
     public string CommentaireVersion { get; set; }
+    public string Remarques { get; set; }
+    public string LegendeMoyens { get; set; }
 
     public List<PlanPfSectionDto> Sections { get; set; } = new();
 }

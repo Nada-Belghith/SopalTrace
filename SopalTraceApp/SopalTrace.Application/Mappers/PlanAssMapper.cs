@@ -1,4 +1,4 @@
-﻿using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
+using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using System;
@@ -28,6 +28,8 @@ public static class PlanAssMapper
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             CommentaireVersion = plan.CommentaireVersion,
+            LegendeMoyens = plan.LegendeMoyens,
+            Remarques = plan.Remarques,
             Sections = plan.PlanAssSections?.Select(s => new SectionAssResponseDto
             {
                 Id = s.Id,
@@ -131,6 +133,8 @@ public static class PlanAssMapper
             CreePar = creePar,
             CreeLe = DateTime.UtcNow,
             CommentaireVersion = motif,
+            LegendeMoyens = source.LegendeMoyens,
+            Remarques = source.Remarques,
             PlanAssSections = new List<PlanAssSection>()
         };
 

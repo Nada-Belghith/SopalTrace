@@ -32,6 +32,9 @@ public static class PlanVerifMachineMapper
             AfficheFamilles = entete.AfficheFamilles ?? false,
             AfficheFuiteEtalon = entete.AfficheFuiteEtalon ?? false,
 
+            Remarques = entete.Remarques,
+            LegendeMoyens = entete.LegendeMoyens,
+
             Familles = entete.PlanVerifMachineFamilles?.Select(f => new VmFamilleDto
             {
                 Id = f.Id,
@@ -102,7 +105,10 @@ public static class PlanVerifMachineMapper
             AfficheConformite = dto.AfficheConformite,
             AfficheMoyenDetectionRisques = dto.AfficheMoyenDetectionRisques,
             AfficheFamilles = dto.AfficheFamilles,
-            AfficheFuiteEtalon = dto.AfficheFuiteEtalon
+            AfficheFuiteEtalon = dto.AfficheFuiteEtalon,
+
+            Remarques = dto.Remarques,
+            LegendeMoyens = dto.LegendeMoyens
         };
 
         var famillesDb = dto.Familles?.Select(f => new PlanVerifMachineFamille
@@ -181,6 +187,8 @@ public static class PlanVerifMachineMapper
             AfficheMoyenDetectionRisques = entete.AfficheMoyenDetectionRisques ?? false,
             AfficheFamilles = entete.AfficheFamilles ?? false,
             AfficheFuiteEtalon = entete.AfficheFuiteEtalon ?? false,
+            Remarques = entete.Remarques,
+            LegendeMoyens = entete.LegendeMoyens,
             Familles = entete.PlanVerifMachineFamilles?.Select(f => new VmFamilleDto
             {
                 RefFamilleCorpsId = f.RefFamilleCorpsId,

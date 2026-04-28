@@ -73,10 +73,14 @@ export const qualityPlansService = {
     });
   },
 
-  mettreAJourValeurs(planId, sectionsPayload, legendeMoyens, finaliser = true) {
-    return apiClient.put(`/plans-fabrication/${planId}/valeurs`, {      sections: sectionsPayload, // Le tableau des sections
+  mettreAJourValeurs(planId, sectionsPayload, legendeMoyens, remarques, finaliser = true, nom = null, modifiePar = 'Admin') {
+    return apiClient.put(`/plans-fabrication/${planId}/valeurs`, {
+      sections: sectionsPayload,
       legendeMoyens: legendeMoyens, 
-      finaliser: finaliser 
+      remarques: remarques,
+      finaliser: finaliser,
+      nom: nom,
+      modifiePar: modifiePar
     });
   },
 

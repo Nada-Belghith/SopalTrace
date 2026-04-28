@@ -19,7 +19,7 @@
           <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden border-l-4 border-l-emerald-500">
               <div class="bg-slate-800 px-5 py-4 flex justify-between items-center">
                   <h2 class="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wide">
-                      <i class="ri-list-check-2 text-emerald-400"></i> 2. Liste des Défauts à pointer (Lignes de la fiche)
+                      <i class="ri-list-check-2 text-emerald-400"></i> 2. Liste des Défauts à pointer
                   </h2>
                   <div class="flex gap-2">
                       <input v-model="store.entete.nom" type="text" :disabled="isReadOnly" placeholder="Titre du document..." class="w-64 border-none rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500 bg-slate-700 text-white disabled:bg-slate-800/50">
@@ -28,41 +28,85 @@
                       </button>
                   </div>
               </div>
-              <div class="overflow-x-auto">
+              <div class="overflow-x-auto overflow-y-visible">
                   <table class="w-full text-left border-collapse text-sm">
                       <thead class="bg-slate-100 text-slate-700 text-[11px] uppercase tracking-wider font-bold border-b border-slate-300">
                           <tr>
                               <th class="p-3 border-r border-slate-300 w-12 text-center">N°</th>
                               <th class="p-3 border-r border-slate-300 w-[30%]">Machine (Source du défaut)</th>
                               <th class="p-3 border-r border-slate-300 w-[70%]">Désignation du défaut</th>
-                              <th v-if="!isReadOnly" class="p-3 w-12 text-center">⚙️</th>
+                              <th v-if="!isReadOnly" class="p-3 w-12 text-center"></th>
                           </tr>
                       </thead>
-                      <tbody>
-                          <tr v-for="(defaut, index) in store.lignes" :key="defaut._uid" class="border-b border-slate-200 hover:bg-emerald-50/30">
-                              <td class="p-3 border-r text-center font-bold text-slate-500 bg-slate-50">{{ index + 1 }}</td>
-                               <td class="p-2 border-r align-middle">
-                                  <select v-model="defaut.machineCode" :disabled="isReadOnly" class="w-full text-xs font-bold text-slate-700 border border-slate-200 focus:border-emerald-500 rounded py-2 px-2 outline-none bg-transparent disabled:opacity-100 disabled:cursor-default">
-                                      <option v-for="mac in machinesAssocieesAuPoste" :key="mac.code" :value="mac.code">{{ mac.code }} ({{ mac.libelle }})</option>
+                      <tbody class="bg-white">
+                          <tr v-for="(defaut, index) in store.lignes" :key="defaut._uid" 
+                              class="border-b border-slate-200 transition-colors"
+                              :class="isReadOnly ? 'hover:bg-slate-50' : 'hover:bg-emerald-50/40'">
+                              <td class="p-3 border-r text-center font-bold text-slate-500 bg-slate-50/50">{{ index + 1 }}</td>
+                              
+                              <!-- Sélection Machine -->
+                              <td class="p-2 border-r align-middle">
+                                  <div v-if="isReadOnly" class="px-3 py-2 text-xs font-bold text-slate-700">
+                                      {{ defaut.machineCode || 'N/A' }}
+                                  </div>
+                                  <select v-else 
+                                          v-model="defaut.machineCode" 
+                                          class="w-full text-xs font-bold text-slate-700 border border-slate-200 focus:border-emerald-500 rounded-lg py-2.5 px-3 outline-none bg-white shadow-sm transition-all focus:ring-4 focus:ring-emerald-500/10">
+                                      <option v-for="mac in machinesAssocieesAuPoste" :key="mac.code" :value="mac.code">
+                                          {{ mac.code }} ({{ mac.libelle }})
+                                      </option>
                                   </select>
                               </td>
+
+                              <!-- Sélection Défaut -->
                               <td class="p-2 border-r align-middle">
-                                  <select v-model="defaut.risqueDefautId" :disabled="isReadOnly" class="w-full text-xs font-semibold text-slate-800 border border-transparent focus:border-emerald-500 rounded p-2 outline-none uppercase bg-transparent disabled:opacity-100 disabled:cursor-default">
-                                      <option :value="null">-- Choisir un défaut --</option>
+                                  <div v-if="isReadOnly" class="px-3 py-2 text-xs font-semibold text-slate-800 uppercase">
+                                      {{ store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || 'Aucun défaut sélectionné' }}
+                                  </div>
+                                  <select v-else 
+                                          v-model="defaut.risqueDefautId" 
+                                          class="w-full text-xs font-semibold text-slate-800 border border-slate-200 focus:border-emerald-500 rounded-lg py-2.5 px-3 outline-none bg-white shadow-sm transition-all uppercase focus:ring-4 focus:ring-emerald-500/10">
+                                      <option :value="null">-- Sélectionner un défaut --</option>
                                       <option v-for="rd in store.risquesDefauts" :key="rd.id" :value="rd.id">{{ rd.libelle }}</option>
                                   </select>
                               </td>
-                              <td v-if="!isReadOnly" class="p-2 align-middle text-center bg-slate-50"><button @click="store.supprimerLigne(defaut._uid)" class="text-slate-400 hover:text-red-500 p-1"><i class="ri-delete-bin-fill text-lg"></i></button></td>
+
+                              <!-- Actions -->
+                              <td v-if="!isReadOnly" class="p-2 align-middle text-center bg-slate-50/30">
+                                  <button @click="store.supprimerLigne(defaut._uid)" 
+                                          class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95"
+                                          title="Supprimer cette ligne">
+                                      <i class="pi pi-trash"></i>
+                                  </button>
+                              </td>
                           </tr>
                       </tbody>
                   </table>
+
+                  <!-- État vide -->
+                  <div v-if="store.lignes.length === 0" class="p-12 text-center bg-slate-50/50">
+                      <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 mb-3">
+                          <i class="pi pi-list text-slate-400"></i>
+                      </div>
+                      <p class="text-sm text-slate-500 font-medium italic">Aucun défaut configuré pour ce poste.</p>
+                      <button v-if="!isReadOnly" @click="store.ajouterLigne" class="mt-4 text-emerald-600 font-bold text-xs uppercase tracking-widest hover:underline">
+                          + Ajouter un premier défaut
+                      </button>
+                  </div>
               </div>
           </section>
+
+          <RemarquesLegendeBox
+              v-model:remarques="store.entete.remarques"
+              v-model:legendeMoyens="store.entete.legendeMoyens"
+              :is-read-only="isReadOnly"
+          />
+
           <div v-if="!isReadOnly" class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end mt-6 rounded-b-xl">
              <EditorActions 
-                :label="store.entete.id ? 'Sauvegarder les Modifications' : 'Créer et Activer le Plan'"
-                loading-label="Sauvegarde..."
-                :icon="store.entete.id ? 'pi pi-save' : 'pi pi-plus'"
+                :label="store.entete.id ? 'Sauvegarder les Modifications' : 'Enregistrer le Plan'"
+                loading-label="Enregistrement..."
+                :icon="store.entete.id ? 'pi pi-save' : 'pi pi-check'"
                 variant="primary"
                 :is-loading="store.isLoading"
                 @submit="handleSauvegarder"
@@ -82,6 +126,7 @@ import { useRouter, useRoute } from 'vue-router';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import EditorActions from '@/components/Shared/EditorActions.vue';
+import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 
 defineProps({
     isReadOnly: { type: Boolean, default: false }
@@ -103,6 +148,8 @@ onMounted(async () => {
   
   if (route.params.id) {
       await store.chargerPlanNc(route.params.id);
+  } else {
+      store.resetState();
   }
 });
 

@@ -46,6 +46,7 @@ public static class PlanFabricationMapper
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? modele.OperationCode : dto.OperationCode,
             CommentaireVersion = dto.CommentaireVersion,
             LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
+            Remarques = dto.Remarques,
             PlanFabSections = new List<PlanFabSection>()
         };
 
@@ -92,6 +93,7 @@ public static class PlanFabricationMapper
             Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, MachineDefautCode = source.MachineDefautCode,
             OperationCode = source.OperationCode, // ⚠️ COPIE OBLIGATOIRE
             LegendeMoyens = source.LegendeMoyens,
+            Remarques = source.Remarques,
             CreePar = creePar ?? "SYSTEM", CreeLe = DateTime.UtcNow, CommentaireVersion = comm ?? $"Cloné à partir de l'article {source.CodeArticleSage}",
             PlanFabSections = new List<PlanFabSection>()
         };
@@ -184,6 +186,7 @@ public static class PlanFabricationMapper
             DateApplication = plan.DateApplication?.ToDateTime(TimeOnly.MinValue),
             MachineDefautCode = plan.MachineDefautCode,
             LegendeMoyens = plan.LegendeMoyens ?? string.Empty,
+            Remarques = plan.Remarques ?? string.Empty,
             CreePar = plan.CreePar,
             CreeLe = plan.CreeLe,
             ModifiePar = plan.ModifiePar ?? string.Empty,
@@ -237,6 +240,7 @@ public static class PlanFabricationMapper
             CreeLe = DateTime.UtcNow,
             CommentaireVersion = dto.CommentaireVersion,
             LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
+            Remarques = dto.Remarques,
             PlanFabSections = new List<PlanFabSection>()
         };
     }

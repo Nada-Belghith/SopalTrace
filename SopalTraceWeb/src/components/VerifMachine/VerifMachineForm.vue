@@ -41,7 +41,7 @@
           </div>
           <!-- Gestion des Familles -->
           <div v-if="store.entete.afficheFamilles" class="bg-slate-50 p-3 rounded-lg border border-slate-200">
-            <label class="block text-xs font-bold text-slate-700 mb-2">Familles (En-têtes colonnes)</label>
+            <label class="block text-xs font-bold text-slate-700 mb-2">Corps/Familles de Corps</label>
             <div v-if="!props.isReadOnly" class="flex gap-2 mb-3">
               <select v-model="nouvelleFamille" @change="onAjouterFamille" class="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-slate-900 bg-white font-bold">
                 <option value="">-- Choisir une famille pour l'ajouter --</option>
@@ -128,7 +128,7 @@
                       <td v-if="rIdx === 0" :rowspan="group.rows.length" class="p-3 border-r border-slate-300 bg-slate-100/30 align-top">
                         <div class="flex flex-col gap-2">
                             <div class="flex items-center gap-1">
-                                <div v-if="props.isReadOnly" class="text-[11px] font-black uppercase text-slate-700 whitespace-normal leading-tight">
+                                <div v-if="props.isReadOnly" class="text-[11px] font-black uppercase text-slate-700 whitespace-normal leading-tight px-2 py-1">
                                     {{ store.periodicites.find(p => p.id === group.periodiciteId)?.libelle || '--' }}
                                 </div>
                                 <select v-else v-model="group.periodiciteId" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm">
@@ -144,17 +144,22 @@
 
                       <!-- NIVEAU 3 : DÉTAILS -->
                       <td v-if="store.entete.afficheMoyenDetectionRisques" class="p-2 border-r border-slate-200">
-                        <select v-model="row.refMoyenDetectionId" :disabled="props.isReadOnly" class="w-full text-xs text-center border-transparent rounded p-1 uppercase focus:border-slate-500 outline-none bg-transparent">
+                        <div v-if="props.isReadOnly" class="text-xs text-center font-semibold text-slate-700 uppercase">
+                           {{ store.moyensDetection.find(md => md.id === row.refMoyenDetectionId)?.libelle || '--' }}
+                        </div>
+                        <select v-else v-model="row.refMoyenDetectionId" class="w-full text-xs text-center border-transparent rounded p-1 uppercase focus:border-slate-500 outline-none bg-transparent">
                           <option value="">--</option>
                           <option v-for="md in store.moyensDetection" :key="md.id" :value="md.id">{{ md.libelle }}</option>
                         </select>
                       </td>
                       <template v-if="hasFamilleHeaders">
                         <td v-for="fam in store.familles" :key="fam.id" class="p-2 border-r border-slate-300 text-center">
-                          <select :value="store.getPieceValue(row, fam.refFamilleCorpsId, 'PRC')"
+                          <div v-if="props.isReadOnly" class="text-xs font-bold text-slate-800 uppercase">
+                              {{ store.piecesReference.find(pr => pr.id === store.getPieceValue(row, fam.refFamilleCorpsId, 'PRC'))?.code || '--' }}
+                          </div>
+                          <select v-else :value="store.getPieceValue(row, fam.refFamilleCorpsId, 'PRC')"
                             @change="e => store.setPieceValue(row, fam.refFamilleCorpsId, 'PRC', e.target.value)"
-                            :disabled="props.isReadOnly"
-                            class="w-full text-xs text-center border border-slate-200 rounded p-1 uppercase text-slate-900 font-bold focus:border-slate-500 outline-none bg-white/50 disabled:border-transparent">
+                            class="w-full text-xs text-center border border-slate-200 rounded p-1 uppercase text-slate-900 font-bold focus:border-slate-500 outline-none bg-white/50">
                             <option value="">--</option>
                             <option v-for="pr in store.piecesReference" :key="pr.id" :value="pr.id">{{ pr.code }}</option>
                           </select>
@@ -162,20 +167,24 @@
                       </template>
                       <template v-else>
                         <td class="p-2 border-r border-slate-300 text-center">
-                          <select :value="store.getPieceValue(row, null, 'PRC')"
+                          <div v-if="props.isReadOnly" class="text-xs font-bold text-slate-800 uppercase">
+                              {{ store.piecesReference.find(pr => pr.id === store.getPieceValue(row, null, 'PRC'))?.code || '--' }}
+                          </div>
+                          <select v-else :value="store.getPieceValue(row, null, 'PRC')"
                             @change="e => store.setPieceValue(row, null, 'PRC', e.target.value)"
-                            :disabled="props.isReadOnly"
-                            class="w-full text-xs text-center border border-slate-200 rounded p-1 uppercase focus:border-slate-500 outline-none bg-white/50 disabled:border-transparent">
+                            class="w-full text-xs text-center border border-slate-200 rounded p-1 uppercase focus:border-slate-500 outline-none bg-white/50">
                             <option value="">--</option>
                             <option v-for="pr in store.piecesReference" :key="pr.id" :value="pr.id">{{ pr.code }}</option>
                           </select>
                         </td>
                       </template>
-                      <td v-if="store.entete.afficheFuiteEtalon || isBEE22" class="p-2 border-r border-slate-300 bg-blue-50/30 text-center">
-                        <select :value="getFuiteValue(row)"
+                      <td v-if="store.entete.afficheFuiteEtalon || isBEEMachine" class="p-2 border-r border-slate-300 bg-blue-50/30 text-center">
+                        <div v-if="props.isReadOnly" class="text-xs font-bold text-blue-900 uppercase">
+                            {{ store.fuitesEtalon.find(pr => pr.id === getFuiteValue(row))?.code || '--' }}
+                        </div>
+                        <select v-else :value="getFuiteValue(row)"
                           @change="e => setFuiteValue(row, e.target.value)"
-                          :disabled="props.isReadOnly"
-                          class="w-full text-xs text-center border border-slate-200 rounded p-1 text-blue-900 font-bold focus:border-blue-500 uppercase outline-none bg-white/50 disabled:border-transparent">
+                          class="w-full text-xs text-center border border-slate-200 rounded p-1 text-blue-900 font-bold focus:border-blue-500 uppercase outline-none bg-white/50">
                           <option value="">--</option>
                           <option v-for="pr in store.fuitesEtalon" :key="pr.id" :value="pr.id">{{ pr.code }}</option>
                         </select>
@@ -334,13 +343,22 @@
       </section>
 
       <!-- ============================================================ -->
+      <!-- REMARQUES & LÉGENDE                                          -->
+      <!-- ============================================================ -->
+      <RemarquesLegendeBox
+        v-model:remarques="store.entete.remarques"
+        v-model:legendeMoyens="store.entete.legendeMoyens"
+        :is-read-only="props.isReadOnly"
+      />
+
+      <!-- ============================================================ -->
       <!-- BARRE D'ACTIONS                                              -->
       <!-- ============================================================ -->
       <div v-if="!props.isReadOnly" class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end mt-6 rounded-b-xl">
         <EditorActions 
-          :label="store.entete.id ? 'Enregistrer les Modifications' : 'Créer le Plan'"
+          :label="store.entete.id ? 'Enregistrer les Modifications' : 'Enregistrer le Plan'"
           loading-label="Enregistrement..."
-          :icon="store.entete.id ? 'pi pi-save' : 'pi pi-plus'"
+          :icon="store.entete.id ? 'pi pi-save' : 'pi pi-check'"
           variant="primary"
           :is-loading="store.isLoading"
           @submit="onSauvegarder"
@@ -357,6 +375,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import EditorActions from '@/components/Shared/EditorActions.vue';
+import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 

@@ -1,4 +1,4 @@
-﻿using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
+using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,5 +11,6 @@ public interface IPlanEchanService
     Task<PlanEchanResponseDto> GetPlanByIdAsync(Guid planId);
     Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionEchanRequestDto request);
     Task<bool> MettreAJourPlanAsync(Guid planId, UpdatePlanEchanRequestDto request);
+    Task<Guid> RestaurerPlanAsync(RestaurerEchanRequestDto request);
 
 }

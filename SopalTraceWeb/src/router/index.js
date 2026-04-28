@@ -98,6 +98,11 @@ const router = createRouter({
           path: 'echantillonnage/nouveau',
           name: 'dev-ech-create',
           component: () => import('@/views/QualityPlans/Echantillonnage/EchModeleEditor.vue'),
+        },
+        {
+          path: 'echantillonnage/editer/:id',
+          name: 'dev-ech-edit',
+          component: () => import('@/views/QualityPlans/Echantillonnage/EchModeleEditor.vue'),
         }
       ]
     }

@@ -23,7 +23,9 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     statut: 'ACTIF',
     dateApplication: null,
     creePar: '',
-    creeLe: null
+    creeLe: null,
+    remarques: '',
+    legendeMoyens: '',
   });
   
   const sections = ref([]);
@@ -92,7 +94,9 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         statut: data.statut,
         dateApplication: data.dateApplication,
         creePar: data.creePar,
-        creeLe: data.creeLe
+        creeLe: data.creeLe,
+        remarques: data.remarques || '',
+        legendeMoyens: data.legendeMoyens || '',
       };
 
       sections.value = data.sections || [];
@@ -108,6 +112,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         typeRobinetCode: entete.value.typeRobinetCode,
         designation: entete.value.designation || '',
         commentaireVersion: entete.value.commentaireVersion || '',
+        remarques: entete.value.remarques || '',
+        legendeMoyens: entete.value.legendeMoyens || '',
         sections: mapSectionsForBackend()
       };
 
@@ -122,8 +128,13 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     if (!entete.value.id) return;
     isLoading.value = true;
     try {
-      const sectionsPayload = mapSectionsForBackend();
-      await pfPlanService.mettreAJourValeurs(entete.value.id, sectionsPayload);
+      const payload = {
+        sections: mapSectionsForBackend(),
+        remarques: entete.value.remarques || '',
+        legendeMoyens: entete.value.legendeMoyens || '',
+        modifiePar: 'Admin' // TODO: Get from auth store
+      };
+      await pfPlanService.mettreAJourValeurs(entete.value.id, payload);
     } finally {
       isLoading.value = false;
     }
@@ -152,6 +163,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         designation: entete.value.designation,
         modifiePar: 'Admin',
         motifModification: motif,
+        remarques: entete.value.remarques || '',
+        legendeMoyens: entete.value.legendeMoyens || '',
         Sections: sectionsPayload
       };
       const response = await pfPlanService.creerNouvelleVersion(entete.value.id, payload);

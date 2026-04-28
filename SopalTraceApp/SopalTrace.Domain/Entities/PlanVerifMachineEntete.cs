@@ -31,6 +31,10 @@ public partial class PlanVerifMachineEntete
 
     public DateTime? ModifieLe { get; set; }
 
+    public string? Remarques { get; set; }
+
+    public string? LegendeMoyens { get; set; }
+
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
 
     public virtual ICollection<PlanVerifMachineFamille> PlanVerifMachineFamilles { get; set; } = new List<PlanVerifMachineFamille>();

@@ -43,6 +43,8 @@ public partial class PlanAssEntete
 
     public string? CommentaireVersion { get; set; }
 
+    public string? Remarques { get; set; }
+
     public virtual PlanEchantillonnageEntete? FicheEchantillonnage { get; set; }
 
     public virtual RefFormulaire? Formulaire { get; set; }

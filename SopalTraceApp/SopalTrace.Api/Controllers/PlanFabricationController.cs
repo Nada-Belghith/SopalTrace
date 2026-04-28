@@ -137,8 +137,10 @@ public class PlanFabricationController : ControllerBase
             id,
             request.Sections,
             request.LegendeMoyens,
+            request.Remarques,
             request.Finaliser,
-            request.Nom 
+            request.Nom,
+            request.ModifiePar
         );
 
         if (!success) return NotFound(new { success = false, message = "Plan introuvable." });

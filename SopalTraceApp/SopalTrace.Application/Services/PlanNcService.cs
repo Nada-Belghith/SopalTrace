@@ -120,6 +120,8 @@ public class PlanNcService : IPlanNcService
             Statut = StatutsPlan.Actif,
             CreePar = modifiePar,
             CreeLe = DateTime.UtcNow,
+            Remarques = request.Remarques,
+            LegendeMoyens = request.LegendeMoyens,
             PlanNcLignes = request.Lignes.Select(l => new PlanNcLigne
             {
                 Id = Guid.NewGuid(),

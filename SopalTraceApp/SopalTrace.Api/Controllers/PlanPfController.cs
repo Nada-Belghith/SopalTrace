@@ -53,11 +53,11 @@ public class PlanPfController : ControllerBase
     }
 
     [HttpPut("{id}/valeurs")]
-    public async Task<ActionResult> UpdateValeurs(Guid id, [FromBody] List<SectionPfEditDto> sectionsDto)
+    public async Task<ActionResult> UpdateValeurs(Guid id, [FromBody] UpdateValeursPfRequestDto request)
     {
         try
         {
-            await _planPfService.UpdatePlanAsync(id, sectionsDto, "Admin");
+            await _planPfService.UpdatePlanAsync(id, request.Sections, request.ModifiePar ?? "Admin", request.Remarques, request.LegendeMoyens);
             return Ok(new { message = "Plan mis à jour avec succès." });
         }
         catch (KeyNotFoundException ex)

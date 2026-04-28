@@ -31,6 +31,10 @@ public partial class PlanPfEntete
 
     public string? CommentaireVersion { get; set; }
 
+    public string? Remarques { get; set; }
+
+    public string? LegendeMoyens { get; set; }
+
     public virtual ICollection<PlanPfLigne> PlanPfLignes { get; set; } = new List<PlanPfLigne>();
 
     public virtual ICollection<PlanPfSection> PlanPfSections { get; set; } = new List<PlanPfSection>();

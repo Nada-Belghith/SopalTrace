@@ -4,7 +4,7 @@
     <ConfirmDialog />
     <PlanHeader 
       :id="store.entete.id"
-      title="Fiche de Contrôle"
+      title="Fiche de Contrôle de Poste"
       :subtitle="store.entete.nom"
       icon="pi pi-list"
       iconColorClass="text-teal-500"

@@ -55,6 +55,8 @@ public class PlanPfService : IPlanPfService
             CreePar = auteurSecure,
             CreeLe = DateTime.UtcNow,
             CommentaireVersion = dto.CommentaireVersion,
+            Remarques = dto.Remarques,
+            LegendeMoyens = dto.LegendeMoyens,
             PlanPfSections = new List<PlanPfSection>()
         };
 
@@ -69,7 +71,7 @@ public class PlanPfService : IPlanPfService
         return plan.Id;
     }
 
-    public async Task UpdatePlanAsync(Guid id, List<SectionPfEditDto> sectionsDto, string modifiePar)
+    public async Task UpdatePlanAsync(Guid id, List<SectionPfEditDto> sectionsDto, string modifiePar, string? remarques = null, string? legendeMoyens = null)
     {
         var plan = await _repository.GetPlanByIdAsync(id);
         if (plan == null) throw new KeyNotFoundException("Plan introuvable.");
@@ -81,6 +83,8 @@ public class PlanPfService : IPlanPfService
 
         PlanPfMapper.MettreAJourArchitectureComplete(plan, sectionsDto);
 
+        plan.Remarques = remarques;
+        plan.LegendeMoyens = legendeMoyens;
         plan.ModifiePar = modifiePar;
         plan.ModifieLe = DateTime.UtcNow;
         plan.Statut = StatutsPlan.Actif;

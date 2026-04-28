@@ -109,7 +109,7 @@
       <div class="flex-1 overflow-y-auto p-4 md:p-8">
         
         <!-- C'est ici que DevPlanHub ou les Éditeurs s'injectent -->
-        <router-view /> 
+        <router-view :key="$route.fullPath" /> 
 
       </div>
     </main>

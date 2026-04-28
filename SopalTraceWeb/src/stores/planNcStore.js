@@ -16,6 +16,8 @@ export const usePlanNcStore = defineStore('planNc', () => {
     nom: '',
     version: 1,
     statut: 'BROUILLON',
+    remarques: '',
+    legendeMoyens: '',
   });
 
   const lignes = ref([]);
@@ -38,6 +40,8 @@ export const usePlanNcStore = defineStore('planNc', () => {
     return {
       PosteCode: entete.value.posteCode,
       Nom: entete.value.nom,
+      Remarques: entete.value.remarques || '',
+      LegendeMoyens: entete.value.legendeMoyens || '',
       Lignes: lignes.value.map((l, idx) => ({
         Id: l.id,
         MachineCode: l.machineCode,
@@ -83,7 +87,9 @@ export const usePlanNcStore = defineStore('planNc', () => {
         posteCode: data.posteCode,
         nom: data.nom,
         version: data.version,
-        statut: data.statut
+        statut: data.statut,
+        remarques: data.remarques || '',
+        legendeMoyens: data.legendeMoyens || '',
       };
       lignes.value = (data.lignes || []).map(l => ({
         _uid: uuidv4(),
@@ -176,9 +182,24 @@ export const usePlanNcStore = defineStore('planNc', () => {
     }
   };
 
+  const resetState = () => {
+    entete.value = {
+      id: null,
+      posteCode: '',
+      nom: '',
+      version: 1,
+      statut: 'BROUILLON',
+      remarques: '',
+      legendeMoyens: '',
+    };
+    lignes.value = [];
+    planInitialise.value = false;
+    snapshotOriginal.value = null;
+  };
+
   return {
     postes, machines, risquesDefauts, isDicosLoaded,
     entete, lignes, isLoading, planInitialise, plansExistants,
-    fetchDictionnaires, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc, ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan
+    fetchDictionnaires, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc, ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan, resetState
   };
 });

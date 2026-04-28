@@ -1,8 +1,9 @@
-﻿#nullable disable
+#nullable disable
 using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
 using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using System;
+using System.Linq;
 
 namespace SopalTrace.Application.Mappers;
 
@@ -13,64 +14,112 @@ public static class PlanEchanMapper
         return new PlanEchanResponseDto
         {
             Id = entete.Id,
-            CodeReference = entete.CodeReference,
-            CodeArticleSage = entete.CodeArticleSage,
-            MachineCode = entete.MachineCode,
-            FormulaireId = entete.FormulaireId,
-            CodeFormulaire = entete.Formulaire?.CodeReference,
             NiveauControle = entete.NiveauControle,
             TypePlan = entete.TypePlan,
             ModeControle = entete.ModeControle,
+            
+            // ✅ On récupère la valeur depuis la table NQA liée
             NqaId = entete.NqaId,
+            ValeurNqa = entete.Nqa != null ? entete.Nqa.ValeurNqa : 0.0,
+            
             Version = entete.Version,
             Statut = entete.Statut,
             CreePar = entete.CreePar,
             CreeLe = entete.CreeLe,
-            ModifiePar = entete.CreePar,
-            ModifieLe = entete.CreeLe,
-            CommentaireVersion = entete.CommentaireVersion
+            ModifiePar = entete.ModifiePar,
+            ModifieLe = entete.ModifieLe,
+            CommentaireVersion = entete.CommentaireVersion,
+            Remarques = entete.Remarques,
+            LegendeMoyens = entete.LegendeMoyens,
+            Regles = entete.PlanEchantillonnageRegles.Select(r => new PlanEchanRegleDto
+            {
+                Id = r.Id,
+                TailleMinLot = r.TailleMinLot,
+                TailleMaxLot = r.TailleMaxLot,
+                LettreCode = r.LettreCode,
+                EffectifEchantillonA = r.EffectifEchantillonA,
+                NbPostesB = r.NbPostesB,
+                EffectifParPosteAb = r.EffectifParPosteAb,
+                CritereAcceptationAc = r.CritereAcceptationAc,
+                CritereRejetRe = r.CritereRejetRe
+            }).ToList()
         };
     }
 
-    public static PlanEchantillonnageEntete ConstruireNouveauPlan(CreatePlanEchanRequestDto dto, string creePar)
+    // ✅ On passe nqaIdDb en paramètre !
+    public static PlanEchantillonnageEntete ConstruireNouveauPlan(CreatePlanEchanRequestDto dto, int nqaIdDb, string creePar)
     {
-        return new PlanEchantillonnageEntete
+        var plan = new PlanEchantillonnageEntete
         {
             Id = Guid.NewGuid(),
-            CodeReference = dto.CodeReference,
-            CodeArticleSage = string.IsNullOrWhiteSpace(dto.CodeArticleSage) ? null : dto.CodeArticleSage,
-            MachineCode = string.IsNullOrWhiteSpace(dto.MachineCode) ? null : dto.MachineCode,
-            FormulaireId = dto.FormulaireId,
             NiveauControle = dto.NiveauControle,
             TypePlan = dto.TypePlan,
             ModeControle = dto.ModeControle,
-            NqaId = dto.NqaId,
+            
+            // ✅ On assigne l'ID trouvé par le service
+            NqaId = nqaIdDb, 
+            
             Version = 1,
-            Statut = StatutsPlan.Actif, // La V1 est directement active
+            Statut = StatutsPlan.Actif, 
             CreePar = creePar,
             CreeLe = DateTime.UtcNow,
-            CommentaireVersion = dto.CommentaireVersion ?? "Création initiale"
+            CommentaireVersion = dto.CommentaireVersion ?? "Création initiale",
+            Remarques = dto.Remarques,
+            LegendeMoyens = dto.LegendeMoyens
         };
+
+        if (dto.Regles != null)
+        {
+            plan.PlanEchantillonnageRegles = dto.Regles.Select(r => new PlanEchantillonnageRegle
+            {
+                Id = Guid.NewGuid(),
+                FicheEnteteId = plan.Id,
+                TailleMinLot = r.TailleMinLot,
+                TailleMaxLot = r.TailleMaxLot,
+                LettreCode = r.LettreCode,
+                EffectifEchantillonA = r.EffectifEchantillonA,
+                NbPostesB = r.NbPostesB,
+                EffectifParPosteAb = r.EffectifParPosteAb,
+                CritereAcceptationAc = r.CritereAcceptationAc,
+                CritereRejetRe = r.CritereRejetRe
+            }).ToList();
+        }
+
+        return plan;
     }
 
     public static PlanEchantillonnageEntete DupliquerEntitePlan(PlanEchantillonnageEntete source, string modifiePar, string motif)
     {
-        return new PlanEchantillonnageEntete
+        var nouveau = new PlanEchantillonnageEntete
         {
             Id = Guid.NewGuid(),
-            CodeReference = source.CodeReference,
-            CodeArticleSage = source.CodeArticleSage,
-            MachineCode = source.MachineCode,
-            FormulaireId = source.FormulaireId,
-            NiveauControle = source.NiveauControle, // Sera modifiable via le PUT
+            NiveauControle = source.NiveauControle,
             TypePlan = source.TypePlan,
             ModeControle = source.ModeControle,
-            NqaId = source.NqaId,
+            NqaId = source.NqaId, // ✅ On garde le même ID NQA
             Version = source.Version + 1,
-            Statut = StatutsPlan.Brouillon, // CORRECTION : La V2 naît en BROUILLON
+            Statut = StatutsPlan.Actif, // ✅ CORRECTION : Le nouveau plan naît directement ACTIF
             CreePar = modifiePar,
             CreeLe = DateTime.UtcNow,
-            CommentaireVersion = motif
+            CommentaireVersion = motif,
+            Remarques = source.Remarques,
+            LegendeMoyens = source.LegendeMoyens
         };
+
+        nouveau.PlanEchantillonnageRegles = source.PlanEchantillonnageRegles.Select(r => new PlanEchantillonnageRegle
+        {
+            Id = Guid.NewGuid(),
+            FicheEnteteId = nouveau.Id,
+            TailleMinLot = r.TailleMinLot,
+            TailleMaxLot = r.TailleMaxLot,
+            LettreCode = r.LettreCode,
+            EffectifEchantillonA = r.EffectifEchantillonA,
+            NbPostesB = r.NbPostesB,
+            EffectifParPosteAb = r.EffectifParPosteAb,
+            CritereAcceptationAc = r.CritereAcceptationAc,
+            CritereRejetRe = r.CritereRejetRe
+        }).ToList();
+
+        return nouveau;
     }
 }

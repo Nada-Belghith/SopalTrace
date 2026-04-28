@@ -1,5 +1,5 @@
 -- =================================================================================
--- SCRIPT MASTER RESET : SOPALTRACE V6.3 (COMPLET, TRAÇABILITÉ TOTALE)
+-- SCRIPT MASTER RESET : SOPALTRACE V6.6 (Plan Echantillonnage Global Unique)
 -- Cible : Microsoft SQL Server (T-SQL)
 -- =================================================================================
 
@@ -300,25 +300,24 @@ CREATE TRIGGER trg_no_del_RefMoy ON dbo.Ref_MoyenDetection INSTEAD OF DELETE AS 
 GO
 
 -- =================================================================================
--- PARTIE 5 : PLANS D'ÉCHANTILLONNAGE
+-- PARTIE 5 : PLAN D'ÉCHANTILLONNAGE (GLOBAL UNIQUE - V6.6)
 -- =================================================================================
 CREATE TABLE dbo.Plan_Echantillonnage_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    CodeReference VARCHAR(20) NOT NULL, 
-    CodeArticleSage VARCHAR(30) NULL,
-    MachineCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
-    FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id), 
+    
+    -- AUCUNE clé étrangère de contexte (Totalement Global)
+    
     NiveauControle VARCHAR(5) NOT NULL CHECK (NiveauControle IN ('I','II','III')),
     TypePlan VARCHAR(10) NOT NULL CHECK (TypePlan IN ('SIMPLE','DOUBLE')),
     ModeControle VARCHAR(15) NOT NULL CHECK (ModeControle IN ('NORMAL','REDUIT','RENFORCE')),
     NqaId INT NOT NULL REFERENCES dbo.NQA(Id),
     Version INT NOT NULL DEFAULT 1,
-    Statut VARCHAR(20) NOT NULL DEFAULT 'ACTIF' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')), 
+    Statut VARCHAR(20) NOT NULL DEFAULT 'ACTIF' CHECK (Statut IN ('ACTIF','ARCHIVE')), 
     
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
-    ModifiePar VARCHAR(20) NULL,      -- ✅ AJOUT
-    ModifieLe DATETIME NULL,          -- ✅ AJOUT
+    ModifiePar VARCHAR(20) NULL,
+    ModifieLe DATETIME NULL,
     
     CommentaireVersion NVARCHAR(MAX),
     Remarques NVARCHAR(MAX) NULL,
@@ -368,8 +367,8 @@ CREATE TABLE dbo.Modele_Fab_Entete (
     
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
-    ModifiePar VARCHAR(20) NULL,      -- ✅ AJOUT
-    ModifieLe DATETIME NULL,          -- ✅ AJOUT
+    ModifiePar VARCHAR(20) NULL,
+    ModifieLe DATETIME NULL,
     
     ArchiveLe DATETIME,
     ArchivePar VARCHAR(20)
@@ -632,7 +631,7 @@ CREATE TABLE dbo.Plan_PF_Ligne (
 GO
 
 -- =================================================================================
--- PARTIE 9 : PLANS DE NON-CONFORMITÉ / TALLY (V6.1)
+-- PARTIE 9 : PLANS DE NON-CONFORMITÉ / TALLY
 -- =================================================================================
 CREATE TABLE dbo.Plan_NC_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -662,7 +661,7 @@ CREATE TABLE dbo.Plan_NC_Ligne (
 GO
 
 -- =================================================================================
--- PARTIE 10 : PLANS DE VÉRIFICATION MACHINE (MATRICE 3D - V6.1)
+-- PARTIE 10 : PLANS DE VÉRIFICATION MACHINE (MATRICE 3D)
 -- =================================================================================
 CREATE TABLE dbo.Plan_VerifMachine_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -740,8 +739,11 @@ CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanFab_Version ON dbo.Plan_Fab_Entete(CodeA
 CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanAss_Modele_Version ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode, Version) WHERE EstModele = 1 AND Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
 CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanAss_Instance_Version ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode, CodeArticleSage, Version) WHERE EstModele = 0 AND Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
 CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanPF_Version ON dbo.Plan_PF_Entete(TypeRobinetCode, CodeArticleSage, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanEchan_Generic_Version ON dbo.Plan_Echantillonnage_Entete(CodeReference, Version) WHERE CodeArticleSage IS NULL AND Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanEchan_Article_Version ON dbo.Plan_Echantillonnage_Entete(CodeReference, CodeArticleSage, Version) WHERE CodeArticleSage IS NOT NULL AND Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
+
+-- ✅ NOUVEAUX INDEX POUR LE PLAN D'ÉCHANTILLONNAGE GLOBAL (V6.6)
+CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanEchan_Global_Version ON dbo.Plan_Echantillonnage_Entete(Version);
+CREATE UNIQUE NONCLUSTERED INDEX UX_PlanEchan_Global_Actif ON dbo.Plan_Echantillonnage_Entete(Statut) WHERE Statut = 'ACTIF';
+
 CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanNC_Version ON dbo.Plan_NC_Entete(PosteCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
 CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanVerif_Version ON dbo.Plan_VerifMachine_Entete(MachineCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
 
@@ -750,8 +752,6 @@ CREATE UNIQUE NONCLUSTERED INDEX UX_PlanFab_Actif ON dbo.Plan_Fab_Entete(CodeArt
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanAss_Maitre_Actif ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode) WHERE EstModele = 1 AND Statut = 'ACTIF';
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanAss_Exception_Actif ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode, CodeArticleSage) WHERE EstModele = 0 AND Statut = 'ACTIF';
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanPF_Actif ON dbo.Plan_PF_Entete(TypeRobinetCode, CodeArticleSage) WHERE Statut = 'ACTIF';
-CREATE UNIQUE NONCLUSTERED INDEX UX_PlanEchan_Actif_Generic ON dbo.Plan_Echantillonnage_Entete(CodeReference) WHERE CodeArticleSage IS NULL AND Statut = 'ACTIF';
-CREATE UNIQUE NONCLUSTERED INDEX UX_PlanEchan_Actif_Article ON dbo.Plan_Echantillonnage_Entete(CodeReference, CodeArticleSage) WHERE CodeArticleSage IS NOT NULL AND Statut = 'ACTIF';
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanNC_Actif ON dbo.Plan_NC_Entete(PosteCode) WHERE Statut = 'ACTIF';
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanVerif_Actif ON dbo.Plan_VerifMachine_Entete(MachineCode) WHERE Statut = 'ACTIF';
 GO
@@ -863,5 +863,5 @@ INSERT INTO dbo.TypeSection (Code, Libelle) VALUES ('REGLAGE', 'Aux réglages'),
 GO
 
 PRINT '=======================================================';
-PRINT ' LA BASE SOPALTRACE V6.3 A ÉTÉ GÉNÉRÉE AVEC SUCCÈS !';
+PRINT ' LA BASE SOPALTRACE V6.6 A ÉTÉ GÉNÉRÉE AVEC SUCCÈS !';
 PRINT '=======================================================';

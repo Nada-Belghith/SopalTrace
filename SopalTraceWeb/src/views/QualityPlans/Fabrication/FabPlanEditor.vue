@@ -81,12 +81,12 @@
               </button>
             </div>
 
-            <LegendValidationBox 
-              v-model="legendeMoyens"
+            <RemarquesLegendeBox 
+              v-model:remarques="remarques"
+              v-model:legendeMoyens="legendeMoyens"
               :show-validation="showLegendValidation"
               :has-custom-instruments="hasCustomInstrumentsGlobal"
               :is-read-only="isReadOnly"
-              :is-forced-view="isForcedView"
             />
           </div>
 
@@ -142,7 +142,7 @@
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
   import FabPlanSectionCard from '@/components/Fabrication/FabPlanSectionCard.vue';
   import EditorActions from '@/components/Shared/EditorActions.vue';
-  import LegendValidationBox from '@/components/Shared/LegendValidationBox.vue';
+  import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
   import ConfirmDialog from 'primevue/confirmdialog';
   import PlanHeader from '@/components/Shared/PlanHeader.vue';
 
@@ -164,6 +164,7 @@
   const isForcedView = ref(route.query.view === 'true');
   const plan = ref(null);
   const legendeMoyens = ref('');
+  const remarques = ref('');
   const isLoadingData = ref(false);
   const isVersioningSaving = ref(false);
 
@@ -497,6 +498,7 @@
       const data = res.data.data;
       plan.value = data;
       legendeMoyens.value = data.legendeMoyens || '';
+      remarques.value = data.remarques || '';
 
       const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
         (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -764,7 +766,7 @@
         };
       });
 
-      await mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, false);
+      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, plan.value?.nom, 'Admin');
 
       if (afficherToast) {
         toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
@@ -874,7 +876,7 @@
         };
       });
 
-      await mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, true);
+      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, plan.value?.nom, 'Admin');
 
       toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
 

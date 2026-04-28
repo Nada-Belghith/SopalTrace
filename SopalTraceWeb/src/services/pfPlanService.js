@@ -9,7 +9,7 @@ export const pfPlanService = {
 
   creerPlan: (payload) => apiClient.post('/plans-pf', payload),
 
-  mettreAJourValeurs: (id, sections) => apiClient.put(`/plans-pf/${id}/valeurs`, sections),
+  mettreAJourValeurs: (id, payload) => apiClient.put(`/plans-pf/${id}/valeurs`, payload),
 
   creerNouvelleVersion: (id, payload) => apiClient.post(`/plans-pf/${id}/nouvelle-version`, payload),
 

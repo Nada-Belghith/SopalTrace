@@ -64,6 +64,9 @@ public class PlanFabricationService : IPlanFabricationService
             nouveauPlan = PlanFabricationMapper.ConstruireEntitePlanVierge(request, designationSage);
         }
 
+        nouveauPlan.Remarques = request.Remarques;
+        nouveauPlan.LegendeMoyens = request.LegendeMoyens;
+
         var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(request.CodeArticleSage, request.OperationCode) + 1;
         nouveauPlan.Version = prochaineVersion;
 
@@ -111,10 +114,13 @@ public class PlanFabricationService : IPlanFabricationService
         return PlanFabricationMapper.MapperEntitePlanVersDto(plan);
     }
 
-    public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionEditDto> sectionsModifiees, string? legendeMoyens = null, bool finaliser = true, string? nom = null)
+    public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionEditDto> sectionsModifiees, string? legendeMoyens = null, string? remarques = null, bool finaliser = true, string? nom = null, string? modifiePar = null)
     {
         var plan = await _repository.GetPlanCompletPourMiseAJourAsync(planId);
         if (plan == null) return false;
+
+        plan.ModifiePar = modifiePar ?? "SYSTEM";
+        plan.ModifieLe = DateTime.UtcNow;
 
         // Mise à jour du nom personnalisé manuellement saisi
         if (!string.IsNullOrWhiteSpace(nom))
@@ -126,6 +132,11 @@ public class PlanFabricationService : IPlanFabricationService
         if (legendeMoyens is not null)
         {
             plan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
+        }
+
+        if (remarques is not null)
+        {
+            plan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
         }
 
         var sectionsAconserver = new List<PlanFabSection>();
@@ -273,6 +284,9 @@ public class PlanFabricationService : IPlanFabricationService
         }
 
         var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(ancienPlan, ancienPlan.CodeArticleSage, ancienPlan.Designation ?? $"Copy-{ancienPlan.Id}", SecuriserNomAuteur(request.ModifiePar), request.MotifModification);
+        
+        nouveauPlan.Remarques = request.Remarques;
+        nouveauPlan.LegendeMoyens = request.LegendeMoyens;
 
         var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode) + 1;
         nouveauPlan.Version = prochaineVersion;

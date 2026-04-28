@@ -49,6 +49,8 @@ public static class PlanPfMapper
             ModifiePar = entite.ModifiePar ?? string.Empty,
             ModifieLe = entite.ModifieLe,
             CommentaireVersion = entite.CommentaireVersion ?? string.Empty,
+            Remarques = entite.Remarques ?? string.Empty,
+            LegendeMoyens = entite.LegendeMoyens ?? string.Empty,
             Sections = entite.PlanPfSections.OrderBy(s => s.OrdreAffiche).Select(MapSectionVersDto).ToList()
         };
     }
@@ -204,6 +206,8 @@ public static class PlanPfMapper
             CreePar = auteurSecure,
             CreeLe = DateTime.UtcNow,
             CommentaireVersion = request.MotifModification,
+            Remarques = request.Remarques,
+            LegendeMoyens = request.LegendeMoyens,
             PlanPfSections = new List<PlanPfSection>(),
             PlanPfLignes = new List<PlanPfLigne>()
         };

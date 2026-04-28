@@ -39,6 +39,8 @@ public partial class PlanFabEntete
 
     public string? CommentaireVersion { get; set; }
 
+    public string? Remarques { get; set; }
+
     public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Machine? MachineDefautCodeNavigation { get; set; }

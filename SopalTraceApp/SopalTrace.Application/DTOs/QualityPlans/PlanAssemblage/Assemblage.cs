@@ -13,6 +13,7 @@ public record CreatePlanAssRequestDto
     public required string Nom { get; init; }
     public string? CommentaireVersion { get; init; }
     public string? LegendeMoyens { get; init; } // <-- Ajout
+    public string? Remarques { get; init; }
 }
 
 // --- ÉDITION (ARBRE COMPLET) ---
@@ -76,6 +77,7 @@ public record NouvelleVersionAssRequestDto
     public required string CreePar { get; init; }
     public string? MotifModification { get; init; }
     public string? LegendeMoyens { get; init; } // <-- Ajout
+    public string? Remarques { get; init; }
 }
 
 // --- LECTURE ---
@@ -92,6 +94,7 @@ public record PlanAssResponseDto
     public required string Statut { get; init; }
     public DateTime? DateApplication { get; init; }
     public string? LegendeMoyens { get; init; } // <-- Ajout
+    public string? Remarques { get; init; }
     public required string CreePar { get; init; }
     public required DateTime CreeLe { get; init; }
     public string? ModifiePar { get; init; }

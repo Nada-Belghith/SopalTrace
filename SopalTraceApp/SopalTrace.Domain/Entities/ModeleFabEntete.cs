@@ -31,6 +31,10 @@ public partial class ModeleFabEntete
 
     public DateTime CreeLe { get; set; }
 
+    public string? ModifiePar { get; set; }
+
+    public DateTime? ModifieLe { get; set; }
+
     public DateTime? ArchiveLe { get; set; }
 
     public string? ArchivePar { get; set; }
