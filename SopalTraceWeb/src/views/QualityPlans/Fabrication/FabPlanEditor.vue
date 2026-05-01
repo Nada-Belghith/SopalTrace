@@ -92,17 +92,20 @@
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
             <template v-if="isEditMode && plan?.statut === 'BROUILLON' && !isForcedView">
-              <div class="flex gap-3">
+              <div class="flex gap-4">
+                <button @click="onEditorCancel" class="px-5 py-2.5 text-slate-600 bg-white border border-slate-300 rounded-lg font-bold hover:bg-slate-50 transition-colors">
+                  Annuler
+                </button>
                 <button @click="onSaveDraft"
                         :disabled="isSaving || isVersioningSaving"
-                        class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+                        class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm font-bold">
                   <i v-if="isSaving && !isVersioningSaving" class="pi pi-spin pi-spinner"></i>
                   <i v-else class="pi pi-save"></i>
                   Enregistrer Brouillon
                 </button>
                 <button @click="onActivatePlan"
                         :disabled="isSaving || isVersioningSaving"
-                        class="px-6 py-3 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm font-bold">
+                        class="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm font-bold">
                   <i v-if="isSaving && !isVersioningSaving" class="pi pi-spin pi-spinner"></i>
                   <i v-else class="pi pi-check-circle"></i>
                   Activer le Plan
@@ -148,7 +151,6 @@
 
   import { useEditorSections } from '@/composables/useEditorSections';
   import { useEditorValidation } from '@/composables/useEditorValidation';
-  import { usePlanAutosave } from '@/composables/usePlanAutosave';
   const route = useRoute();
   const router = useRouter();
   const toast = useToast();
@@ -248,57 +250,33 @@
     }
 
     confirm.require({
-      message: 'Êtes-vous sûr de vouloir abandonner ce travail ? Ce brouillon et toutes ses données seront DÉFINITIVEMENT supprimés.',
-      header: 'Supprimer le Brouillon',
-      icon: 'pi pi-trash text-red-500',
-      acceptLabel: 'Oui, Supprimer',
+      message: 'Êtes-vous sûr de vouloir abandonner ce travail ? Toutes vos modifications non enregistrées seront perdues.',
+      header: 'Quitter l\'éditeur',
+      icon: 'pi pi-exclamation-triangle text-amber-500',
+      acceptLabel: 'Oui, Quitter',
       rejectLabel: 'Annuler',
-      acceptClass: 'p-button-danger',
+      acceptClass: 'p-button-warning',
       accept: async () => {
         isCanceling.value = true;
         isExitingEditor.value = true;
-
-        try {
-          if (planId.value && planId.value !== 'nouveau') {
-            await qualityPlansService.deletePlan(planId.value);
-            toast.add({ severity: 'success', summary: 'Brouillon effacé', detail: 'La base de données a été nettoyée avec succès.', life: 4000 });
-          }
-        } catch (error) {
-          console.error("Erreur lors de la suppression du brouillon", error);
-          toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer le brouillon.', life: 4000 });
-        } finally {
-          router.push('/dev/hub-plans');
-        }
+        router.push('/dev/hub-plans');
       }
     });
   };
-
-  onBeforeRouteLeave(async () => {
-    if (isCanceling.value || isExitingEditor.value) {
-      return true;
-    }
-    await sauvegarderBrouillonSilencieux(true);
-    return true;
-  });
 
   const showVersioningDialog = ref(false);
   const versioningMode = ref('new-version');
   // Assure la cohérence des flags de chargement entre l'éditeur et la boîte de versioning
 
-  const { isSaving, startAutoSave, stopAutoSave } = usePlanAutosave(async () => {
-    if (plan.value?.statut === 'BROUILLON' || planCreationPayload.value) {
-      await sauvegarderBrouillonSilencieux(false);
-    }
-  }, 30000);
+  const isSaving = ref(false);
 
   onMounted(async () => {
     if (!store.isDicosLoaded) await store.fetchDictionnaires();
     if (planId.value && planId.value !== 'nouveau') await chargerPlan(planId.value);
-    startAutoSave();
   });
 
   onUnmounted(() => {
-    stopAutoSave();
+    // Nettoyage si nécessaire
   });
 
 
@@ -938,7 +916,8 @@
       }
 
       if (isArchived.value) {
-        await restaurerArchive();
+        versioningMode.value = 'restore';
+        showVersioningDialog.value = true;
         isSaving.value = false;
         return;
       }
@@ -972,12 +951,12 @@
     }
   };
 
-  const restaurerArchive = async () => {
+  const restaurerArchive = async (motif) => {
     try {
       await restaurerPlan({
         planArchiveId: planId.value,
         restaurePar: 'ADMIN',
-        motifRestoration: 'Restauration manuelle depuis l\'éditeur'
+        motifRestoration: motif
       });
 
       toast.add({ severity: 'success', summary: 'Plan restauré', detail: 'Le plan a été réactivé avec succès.', life: 4000 });
@@ -1005,7 +984,7 @@
         syncIdsFromDb(clonedPlanRes.data.data);
         await enregistrerValeurs(newPlanId, true);
       } else if (versioningMode.value === 'restore') {
-        await restaurerArchive();
+        await restaurerArchive(motif);
       }
     } catch (error) {
       console.error('Erreur versioning:', error);

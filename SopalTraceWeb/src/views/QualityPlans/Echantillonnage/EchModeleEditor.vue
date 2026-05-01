@@ -14,6 +14,7 @@
       <div class="animate-in fade-in zoom-in-95 duration-500">
 
         <PlanHeader 
+          v-if="store.entete"
           :id="store.entete.id"
           :title="headerTitle"
           :subtitle="headerSubtitle"

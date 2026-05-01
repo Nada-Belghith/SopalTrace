@@ -52,26 +52,18 @@ public class PlanPfController : ControllerBase
         }
     }
 
-    [HttpPut("{id}/valeurs")]
-    public async Task<ActionResult> UpdateValeurs(Guid id, [FromBody] UpdateValeursPfRequestDto request)
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> SupprimerBrouillon(Guid id)
     {
         try
         {
-            await _planPfService.UpdatePlanAsync(id, request.Sections, request.ModifiePar ?? "Admin", request.Remarques, request.LegendeMoyens);
-            return Ok(new { message = "Plan mis à jour avec succès." });
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
+            // Appelle la logique de suppression du brouillon via le BasePlanLifecycleService
+            await _planPfService.SupprimerBrouillonAsync(id);
+            return Ok(new { message = "Brouillon supprimé." });
         }
         catch (Exception ex)
         {
-            var innerMessage = ex.InnerException?.Message ?? ex.Message;
-            return StatusCode(500, new { message = "Erreur mise à jour : " + innerMessage });
+            return BadRequest(new { message = ex.Message });
         }
     }
 
@@ -120,6 +112,29 @@ public class PlanPfController : ControllerBase
         {
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
             return StatusCode(500, new { message = "Erreur restauration : " + innerMessage });
+        }
+    }
+
+
+    [HttpPost("import-excel")]
+    public async Task<ActionResult> ImportExcel([FromForm] Microsoft.AspNetCore.Http.IFormFile file, [FromServices] IExcelImportService excelService)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });
+
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Seuls les fichiers Excel (.xlsx) sont supportés." });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var parsedData = await excelService.ParsePlanExcelAsync(stream);
+            return Ok(new { message = "Import réussi", data = parsedData });
+        }
+        catch (Exception ex)
+        {
+            var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, new { message = "Erreur lors de l'import : " + innerMessage });
         }
     }
 

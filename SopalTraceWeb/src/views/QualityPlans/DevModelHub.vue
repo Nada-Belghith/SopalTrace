@@ -35,7 +35,7 @@
           
           <!-- Filtre Statut -->
           <div class="relative">
-            <select v-model="vueActuelle" class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer">
+            <select v-model="vueActuelle" class="appearance-none bg-slate-50 border-t border-slate-200 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer">
               <option value="ACTIF">Actifs</option>
               <option value="ARCHIVE">Archivés</option>
             </select>
@@ -94,8 +94,7 @@
           <!-- Badge Statut -->
           <span :class="[
             'px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-sm',
-            plan.statut === 'ACTIF' ? 'bg-emerald-100 text-emerald-700' : 
-            plan.statut === 'BROUILLON' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+            plan.statut === 'ACTIF' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
           ]">
             {{ plan.statut }}
           </span>
@@ -142,9 +141,7 @@
              <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Archiver">
                <i class="pi pi-box"></i>
              </button>
-             <button v-if="plan.statut === 'ARCHIVE'" @click.stop="consulter(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Restaurer">
-               <i class="pi pi-history"></i>
-             </button>
+
              <i class="pi pi-eye text-slate-300 ml-1 transition-colors text-sm" :class="categoryStyles[plan.category]?.textClass || 'group-hover:text-blue-500'"></i>
           </div>
         </div>
@@ -284,6 +281,8 @@ const archiver = async (mod) => {
     isLoading.value = false;
   }
 };
+
+
 
 const editer = (category, id) => {
   const routes = {

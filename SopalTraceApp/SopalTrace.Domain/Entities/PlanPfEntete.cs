@@ -1,9 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+
+using SopalTrace.Domain.Interfaces;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanPfEntete
+public partial class PlanPfEntete : IPlanParArticle
 {
     public Guid Id { get; set; }
 

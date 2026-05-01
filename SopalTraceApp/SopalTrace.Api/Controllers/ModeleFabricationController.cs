@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -31,7 +31,15 @@ public class ModeleFabricationController : ControllerBase
     public async Task<IActionResult> CreerModele([FromBody] CreateModeleRequestDto request)
     {
         var id = await _modeleService.CreerModeleAsync(request);
-        return Ok(new { success = true, modeleId = id });
+        return Ok(new { success = true, modeleId = id, message = "Modèle créé et activé avec succès." });
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> SupprimerBrouillon(Guid id)
+    {
+        var result = await _modeleService.SupprimerBrouillonAsync(id);
+        if (!result) return NotFound(new { success = false, message = "Modèle introuvable." });
+        return Ok(new { success = true, message = "Brouillon supprimé." });
     }
 
     [HttpGet("{id}")]

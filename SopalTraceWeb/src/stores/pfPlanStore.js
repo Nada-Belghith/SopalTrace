@@ -48,6 +48,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         moyenControleId: l.moyenControleId || null,
         instrumentCode: l.instrumentCode || null,
         moyenTexteLibre: l.moyenTexteLibre || null,
+        valeurNominale: l.valeurNominale ?? null,
         toleranceSuperieure: l.toleranceSuperieure ?? null,
         toleranceInferieure: l.toleranceInferieure ?? null,
         limiteSpecTexte: l.limiteSpecTexte || null,
@@ -124,22 +125,6 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     }
   };
 
-  const updateValeurs = async () => {
-    if (!entete.value.id) return;
-    isLoading.value = true;
-    try {
-      const payload = {
-        sections: mapSectionsForBackend(),
-        remarques: entete.value.remarques || '',
-        legendeMoyens: entete.value.legendeMoyens || '',
-        modifiePar: 'Admin' // TODO: Get from auth store
-      };
-      await pfPlanService.mettreAJourValeurs(entete.value.id, payload);
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
   const archiverPlan = async () => {
     if (!entete.value.id) return;
     isLoading.value = true;
@@ -155,8 +140,6 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     if (!entete.value.id) return;
     isLoading.value = true;
     try {
-      const sectionsPayload = mapSectionsForBackend();
-
       const payload = {
         ancienId: entete.value.id,
         typeRobinetCode: entete.value.typeRobinetCode,
@@ -165,7 +148,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         motifModification: motif,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
-        Sections: sectionsPayload
+        Sections: mapSectionsForBackend()
       };
       const response = await pfPlanService.creerNouvelleVersion(entete.value.id, payload);
       return response.data.planId;
@@ -194,6 +177,6 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     typesRobinet, typesCaracteristique, typesControle, moyensControle, 
     periodicites, typesSection, instruments, isDicosLoaded, 
     entete, sections, isLoading, 
-    fetchDictionnaires, getPlan, createPlan, updateValeurs, archiverPlan, creerNouvelleVersion, restaurerPlan
+    fetchDictionnaires, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan
   };
 });

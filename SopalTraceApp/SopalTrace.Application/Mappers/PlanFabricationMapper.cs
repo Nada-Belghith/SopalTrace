@@ -46,7 +46,7 @@ public static class PlanFabricationMapper
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? modele.OperationCode : dto.OperationCode,
             CommentaireVersion = dto.CommentaireVersion,
             LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
-            Remarques = dto.Remarques,
+            Remarques = string.IsNullOrWhiteSpace(dto.Remarques) ? modele.Notes : dto.Remarques,
             PlanFabSections = new List<PlanFabSection>()
         };
 

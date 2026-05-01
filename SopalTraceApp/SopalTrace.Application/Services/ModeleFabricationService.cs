@@ -1,54 +1,127 @@
-﻿using FluentValidation;
-using Microsoft.Extensions.Logging;
+using FluentValidation;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Constants;
+using SopalTrace.Domain.Entities;
 using SopalTrace.Domain.Exceptions;
 using System;
-using System.Collections.Generic; // <-- Ajouté pour IReadOnlyList
-using System.Linq;                 // <-- Ajouté pour .Select()
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Services;
 
-public class ModeleFabricationService : IModeleFabricationService
+/// <summary>
+/// Service de gestion des Modèles de Fabrication.
+/// Plus de logique de BROUILLON ici (directement ACTIF ou ARCHIVE).
+/// </summary>
+public class ModeleFabricationService
+    : BasePlanLifecycleService<ModeleFabEntete, CreateModeleRequestDto, NouvelleVersionModeleRequestDto>,
+      IModeleFabricationService
 {
     private readonly IPlanFabricationRepository _repository;
     private readonly IValidator<CreateModeleRequestDto> _modeleValidator;
 
-    public ModeleFabricationService(IPlanFabricationRepository repository, IValidator<CreateModeleRequestDto> modeleValidator)
+    public ModeleFabricationService(
+        IUnitOfWork unitOfWork,
+        IPlanFabricationRepository repository,
+        IValidator<CreateModeleRequestDto> modeleValidator)
+        : base(unitOfWork)
     {
-        _repository = repository;
-        _modeleValidator = modeleValidator;
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _modeleValidator = modeleValidator ?? throw new ArgumentNullException(nameof(modeleValidator));
     }
+
+    // ==================== ABSTRACT IMPLEMENTATIONS (Requis par la base) ====================
+
+    protected override async Task<ModeleFabEntete?> ObtenirEntiteAsync(Guid id)
+        => await _repository.GetModeleAvecRelationsAsync(id);
+
+    protected override async Task<ModeleFabEntete> CreerEntiteAsync(CreateModeleRequestDto dto, string user)
+    {
+        var modele = ModeleFabricationMapper.ConstruireEntiteModeleAPartirDeDto(dto);
+        modele.CreePar = user;
+        modele.CreeLe = DateTime.UtcNow;
+        return await Task.FromResult(modele);
+    }
+
+    protected override Task ApplierMiseAJourDraftAsync(ModeleFabEntete modele, NouvelleVersionModeleRequestDto dto, string user)
+        => throw new NotSupportedException("Les modèles n'utilisent plus la logique de brouillon.");
+
+    protected override async Task PersisterEntiteAsync(ModeleFabEntete modele)
+        => await _repository.AddModeleAsync(modele);
+
+    protected override async Task<int> CalculerNouvelleVersionAsync(ModeleFabEntete modele)
+    {
+        var derniere = await _repository.GetDerniereVersionModeleAsync(
+            modele.TypeRobinetCode, modele.NatureComposantCode, modele.OperationCode);
+        return derniere + 1;
+    }
+
+    protected override async Task<ModeleFabEntete> CreerNouvelleVersionEntiteAsync(
+        ModeleFabEntete ancienModele,
+        NouvelleVersionModeleRequestDto dto,
+        int nouvelleVersion,
+        string user)
+    {
+        return await Task.FromResult(ModeleFabricationMapper.ConstruireNouvelleVersionModele(ancienModele, dto, user, nouvelleVersion));
+    }
+
+    protected override Task<ModeleFabEntete?> ObtenirBrouillonExistantAsync(CreateModeleRequestDto dto)
+        => Task.FromResult<ModeleFabEntete?>(null); // Plus de brouillon
+
+    // ==================== PUBLIC API (LOGIQUE DIRECTE) ====================
 
     public async Task<Guid> CreerModeleAsync(CreateModeleRequestDto request)
     {
         var validationResult = await _modeleValidator.ValidateAsync(request);
         if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
 
-        if (await _repository.ExisteModeleActifAsync(request.TypeRobinetCode, request.NatureComposantCode, request.OperationCode))
-            throw new DoublonModeleException();
+        var user = "SYSTEM";
 
-        var nouveauModele = ModeleFabricationMapper.ConstruireEntiteModeleAPartirDeDto(request);
+        // 1. Archiver l'ancien actif
+        var modeleActif = await _repository.GetModeleActifPourFamilleAsync(
+            request.TypeRobinetCode, request.NatureComposantCode, request.OperationCode);
+        if (modeleActif != null)
+        {
+            modeleActif.Statut = StatutsPlan.Archive;
+            modeleActif.ArchiveLe = DateTime.UtcNow;
+            modeleActif.ArchivePar = user;
+        }
 
-        // Calcule et applique la nouvelle version afin d'éviter les conflits d'index unique
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(request.TypeRobinetCode, request.NatureComposantCode, request.OperationCode);
-        nouveauModele.Version = nouvelleVersion;
+        // 2. Créer le nouveau en ACTIF
+        var modele = await CreerEntiteAsync(request, user);
+        modele.Statut = StatutsPlan.Actif;
+        modele.Version = await CalculerNouvelleVersionAsync(modele);
 
-        await _repository.AddModeleAsync(nouveauModele);
-        await _repository.SaveChangesAsync();
+        await PersisterEntiteAsync(modele);
+        await _unitOfWork.CommitAsync();
 
-        return nouveauModele.Id;
+        return modele.Id;
+    }
+
+    public Task UpdateModeleBrouillonAsync(Guid id, CreateModeleRequestDto request)
+        => throw new InvalidOperationException("La mise à jour de brouillon n'est pas supportée pour les modèles.");
+
+    public Task ActiverModeleAsync(Guid id, string user)
+        => Task.CompletedTask; // Déjà actif à la création
+
+    public async Task<bool> SupprimerBrouillonAsync(Guid id)
+    {
+        var modele = await _repository.GetModeleAvecRelationsAsync(id);
+        if (modele == null) return false;
+        if (modele.Statut != StatutsPlan.Brouillon) return false;
+
+        _repository.DeleteModele(modele);
+        await _unitOfWork.CommitAsync();
+        return true;
     }
 
     public async Task<ModeleResponseDto> GetModeleByIdAsync(Guid modeleId)
     {
         var modele = await _repository.GetModeleAvecRelationsAsync(modeleId);
-        if (modele is null)
-            throw new ModeleIntrouvableException(modeleId);
-
+        if (modele is null) throw new ModeleIntrouvableException(modeleId);
         return ModeleFabricationMapper.MapperEntiteModeleVersDto(modele);
     }
 
@@ -62,84 +135,52 @@ public class ModeleFabricationService : IModeleFabricationService
     {
         var ancienModele = await _repository.GetModeleAvecRelationsAsync(request.AncienId);
         if (ancienModele == null) throw new ModeleIntrouvableException(request.AncienId);
-        if (ancienModele.Statut == StatutsPlan.Archive) throw new Exception("Impossible de versionner un modèle archivé.");
 
-        var auteurSecure = SecuriserNomAuteur(!string.IsNullOrWhiteSpace(request.CreePar) ? request.CreePar : request.ModifiePar);
-        
-        await ArchiverAncienModeleAsync(request.AncienId, auteurSecure);
+        var user = SecuriserNomAuteur(request.ModifiePar ?? "SYSTEM");
 
-        var type = request.TypeRobinetCode ?? ancienModele.TypeRobinetCode;
-        var nature = request.NatureComposantCode ?? ancienModele.NatureComposantCode;
-        var op = request.OperationCode ?? ancienModele.OperationCode;
+        // Archiver l'ancien
+        if (ancienModele.Statut == StatutsPlan.Actif)
+        {
+            ancienModele.Statut = StatutsPlan.Archive;
+            ancienModele.ArchiveLe = DateTime.UtcNow;
+            ancienModele.ArchivePar = user;
+        }
 
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(type, nature, op);
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienModele);
+        var nouveauModele = await CreerNouvelleVersionEntiteAsync(ancienModele, request, nouvelleVersion, user);
+        nouveauModele.Statut = StatutsPlan.Actif;
 
-        var nouveauModele = ModeleFabricationMapper.ConstruireNouvelleVersionModele(ancienModele, request, auteurSecure, nouvelleVersion);
-
-        await _repository.AddModeleAsync(nouveauModele);
-        await _repository.SaveChangesAsync();
+        await PersisterEntiteAsync(nouveauModele);
+        await _unitOfWork.CommitAsync();
 
         return nouveauModele.Id;
     }
 
     public async Task<Guid> RestaurerModeleArchiveAsync(RestaurerModeleRequestDto request)
     {
-        // Récupérer l'entité en mode tracké afin de la modifier in-place (évite la création d'une "nouvelle version archive")
-        var modele = await _repository.GetModelePourArchivageAsync(request.ModeleArchiveId);
-        if (modele == null) throw new ModeleIntrouvableException(request.ModeleArchiveId);
-        if (modele.Statut != StatutsPlan.Archive) throw new Exception("Seul un modèle archivé peut être restauré.");
+        var modeleArchive = await _repository.GetModeleAvecRelationsAsync(request.ModeleArchiveId);
+        if (modeleArchive == null) throw new ModeleIntrouvableException(request.ModeleArchiveId);
 
-        var auteurSecure = SecuriserNomAuteur(request.RestaurePar);
+        var user = SecuriserNomAuteur(request.RestaurePar);
 
-        // Archiver l'éventuel modèle actif actuel de la même famille
-        await ArchiverModeleActifExistantAsync(modele.TypeRobinetCode, modele.NatureComposantCode, modele.OperationCode, auteurSecure);
-
-        // Calculer nouvelle version (pour éviter conflit de version)
-        var ancienneVersion = modele.Version;
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(modele.TypeRobinetCode, modele.NatureComposantCode, modele.OperationCode);
-
-        // Ré-activer l'entité existante plutôt que d'en créer une nouvelle
-        modele.Version = nouvelleVersion;
-        modele.Statut = StatutsPlan.Actif;
-        modele.ArchiveLe = null;
-        modele.ArchivePar = null;
-        modele.Notes = $"[Restauré depuis V{ancienneVersion}] {request.MotifRestoration}\n{modele.Notes}";
-        modele.CreePar = auteurSecure;
-        modele.CreeLe = DateTime.UtcNow;
-
-        // Les sections/lignes sont déjà présentes sur l'entité trackée et seront préservées (incluant LimiteSpecTexte)
-        await _repository.SaveChangesAsync();
-
-        return modele.Id;
-    }
-
-    private string SecuriserNomAuteur(string auteur) => string.IsNullOrWhiteSpace(auteur) ? "SYSTEM" : (auteur.Length > 20 ? auteur[..20] : auteur);
-
-    private async Task ArchiverAncienModeleAsync(Guid ancienId, string auteurSecure)
-    {
-        var modele = await _repository.GetModelePourArchivageAsync(ancienId);
-        if (modele != null && modele.Statut == StatutsPlan.Actif)
-        {
-            modele.Statut = StatutsPlan.Archive;
-            modele.ArchiveLe = DateTime.UtcNow;
-            modele.ArchivePar = auteurSecure;
-        }
-    }
-
-    private async Task ArchiverModeleActifExistantAsync(string type, string nature, string operation, string auteurSecure)
-    {
-        var modeleActif = await _repository.GetModeleActifPourFamilleAsync(type, nature, operation);
+        // Archiver l'actif actuel
+        var modeleActif = await _repository.GetModeleActifPourFamilleAsync(
+            modeleArchive.TypeRobinetCode, modeleArchive.NatureComposantCode, modeleArchive.OperationCode);
         if (modeleActif != null)
         {
             modeleActif.Statut = StatutsPlan.Archive;
             modeleActif.ArchiveLe = DateTime.UtcNow;
-            modeleActif.ArchivePar = auteurSecure;
+            modeleActif.ArchivePar = user;
         }
-    }
 
-    private async Task<int> CalculerNouvelleVersionAsync(string type, string nature, string operation)
-    {
-        var derniereVersion = await _repository.GetDerniereVersionModeleAsync(type, nature, operation);
-        return derniereVersion + 1;
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(modeleArchive);
+        var dto = new NouvelleVersionModeleRequestDto { AncienId = modeleArchive.Id, MotifModification = $"[Restauré] {request.MotifRestoration}" };
+        var nouveauModele = await CreerNouvelleVersionEntiteAsync(modeleArchive, dto, nouvelleVersion, user);
+        nouveauModele.Statut = StatutsPlan.Actif;
+
+        await PersisterEntiteAsync(nouveauModele);
+        await _unitOfWork.CommitAsync();
+
+        return nouveauModele.Id;
     }
 }

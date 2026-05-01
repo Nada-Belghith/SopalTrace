@@ -163,9 +163,7 @@
             <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Archiver">
               <i class="pi pi-box"></i>
             </button>
-            <button v-if="plan.statut === 'ARCHIVE'" @click.stop="consulter(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Restaurer">
-              <i class="pi pi-history"></i>
-            </button>
+
             <i class="pi pi-eye text-slate-300 ml-1 transition-colors text-sm" :class="categoryStyles[plan.category]?.textClass || 'group-hover:text-blue-500'"></i>
           </div>
         </div>
@@ -332,6 +330,8 @@ const archiver = async (plan) => {
     isLoading.value = false;
   }
 };
+
+
 
 const editer = (category, id) => {
   const routes = {

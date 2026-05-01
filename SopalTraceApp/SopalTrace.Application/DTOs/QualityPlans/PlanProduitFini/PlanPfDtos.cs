@@ -38,12 +38,12 @@ public record RestaurerPfRequestDto
     public string MotifRestoration { get; init; }
 }
 
-public record UpdateValeursPfRequestDto
+public record UpdatePlanPfRequestDto
 {
     public List<SectionPfEditDto> Sections { get; init; } = new();
+    public string CommentaireVersion { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
-    public string ModifiePar { get; init; }
 }
 
 // ====================================================================

@@ -9,6 +9,12 @@ export function useEditorSections() {
       isFromDb: false,
       typeSectionId: '',
       libelleSection: '',
+      modeFreq: 'SANS',
+      periodiciteId: null,
+      freqNum: 1,
+      typeVariable: 'HEURE',
+      freqHours: 1,
+      isNewFreq: false,
       notes: '',
       ordreAffiche: sections.value.length,
       lignes: []

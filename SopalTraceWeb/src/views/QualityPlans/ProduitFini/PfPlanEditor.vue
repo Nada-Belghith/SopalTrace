@@ -35,7 +35,19 @@
 
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-6">
           <div class="p-6 md:p-8">
-            <PfHeader :is-read-only="isReadOnly" />
+            <div class="flex justify-between items-start mb-6">
+              <div class="flex-1">
+                <PfHeader :is-read-only="isReadOnly" />
+              </div>
+
+              <div v-if="!isReadOnly" class="ml-8 w-64 relative shrink-0">
+                <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx" class="hidden" />
+                <button @click="$refs.fileInput.click()" class="w-full p-3 bg-emerald-50 text-center border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl hover:bg-emerald-100 transition-colors text-emerald-600 font-black uppercase tracking-widest flex flex-col items-center justify-center gap-2 text-[10px] shadow-sm">
+                  <i class="pi pi-file-excel text-2xl mb-1"></i> 
+                  <span>Importer un fichier Excel</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -84,8 +96,8 @@
               </table>
             </div>
 
-            <div class="mt-2" v-if="!isReadOnly">
-              <button @click="ajouterSection" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
+            <div class="mt-4 flex justify-between" v-if="!isReadOnly">
+              <button @click="ajouterSection" class="w-full md:w-auto px-6 py-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
                 <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
               </button>
             </div>
@@ -93,19 +105,21 @@
             <RemarquesLegendeBox
               v-model:remarques="store.entete.remarques"
               v-model:legendeMoyens="store.entete.legendeMoyens"
+              :show-validation="showLegendValidation"
+              :has-custom-instruments="hasCustomInstrumentsGlobal"
               :is-read-only="isReadOnly"
             />
           </div>
 
-          <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
-            <EditorActions v-if="!isForcedView" 
-                           :label="editorLabel"
-                           loading-label="Traitement..."
-                           :icon="editorIcon"
-                           :variant="editorVariant"
-                           :is-loading="isSaving && !showVersioningDialog"
-                           @submit="onEditorSubmit"
-                           @cancel="onCloseEditor" />
+          <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end" v-if="!isForcedView">
+            <EditorActions 
+              :label="editorLabel"
+              :icon="editorIcon"
+              :variant="editorVariant"
+              :is-loading="isSaving || isVersioningSaving"
+              @submit="onEditorSubmitClick"
+              @cancel="onCloseEditor"
+            />
           </div>
         </div>
 
@@ -118,7 +132,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
-// import { useConfirm } from 'primevue/useconfirm';
+import ConfirmDialog from 'primevue/confirmdialog';
 
 import { usePfPlanStore } from '@/stores/pfPlanStore';
 import { useEditorSections } from '@/composables/useEditorSections';
@@ -131,14 +145,13 @@ import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
-// import ConfirmDialog from 'primevue/confirmdialog';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import Toast from 'primevue/toast';
+import { pfPlanService } from '@/services/pfPlanService';
 
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
-// const confirm = useConfirm();
 const store = usePfPlanStore();
 
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
@@ -148,6 +161,7 @@ const isSaving = ref(false);
 const isVersioningSaving = ref(false);
 const showVersioningDialog = ref(false);
 const versioningMode = ref('PF');
+const fileInput = ref(null);
 
 const {
   sections,
@@ -160,8 +174,65 @@ const {
 } = useEditorSections();
 
 const {
+  showLegendValidation,
+  hasCustomInstrumentsGlobal,
+  validerLegendeMoyens,
   validerSaisiePlan: validerSaisieValeurs
 } = useEditorValidation(sections, computed(() => store.entete.legendeMoyens), toast);
+
+const onFileSelected = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    isLoadingData.value = true;
+    const response = await pfPlanService.importExcel(formData);
+    const parsedData = response.data.data;
+    
+    if (parsedData && parsedData.sections) {
+      sections.value = parsedData.sections.map(sec => ({
+        id: sec.id || crypto.randomUUID(),
+        isFromDb: false,
+        libelleSection: sec.nom,
+        typeSectionId: sec.typeSectionId,
+        modeFreq: sec.modeFreq,
+        periodiciteId: sec.periodiciteId,
+        freqNum: sec.freqNum,
+        typeVariable: sec.typeVariable,
+        freqHours: sec.freqHours,
+        lignes: sec.lignes.map(lig => ({
+          id: lig.id || crypto.randomUUID(),
+          isFromDb: false,
+          typeCaracteristiqueId: lig.typeCaracteristiqueId,
+          typeControleId: lig.typeControleId,
+          moyenControleId: lig.moyenControleId,
+          instrumentCode: lig.instrumentCode,
+          valeurNominale: lig.valeurNominale,
+          toleranceSuperieure: lig.toleranceSuperieure,
+          toleranceInferieure: lig.toleranceInferieure,
+          unite: lig.unite || '',
+          limiteSpecTexte: lig.limiteSpecTexte,
+          observations: lig.observations,
+          estCritique: lig.estCritique,
+          libelleAffiche: lig.libelleAffiche
+        }))
+      }));
+      
+      // On recharge les dictionnaires pour s'assurer que les nouvelles caractéristiques créées par le backend soient disponibles dans les select.
+      await store.fetchDictionnaires();
+
+      toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Les données ont été chargées depuis le fichier Excel.', life: 4000 });
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: error.response?.data?.message || 'Impossible de lire le fichier.', life: 4000 });
+  } finally {
+    isLoadingData.value = false;
+    if (fileInput.value) fileInput.value.value = '';
+  }
+};
 
 // ============================================================================
 // COLONNES RÉUTILISABLES
@@ -268,36 +339,47 @@ const onCloseEditor = () => {
   router.push('/dev/hub');
 };
 
+const sauvegarderDirectement = async () => {
+  if (!store.entete.typeRobinetCode) {
+    toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Le type de robinet est obligatoire.', life: 3000 });
+    return;
+  }
+  if (!validerSaisieValeurs()) return;
+
+  isSaving.value = true;
+  try {
+    store.sections = sections.value;
+    await store.createPlan();
+    toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
+    router.push('/dev/hub');
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la sauvegarde.', life: 3000 });
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const onEditorSubmitClick = async () => {
+  if (!isEditMode.value) {
+    await sauvegarderDirectement();
+  } else {
+    await onEditorSubmit();
+  }
+};
+
 const onEditorSubmit = async () => {
   if (isArchived.value) {
-    // Si c'est un plan archivé, on propose de restaurer la version
     showVersioningDialog.value = true;
     return;
   }
   
   if (isEditMode.value) {
     if (!validerSaisieValeurs()) return;
-    versioningMode.value = isArchived.value ? 'restore' : 'new-version';
-    showVersioningDialog.value = true;
-  } else {
-    // Mode Nouveau
-    if (!store.entete.typeRobinetCode) {
-      toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Le type de robinet est obligatoire.', life: 3000 });
-      return;
-    }
-    
-    if (!validerSaisieValeurs()) return;
-
-    isSaving.value = true;
-    try {
-      store.sections = sections.value;
-      await store.createPlan();
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
-      router.push('/dev/hub');
-    } catch (error) {
-      toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la sauvegarde.', life: 3000 });
-    } finally {
-      isSaving.value = false;
+    if (!validerLegendeMoyens()) return;
+    if (statut.value === 'ACTIF') {
+       versioningMode.value = 'new-version';
+       showVersioningDialog.value = true;
+       return;
     }
   }
 };

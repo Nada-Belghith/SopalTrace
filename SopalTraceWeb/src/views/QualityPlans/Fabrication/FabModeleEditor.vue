@@ -1,5 +1,13 @@
 <template>
   <div class="bg-slate-50 min-h-screen p-4 md:p-8 font-sans text-slate-800">
+    <ConfirmDialog />
+    <VersioningDialog :visible="showVersioningDialog"
+                      :mode="versioningMode"
+                      :is-loading="isLoading"
+                      @confirm="onVersioningConfirm"
+                      @cancel="showVersioningDialog = false"
+                      @update:visible="showVersioningDialog = $event" />
+
     <div class="max-w-[1600px] mx-auto">
       <PlanHeader 
         :id="modeleEditionId"
@@ -33,7 +41,19 @@
         </div>
 
         <div class="p-6 md:p-8">
-          <FabModeleHeader :is-edit-mode="isEditMode" :is-read-only="isReadOnly" />
+          <div class="flex justify-between items-start mb-6">
+            <div class="flex-1">
+              <FabModeleHeader :is-edit-mode="isEditMode" :is-read-only="isReadOnly" />
+            </div>
+
+            <div v-if="!isReadOnly && (store.entete.natureComposantCode === 'PISTON' || (store.entete.operationCode === 'ASS' && store.entete.natureComposantCode === 'PF'))" class="ml-8 w-64 relative shrink-0">
+              <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx" class="hidden" />
+              <button @click="$refs.fileInput.click()" class="w-full p-3 bg-emerald-50 text-center border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl hover:bg-emerald-100 transition-colors text-emerald-600 font-black uppercase tracking-widest flex flex-col items-center justify-center gap-2 text-[10px] shadow-sm">
+                <i class="pi pi-file-excel text-2xl mb-1"></i> 
+                <span>Importer un fichier Excel</span>
+              </button>
+            </div>
+          </div>
 
           <div class="mb-4">
             <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrôle</h3>
@@ -78,25 +98,23 @@
             </button>
           </div>
 
-          <LegendValidationBox 
-            v-model="legendeMoyens"
+          <RemarquesLegendeBox 
+            v-model:remarques="store.entete.notes"
+            v-model:legendeMoyens="store.entete.legendeMoyens"
             :show-validation="showLegendValidation"
             :has-custom-instruments="hasCustomInstrumentsGlobal"
             :is-read-only="isReadOnly"
-            :is-forced-view="isForcedView"
           />
         </div>
 
-        <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-4">
-          <EditorActions
-            v-if="!isForcedView"
+        <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end" v-if="!isForcedView">
+          <EditorActions 
             :label="actionButtonLabel"
-            loading-label="Enregistrement..."
             :icon="actionButtonIcon"
             :variant="actionButtonVariant"
             :is-loading="isLoading"
-            @submit="declencherSauvegarde"
-            @cancel="$router.push('/dev/hub')"
+            @submit="onEditorSubmitClick"
+            @cancel="() => $router.push('/dev/hub')"
           />
         </div>
       </div>
@@ -117,11 +135,13 @@ import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/m
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
-import LegendValidationBox from '@/components/Shared/LegendValidationBox.vue';
+import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import FabModeleHeader from '@/components/Fabrication/FabModeleHeader.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import FabSectionCard from '@/components/Fabrication/FabSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
+import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
+import ConfirmDialog from 'primevue/confirmdialog';
 
 import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
@@ -147,14 +167,15 @@ const modeleEditionId = ref(null);
 const codeOriginal = ref('');
 const statut = ref('BROUILLON');
 const version = ref(1);
-const legendeMoyens = ref('');
+const showVersioningDialog = ref(false);
+const versioningMode = ref('FAB');
 
 const { 
   showLegendValidation, 
   hasCustomInstrumentsGlobal, 
   validerLegendeMoyens, 
   validerSaisieValeurs 
-} = useEditorValidation(groupes, legendeMoyens, toast);
+} = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
 const { restaurerModele, creerNouvelleVersionModele } = useModeleVersioning();
@@ -238,6 +259,61 @@ const actionButtonVariant = computed(() => {
   return 'primary';
 });
 
+const fileInput = ref(null);
+
+const onFileSelected = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    store.isLoading = true;
+    const response = await qualityPlansService.importExcel(formData);
+    const parsedData = response.data.data;
+
+    if (parsedData && parsedData.sections) {
+      groupes.value = parsedData.sections.map(sec => ({
+        id: sec.id || crypto.randomUUID(),
+        isFromDb: false,
+        libelleSection: sec.nom,
+        typeSectionId: sec.typeSectionId,
+        modeFreq: sec.modeFreq,
+        periodiciteId: sec.periodiciteId,
+        freqNum: sec.freqNum,
+        typeVariable: sec.typeVariable,
+        freqHours: sec.freqHours,
+        lignes: sec.lignes.map(lig => ({
+          id: lig.id || crypto.randomUUID(),
+          isFromDb: false,
+          typeCaracteristiqueId: lig.typeCaracteristiqueId,
+          typeControleId: lig.typeControleId,
+          moyenControleId: lig.moyenControleId,
+          instrumentCode: lig.instrumentCode,
+          valeurNominale: lig.valeurNominale,
+          toleranceSuperieure: lig.toleranceSuperieure,
+          toleranceInferieure: lig.toleranceInferieure,
+          unite: lig.unite || '',
+          limiteSpecTexte: lig.limiteSpecTexte,
+          observations: lig.observations,
+          instruction: lig.instruction,
+          estCritique: lig.estCritique,
+          libelleAffiche: lig.libelleAffiche
+        }))
+      }));
+
+      await store.fetchDictionnaires();
+      toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Les données ont été chargées depuis le fichier Excel.', life: 4000 });
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: error.response?.data?.message || 'Impossible de lire le fichier.', life: 4000 });
+  } finally {
+    store.isLoading = false;
+    if (fileInput.value) fileInput.value.value = '';
+  }
+};
+
 onMounted(async () => {
   try {
     await store.fetchDictionnaires();
@@ -269,7 +345,7 @@ const chargerModelePourEdition = async (id) => {
     store.entete.typeRobinetCode = data.typeRobinetCode;
     store.entete.libelle = data.libelle;
     store.entete.notes = data.notes || '';
-    legendeMoyens.value = data.legendeMoyens || '';
+    store.entete.legendeMoyens = data.legendeMoyens || '';
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
       (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -295,7 +371,7 @@ const chargerModelePourEdition = async (id) => {
         let maxLength = -1;
 
         store.typesSection.forEach(t => {
-          const tLib = (t.libelle || '').trim().toLowerCase();
+          const tLib = (t.libelle || t.nom || '').trim().toLowerCase();
           if (!tLib || secLib === 'section sans nom') return;
 
           if (secLib.includes(tLib)) {
@@ -325,7 +401,7 @@ const chargerModelePourEdition = async (id) => {
         typeVariable: 'HEURE',
         freqHours: 1,
         isNewFreq: false,
-        nom: sec.libelleSection,
+        libelleSection: sec.libelleSection,
         lignes: lignesTriees.map(lig => ({ 
           id: lig.id,
           isFromDb: true,
@@ -378,37 +454,16 @@ const preparerDonneesEtFrequences = async () => {
 
 
 
-const declencherSauvegarde = async () => {
-  if (isEditMode.value && isArchived.value) {
-    await restaurerArchive();
-    return;
-  }
-  
-  if (!validerSaisieValeurs()) {
-    return;
-  }
-  
-  if (!validerLegendeMoyens()) {
-    return;
-  }
-  
-  if (isEditMode.value) {
-    if (!isDirty.value) {
-      toast.add({ severity: 'info', summary: 'Aucune modification', detail: 'Vous n\'avez effectué aucun changement sur la structure du modèle.', life: 4000 });
-      return;
-    }
-    await sauvegarderV2();
-  } else {
-    await sauvegarderV1();
-  }
-};
+const sauvegarderDirectement = async () => {
+  if (!validerSaisieValeurs()) return;
+  if (!validerLegendeMoyens()) return;
 
-const sauvegarderV1 = async () => {
   store.isLoading = true;
   try {
     store.sections = await preparerDonneesEtFrequences();
-    await store.saveModele(legendeMoyens.value);
-    toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle V1 créé et activé !', life: 3000 });
+    const id = await store.saveModele(store.entete.legendeMoyens);
+    
+    toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle créé et activé !', life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur', detail: error.message, life: 6000 });
@@ -417,7 +472,7 @@ const sauvegarderV1 = async () => {
   }
 };
 
-const sauvegarderV2 = async () => {
+const sauvegarderV2 = async (motif) => {
   store.isLoading = true;
   try {
     const sectionsPrepared = await preparerDonneesEtFrequences();
@@ -454,10 +509,10 @@ const sauvegarderV2 = async () => {
     const payloadV2 = {
       ancienId: modeleEditionId.value,
       modifiePar: 'ADMIN_QUALITE',
-      motifModification: 'Mise à jour directe',
+      motifModification: motif || 'Création d\'une nouvelle version',
       libelle: store.entete.libelle,
       notes: store.entete.notes || '',
-      legendeMoyens: legendeMoyens.value || '',
+      legendeMoyens: store.entete.legendeMoyens || '',
 
       natureComposantCode: store.entete.natureComposantCode || null,
       typeRobinetCode: store.entete.typeRobinetCode || null,
@@ -474,10 +529,10 @@ const sauvegarderV2 = async () => {
   }
 };
 
-const restaurerArchive = async () => {
+const restaurerArchive = async (motif) => {
   store.isLoading = true;
   try {
-    const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: 'Restauration d\'archive' };
+    const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
     await restaurerModele(payloadRestore);
     toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: 'L\'archive a été réactivée en tant que nouvelle version.', life: 4000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
@@ -488,13 +543,46 @@ const restaurerArchive = async () => {
   }
 };
 
+const onEditorSubmitClick = () => {
+  if (!isEditMode.value) {
+    sauvegarderDirectement();
+  } else {
+    onEditorSubmit();
+  }
+};
+
+const onEditorSubmit = () => {
+  if (isArchived.value) {
+    versioningMode.value = 'restore';
+    showVersioningDialog.value = true;
+  } else if (statut.value === 'ACTIF') {
+    versioningMode.value = 'new-version';
+    showVersioningDialog.value = true;
+  }
+};
+
+const onVersioningConfirm = async (motif) => {
+  showVersioningDialog.value = false;
+  
+  if (versioningMode.value === 'new-version') {
+    if (!validerSaisieValeurs()) return;
+    if (!validerLegendeMoyens()) return;
+    if (!isDirty.value) {
+      toast.add({ severity: 'info', summary: 'Aucune modification', detail: 'Vous n\'avez effectué aucun changement sur la structure du modèle.', life: 4000 });
+      return;
+    }
+    await sauvegarderV2(motif);
+  } else if (versioningMode.value === 'restore') {
+    await restaurerArchive(motif);
+  }
+};
+
 const resetForNewModele = () => {
   modeleEditionId.value = null;
   codeOriginal.value = '';
   statut.value = 'BROUILLON';
   version.value = 0;
-  store.entete = { operationCode: '', natureComposantCode: '', typeRobinetCode: '', libelle: '', notes: '' };
-  legendeMoyens.value = '';
+  store.entete = { operationCode: '', natureComposantCode: '', typeRobinetCode: '', libelle: '', notes: '', legendeMoyens: '' };
   groupes.value = [];
 };
 </script>

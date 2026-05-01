@@ -12,9 +12,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const moyensControle = ref([]);
   const periodicites = ref([]);
   const typesSection = ref([]); 
-  // const groupesInstruments = ref([]); 
   const instruments = ref([]); 
-  const gammesOperatoires = ref([]); // <-- NOUVEAU
+  const gammesOperatoires = ref([]); 
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU MODÈLE ---
@@ -23,12 +22,13 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     natureComposantCode: '',
     typeRobinetCode: '',
     libelle: '',
-    notes: ''
+    notes: '',
+    legendeMoyens: ''
   });
   
   const sections = ref([]);
   const isLoading = ref(false);
-  const version = ref(1); // <-- NOUVEAU : Rend la version dynamique
+  const version = ref(1); 
 
   const codeModeleAuto = computed(() => {
     const op = entete.value.operationCode || 'XXX';
@@ -51,10 +51,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       moyensControle.value = data.moyensControle || [];
       periodicites.value = data.periodicites || [];
       typesSection.value = data.typesSection || data.typesSections || []; 
-      // groupesInstruments.value = data.groupesInstruments || []; 
       instruments.value = data.instruments || []; 
-      
-      gammesOperatoires.value = data.gammes || []; // <-- NOUVEAU
+      gammesOperatoires.value = data.gammes || []; 
 
       isDicosLoaded.value = true;
     } catch (apiError) {
@@ -67,9 +65,9 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     sections.value.push({
       id: crypto.randomUUID(),
       ordreAffiche: sections.value.length + 1,
-      typeSectionId: '', // ID Strict obligatoire
-      periodiciteId: null, // ID Strict optionnel
-      libelleSection: '', // Le texte libre pour l'opérateur !
+      typeSectionId: '', 
+      periodiciteId: null, 
+      libelleSection: '', 
       frequenceLibelle: '',
       notes: '',
       lignes: []
@@ -92,13 +90,11 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       typeControleId: null, 
       libelleAffiche: '',
       moyenControleId: null,
-      // groupeInstrumentId: null,
       instrumentCode: null, 
       periodiciteId: null,
       instruction: '',
       estCritique: false,
       limiteSpecTexte: ''
-
     });
   };
 
@@ -110,41 +106,62 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     }
   };
 
+  const mapPayload = (legendeMoyens = '') => ({
+    code: codeModeleAuto.value,
+    libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value}`,
+    typeRobinetCode: entete.value.typeRobinetCode || null,
+    natureComposantCode: entete.value.natureComposantCode || '',
+    operationCode: entete.value.operationCode || '', 
+    notes: entete.value.notes || "",
+    legendeMoyens: legendeMoyens || '',
+    sections: sections.value.map(s => ({
+      ordreAffiche: s.ordreAffiche,
+      typeSectionId: s.typeSectionId,
+      periodiciteId: s.periodiciteId,
+      libelleSection: s.libelleSection ,
+      frequenceLibelle: s.frequenceLibelle,
+      notes: s.notes,
+      lignes: s.lignes.map(l => ({
+        ordreAffiche: l.ordreAffiche,
+        typeCaracteristiqueId: l.typeCaracteristiqueId,
+        libelleAffiche: l.libelleAffiche,
+        typeControleId: l.typeControleId,
+        moyenControleId: l.moyenControleId,
+        instrumentCode: l.instrumentCode,
+        periodiciteId: l.periodiciteId,
+        instruction: l.instruction,
+        estCritique: l.estCritique,
+        valeurNominale: l.valeurNominale ?? null,
+        toleranceSuperieure: l.toleranceSuperieure ?? null,
+        toleranceInferieure: l.toleranceInferieure ?? null,
+        unite: l.unite || '',
+        limiteSpecTexte: l.limiteSpecTexte || null
+      }))
+    }))
+  });
+
   const saveModele = async (legendeMoyens = '') => {
     isLoading.value = true;
     try {
-      const payload = {
-        code: codeModeleAuto.value,
-        libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value}`,
-        typeRobinetCode: entete.value.typeRobinetCode || null,
-        natureComposantCode: entete.value.natureComposantCode || '',
-        operationCode: entete.value.operationCode || '', 
-        notes: entete.value.notes || "",
-        legendeMoyens: legendeMoyens || '',
-        sections: sections.value.map(s => ({
-          ordreAffiche: s.ordreAffiche,
-          typeSectionId: s.typeSectionId, // Ajouté dans le mapping
-          periodiciteId: s.periodiciteId, // Ajouté dans le mapping
-          libelleSection: s.libelleSection || 'SECTION SANS NOM',
-          frequenceLibelle: s.frequenceLibelle,
-          notes: s.notes, // Ajouté dans le mapping
-          lignes: s.lignes.map(l => ({
-            ordreAffiche: l.ordreAffiche,
-            typeCaracteristiqueId: l.typeCaracteristiqueId,
-            libelleAffiche: l.libelleAffiche,
-            typeControleId: l.typeControleId,
-            moyenControleId: l.moyenControleId,
-            // groupeInstrumentId: l.groupeInstrumentId,
-            instrumentCode: l.instrumentCode, // <-- NOUVEAU
-            periodiciteId: l.periodiciteId,
-            instruction: l.instruction,
-            estCritique: l.estCritique,
-            limiteSpecTexte: l.limiteSpecTexte || null
-          }))
-        }))
-      };
+      const payload = mapPayload(legendeMoyens);
+      const res = await fabPlanService.creerModele(payload);
+      return res.data.modeleId;
+    } finally {
+      isLoading.value = false;
+    }
+  };
 
-      await fabPlanService.creerModele(payload);
+  const creerNouvelleVersion = async (id, motif, legendeMoyens = '') => {
+    isLoading.value = true;
+    try {
+      const payload = {
+        ...mapPayload(legendeMoyens),
+        ancienId: id,
+        modifiePar: 'Admin',
+        motifModification: motif
+      };
+      const res = await fabPlanService.creerNouvelleVersionModele(payload);
+      return res.data.modeleId;
     } finally {
       isLoading.value = false;
     }
@@ -155,6 +172,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     typesCaracteristique, typesControle, moyensControle, 
     periodicites, typesSection, instruments, gammesOperatoires, isDicosLoaded, 
     entete, sections, isLoading, version, codeModeleAuto,
-    fetchDictionnaires, addSection, removeSection, addLigneLibre, removeLigne, saveModele
+    fetchDictionnaires, addSection, removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion
   };
 });

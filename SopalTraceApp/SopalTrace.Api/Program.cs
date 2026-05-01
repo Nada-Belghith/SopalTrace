@@ -95,6 +95,7 @@ builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateModeleRequestValidator>();
 builder.Services.AddScoped<IPlanEchanRepository, PlanEchanRepository>();
 builder.Services.AddScoped<IPlanEchanService, PlanEchanService>();
+builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IReferentielService, ReferentielService>();
 builder.Services.AddScoped<IHubService, HubService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();

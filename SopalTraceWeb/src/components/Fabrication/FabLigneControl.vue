@@ -120,7 +120,7 @@
     </td>
 
     <td class="p-2 border-r border-slate-200 align-top">
-      <input v-model="localLigne.instruction" type="text" placeholder="Observations (Optionnel)..." :disabled="isReadOnly"
+      <input v-model="localLigne.observations" type="text" placeholder="Observations (Optionnel)..." :disabled="isReadOnly"
              :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none border', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-900 font-semibold cursor-not-allowed' : 'bg-white border-slate-200 text-slate-600 focus:border-blue-500']">
     </td>
 

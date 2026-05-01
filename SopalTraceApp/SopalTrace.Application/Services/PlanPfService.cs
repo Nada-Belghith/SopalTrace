@@ -10,14 +10,88 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Services;
 
-public class PlanPfService : IPlanPfService
+/// <summary>
+/// Service de gestion des Plans Produit Fini (Plans Génériques).
+/// Plus de logique de BROUILLON ici (directement ACTIF ou ARCHIVE).
+/// </summary>
+public class PlanPfService : BasePlanLifecycleService<PlanPfEntete, CreatePlanPfRequestDto, UpdatePlanPfRequestDto>, IPlanPfService
 {
     private readonly IPlanPfRepository _repository;
 
-    public PlanPfService(IPlanPfRepository repository)
+    public PlanPfService(IUnitOfWork unitOfWork, IPlanPfRepository repository) : base(unitOfWork)
     {
-        _repository = repository;
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
     }
+
+    // ==================== ABSTRACT IMPLEMENTATIONS ====================
+
+    protected override async Task<PlanPfEntete?> ObtenirEntiteAsync(Guid id)
+        => await _repository.GetPlanByIdAsync(id);
+
+    protected override async Task<PlanPfEntete> CreerEntiteAsync(CreatePlanPfRequestDto dto, string user)
+    {
+        var plan = new PlanPfEntete
+        {
+            Id = Guid.NewGuid(),
+            TypeRobinetCode = dto.TypeRobinetCode,
+            Designation = dto.Designation,
+            DateApplication = DateOnly.FromDateTime(DateTime.UtcNow),
+            CreePar = user,
+            CreeLe = DateTime.UtcNow,
+            CommentaireVersion = dto.CommentaireVersion,
+            Remarques = dto.Remarques,
+            LegendeMoyens = dto.LegendeMoyens,
+            PlanPfSections = new List<PlanPfSection>()
+        };
+
+        if (dto.Sections != null && dto.Sections.Any())
+            PlanPfMapper.MettreAJourArchitectureComplete(plan, dto.Sections);
+
+        return await Task.FromResult(plan);
+    }
+
+    protected override Task ApplierMiseAJourDraftAsync(PlanPfEntete plan, UpdatePlanPfRequestDto dto, string user)
+        => throw new NotSupportedException("Les plans PF n'utilisent plus la logique de brouillon.");
+
+    protected override async Task PersisterEntiteAsync(PlanPfEntete plan)
+        => await _repository.AddPlanAsync(plan);
+
+    protected override async Task<int> CalculerNouvelleVersionAsync(PlanPfEntete plan)
+    {
+        var derniere = await _repository.GetDerniereVersionPlanAsync(plan.TypeRobinetCode);
+        return derniere + 1;
+    }
+
+    protected override async Task<PlanPfEntete> CreerNouvelleVersionEntiteAsync(
+        PlanPfEntete ancienPlan,
+        UpdatePlanPfRequestDto dto,
+        int nouvelleVersion,
+        string user)
+    {
+        var nouveauPlan = PlanPfMapper.CreerNouvelleVersionEntite(
+            ancienPlan,
+            new NouvelleVersionPfRequestDto
+            {
+                AncienId = ancienPlan.Id,
+                ModifiePar = user,
+                MotifModification = dto.CommentaireVersion,
+                Remarques = dto.Remarques,
+                LegendeMoyens = dto.LegendeMoyens,
+                Sections = dto.Sections
+            },
+            user,
+            nouvelleVersion);
+
+        if (dto.Sections != null && dto.Sections.Any())
+            PlanPfMapper.MettreAJourArchitectureComplete(nouveauPlan, dto.Sections, forceNewIds: true);
+
+        return await Task.FromResult(nouveauPlan);
+    }
+
+    protected override Task<PlanPfEntete?> ObtenirBrouillonExistantAsync(CreatePlanPfRequestDto dto)
+        => Task.FromResult<PlanPfEntete?>(null);
+
+    // ==================== PUBLIC API (LOGIQUE DIRECTE) ====================
 
     public async Task<List<PlanPfEnteteDto>> GetGenericPlansAsync()
     {
@@ -27,171 +101,102 @@ public class PlanPfService : IPlanPfService
 
     public async Task<PlanPfEnteteDto?> GetPlanByIdAsync(Guid id)
     {
-        var plan = await _repository.GetPlanByIdAsync(id);
-        if (plan == null) return null;
-        return PlanPfMapper.MapVersDto(plan);
+        var plan = await ObtenirEntiteAsync(id);
+        return plan == null ? null : PlanPfMapper.MapVersDto(plan);
     }
 
     public async Task<Guid> CreateGenericPlanAsync(CreatePlanPfRequestDto dto, string creePar)
     {
-        var existing = await _repository.ExistsActiveOrDraftPlanAsync(dto.TypeRobinetCode);
+        // 1. Archiver l'ancien
+        await ArchiverPlanActifExistantAsync(dto.TypeRobinetCode, creePar);
 
-        if (existing)
-        {
-            throw new InvalidOperationException($"Un plan générique existe déjà pour le Type de Robinet {dto.TypeRobinetCode}.");
-        }
+        // 2. Créer le nouveau en ACTIF
+        var plan = await CreerEntiteAsync(dto, creePar);
+        plan.Statut = StatutsPlan.Actif;
+        plan.Version = await CalculerNouvelleVersionAsync(plan);
 
-        var auteurSecure = SecuriserNomAuteur(creePar);
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(dto.TypeRobinetCode);
-
-        var plan = new PlanPfEntete
-        {
-            Id = Guid.NewGuid(),
-            TypeRobinetCode = dto.TypeRobinetCode,
-            Designation = dto.Designation,
-            Version = nouvelleVersion,
-            Statut = StatutsPlan.Actif,
-            DateApplication = DateOnly.FromDateTime(DateTime.UtcNow),
-            CreePar = auteurSecure,
-            CreeLe = DateTime.UtcNow,
-            CommentaireVersion = dto.CommentaireVersion,
-            Remarques = dto.Remarques,
-            LegendeMoyens = dto.LegendeMoyens,
-            PlanPfSections = new List<PlanPfSection>()
-        };
-
-        if (dto.Sections != null && dto.Sections.Any())
-        {
-            PlanPfMapper.MettreAJourArchitectureComplete(plan, dto.Sections);
-        }
-
-        await _repository.AddPlanAsync(plan);
-        await _repository.SaveChangesAsync();
+        await PersisterEntiteAsync(plan);
+        await _unitOfWork.CommitAsync();
 
         return plan.Id;
     }
 
-    public async Task UpdatePlanAsync(Guid id, List<SectionPfEditDto> sectionsDto, string modifiePar, string? remarques = null, string? legendeMoyens = null)
-    {
-        var plan = await _repository.GetPlanByIdAsync(id);
-        if (plan == null) throw new KeyNotFoundException("Plan introuvable.");
-
-        if (plan.Statut == StatutsPlan.Actif)
-            throw new InvalidOperationException("Impossible de modifier un plan actif.");
-        if (plan.Statut == StatutsPlan.Archive)
-            throw new InvalidOperationException("Impossible de modifier un plan archivé.");
-
-        PlanPfMapper.MettreAJourArchitectureComplete(plan, sectionsDto);
-
-        plan.Remarques = remarques;
-        plan.LegendeMoyens = legendeMoyens;
-        plan.ModifiePar = modifiePar;
-        plan.ModifieLe = DateTime.UtcNow;
-        plan.Statut = StatutsPlan.Actif;
-
-        await _repository.SaveChangesAsync();
-    }
+    public Task UpdatePlanAsync(Guid id, List<SectionPfEditDto> sectionsDto, string modifiePar, string? remarques = null, string? legendeMoyens = null)
+        => throw new InvalidOperationException("La mise à jour de brouillon n'est pas supportée. Créez une nouvelle version.");
 
     public async Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionPfRequestDto request)
     {
-        var ancienPlan = await _repository.GetPlanByIdAsync(request.AncienId);
+        var ancienPlan = await ObtenirEntiteAsync(request.AncienId);
         if (ancienPlan == null) throw new KeyNotFoundException("Plan source introuvable.");
-        if (ancienPlan.Statut == StatutsPlan.Archive) throw new InvalidOperationException("Impossible de versionner un plan archivé.");
 
-        var auteurSecure = SecuriserNomAuteur(!string.IsNullOrWhiteSpace(request.ModifiePar) ? request.ModifiePar : "SYSTEM");
+        var user = SecuriserNomAuteur(request.ModifiePar);
 
-        await ArchiverAncienPlanAsync(request.AncienId, auteurSecure);
-        await _repository.SaveChangesAsync();
-        _repository.ClearTracking(); // <-- Forcer EF à "oublier" l'ancien plan (contournement du 1:1 Scaffold)
-
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan.TypeRobinetCode);
-
-        var nouveauPlan = PlanPfMapper.CreerNouvelleVersionEntite(ancienPlan, request, auteurSecure, nouvelleVersion);
-
-        if (request.Sections != null && request.Sections.Any())
+        // Archiver l'ancien
+        if (ancienPlan.Statut == StatutsPlan.Actif)
         {
-            PlanPfMapper.MettreAJourArchitectureComplete(nouveauPlan, request.Sections, forceNewIds: true);
+            ancienPlan.Statut = StatutsPlan.Archive;
+            ancienPlan.ModifieLe = DateTime.UtcNow;
+            ancienPlan.ModifiePar = user;
         }
 
-        await _repository.AddPlanAsync(nouveauPlan);
-        await _repository.SaveChangesAsync();
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan);
+        var dto = new UpdatePlanPfRequestDto
+        {
+            Sections = request.Sections,
+            CommentaireVersion = request.MotifModification,
+            Remarques = request.Remarques,
+            LegendeMoyens = request.LegendeMoyens
+        };
+
+        var nouveauPlan = await CreerNouvelleVersionEntiteAsync(ancienPlan, dto, nouvelleVersion, user);
+        nouveauPlan.Statut = StatutsPlan.Actif;
+
+        await PersisterEntiteAsync(nouveauPlan);
+        await _unitOfWork.CommitAsync();
 
         return nouveauPlan.Id;
     }
 
-
-    public async Task ArchiverPlanAsync(Guid id, string modifiePar)
-    {
-        var plan = await _repository.GetPlanByIdAsync(id);
-        if (plan == null) throw new KeyNotFoundException("Plan introuvable.");
-
-        plan.Statut = StatutsPlan.Archive;
-        plan.ModifiePar = modifiePar;
-        plan.ModifieLe = DateTime.UtcNow;
-
-        await _repository.SaveChangesAsync();
-    }
-
     public async Task<Guid> RestaurerPlanArchiveAsync(RestaurerPfRequestDto request)
     {
-        // Récupérer l'entité en mode tracké afin de la modifier in-place
-        var plan = await _repository.GetPlanPourArchivageAsync(request.PlanArchiveId);
-        if (plan == null) throw new KeyNotFoundException("Plan introuvable.");
-        if (plan.Statut != StatutsPlan.Archive) throw new InvalidOperationException("Seul un plan archivé peut être restauré.");
+        var planArchive = await ObtenirEntiteAsync(request.PlanArchiveId);
+        if (planArchive == null) throw new KeyNotFoundException("Plan introuvable.");
 
-        var auteurSecure = SecuriserNomAuteur(request.RestaurePar);
+        var user = SecuriserNomAuteur(request.RestaurePar);
 
-        // Archiver l'éventuel plan actif actuel de la même famille
-        await ArchiverPlanActifExistantAsync(plan.TypeRobinetCode, auteurSecure);
-        await _repository.SaveChangesAsync(); // <-- Crucial pour libérer l'index d'unicité 'ACTIF'
+        // Archiver l'actif actuel
+        await ArchiverPlanActifExistantAsync(planArchive.TypeRobinetCode, user);
 
-        // Calculer nouvelle version (pour éviter conflit de version)
-        var ancienneVersion = plan.Version;
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(plan.TypeRobinetCode);
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(planArchive);
+        var dto = new UpdatePlanPfRequestDto { CommentaireVersion = $"[Restauré] {request.MotifRestoration}" };
+        
+        var nouveauPlan = await CreerNouvelleVersionEntiteAsync(planArchive, dto, nouvelleVersion, user);
+        nouveauPlan.Statut = StatutsPlan.Actif;
 
-        // Ré-activer l'entité existante plutôt que d'en créer une nouvelle
-        plan.Version = nouvelleVersion;
-        plan.Statut = StatutsPlan.Actif;
-        plan.CommentaireVersion = $"[Restaure depuis V{ancienneVersion}] {request.MotifRestoration}";
-        plan.CreePar = auteurSecure;
-        plan.CreeLe = DateTime.UtcNow;
+        await PersisterEntiteAsync(nouveauPlan);
+        await _unitOfWork.CommitAsync();
 
-        // Les sections/lignes sont déjà présentes sur l'entité trackée et seront préservées
-        await _repository.SaveChangesAsync();
-
-        return plan.Id;
+        return nouveauPlan.Id;
     }
 
-    private string SecuriserNomAuteur(string auteur) => string.IsNullOrWhiteSpace(auteur) ? "SYSTEM" : (auteur.Length > 20 ? auteur[..20] : auteur);
-
-    private async Task ArchiverAncienPlanAsync(Guid ancienId, string auteurSecure)
+    public async Task<bool> SupprimerBrouillonAsync(Guid id)
     {
-        var plan = await _repository.GetPlanPourArchivageAsync(ancienId);
-        if (plan != null && plan.Statut == StatutsPlan.Actif)
-        {
-            plan.Statut = StatutsPlan.Archive;
-            plan.ModifieLe = DateTime.UtcNow;
-        }
+        var plan = await _repository.GetPlanByIdAsync(id);
+        if (plan == null || plan.Statut != StatutsPlan.Brouillon) return false;
+
+        _repository.DeletePlan(plan);
+        await _unitOfWork.CommitAsync();
+        return true;
     }
 
-    private async Task ArchiverPlanActifExistantAsync(string typeRobinetCode, string auteurSecure)
+    private async Task ArchiverPlanActifExistantAsync(string typeRobinetCode, string user)
     {
         var plansActifs = await _repository.GetActivePlansByTypeRobinetAsync(typeRobinetCode);
-        if (plansActifs != null && plansActifs.Any())
+        foreach (var p in plansActifs)
         {
-            foreach (var planActif in plansActifs)
-            {
-                planActif.Statut = StatutsPlan.Archive;
-                planActif.ModifieLe = DateTime.UtcNow;
-                planActif.ModifiePar = auteurSecure;
-                // Pas besoin de appeler Update(), l'entité est déjà trackée par le repository
-            }
+            p.Statut = StatutsPlan.Archive;
+            p.ModifieLe = DateTime.UtcNow;
+            p.ModifiePar = user;
         }
-    }
-
-    private async Task<int> CalculerNouvelleVersionAsync(string typeRobinetCode)
-    {
-        var derniereVersion = await _repository.GetDerniereVersionPlanAsync(typeRobinetCode);
-        return derniereVersion + 1;
     }
 }

@@ -15,6 +15,14 @@ export const qualityPlansService = {
     return apiClient.get(`/modeles-fabrication/${id}`);
   },
 
+  updateModeleValeurs(id, payload) {
+    return apiClient.put(`/modeles-fabrication/${id}/valeurs`, payload);
+  },
+
+  activerModele(id) {
+    return apiClient.post(`/modeles-fabrication/${id}/activer`);
+  },
+
   newModeleVersion(payload) {
     return apiClient.post('/modeles-fabrication/nouvelle-version', payload);
   },
@@ -42,11 +50,6 @@ export const qualityPlansService = {
     return apiClient.post('/plans-fabrication/instancier', payload);
   },
 
-  verifierEtatPlan(articleCode, modeleId) {
-    return apiClient.get('/plans-fabrication/verifier-etat', {
-      params: { articleCode, modeleId }
-    });
-  },
   annulerBrouillonPlan(planId) {
     return apiClient.delete(`/hub/plans/FAB/${planId}`);
   },
@@ -62,7 +65,8 @@ export const qualityPlansService = {
   newPlanVersion(payload) {
     return apiClient.post('/plans-fabrication/nouvelle-version', payload);
   },
-    // Modification de la méthode pour passer l'operationCode
+
+  // Modification de la méthode pour passer l'operationCode
   verifierEtatPlan(articleCode, modeleId, operationCode = null) {
     return apiClient.get('/plans-fabrication/verifier-etat', {
       params: { 
@@ -78,9 +82,17 @@ export const qualityPlansService = {
       sections: sectionsPayload,
       legendeMoyens: legendeMoyens, 
       remarques: remarques,
-      finaliser: finaliser,
-      nom: nom,
-      modifiePar: modifiePar
+      finaliser,
+      nom,
+      modifiePar
+    });
+  },
+
+  importExcel(formData) {
+    return apiClient.post('/plans-fabrication/import-excel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     });
   },
 

@@ -7,7 +7,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   const hasCustomInstrumentsGlobal = computed(() => {
     return (sectionsRef.value || []).some(section =>
       (section.lignes || []).some(ligne => 
-        /[\*~!@#$%^&]/.test(ligne.instrumentCode || '')
+        /[*~!@#$%^&]/.test(ligne.instrumentCode || '')
       )
     );
   });
@@ -22,12 +22,6 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   const validerLegendeMoyens = () => {
     if (hasCustomInstrumentsGlobal.value && !legendeMoyensRef.value?.trim()) {
       showLegendValidation.value = true;
-      toast.add({ 
-        severity: 'warn', 
-        summary: '⚠️ Légende OBLIGATOIRE', 
-        detail: 'Vous utilisez du texte personnalisé (* *** etc.) - veuillez remplir la légende des moyens.', 
-        life: 5000 
-      });
       return false;
     }
     showLegendValidation.value = false;

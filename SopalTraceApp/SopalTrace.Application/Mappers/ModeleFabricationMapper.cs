@@ -157,6 +157,7 @@ public static class ModeleFabricationMapper
                 PeriodiciteId = l.PeriodiciteId,
                 Instruction = l.Instruction,
                 EstCritique = l.EstCritique,
+                ValeurNominale = l.ValeurNominale,
                 LimiteSpecTexte = l.LimiteSpecTexte,
                 ToleranceInferieure = l.ToleranceInferieure,
                 ToleranceSuperieure = l.ToleranceSuperieure
@@ -164,7 +165,7 @@ public static class ModeleFabricationMapper
         });
     }
 
-    private static void DupliquerSections(ModeleFabEntete modele, IEnumerable<SectionModeleEditDto> sectionsSource)
+    public static void DupliquerSections(ModeleFabEntete modele, IEnumerable<SectionModeleEditDto> sectionsSource)
     {
         foreach (var secDto in sectionsSource)
         {
@@ -195,6 +196,7 @@ public static class ModeleFabricationMapper
                     PeriodiciteId = NullIfEmpty(lignDto.PeriodiciteId),
                     Instruction = lignDto.Instruction,
                     EstCritique = lignDto.EstCritique,
+                    ValeurNominale = lignDto.ValeurNominale,
                     ToleranceInferieure = lignDto.ToleranceInferieure,
                     ToleranceSuperieure = lignDto.ToleranceSuperieure,
                     LimiteSpecTexte = string.IsNullOrWhiteSpace(lignDto.LimiteSpecTexte) ? null : lignDto.LimiteSpecTexte
@@ -228,6 +230,7 @@ public static class ModeleFabricationMapper
                     Instruction = l.Instruction ?? string.Empty,
                     EstCritique = l.EstCritique,
                     LimiteSpecTexte = l.LimiteSpecTexte ?? string.Empty,
+                    ValeurNominale = l.ValeurNominale,
                     ToleranceInferieure = l.ToleranceInferieure,
                     ToleranceSuperieure = l.ToleranceSuperieure
                 }).ToList() ?? new List<ModeleLigneResponseDto>()

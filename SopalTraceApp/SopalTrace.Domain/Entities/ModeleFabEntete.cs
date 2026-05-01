@@ -1,9 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+
+using SopalTrace.Domain.Interfaces;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class ModeleFabEntete
+public partial class ModeleFabEntete : IPlanEntete
 {
     public Guid Id { get; set; }
 

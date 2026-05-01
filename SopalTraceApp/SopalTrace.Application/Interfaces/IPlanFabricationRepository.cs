@@ -19,9 +19,11 @@ public interface IPlanFabricationRepository
     Task<ModeleFabEntete?> GetModeleAvecRelationsAsync(Guid modeleId);
     Task<ModeleFabEntete?> GetModelePourArchivageAsync(Guid modeleId);
     Task AddModeleAsync(ModeleFabEntete modele);
+    void DeleteModele(ModeleFabEntete modele);
 
     // --> AJOUTEZ CECI POUR SÉCURISER VOTRE CRÉATION V2
-    Task<int> GetDerniereVersionModeleAsync(string typeRobinetCode, string natureCode, string operationCode); 
+    Task<int> GetDerniereVersionModeleAsync(string? typeRobinetCode, string? natureCode, string? operationCode); 
+    Task<ModeleFabEntete?> GetBrouillonModeleLePlusRecentAsync(string? typeRobinetCode, string? natureCode, string? operationCode); 
 
     // Plans
     Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage);
@@ -51,7 +53,7 @@ public interface IPlanFabricationRepository
     Task SaveChangesAsync();
     Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null);
     Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string typeRobinetCode, string natureCode, string operationCode);
-    Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string typeRobinetCode, string natureComposantCode, string opCode);
+    Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string? typeRobinetCode, string? natureComposantCode, string? opCode);
 
     /// <summary>
     /// Supprime un plan et toutes ses sections et lignes en cascade

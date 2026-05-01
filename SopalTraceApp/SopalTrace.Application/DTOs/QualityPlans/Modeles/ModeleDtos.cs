@@ -42,6 +42,7 @@ public record LigneModeleEditDto
     public string? LimiteSpecTexte { get; init; }
 
     // Ajoutés : valeurs numériques du modèle
+    public double? ValeurNominale { get; init; }
     public double? ToleranceSuperieure { get; init; }
     public double? ToleranceInferieure { get; init; }
 }

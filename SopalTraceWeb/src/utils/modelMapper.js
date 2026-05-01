@@ -127,7 +127,7 @@ export function createModeleSnapshot(entete, sections) {
       freqNum: s.freqNum,
       typeVariable: s.typeVariable,
       freqHours: s.freqHours,
-      nom: s.nom,
+      libelleSection: s.libelleSection,
       lignes: s.lignes.map(l => ({
         typeCaracteristiqueId: l.typeCaracteristiqueId,
         libelleAffiche: l.libelleAffiche,
@@ -222,7 +222,7 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
     id: g.isFromDb ? g.id : null,
     ordreAffiche: idx + 1,
     typeSectionId: g.typeSectionId || null,
-    libelleSection: g.nom,
+    libelleSection: g.libelleSection,
     periodiciteId: g.periodiciteId,
     frequenceLibelle: g.periodiciteId
       ? (existingPeriodicites || []).find(p => p.id === g.periodiciteId)?.libelle

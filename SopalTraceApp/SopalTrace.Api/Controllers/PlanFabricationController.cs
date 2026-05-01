@@ -149,6 +149,28 @@ public class PlanFabricationController : ControllerBase
         return Ok(new { success = true, message = msg });
     }
 
+    [HttpPost("import-excel")]
+    public async Task<ActionResult> ImportExcel([FromForm] Microsoft.AspNetCore.Http.IFormFile file, [FromServices] IExcelImportService excelService)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });
+
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Seuls les fichiers Excel (.xlsx) sont supportés." });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var parsedData = await excelService.ParsePlanExcelAsync(stream);
+            return Ok(new { message = "Import réussi", data = parsedData });
+        }
+        catch (Exception ex)
+        {
+            var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, new { message = "Erreur lors de l'import : " + innerMessage });
+        }
+    }
+
     // ⚠️ NOUVELLE ROUTE : Suppression physique (Hard Delete)
     [HttpDelete("{id}")]
     public async Task<IActionResult> SupprimerBrouillon(Guid id)

@@ -107,9 +107,9 @@ const periodesFixes = computed(() => (store.periodicites || []).filter(p =>
 const apercu = computed(() => {
   const typeSec = (store.typesSection || []).find(ts => ts.id === localGroupe.value.typeSectionId);
   if (!typeSec) return '';
-  
-  let txt = `Contrôle Produit Fini par ${typeSec.libelle}`;
-  
+
+  let txt = typeSec.libelle;
+
   if (localGroupe.value.modeFreq === 'FIXE' && localGroupe.value.periodiciteId) {
     const per = (store.periodicites || []).find(p => p.id === localGroupe.value.periodiciteId);
     if (per) txt += ` (${per.libelle})`;
@@ -138,12 +138,12 @@ const verifierVariables = () => {
   if (groupe.modeFreq === 'SANS') {
       localGroupe.value.periodiciteId = null;
       localGroupe.value.isNewFreq = false;
-      localGroupe.value.nom = titre;
+      localGroupe.value.libelleSection = titre;
   }
   else if (groupe.modeFreq === 'FIXE') {
       const perio = (store.periodicites || []).find(p => p.id === groupe.periodiciteId);
       localGroupe.value.isNewFreq = false;
-      localGroupe.value.nom = perio ? `${titre} (${perio.libelle})` : `${titre} (Veuillez choisir une règle)`;
+      localGroupe.value.libelleSection = perio ? `${titre} (${perio.libelle})` : `${titre} (Veuillez choisir une règle)`;
   }
   else if (groupe.modeFreq === 'VARIABLE') {
       let libelleFreq = "";
@@ -165,11 +165,11 @@ const verifierVariables = () => {
       if (perio) {
           localGroupe.value.periodiciteId = perio.id;
           localGroupe.value.isNewFreq = false;
-          localGroupe.value.nom = `${titre} (${perio.libelle})`;
+          localGroupe.value.libelleSection = `${titre} (${perio.libelle})`;
       } else {
           localGroupe.value.periodiciteId = null;
           localGroupe.value.isNewFreq = true;
-          localGroupe.value.nom = `${titre} (${libelleFreq})`;
+          localGroupe.value.libelleSection = `${titre} (${libelleFreq})`;
       }
   }
 };

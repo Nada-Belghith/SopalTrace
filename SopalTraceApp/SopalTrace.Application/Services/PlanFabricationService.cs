@@ -13,7 +13,17 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Services;
 
-public class PlanFabricationService : IPlanFabricationService
+/// <summary>
+/// Service de gestion des Plans de Fabrication.
+/// Hérite de BasePlanArticleLifecycleService pour bénéficier du cycle de vie complet
+/// (Draft, Activer, Archiver, Versioning, Restaurer, SauvegardeAuto) sans redondance.
+/// 
+/// - TCreateDto = CreatePlanRequestDto  (instanciation depuis modèle ou vierge)
+/// - TUpdateDto = NouvelleVersionRequestDto  (mise à jour sections/motif)
+/// </summary>
+public class PlanFabricationService
+    : BasePlanArticleLifecycleService<PlanFabEntete, CreatePlanRequestDto, NouvelleVersionRequestDto>,
+      IPlanFabricationService
 {
     private readonly IPlanFabricationRepository _repository;
     private readonly IValidator<CreatePlanRequestDto> _createPlanValidator;
@@ -21,88 +31,138 @@ public class PlanFabricationService : IPlanFabricationService
     private readonly IValidator<PlanFabEntete> _planActivationValidator;
 
     public PlanFabricationService(
+        IUnitOfWork unitOfWork,
         IPlanFabricationRepository repository,
         IValidator<CreatePlanRequestDto> createPlanValidator,
         IValidator<ClonePlanRequestDto> clonePlanValidator,
         IValidator<PlanFabEntete> planActivationValidator)
+        : base(unitOfWork)
     {
-        _repository = repository;
-        _createPlanValidator = createPlanValidator;
-        _clonePlanValidator = clonePlanValidator;
-        _planActivationValidator = planActivationValidator;
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _createPlanValidator = createPlanValidator ?? throw new ArgumentNullException(nameof(createPlanValidator));
+        _clonePlanValidator = clonePlanValidator ?? throw new ArgumentNullException(nameof(clonePlanValidator));
+        _planActivationValidator = planActivationValidator ?? throw new ArgumentNullException(nameof(planActivationValidator));
     }
 
-    public async Task<Guid> InstancierPlanDepuisModeleAsync(CreatePlanRequestDto request)
+    // ==================== ABSTRACT IMPLEMENTATIONS ====================
+
+    protected override async Task<PlanFabEntete?> ObtenirEntiteAsync(Guid id)
+        => await _repository.GetPlanByIdAsync(id);
+
+    protected override async Task<PlanFabEntete> CreerEntiteAsync(CreatePlanRequestDto dto, string user)
     {
-        var validationResult = await _createPlanValidator.ValidateAsync(request);
+        var validationResult = await _createPlanValidator.ValidateAsync(dto);
         if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
 
-        var designationSage = await _repository.GetDesignationArticleSageAsync(request.CodeArticleSage);
-        if (string.IsNullOrEmpty(designationSage)) throw new ArticleSageIntrouvableException(request.CodeArticleSage);
+        var designationSage = await _repository.GetDesignationArticleSageAsync(dto.CodeArticleSage);
+        if (string.IsNullOrEmpty(designationSage)) throw new ArticleSageIntrouvableException(dto.CodeArticleSage);
 
-        var modeleSourceId = request.ModeleSourceId.HasValue && request.ModeleSourceId.Value != Guid.Empty
-            ? request.ModeleSourceId
-            : null;
+        var modeleSourceId = dto.ModeleSourceId.HasValue && dto.ModeleSourceId.Value != Guid.Empty
+            ? dto.ModeleSourceId : null;
 
-        var brouillonExistant = await _repository.GetBrouillonLePlusRecentAsync(request.CodeArticleSage, modeleSourceId, request.OperationCode);
-        if (brouillonExistant != null) return brouillonExistant.Id;
-
-        PlanFabEntete nouveauPlan;
-
+        PlanFabEntete plan;
         if (modeleSourceId.HasValue)
         {
             var modeleSource = await _repository.GetModeleActifAvecRelationsAsync(modeleSourceId.Value);
             if (modeleSource == null) throw new ModeleIntrouvableException(modeleSourceId.Value);
-
             if (modeleSource.NatureComposantCodeNavigation != null && modeleSource.NatureComposantCodeNavigation.EstGenerique)
                 throw new ModeleGeneriqueException(modeleSourceId.Value);
-
-            nouveauPlan = PlanFabricationMapper.ConstruireEntitePlanAPartirDeModele(modeleSource, request, designationSage);
+            plan = PlanFabricationMapper.ConstruireEntitePlanAPartirDeModele(modeleSource, dto, designationSage);
         }
         else
         {
-            nouveauPlan = PlanFabricationMapper.ConstruireEntitePlanVierge(request, designationSage);
+            plan = PlanFabricationMapper.ConstruireEntitePlanVierge(dto, designationSage);
         }
 
-        nouveauPlan.Remarques = request.Remarques;
-        nouveauPlan.LegendeMoyens = request.LegendeMoyens;
+        plan.Remarques = dto.Remarques;
+        plan.LegendeMoyens = dto.LegendeMoyens;
+        plan.CreePar = user;
+        plan.CreeLe = DateTime.UtcNow;
 
-        var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(request.CodeArticleSage, request.OperationCode) + 1;
-        nouveauPlan.Version = prochaineVersion;
-
-        if (string.IsNullOrWhiteSpace(request.Nom))
-            nouveauPlan.Nom = prochaineVersion == 1 ? $"PC-{request.CodeArticleSage}" : $"PC-{request.CodeArticleSage}-V{prochaineVersion}";
-
-        try
-        {
-            await _repository.AddPlanAsync(nouveauPlan);
-            await _repository.SaveChangesAsync();
-        }
-        catch (ConflitConcurrenceException)
-        {
-            var draft = await _repository.GetBrouillonLePlusRecentAsync(request.CodeArticleSage, modeleSourceId, request.OperationCode);
-            if (draft != null) return draft.Id;
-            throw;
-        }
-
-        return nouveauPlan.Id;
+        return plan;
     }
 
-    // ⚠️ NOUVELLE MÉTHODE : Suppression Physique (Hard Delete)
+    protected override async Task ApplierMiseAJourDraftAsync(PlanFabEntete plan, NouvelleVersionRequestDto dto, string user)
+    {
+        plan.Remarques = dto.Remarques;
+        plan.LegendeMoyens = dto.LegendeMoyens;
+        plan.CommentaireVersion = dto.MotifModification;
+        plan.ModifiePar = user;
+        plan.ModifieLe = DateTime.UtcNow;
+
+        if (dto.SectionsModifiees != null && dto.SectionsModifiees.Any())
+        {
+            await MettreAJourSectionsAsync(plan, dto.SectionsModifiees, user);
+        }
+    }
+
+    protected override async Task PersisterEntiteAsync(PlanFabEntete plan)
+    {
+        await _repository.AddPlanAsync(plan);
+    }
+
+    protected override async Task<int> CalculerNouvelleVersionAsync(PlanFabEntete plan)
+        => await _repository.GetDerniereVersionPlanAsync(plan.CodeArticleSage, plan.OperationCode) + 1;
+
+    protected override async Task<PlanFabEntete> CreerNouvelleVersionEntiteAsync(
+        PlanFabEntete ancienPlan,
+        NouvelleVersionRequestDto dto,
+        int nouvelleVersion,
+        string user)
+    {
+        var commentaire = dto.MotifModification;
+        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(
+            ancienPlan,
+            ancienPlan.CodeArticleSage,
+            ancienPlan.Designation ?? $"Copy-{ancienPlan.Id}",
+            user,
+            commentaire);
+
+        nouveauPlan.Remarques = dto.Remarques;
+        nouveauPlan.LegendeMoyens = dto.LegendeMoyens;
+        nouveauPlan.Version = nouvelleVersion;
+        nouveauPlan.Nom = string.IsNullOrWhiteSpace(nouveauPlan.Nom)
+            ? (nouvelleVersion == 1 ? $"PC-{ancienPlan.CodeArticleSage}" : $"PC-{ancienPlan.CodeArticleSage}-V{nouvelleVersion}")
+            : ModeleFabricationMapper.IncrementerSuffixeVersion(nouveauPlan.Nom, nouvelleVersion);
+
+        return await Task.FromResult(nouveauPlan);
+    }
+
+    protected override async Task<PlanFabEntete?> ObtenirBrouillonExistantAsync(CreatePlanRequestDto dto)
+    {
+        var modeleSourceId = dto.ModeleSourceId.HasValue && dto.ModeleSourceId.Value != Guid.Empty
+            ? dto.ModeleSourceId : null;
+        return await _repository.GetBrouillonLePlusRecentAsync(dto.CodeArticleSage, modeleSourceId, dto.OperationCode);
+    }
+
+    // ==================== HOOK: Archiver plan actif avant activation ====================
+
+    protected override async Task HandleVersioningBeforeActivationAsync(PlanFabEntete plan, string user)
+    {
+        await ArchiverPlanActifExistantAsync(plan.CodeArticleSage, plan.OperationCode, user);
+        await _unitOfWork.CommitAsync();
+    }
+
+    // ==================== PUBLIC API (métier spécifique FAB) ====================
+
+    public async Task<Guid> InstancierPlanDepuisModeleAsync(CreatePlanRequestDto request)
+    {
+        // On délègue maintenant proprement à la classe de base qui gère :
+        // - La détection de brouillon existant (via ObtenirBrouillonExistantAsync)
+        // - Les conflits de concurrence
+        // - L'initialisation du statut
+        return await CreerBrouillonAsync(request, "SYSTEM");
+    }
+
     public async Task<bool> SupprimerBrouillonAsync(Guid planId)
     {
         var plan = await _repository.GetPlanByIdAsync(planId);
-        
         if (plan == null) return false;
-
         if (plan.Statut != StatutsPlan.Brouillon)
-        {
             throw new InvalidOperationException("Impossible de supprimer ce plan : seul un BROUILLON peut être détruit physiquement.");
-        }
 
         _repository.Delete(plan);
         await _repository.SaveChangesAsync();
-        
         return true;
     }
 
@@ -110,7 +170,6 @@ public class PlanFabricationService : IPlanFabricationService
     {
         var plan = await _repository.GetPlanAvecRelationsAsync(planId);
         if (plan == null) throw new PlanIntrouvableException(planId);
-
         return PlanFabricationMapper.MapperEntitePlanVersDto(plan);
     }
 
@@ -122,108 +181,38 @@ public class PlanFabricationService : IPlanFabricationService
         plan.ModifiePar = modifiePar ?? "SYSTEM";
         plan.ModifieLe = DateTime.UtcNow;
 
-        // Mise à jour du nom personnalisé manuellement saisi
-        if (!string.IsNullOrWhiteSpace(nom))
-        {
-            plan.Nom = nom;
-        }
+        if (!string.IsNullOrWhiteSpace(nom)) plan.Nom = nom;
+        if (legendeMoyens is not null) plan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
+        if (remarques is not null) plan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
 
-        // Mise à jour des autres valeurs du plan existant avec les nouvelles valeurs
-        if (legendeMoyens is not null)
-        {
-            plan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
-        }
-
-        if (remarques is not null)
-        {
-            plan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
-        }
-
-        var sectionsAconserver = new List<PlanFabSection>();
-
-        foreach (var secDto in sectionsModifiees)
-        {
-            var section = secDto.Id.HasValue ? plan.PlanFabSections.FirstOrDefault(s => s.Id == secDto.Id.Value) : null;
-
-            if (section != null)
-            {
-                section.OrdreAffiche = secDto.OrdreAffiche;
-                section.LibelleSection = secDto.LibelleSection ?? section.LibelleSection;
-                section.FrequenceLibelle = string.IsNullOrWhiteSpace(secDto.FrequenceLibelle) ? null : secDto.FrequenceLibelle;
-            }
-            else
-            {
-                section = PlanFabricationMapper.ConstruireNouvelleSectionPlan(planId, secDto);
-                plan.PlanFabSections.Add(section);
-            }
-
-            sectionsAconserver.Add(section);
-
-            var lignesAconserver = new List<PlanFabLigne>();
-            foreach (var ligDto in secDto.Lignes)
-            {
-                var ligne = ligDto.Id.HasValue ? section.PlanFabLignes.FirstOrDefault(l => l.Id == ligDto.Id.Value) : null;
-
-                if (ligne != null)
-                {
-                    PlanFabricationMapper.MettreAJourEntiteLigne(ligne, ligDto);
-                    ligne.OrdreAffiche = ligDto.OrdreAffiche;
-                }
-                else
-                {
-                    ligne = PlanFabricationMapper.ConstruireNouvelleLignePlan(planId, section.Id, ligDto);
-                    section.PlanFabLignes.Add(ligne);
-                }
-                lignesAconserver.Add(ligne);
-            }
-
-            var lignesASupprimer = section.PlanFabLignes.Where(l => !lignesAconserver.Contains(l)).ToList();
-            foreach (var l in lignesASupprimer) 
-            {
-                section.PlanFabLignes.Remove(l);
-                _repository.DeleteLigne(l); // Oblige EF Core à supprimer l'entité
-            }
-        }
-
-        var sectionsASupprimer = plan.PlanFabSections.Where(s => !sectionsAconserver.Contains(s)).ToList();
-        foreach (var s in sectionsASupprimer) 
-        {
-            plan.PlanFabSections.Remove(s);
-            _repository.DeleteSection(s); // Oblige EF Core à supprimer l'entité
-        }
+        await MettreAJourSectionsAsync(plan, sectionsModifiees, plan.ModifiePar);
 
         if (plan.Statut == StatutsPlan.Brouillon && finaliser)
         {
-             // Validation stricte avant d'activer le plan
-             await ValiderPlanPourActivationAsync(plan);
+            await ValiderPlanPourActivationAsync(plan);
+            await ArchiverPlanActifExistantAsync(plan.CodeArticleSage, plan.OperationCode, plan.ModifiePar ?? "SYSTEM");
+            await _repository.SaveChangesAsync();
 
-             await ArchiverPlanActifExistantAsync(plan.CodeArticleSage, plan.OperationCode, plan.ModifiePar ?? "SYSTEM");
-             await _repository.SaveChangesAsync();
+            plan.Statut = StatutsPlan.Actif;
+            plan.DateApplication = DateOnly.FromDateTime(DateTime.UtcNow);
 
-             plan.Statut = StatutsPlan.Actif;
-             plan.DateApplication = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (string.IsNullOrWhiteSpace(plan.Nom))
+                plan.Nom = plan.Version == 1 ? $"PC-{plan.CodeArticleSage}" : $"PC-{plan.CodeArticleSage}-V{plan.Version}";
+        }
 
-             if (string.IsNullOrWhiteSpace(plan.Nom))
-             {
-                 plan.Nom = plan.Version == 1 ? $"PC-{plan.CodeArticleSage}" : $"PC-{plan.CodeArticleSage}-V{plan.Version}";
-             }
-         }
-
-         await _repository.SaveChangesAsync();
-         return true;
+        await _repository.SaveChangesAsync();
+        return true;
     }
 
     public async Task<bool> ChangerStatutPlanAsync(Guid planId, ChangePlanStatusRequestDto request, string modifiePar)
     {
         var plan = await _repository.GetPlanByIdAsync(planId);
         if (plan == null) throw new PlanIntrouvableException(planId);
-
         if (plan.Statut == request.NouveauStatut) return false;
 
         plan.Statut = request.NouveauStatut;
         plan.ModifiePar = SecuriserNomAuteur(modifiePar);
         plan.ModifieLe = DateTime.UtcNow;
-
         if (!string.IsNullOrEmpty(request.Motif)) plan.CommentaireVersion = request.Motif;
 
         await _repository.SaveChangesAsync();
@@ -241,16 +230,11 @@ public class PlanFabricationService : IPlanFabricationService
         var planSource = await _repository.GetPlanAvecRelationsAsync(request.PlanExistantId);
         if (planSource == null) throw new PlanIntrouvableException(request.PlanExistantId);
 
-        // <-- Reprise silencieuse d'un brouillon existant de Clone (évite le conflit autosave simultané)
         var brouillonExistant = await _repository.GetBrouillonLePlusRecentAsync(request.NouveauCodeArticleSage, planSource.ModeleSourceId, planSource.OperationCode);
-        if (brouillonExistant != null)
-        {
-            return brouillonExistant.Id; 
-        }
+        if (brouillonExistant != null) return brouillonExistant.Id;
 
         var planClone = PlanFabricationMapper.DupliquerEntitePlan(planSource, request.NouveauCodeArticleSage, designationSage, SecuriserNomAuteur(request.CreePar));
 
-        // Prendre la version max relative à cette opération uniquement
         var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(request.NouveauCodeArticleSage, planSource.OperationCode) + 1;
         planClone.Version = prochaineVersion;
         planClone.Nom = prochaineVersion == 1 ? $"PC-{request.NouveauCodeArticleSage}" : $"PC-{request.NouveauCodeArticleSage}-V{prochaineVersion}";
@@ -260,7 +244,7 @@ public class PlanFabricationService : IPlanFabricationService
             await _repository.AddPlanAsync(planClone);
             await _repository.SaveChangesAsync();
         }
-        catch (ConflitConcurrenceException) // Filet de sécurité si UI/autosave force un doublon
+        catch (ConflitConcurrenceException)
         {
             var draft = await _repository.GetBrouillonLePlusRecentAsync(request.NouveauCodeArticleSage, planSource.ModeleSourceId, planSource.OperationCode);
             if (draft != null) return draft.Id;
@@ -277,22 +261,13 @@ public class PlanFabricationService : IPlanFabricationService
         if (ancienPlan.Statut == StatutsPlan.Archive) throw new PlanArchiveException();
         if (ancienPlan.Statut != StatutsPlan.Actif) throw new PlanSourceNonActifException(request.AncienId);
 
+        // Reprise silencieuse d'un brouillon existant
         var brouillonExistant = await _repository.GetBrouillonLePlusRecentAsync(ancienPlan.CodeArticleSage, ancienPlan.ModeleSourceId, ancienPlan.OperationCode);
-        if (brouillonExistant != null)
-        {
-            return brouillonExistant.Id;
-        }
+        if (brouillonExistant != null) return brouillonExistant.Id;
 
-        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(ancienPlan, ancienPlan.CodeArticleSage, ancienPlan.Designation ?? $"Copy-{ancienPlan.Id}", SecuriserNomAuteur(request.ModifiePar), request.MotifModification);
-        
-        nouveauPlan.Remarques = request.Remarques;
-        nouveauPlan.LegendeMoyens = request.LegendeMoyens;
-
-        var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode) + 1;
-        nouveauPlan.Version = prochaineVersion;
-        nouveauPlan.Nom = string.IsNullOrWhiteSpace(nouveauPlan.Nom)
-            ? (prochaineVersion == 1 ? $"PC-{ancienPlan.CodeArticleSage}" : $"PC-{ancienPlan.CodeArticleSage}-V{prochaineVersion}")
-            : ModeleFabricationMapper.IncrementerSuffixeVersion(nouveauPlan.Nom, prochaineVersion);
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan);
+        var nouveauPlan = await CreerNouvelleVersionEntiteAsync(ancienPlan, request, nouvelleVersion, SecuriserNomAuteur(request.ModifiePar));
+        nouveauPlan.Statut = StatutsPlan.Brouillon;
 
         try
         {
@@ -311,30 +286,15 @@ public class PlanFabricationService : IPlanFabricationService
 
     public async Task<Guid> RestaurerPlanArchiveAsync(RestaurerPlanRequestDto request)
     {
-        var planArchive = await _repository.GetPlanAvecRelationsAsync(request.PlanArchiveId);
-        if (planArchive == null) throw new PlanIntrouvableException(request.PlanArchiveId);
-        if (planArchive.Statut != StatutsPlan.Archive) throw new Exception("Seul un plan archivé peut être restauré.");
+        var dto = new NouvelleVersionRequestDto
+        {
+            AncienId = request.PlanArchiveId,
+            ModifiePar = request.RestaurePar,
+            MotifModification = $"[Restauré depuis archive] {request.MotifRestoration}"
+        };
 
-        var auteurSecure = SecuriserNomAuteur(request.RestaurePar);
-        
-        await ArchiverPlanActifExistantAsync(planArchive.CodeArticleSage, planArchive.OperationCode, auteurSecure, $"Archivé suite à la restauration de la version: {planArchive.Id}");
-        
-        var commentaireResto = $"[Restauré depuis archive] {request.MotifRestoration}";
-        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, auteurSecure, commentaireResto);
-
-        var prochaineVersion = await _repository.GetDerniereVersionPlanAsync(planArchive.CodeArticleSage, planArchive.OperationCode) + 1;
-        nouveauPlan.Version = prochaineVersion;
-        nouveauPlan.Nom = string.IsNullOrWhiteSpace(nouveauPlan.Nom)
-            ? (prochaineVersion == 1 ? $"PC-{planArchive.CodeArticleSage}" : $"PC-{planArchive.CodeArticleSage}-V{prochaineVersion}")
-            : ModeleFabricationMapper.IncrementerSuffixeVersion(nouveauPlan.Nom, prochaineVersion);
-
-        nouveauPlan.Statut = StatutsPlan.Actif;
-        nouveauPlan.DateApplication = DateOnly.FromDateTime(DateTime.UtcNow);
-
-        await _repository.AddPlanAsync(nouveauPlan);
-        await _repository.SaveChangesAsync();
-
-        return nouveauPlan.Id;
+        // Délègue à BasePlanArticleLifecycleService.RestaurerPlanArchiveAsync
+        return await RestaurerPlanArchiveAsync(request.PlanArchiveId, dto, request.RestaurePar);
     }
 
     public async Task<IReadOnlyList<PlanResponseDto>> GetPlansByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode)
@@ -343,18 +303,71 @@ public class PlanFabricationService : IPlanFabricationService
         return plans.Select(PlanFabricationMapper.MapperEntitePlanVersDto).ToList();
     }
 
-    private string SecuriserNomAuteur(string auteur) => string.IsNullOrWhiteSpace(auteur) ? "SYSTEM" : (auteur.Length > 20 ? auteur[..20] : auteur);
+    // ==================== PRIVATE HELPERS ====================
+
+    private async Task MettreAJourSectionsAsync(PlanFabEntete plan, List<SectionEditDto> sectionsModifiees, string user)
+    {
+        var sectionsAconserver = new List<PlanFabSection>();
+
+        foreach (var secDto in sectionsModifiees)
+        {
+            var section = secDto.Id.HasValue ? plan.PlanFabSections.FirstOrDefault(s => s.Id == secDto.Id.Value) : null;
+
+            if (section != null)
+            {
+                section.OrdreAffiche = secDto.OrdreAffiche;
+                section.LibelleSection = secDto.LibelleSection ?? section.LibelleSection;
+                section.FrequenceLibelle = string.IsNullOrWhiteSpace(secDto.FrequenceLibelle) ? null : secDto.FrequenceLibelle;
+            }
+            else
+            {
+                section = PlanFabricationMapper.ConstruireNouvelleSectionPlan(plan.Id, secDto);
+                plan.PlanFabSections.Add(section);
+            }
+
+            sectionsAconserver.Add(section);
+
+            var lignesAconserver = new List<PlanFabLigne>();
+            foreach (var ligDto in secDto.Lignes)
+            {
+                var ligne = ligDto.Id.HasValue ? section.PlanFabLignes.FirstOrDefault(l => l.Id == ligDto.Id.Value) : null;
+
+                if (ligne != null)
+                {
+                    PlanFabricationMapper.MettreAJourEntiteLigne(ligne, ligDto);
+                    ligne.OrdreAffiche = ligDto.OrdreAffiche;
+                }
+                else
+                {
+                    ligne = PlanFabricationMapper.ConstruireNouvelleLignePlan(plan.Id, section.Id, ligDto);
+                    section.PlanFabLignes.Add(ligne);
+                }
+                lignesAconserver.Add(ligne);
+            }
+
+            var lignesASupprimer = section.PlanFabLignes.Where(l => !lignesAconserver.Contains(l)).ToList();
+            foreach (var l in lignesASupprimer)
+            {
+                section.PlanFabLignes.Remove(l);
+                _repository.DeleteLigne(l);
+            }
+        }
+
+        var sectionsASupprimer = plan.PlanFabSections.Where(s => !sectionsAconserver.Contains(s)).ToList();
+        foreach (var s in sectionsASupprimer)
+        {
+            plan.PlanFabSections.Remove(s);
+            _repository.DeleteSection(s);
+        }
+    }
 
     private async Task ValiderPlanPourActivationAsync(PlanFabEntete plan)
     {
         var validationResult = await _planActivationValidator.ValidateAsync(plan);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.Errors);
-        }
+        if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
     }
 
-    private async Task ArchiverPlanActifExistantAsync(string codeArticleSage, string operationCode, string auteur, string commentaireVersion = null)
+    private async Task ArchiverPlanActifExistantAsync(string codeArticleSage, string? operationCode, string auteur, string? commentaireVersion = null)
     {
         var planActifExiste = await _repository.GetPlanActifPourArticleEtOperationAsync(codeArticleSage, operationCode);
         if (planActifExiste != null)
@@ -365,4 +378,4 @@ public class PlanFabricationService : IPlanFabricationService
             if (commentaireVersion != null) planActifExiste.CommentaireVersion = commentaireVersion;
         }
     }
-}
+}

@@ -28,12 +28,12 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "FAB",
-                m.Libelle,
-                m.NatureComposantCode,
-                m.TypeRobinetCode,
+                m.Libelle ?? "Modèle Sans Nom",
+                m.NatureComposantCode ?? "N/A",
+                m.TypeRobinetCode ?? "N/A",
                 m.OperationCode ?? "N/A",
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Gabarit de fabrication générique."))
             .ToListAsync();
         result.AddRange(fabModeles);
@@ -45,12 +45,12 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "ASS",
-                m.Nom,
+                m.Nom ?? "Plan Sans Nom",
                 "N/A",
-                m.TypeRobinetCode,
-                m.OperationCode,
+                m.TypeRobinetCode ?? "N/A",
+                m.OperationCode ?? "N/A",
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Plan Maître d'assemblage."))
             .ToListAsync();
         result.AddRange(assModeles);
@@ -61,12 +61,12 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "VM",
-                m.Nom,
+                m.Nom ?? "Machine Sans Nom",
                 "MACHINE",
                 "VM",
-                m.MachineCode,
+                m.MachineCode ?? "N/A",
                 m.Version ?? 1,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Vérification des étalons machines."))
             .ToListAsync();
         result.AddRange(vmModeles);
@@ -79,10 +79,10 @@ public class HubService : IHubService
                 "ECH",
                 "Plan Global",
                 "N/A",
-                m.TypePlan,
+                m.TypePlan ?? "N/A",
                 "NQA " + n.ValeurNqa,
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Niveau de contrôle: " + m.NiveauControle))
             .ToListAsync();
         result.AddRange(echModeles);
@@ -96,10 +96,10 @@ public class HubService : IHubService
                 "PF",
                 string.IsNullOrWhiteSpace(m.Designation) ? $"Plan PF {m.TypeRobinetCode}" : m.Designation,
                 "PRODUIT FINI",
-                m.TypeRobinetCode,
+                m.TypeRobinetCode ?? "N/A",
                 "CONTRÔLE FINAL",
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Gabarit de contrôle final."))
             .ToListAsync();
         result.AddRange(pfModeles);
@@ -110,12 +110,12 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RC",
-                m.Nom,
+                m.Nom ?? "Fiche Sans Nom",
                 "POSTE",
                 "RC",
-                m.PosteCode,
+                m.PosteCode ?? "N/A",
                 m.Version ?? 1,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Fiche de contrôle par poste de travail."))
             .ToListAsync();
         result.AddRange(ncModeles);

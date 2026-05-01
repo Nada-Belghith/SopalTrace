@@ -1,4 +1,4 @@
-﻿using SopalTrace.Application.DTOs.QualityPlans.Modeles;
+using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -9,6 +9,9 @@ public interface IModeleFabricationService
 {
     Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode);
     Task<Guid> CreerModeleAsync(CreateModeleRequestDto request);
+    Task UpdateModeleBrouillonAsync(Guid id, CreateModeleRequestDto request);
+    Task ActiverModeleAsync(Guid id, string user);
+    Task<bool> SupprimerBrouillonAsync(Guid id);
     Task<ModeleResponseDto> GetModeleByIdAsync(Guid modeleId);
     Task<Guid> CreerNouvelleVersionModeleAsync(NouvelleVersionModeleRequestDto request);
     Task<Guid> RestaurerModeleArchiveAsync(RestaurerModeleRequestDto request);

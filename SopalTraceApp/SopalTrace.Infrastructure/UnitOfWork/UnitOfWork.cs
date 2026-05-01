@@ -40,6 +40,10 @@ public class UnitOfWork : IUnitOfWork
     public IPlanEchanRepository PlanEchanRepository
         => _planEchanRepository ??= new PlanEchanRepository(_context);
 
+    private IDictionnaireQualiteRepository? _dictionnaireQualiteRepository;
+    public IDictionnaireQualiteRepository DictionnaireQualiteRepository
+        => _dictionnaireQualiteRepository ??= new DictionnaireQualiteRepository(_context);
+
     public async Task BeginTransactionAsync()
     {
         _transaction = await _context.Database.BeginTransactionAsync();

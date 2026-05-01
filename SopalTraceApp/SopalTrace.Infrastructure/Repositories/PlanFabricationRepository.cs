@@ -53,6 +53,11 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         await _context.ModeleFabEntetes.AddAsync(modele);
     }
 
+    public void DeleteModele(ModeleFabEntete modele)
+    {
+        _context.ModeleFabEntetes.Remove(modele);
+    }
+
     public async Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage)
     {
         return await _context.PlanFabEntetes.AnyAsync(p => p.CodeArticleSage == codeArticleSage && p.Statut == StatutsPlan.Actif);
@@ -235,15 +240,26 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         return await _context.ModeleFabEntetes.FindAsync(modeleId);
     }
 
-    public async Task<int> GetDerniereVersionModeleAsync(string typeRobinetCode, string natureCode, string operationCode)
+    public async Task<int> GetDerniereVersionModeleAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
     {
         return await _context.ModeleFabEntetes
-            .Where(m => m.TypeRobinetCode == typeRobinetCode
-                        && m.NatureComposantCode == natureCode
-                        && m.OperationCode == operationCode
+            .Where(m => (typeRobinetCode == null || m.TypeRobinetCode == typeRobinetCode)
+                        && (natureCode == null || m.NatureComposantCode == natureCode)
+                        && (operationCode == null || m.OperationCode == operationCode)
                         && (m.Statut == StatutsPlan.Brouillon || m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive))
             .Select(m => (int?)m.Version)
             .MaxAsync() ?? 0;
+    }
+
+    public async Task<ModeleFabEntete?> GetBrouillonModeleLePlusRecentAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
+    {
+        return await _context.ModeleFabEntetes
+            .Where(m => (typeRobinetCode == null || m.TypeRobinetCode == typeRobinetCode)
+                        && (natureCode == null || m.NatureComposantCode == natureCode)
+                        && (operationCode == null || m.OperationCode == operationCode)
+                        && m.Statut == StatutsPlan.Brouillon)
+            .OrderByDescending(m => m.Version)
+            .FirstOrDefaultAsync();
     }
 
     public async Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null)
@@ -271,12 +287,12 @@ public class PlanFabricationRepository : IPlanFabricationRepository
             m.Statut == StatutsPlan.Actif);
     }
 
-    public async Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string typeRobinetCode, string natureComposantCode, string opCode)
+    public async Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string? typeRobinetCode, string? natureComposantCode, string? opCode)
     {
         return await _context.ModeleFabEntetes
-            .FirstOrDefaultAsync(m => m.TypeRobinetCode == typeRobinetCode
-                               && m.NatureComposantCode == natureComposantCode
-                               && m.OperationCode == opCode
+            .FirstOrDefaultAsync(m => (typeRobinetCode == null || m.TypeRobinetCode == typeRobinetCode)
+                               && (natureComposantCode == null || m.NatureComposantCode == natureComposantCode)
+                               && (opCode == null || m.OperationCode == opCode)
                                && m.Statut == StatutsPlan.Actif);
     }
 

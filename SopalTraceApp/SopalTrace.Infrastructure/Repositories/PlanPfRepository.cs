@@ -64,6 +64,12 @@ public class PlanPfRepository : IPlanPfRepository
             .AnyAsync(p => p.TypeRobinetCode == typeRobinetCode && p.Statut != StatutsPlan.Archive);
     }
 
+    public async Task<PlanPfEntete?> GetDraftPlanByTypeRobinetAsync(string typeRobinetCode)
+    {
+        return await _context.PlanPfEntetes
+            .FirstOrDefaultAsync(p => p.TypeRobinetCode == typeRobinetCode && p.Statut == StatutsPlan.Brouillon);
+    }
+
     public async Task AddPlanAsync(PlanPfEntete plan)
     {
         _context.PlanPfEntetes.Add(plan);
@@ -87,9 +93,10 @@ public class PlanPfRepository : IPlanPfRepository
             .ToListAsync();
     }
 
-    public async Task UpdatePlanAsync(PlanPfEntete plan)
+    public Task UpdatePlanAsync(PlanPfEntete plan)
     {
         _context.PlanPfEntetes.Update(plan);
+        return Task.CompletedTask;
     }
 
     public async Task<int> GetDerniereVersionPlanAsync(string typeRobinetCode)
@@ -111,5 +118,10 @@ public class PlanPfRepository : IPlanPfRepository
     public void ClearTracking()
     {
         _context.ChangeTracker.Clear();
+    }
+
+    public void DeletePlan(PlanPfEntete plan)
+    {
+        _context.PlanPfEntetes.Remove(plan);
     }
 }
