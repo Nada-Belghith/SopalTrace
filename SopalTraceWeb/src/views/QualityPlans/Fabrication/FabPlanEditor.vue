@@ -995,7 +995,7 @@
 
       const payload = sectionsPreparees.map((s, idx) => {
         const originalSection = sections.value[idx];
-        const tsMatch = store.typesSection.find(t => t.id === s.typeSectionId);
+        // const tsMatch = store.typesSection.find(t => t.id === s.typeSectionId);
 
         const lignesMappees = (s.lignes || []).map((l, lIdx) => {
           const originalLigne = originalSection.lignes[lIdx];
@@ -1119,7 +1119,7 @@
 
       const payload = sectionsPreparees.map((s, idx) => {
         const originalSection = sections.value[idx];
-        const tsMatch = store.typesSection.find(t => t.id === (s.typeSectionId || originalSection.typeSectionId));
+        // const tsMatch = store.typesSection.find(t => t.id === (s.typeSectionId || originalSection.typeSectionId));
         
         const typeSectionId = s.typeSectionId || originalSection.typeSectionId;
         const regleEchId = s.regleEchantillonnageId || originalSection.regleEchantillonnageId;

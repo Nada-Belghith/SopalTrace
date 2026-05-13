@@ -89,7 +89,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(section, index) in sections" :key="section.id" class="border-b hover:bg-slate-50">
+                  <tr v-for="section in sections" :key="section.id" class="border-b hover:bg-slate-50">
                     <td class="px-4 py-3">{{ section.nom || 'Sans titre' }}</td>
                     <td class="px-4 py-3">{{ section.typeSection || '-' }}</td>
                     <td class="px-4 py-3">{{ section.periodicite || '-' }}</td>

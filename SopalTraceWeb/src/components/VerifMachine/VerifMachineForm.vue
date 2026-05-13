@@ -578,7 +578,7 @@ const totalColumns = computed(() => {
   return count;
 });
 
-const nouvelleFamille = ref('');
+
 
 // Computed : est-ce qu'on affiche les en-têtes de familles ?
 const hasFamilleHeaders = computed(() => store.entete.afficheFamilles && store.familles.length > 0);

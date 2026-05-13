@@ -126,7 +126,7 @@ const handleLogin = async () => {
 
     // Redirection intelligente
     router.push('/');
-  } catch (err) {
+  } catch {
     // L'erreur est gérée dans le store
   }
 };

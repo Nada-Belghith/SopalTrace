@@ -569,7 +569,7 @@ const sauvegarderDirectement = async () => {
   store.isLoading = true;
   try {
     store.sections = await preparerDonneesEtFrequences();
-    const id = await store.saveModele(store.entete.legendeMoyens);
+    await store.saveModele(store.entete.legendeMoyens);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle créé et activé !', life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);

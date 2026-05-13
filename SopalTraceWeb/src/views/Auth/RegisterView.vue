@@ -167,7 +167,7 @@ const handleRegister = async () => {
     });
 
     router.push('/');
-  } catch (err) {
+  } catch {
     // Erreur gérée par le store
   }
 };

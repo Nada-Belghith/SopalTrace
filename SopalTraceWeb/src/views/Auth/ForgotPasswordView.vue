@@ -170,7 +170,7 @@ const handleForgot = async () => {
       life: 5000
     });
     step.value = 2;
-  } catch (err) {
+  } catch {
     // Erreur gérée par le store
   }
 };
@@ -195,7 +195,7 @@ const handleReset = async () => {
       life: 3000
     });
     router.push('/login');
-  } catch (err) {
+  } catch {
     // Erreur gérée par le store
   }
 };
