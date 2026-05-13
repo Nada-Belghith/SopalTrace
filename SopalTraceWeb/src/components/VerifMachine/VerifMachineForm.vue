@@ -535,7 +535,7 @@ const isArchitectureA = computed(() => {
   
   // Vérifie si dans un même risque, la même périodicité est utilisée par plusieurs méthodes (lignes)
   const byRisque = groupBy(store.lignesRisques, l => l.libelleRisque || '');
-  for (const [risque, lignes] of Object.entries(byRisque)) {
+  for (const [, lignes] of Object.entries(byRisque)) {
     if (lignes.length <= 1) continue;
     const perioMap = new Map();
     for (const ligne of lignes) {
@@ -583,28 +583,7 @@ const nouvelleFamille = ref('');
 // Computed : est-ce qu'on affiche les en-têtes de familles ?
 const hasFamilleHeaders = computed(() => store.entete.afficheFamilles && store.familles.length > 0);
 
-const combinedFamillesOptions = computed(() => {
-  const options = [];
-  
-  if (store.famillesCorps?.length > 0) {
-    options.push({ isGroup: true, label: 'FAMILLES DE CORPS' });
-    store.famillesCorps.forEach(f => {
-      options.push({ value: f.id, label: f.libelle });
-    });
-  }
 
-  if (store.piecesReference?.length > 0) {
-    const piecesFiltered = store.piecesReference.filter(p => p.typePiece === 'PRC' || p.typePiece === 'PRNC');
-    if (piecesFiltered.length > 0) {
-      options.push({ isGroup: true, label: 'PIÈCES DE RÉFÉRENCE (PRC / PRNC)' });
-      piecesFiltered.forEach(p => {
-        options.push({ value: p.id, label: `${p.code}` });
-      });
-    }
-  }
-
-  return options;
-});
 
 // --- Rowspan Helpers ---
 const getLigneTotalRows = (ligne) => {
@@ -628,8 +607,7 @@ const flattenedRowsRisques = computed(() => {
   if (isArchitectureA.value) {
     // Architecture A: Risque -> Methode -> Periodicite (Visual grouping of Risk name only)
     const byRisque = groupBy(store.lignesRisques, l => l.libelleRisque || '');
-    for (const [risque, lignes] of Object.entries(byRisque)) {
-       let rIdxRisque = 0;
+    for (const [, lignes] of Object.entries(byRisque)) {
        const allTuplesRisque = [];
 
        lignes.forEach(ligne => {
@@ -662,8 +640,7 @@ const flattenedRowsRisques = computed(() => {
   } else {
     // Architecture B: Risque -> Methode -> Periodicite
     const byRisque = groupBy(store.lignesRisques, l => l.libelleRisque || '');
-    for (const [risque, lignes] of Object.entries(byRisque)) {
-       let rIdxRisque = 0;
+    for (const [, lignes] of Object.entries(byRisque)) {
        const allTuplesRisque = [];
        lignes.forEach(ligne => {
           let mTuples = [];
@@ -712,12 +689,7 @@ const onUpdateRisqueName = (oldValue, newValue) => {
   });
 };
 
-const onUpdateMethodeName = (ligne, newValue) => {
-  // Pour la méthode, on ne propage généralement pas à tout le groupe Risque
-  // car un risque peut avoir plusieurs méthodes différentes.
-  // Mais si plusieurs lignes partagent le même UID de ligne (cas rare de duplication), on assure la cohérence.
-  ligne.libelleMethode = newValue;
-};
+
 
 // --- Fuite Étalon helpers ---
 // Cherche FEC en priorité, sinon FENC (ex: FUI 24 = FEC, FUI 25 = FENC)
@@ -873,12 +845,7 @@ const onMachineChange = async () => {
   else store.resetPlan();
 };
 
-const onAjouterFamille = () => {
-  if (nouvelleFamille.value) {
-    store.ajouterFamille(nouvelleFamille.value);
-    nouvelleFamille.value = '';
-  }
-};
+
 
 const emit = defineEmits(['saved']);
 const onSauvegarder = async () => {

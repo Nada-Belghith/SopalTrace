@@ -197,7 +197,7 @@ public class PlanAssService : IPlanAssService
     /// <summary>
     /// Met à jour les valeurs d'un plan (sections et lignes)
     /// </summary>
-    public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionAssEditDto> sectionsModifiees, bool finaliser = true)
+    public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionAssEditDto> sectionsModifiees, bool finaliser)
     {
         _logger.LogInformation("Début de la mise à jour des valeurs du plan {PlanId}", planId);
 

@@ -143,9 +143,7 @@ const set100Percent = () => {
   emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
 };
 
-const periodesFixes = computed(() => (store.periodicites || []).filter(p => 
-  (p.frequenceNum === null || p.frequenceNum === undefined) && p.frequenceUnite !== 'MACHINE'
-));
+
 
 const apercu = computed(() => {
   const typeSec = (store.typesSection || []).find(ts => ts.id === localGroupe.value.typeSectionId);
@@ -186,7 +184,7 @@ const verifierVariables = () => {
   const groupe = localGroupe.value; 
   const typeSec = (store.typesSection || []).find(ts => ts.id === groupe.typeSectionId);
   
-  let titre = "";
+  let titre;
   if (typeSec) {
       titre = `Contrôle Produit Fini ${typeSec.libelle}`;
   } else {
