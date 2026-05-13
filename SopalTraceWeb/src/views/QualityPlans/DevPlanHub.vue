@@ -36,6 +36,7 @@
           <!-- Filtre Statut -->
           <div class="relative">
             <select v-model="vueActuelle" class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer">
+              <option value="ALL">Tous les statuts</option>
               <option value="ACTIF">Actifs</option>
               <option value="BROUILLON">Brouillons</option>
               <option value="ARCHIVE">Archivés</option>
@@ -130,7 +131,7 @@
           <div class="flex flex-wrap gap-1.5 mb-4">
             <span v-if="plan.nature && plan.nature !== 'N/A'"
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
-              <i class="pi pi-box text-[9px]"></i> {{ plan.nature }}
+              <i class="pi pi-box text-[9px]"></i> {{ (plan.category === 'RC' && plan.nature === 'POSTE') ? 'RÉSULTAT DE CONTRÔLE' : plan.nature }}
             </span>
             <span v-if="plan.type && plan.type !== 'N/A'"
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded">
@@ -280,9 +281,19 @@ const filteredPlans = computed(() => {
     const matchSearch = q === '' || libelle.includes(q) || designation.includes(q) || codeRef.includes(q);
 
     // 4. Filtre par Statut
-    const matchStatut = plan.statut === vueActuelle.value;
+    const matchStatut = vueActuelle.value === 'ALL' || plan.statut === vueActuelle.value;
 
     return matchTab && matchOp && matchSearch && matchStatut;
+  }).sort((a, b) => {
+    // Ordre de priorité: ACTIF > BROUILLON > ARCHIVE
+    const priorite = { 'ACTIF': 1, 'BROUILLON': 2, 'ARCHIVE': 3 };
+    const pA = priorite[a.statut] || 99;
+    const pB = priorite[b.statut] || 99;
+    
+    if (pA !== pB) return pA - pB;
+    
+    // Si même statut, trier par date ou libellé (ici libellé par défaut)
+    return (a.codeArticleSage || '').localeCompare(b.codeArticleSage || '');
   });
 });
 

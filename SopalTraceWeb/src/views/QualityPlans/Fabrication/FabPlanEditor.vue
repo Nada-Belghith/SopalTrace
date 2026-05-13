@@ -1103,7 +1103,7 @@
 
       if (!currentPlanId || currentPlanId === 'nouveau') return;
 
-      const sectionsPreparees = await prepareModeleDataAndFrequencies(sections.value, store.periodicites, async (payload) => {
+      await prepareModeleDataAndFrequencies(sections.value, store.periodicites, async (payload) => {
         const res = await qualityPlansService.createPeriodicite(payload);
         store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payload });
         return res;
