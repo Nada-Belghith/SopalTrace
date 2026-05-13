@@ -1214,6 +1214,9 @@ public class ExcelImportService : IExcelImportService
             string colB = SafeGetCellValue(row.Cell(2)).Trim(); // Machine / Banc d'essai
             string colC = SafeGetCellValue(row.Cell(3)).Trim(); // Désignation du défaut
 
+            // Sauter lignes sans numéro en Col A (lignes de résumé, totaux, etc.)
+            if (string.IsNullOrWhiteSpace(colA) || !int.TryParse(colA, out _)) continue;
+
             // Sauter lignes vides
             if (string.IsNullOrWhiteSpace(colB) && string.IsNullOrWhiteSpace(colC)) continue;
 

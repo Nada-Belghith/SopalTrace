@@ -283,6 +283,21 @@ public class HubService : IHubService
                 await _context.SaveChangesAsync();
                 return true;
             }
+            case "RC":
+            {
+                var plan = await _context.PlanNcEntetes
+                    .Include(p => p.PlanNcLignes)
+                    .FirstOrDefaultAsync(p => p.Id == id);
+
+                if (plan is null) return false;
+                if (plan.Statut != "BROUILLON") return false;
+
+                _context.PlanNcLignes.RemoveRange(plan.PlanNcLignes);
+                _context.PlanNcEntetes.Remove(plan);
+
+                await _context.SaveChangesAsync();
+                return true;
+            }
             default:
                 return false;
         }

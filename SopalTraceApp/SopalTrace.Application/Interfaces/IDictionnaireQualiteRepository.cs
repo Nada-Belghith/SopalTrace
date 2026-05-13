@@ -34,4 +34,8 @@ public interface IDictionnaireQualiteRepository
 
     Task<RefMoyenDetection> GetMoyenDetectionByLibelleAsync(string libelle);
     Task AddMoyenDetectionAsync(RefMoyenDetection entite);
+
+    Task<RisqueDefaut?> GetRisqueDefautByLibelleAsync(string libelle);
+    Task<RisqueDefaut?> GetRisqueDefautByCodeAsync(string code);
+    Task AddRisqueDefautAsync(RisqueDefaut entite);
 }

@@ -15,7 +15,7 @@ export const usePlanNcStore = defineStore('planNc', () => {
     posteCode: '',
     nom: '',
     version: 1,
-    statut: 'BROUILLON',
+    statut: 'ACTIF',
     remarques: '',
     legendeMoyens: '',
   });
@@ -46,6 +46,7 @@ export const usePlanNcStore = defineStore('planNc', () => {
         Id: l.id,
         MachineCode: l.machineCode,
         RisqueDefautId: l.risqueDefautId,
+        LibelleDefaut: l._libelleDefautBrut || (risquesDefauts.value.find(r => r.id === l.risqueDefautId)?.libelle) || '',
         OrdreAffiche: idx + 1
       }))
     };
@@ -112,21 +113,18 @@ export const usePlanNcStore = defineStore('planNc', () => {
       posteCode,
       nom: `Fiche de Contrôle - ${p?.libelle || posteCode}`,
       version: 1,
-      statut: 'BROUILLON',
+      statut: 'ACTIF',
     };
     lignes.value = [];
-    ajouterLigne();
+    // On ne pré-initialise plus de ligne par défaut
     planInitialise.value = true;
   };
 
   const ajouterLigne = () => {
-    // On présélectionne la première machine du poste si possible
-    const machinesDuPoste = machines.value.filter(m => m.posteCode === entete.value.posteCode);
-    
     lignes.value.push({
       _uid: uuidv4(),
       id: null,
-      machineCode: machinesDuPoste[0]?.code || '',
+      machineCode: '', // Ne pas pré-remplir
       risqueDefautId: null,
       ordreAffiche: lignes.value.length + 1
     });
@@ -188,7 +186,7 @@ export const usePlanNcStore = defineStore('planNc', () => {
       posteCode: '',
       nom: '',
       version: 1,
-      statut: 'BROUILLON',
+      statut: 'ACTIF',
       remarques: '',
       legendeMoyens: '',
     };

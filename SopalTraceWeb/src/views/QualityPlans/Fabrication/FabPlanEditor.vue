@@ -110,7 +110,8 @@
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
-            <template v-if="isEditMode && plan?.statut === 'BROUILLON' && !isForcedView">
+            <!-- Mode CRÉATION ou BROUILLON : 3 boutons (Annuler, Brouillon, Activer) -->
+            <template v-if="(planId === 'nouveau' || plan?.statut === 'BROUILLON') && !isForcedView">
               <div class="flex gap-4">
                 <button @click="onEditorCancel" class="px-5 py-2.5 text-slate-600 bg-white border border-slate-300 rounded-lg font-bold hover:bg-slate-50 transition-colors">
                   Annuler
@@ -127,10 +128,11 @@
                         class="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm font-bold">
                   <i v-if="isSaving && !isVersioningSaving" class="pi pi-spin pi-spinner"></i>
                   <i v-else class="pi pi-check-circle"></i>
-                  Activer le Plan
+                  Enregistrer & Activer le Plan
                 </button>
               </div>
             </template>
+            <!-- Mode ARCHIVE ou MISE À JOUR ACTIF : Bouton unique via EditorActions (Clonage/Version) -->
             <template v-else-if="!isForcedView">
               <EditorActions :label="editorLabel"
                              loading-label="Traitement..."
@@ -345,6 +347,45 @@
     isGeneratingPlan.value = false;
   };
 
+  // 🔥 SURVEILLANCE DES BROUILLONS EN AMONT
+  // Dès que le couple Article/Opération est saisi, on vérifie s'il y a un brouillon
+  watch([wizard.codeArticleSage, wizard.operationCode, wizard.posteCode], async ([code, op, poste]) => {
+    if (code && op && (!wizard.requiertPoste.value || poste)) {
+      try {
+        const res = await qualityPlansService.verifierEtatPlan(code, null, op, poste);
+        const etat = res.data;
+
+        if (etat.hasBrouillon) {
+          confirm.require({
+            message: `Un brouillon existe déjà pour cet article/opération. Voulez-vous reprendre le brouillon existant ou créer un nouveau plan ? (Note: Créer un nouveau supprimera définitivement le brouillon actuel).`,
+            header: 'Brouillon Existant',
+            icon: 'pi pi-copy text-amber-500',
+            acceptLabel: 'Reprendre le Brouillon',
+            rejectLabel: 'Créer un Nouveau',
+            acceptClass: 'p-button-warning',
+            rejectClass: 'p-button-secondary p-button-outlined',
+            accept: async () => {
+              planId.value = etat.brouillonId;
+              isFromWizard.value = true;
+              router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
+              await chargerPlan(etat.brouillonId);
+            },
+            reject: async () => {
+              try {
+                await qualityPlansService.deletePlan(etat.brouillonId);
+                toast.add({ severity: 'info', summary: 'Nouveau Plan', detail: 'Ancien brouillon supprimé. Vous pouvez choisir votre méthode.' });
+              } catch (err) {
+                console.error(err);
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Erreur check draft amont", err);
+      }
+    }
+  });
+
   const onWizardGenerate = async () => {
     if (isGeneratingPlan.value) return;
     isGeneratingPlan.value = true; // ⚠️ DÉCLENCHE LE BOUCLIER AUTOSAVE PENDANT L'EXÉCUTION
@@ -360,19 +401,15 @@
       const etat = resVal.data;
 
       if (etat.hasBrouillon) {
-        toast.add({ severity: 'info', summary: 'Reprise', detail: 'Un brouillon existe déjà pour cette opération. Reprise en cours...', life: 4000 });
-        planId.value = etat.brouillonId;
-        isFromWizard.value = true;
-        router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
-        await chargerPlan(etat.brouillonId);
-        isGeneratingPlan.value = false;
+        // Redondant car géré par le watcher plus haut, mais conservé par sécurité
+        return;
       } 
       else if (etat.hasActif) {
         confirm.require({
-          message: `Un plan ACTIF (Version ${etat.actifVersion}) tourne actuellement en production pour cette opération. Voulez-vous créer une nouvelle version ? L'ancienne sera archivée après activation de la nouvelle.`,
-          header: 'Confirmation',
-          icon: 'pi pi-exclamation-circle text-blue-500',
-          acceptLabel: 'Oui, Continuer',
+          message: `Un plan ACTIF (Version ${etat.actifVersion}) existe déjà pour cette opération. Voulez-vous créer un nouveau plan ? Si vous l'activez plus tard, le plan actuel sera automatiquement archivé.`,
+          header: 'Plan Actif Existant',
+          icon: 'pi pi-exclamation-triangle text-blue-500',
+          acceptLabel: 'Confirmer & Créer',
           rejectLabel: 'Annuler',
           acceptClass: 'p-button-primary',
           accept: async () => {
@@ -656,6 +693,17 @@
 
           isFromWizard.value = true;
           planId.value = 'nouveau';
+
+          // Initialisation du statut pour l'UI
+          plan.value = {
+            statut: 'BROUILLON',
+            codeArticleSage: parsedData.codeArticleSage || wizard.codeArticleSage.value,
+            designation: parsedData.designation || wizard.designationArticle.value,
+            operationCode: parsedData.operationCode || wizard.operationCode.value,
+            posteCode: wizard.posteCode.value || null,
+            version: 1
+          };
+
           toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Fichier Excel chargé en mémoire.', life: 3000 });
         }
       }
@@ -969,8 +1017,76 @@
     };
   };
 
+  const construirePayloadService = (isDraft) => {
+    return sections.value.map((originalSection, idx) => {
+      // 1. Calcul de la fréquence pour le libellé technique
+      let finalFrequenceLibelle = '';
+      if (originalSection.modeFreq === 'VARIABLE') {
+        const is100 = originalSection.freqNum === 100 && originalSection.typeVariable === 'HEURE';
+        if (is100) {
+          const p100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
+          finalFrequenceLibelle = p100 ? p100.libelle : "100% des pièces/h";
+        } else {
+          finalFrequenceLibelle = originalSection.frequenceLibelle || '';
+        }
+      } else if (originalSection.periodiciteId) {
+        finalFrequenceLibelle = (store.periodicites || []).find(p => p.id === originalSection.periodiciteId)?.libelle || '';
+      }
+
+      // 2. Libellé de règle d'échantillonnage
+      let regleEchLibelle = '';
+      const regleEchId = originalSection.regleEchantillonnageId;
+      if (regleEchId) {
+        regleEchLibelle = (store.reglesEchantillonnage || []).find(r => r.id === regleEchId)?.libelle || '';
+      }
+
+      const typeSectionId = originalSection.typeSectionId;
+
+      return {
+        id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
+        modeleSectionId: originalSection.modeleSectionId,
+        ordreAffiche: idx + 1,
+        typeSectionId: (typeSectionId && typeSectionId !== "") ? typeSectionId : null,
+        libelleSection: originalSection.nom || originalSection.libelleSection || 'SECTION SANS NOM',
+        notes: originalSection.notes || '',
+        frequenceLibelle: finalFrequenceLibelle,
+        regleEchantillonnageLibelle: regleEchLibelle,
+        periodiciteId: (originalSection.periodiciteId && originalSection.periodiciteId !== "") ? originalSection.periodiciteId : null,
+        regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
+        lignes: (originalSection.lignes || []).map((l, lIdx) => {
+          const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
+          const nomCaract = caractMatch?.libelle || 'Caractéristique sans nom';
+          
+          const mesurements = sanitizeMesurements(l, isDraft);
+          const hasNumeric = mesurements.valeurNominale != null || mesurements.toleranceInferieure != null || mesurements.toleranceSuperieure != null;
+          
+          return {
+            id: l.isFromDb ? normalizeId(l.id) : null,
+            modeleLigneSourceId: l.modeleLigneSourceId,
+            ordreAffiche: lIdx + 1,
+            typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
+            typeControleId: (l.typeControleId && l.typeControleId !== "") ? l.typeControleId : null,
+            moyenControleId: (l.moyenControleId && l.moyenControleId !== "") ? l.moyenControleId : null,
+            moyenTexteLibre: l.moyenTexteLibre || '',
+            instrumentCode: l.instrumentCode || '',
+            valeurNominale: hasNumeric ? mesurements.valeurNominale : null,
+            toleranceSuperieure: hasNumeric ? mesurements.toleranceSuperieure : null,
+            toleranceInferieure: hasNumeric ? mesurements.toleranceInferieure : null,
+            unite: l.unite || '',
+            limiteSpecTexte: !hasNumeric && l.limiteSpecTexte ? String(l.limiteSpecTexte).trim() : '',
+            instruction: l.instruction || '',
+            observations: l.observations || '',
+            estCritique: l.estCritique || false,
+            libelleAffiche: (l.libelleAffiche || nomCaract).trim()
+          };
+        })
+      };
+    });
+  };
+
   const sauvegarderBrouillonSilencieux = async (afficherToast = false, force = false) => {
-    if (!force && (isGeneratingPlan.value || isCanceling.value || isSaving.value || plan.value?.statut === 'ACTIF' || isArchived.value)) return;
+    // 🛡️ BLOCAGE DE SÉCURITÉ : Ne pas sauvegarder si on est en train de charger, de générer ou si on quitte
+    if (!force && (isLoadingData.value || isGeneratingPlan.value || isCanceling.value || isSaving.value || plan.value?.statut === 'ACTIF' || isArchived.value)) return;
 
     let currentPlanId = planId.value;
 
@@ -993,84 +1109,7 @@
         return res;
       });
 
-      const payload = sectionsPreparees.map((s, idx) => {
-        const originalSection = sections.value[idx];
-        // const tsMatch = store.typesSection.find(t => t.id === s.typeSectionId);
-
-        const lignesMappees = (s.lignes || []).map((l, lIdx) => {
-          const originalLigne = originalSection.lignes[lIdx];
-
-          // Prépare valeurs numériques en mode brouillon (préserver saisies partielles)
-          const mesurements = sanitizeMesurements(l, true);
-
-          // Si tolérances / valeur nominale numériques présentes => PRIORITÉ numérique
-          const hasNumeric = mesurements.valeurNominale != null || mesurements.toleranceInferieure != null || mesurements.toleranceSuperieure != null;
-
-          const valeurNominale = hasNumeric ? mesurements.valeurNominale : null;
-          const toleranceSuperieure = hasNumeric ? mesurements.toleranceSuperieure : null;
-          const toleranceInferieure = hasNumeric ? mesurements.toleranceInferieure : null;
-
-          // Limite texte n'est utilisée QUE si PAS de valeurs numériques (et si l'utilisateur a saisi un texte)
-          const limiteSpecTexte = !hasNumeric && l.limiteSpecTexte ? String(l.limiteSpecTexte).trim() : '';
-
-          const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
-          const nomCaract = caractMatch?.libelle || 'Caractéristique sans nom';
-
-          return {
-            id: originalLigne.isFromDb ? normalizeId(originalLigne.id) : null,
-            modeleLigneSourceId: l.modeleLigneSourceId,
-            ordreAffiche: lIdx + 1,
-            typeCaracteristiqueId: l.typeCaracteristiqueId || null,
-            typeControleId: l.typeControleId || null,
-            moyenControleId: l.moyenControleId || null,
-            instrumentCode: l.instrumentCode,
-            moyenTexteLibre: l.moyenTexteLibre,
-            valeurNominale: valeurNominale,
-            toleranceSuperieure: toleranceSuperieure,
-            toleranceInferieure: toleranceInferieure,
-            unite: l.unite || '',
-            limiteSpecTexte: limiteSpecTexte,
-            instruction: l.instruction || '',
-            observations: l.observations || '',
-            estCritique: l.estCritique,
-            libelleAffiche: (l.libelleAffiche || nomCaract).trim()
-          };
-        });
-
-        let finalFrequenceLibelle = '';
-        if (originalSection.modeFreq === 'VARIABLE') {
-          // ✅ CAS SPÉCIAL 100% : Si c'est 1 pce/h ou 100 pce/h, on utilise le libellé officiel
-          const is100 = originalSection.freqNum === 100 && 
-                       originalSection.typeVariable === 'HEURE' && 
-                       (originalSection.freqHours === 1 || !originalSection.freqHours);
-          
-          if (is100) {
-            const p100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
-            finalFrequenceLibelle = p100 ? p100.libelle : "100% des pièces/h";
-          } else if (originalSection.typeVariable === 'HEURE') {
-            finalFrequenceLibelle = `${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''} / ${originalSection.freqHours} heure${originalSection.freqHours > 1 ? 's' : ''}`;
-          } else {
-            finalFrequenceLibelle = `série de ${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''}`;
-          }
-        } else if (s.periodiciteId || originalSection.periodiciteId) {
-          finalFrequenceLibelle = store.periodicites.find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
-        }
-
-        const typeSectionId = s.typeSectionId || originalSection.typeSectionId;
-        const regleEchId = s.regleEchantillonnageId || originalSection.regleEchantillonnageId;
-
-        return {
-          id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
-          modeleSectionId: originalSection.modeleSectionId,
-          ordreAffiche: idx + 1,
-          typeSectionId: (typeSectionId && typeSectionId !== "") ? typeSectionId : null,
-          libelleSection: s.libelleSection || originalSection.libelleSection || 'SECTION SANS NOM',
-          frequenceLibelle: finalFrequenceLibelle,
-          periodiciteId: (s.periodiciteId && s.periodiciteId !== "") ? s.periodiciteId : (originalSection.periodiciteId && originalSection.periodiciteId !== "" ? originalSection.periodiciteId : null),
-          regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
-          lignes: lignesMappees
-        };
-      });
+      const payload = construirePayloadService(true);
 
       await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, plan.value?.nom, 'Admin');
 
@@ -1117,81 +1156,7 @@
         }
       );
 
-      const payload = sectionsPreparees.map((s, idx) => {
-        const originalSection = sections.value[idx];
-        // const tsMatch = store.typesSection.find(t => t.id === (s.typeSectionId || originalSection.typeSectionId));
-        
-        const typeSectionId = s.typeSectionId || originalSection.typeSectionId;
-        const regleEchId = s.regleEchantillonnageId || originalSection.regleEchantillonnageId;
-
-        // Récupération des libellés simples pour le payload (sans reconstruction du libelleSection)
-        let finalFrequenceLibelle = '';
-        if (originalSection.modeFreq === 'VARIABLE') {
-          const is100 = originalSection.freqNum === 100 && originalSection.typeVariable === 'HEURE';
-          if (is100) {
-            const p100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
-            finalFrequenceLibelle = p100 ? p100.libelle : "100% des pièces/h";
-          } else {
-             finalFrequenceLibelle = originalSection.frequenceLibelle || '';
-          }
-        } else if (s.periodiciteId || originalSection.periodiciteId) {
-          finalFrequenceLibelle = (store.periodicites || []).find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
-        }
-
-        let regleEchLibelle = '';
-        if (regleEchId) {
-          regleEchLibelle = (store.reglesEchantillonnage || []).find(r => r.id === regleEchId)?.libelle || '';
-        }
-
-        return {
-          id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
-          modeleSectionId: originalSection.modeleSectionId,
-          ordreAffiche: idx + 1,
-          typeSectionId: (typeSectionId && typeSectionId !== "") ? typeSectionId : null,
-          libelleSection: s.libelleSection || originalSection.libelleSection || 'SECTION SANS NOM',
-          frequenceLibelle: finalFrequenceLibelle,
-          regleEchantillonnageLibelle: regleEchLibelle,
-          regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
-          lignes: (s.lignes || []).map((l, lIdx) => {
-            const originalLigne = originalSection.lignes[lIdx];
-            const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
-            const nomCaract = caractMatch?.libelle || 'Caractéristique sans nom';
-
-            // Préparer mesures pour activation (isDraft = false -> validation stricte)
-            const mesurements = sanitizeMesurements(l, false);
-
-            // PRIORITÉ NUMÉRIQUE : si valeur nominale ou tolérances sont présentes on enregistre les numériques
-            const hasNumeric = mesurements.valeurNominale != null || mesurements.toleranceInferieure != null || mesurements.toleranceSuperieure != null;
-
-            const valeurNominale = hasNumeric ? mesurements.valeurNominale : null;
-            const toleranceSuperieure = hasNumeric ? mesurements.toleranceSuperieure : null;
-            const toleranceInferieure = hasNumeric ? mesurements.toleranceInferieure : null;
-
-            // Sinon on enregistre le texte saisi (s'il existe)
-            const limiteSpecTexte = !hasNumeric && l.limiteSpecTexte ? String(l.limiteSpecTexte).trim() : '';
-
-            return {
-              id: originalLigne.isFromDb ? normalizeId(originalLigne.id) : null,
-              modeleLigneSourceId: l.modeleLigneSourceId,
-              ordreAffiche: lIdx + 1,
-              typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
-              typeControleId: (l.typeControleId && l.typeControleId !== "") ? l.typeControleId : null,
-              moyenControleId: (l.moyenControleId && l.moyenControleId !== "") ? l.moyenControleId : null,
-              moyenTexteLibre: l.moyenTexteLibre,
-              instrumentCode: l.instrumentCode,
-              valeurNominale: valeurNominale,
-              toleranceSuperieure: toleranceSuperieure,
-              toleranceInferieure: toleranceInferieure,
-              unite: l.unite,
-              limiteSpecTexte: limiteSpecTexte,
-              observations: l.observations,
-              instruction: l.instruction,
-              estCritique: l.estCritique,
-              libelleAffiche: (l.libelleAffiche || nomCaract).trim()
-            };
-          })
-        };
-      });
+      const payload = construirePayloadService(false);
 
       await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, plan.value?.nom, 'Admin');
 
@@ -1232,13 +1197,43 @@
     isSaving.value = true;
 
     try {
-      if (!validerSaisieValeurs()) return;
-      if (!validerLegendeMoyens()) return;
+      if (!validerSaisieValeurs()) {
+        isSaving.value = false;
+        return;
+      }
+      if (!validerLegendeMoyens()) {
+        isSaving.value = false;
+        return;
+      }
 
-      await declencherSauvegarde();
+      // Vérification finale si un plan actif existe déjà avant d'activer celui-ci
+      const codeArticle = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
+      const opCode = plan.value?.operationCode || wizard.operationCode.value;
+      const pCode = plan.value?.posteCode || wizard.posteCode.value;
+      
+      const resVal = await qualityPlansService.verifierEtatPlan(codeArticle, null, opCode, pCode);
+      const etat = resVal.data;
+
+      if (etat.hasActif && (!plan.value?.id || etat.actifId !== plan.value.id)) {
+        confirm.require({
+          message: `Attention : Un plan ACTIF (Version ${etat.actifVersion}) existe déjà. L'activation de ce nouveau plan archivera automatiquement l'ancien. Voulez-vous continuer ?`,
+          header: 'Confirmation d\'Activation',
+          icon: 'pi pi-exclamation-triangle text-amber-500',
+          acceptLabel: 'Oui, Archiver & Activer',
+          rejectLabel: 'Annuler',
+          acceptClass: 'p-button-success',
+          accept: async () => {
+            await declencherSauvegarde();
+          },
+          reject: () => {
+            isSaving.value = false;
+          }
+        });
+      } else {
+        await declencherSauvegarde();
+      }
     } catch (error) {
       console.error(error);
-    } finally {
       isSaving.value = false;
     }
   };

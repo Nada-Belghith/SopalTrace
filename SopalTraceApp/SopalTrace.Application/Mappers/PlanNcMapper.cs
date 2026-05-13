@@ -31,7 +31,7 @@ public static class PlanNcMapper
         };
     }
 
-    public static PlanNcLigne ConstruireNouvelleLigne(Guid planId, LigneNcEditDto dto)
+    public static PlanNcLigne ConstruireNouvelleLigne(Guid planId, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
     {
         return new PlanNcLigne
         {
@@ -39,15 +39,15 @@ public static class PlanNcMapper
             PlanNcenteteId = planId,
             OrdreAffiche = dto.OrdreAffiche,
             MachineCode = dto.MachineCode,
-            RisqueDefautId = dto.RisqueDefautId
+            RisqueDefautId = resolvedRisqueDefautId
         };
     }
 
-    public static void MettreAJourLigne(PlanNcLigne ligne, LigneNcEditDto dto)
+    public static void MettreAJourLigne(PlanNcLigne ligne, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
     {
         ligne.OrdreAffiche = dto.OrdreAffiche;
         ligne.MachineCode = dto.MachineCode;
-        ligne.RisqueDefautId = dto.RisqueDefautId;
+        ligne.RisqueDefautId = resolvedRisqueDefautId;
     }
 
     public static PlanNcEntete DupliquerEntitePlan(PlanNcEntete source, string modifiePar, string motif)

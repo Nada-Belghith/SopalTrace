@@ -136,4 +136,50 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         _context.RefMoyenDetections.Add(entite);
         await Task.CompletedTask;
     }
+
+    public async Task<RisqueDefaut?> GetRisqueDefautByLibelleAsync(string libelle)
+    {
+        if (string.IsNullOrWhiteSpace(libelle)) return null;
+        var normalized = libelle.Trim().ToLowerInvariant();
+        
+        // 1. Vérifier dans le tracker local (mémoire) avec une comparaison robuste
+        var local = _context.RisqueDefauts.Local
+            .FirstOrDefault(r => r.LibelleDefaut != null && r.LibelleDefaut.Trim().ToLowerInvariant() == normalized);
+        
+        if (local != null) return local;
+
+        // 2. Sinon chercher en base
+        return await _context.RisqueDefauts.FirstOrDefaultAsync(r => 
+            r.LibelleDefaut.Trim().ToLower() == normalized);
+    }
+
+    public async Task<RisqueDefaut?> GetRisqueDefautByCodeAsync(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+        var normalized = code.Trim().ToUpperInvariant();
+        
+        var local = _context.RisqueDefauts.Local
+            .FirstOrDefault(r => r.CodeDefaut != null && r.CodeDefaut.Trim().ToUpperInvariant() == normalized);
+            
+        if (local != null) return local;
+
+        return await _context.RisqueDefauts.FirstOrDefaultAsync(r => r.CodeDefaut == normalized);
+    }
+
+    public async Task AddRisqueDefautAsync(RisqueDefaut entite)
+    {
+        // On vérifie juste si on ne l'a pas déjà ajouté dans cette même requête
+        var normalizedLibelle = entite.LibelleDefaut.Trim().ToLowerInvariant();
+        var normalizedCode = entite.CodeDefaut.Trim().ToUpperInvariant();
+
+        var alreadyInContext = _context.RisqueDefauts.Local.Any(r => 
+            (r.LibelleDefaut != null && r.LibelleDefaut.Trim().ToLowerInvariant() == normalizedLibelle) ||
+            (r.CodeDefaut != null && r.CodeDefaut.Trim().ToUpperInvariant() == normalizedCode));
+
+        if (!alreadyInContext)
+        {
+            _context.RisqueDefauts.Add(entite);
+        }
+        await Task.CompletedTask;
+    }
 }

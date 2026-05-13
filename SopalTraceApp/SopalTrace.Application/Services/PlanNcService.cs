@@ -89,18 +89,59 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// </summary>
     protected override async Task<PlanNcEntete> CreerEntiteAsync(CreatePlanNcRequestDto dto, string user)
     {
-        return await Task.FromResult(new PlanNcEntete
+        var planId = Guid.NewGuid();
+        var lines = new List<PlanNcLigne>();
+        
+        // Cache local pour éviter les doublons de défauts dans le même traitement
+        var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+
+        if (dto.Lignes != null && dto.Lignes.Any())
         {
-            Id = Guid.NewGuid(),
+            foreach (var l in dto.Lignes)
+            {
+                Guid resolvedId;
+                var key = l.LibelleDefaut?.Trim();
+
+                if (!string.IsNullOrWhiteSpace(key) && cacheDefauts.TryGetValue(key, out var cachedId))
+                {
+                    resolvedId = cachedId;
+                }
+                else
+                {
+                    resolvedId = await ResolveOrCreateRisqueDefautAsync(l);
+                    if (!string.IsNullOrWhiteSpace(key) && resolvedId != Guid.Empty)
+                    {
+                        cacheDefauts[key] = resolvedId;
+                    }
+                }
+
+                lines.Add(new PlanNcLigne
+                {
+                    Id = Guid.NewGuid(),
+                    PlanNcenteteId = planId,
+                    OrdreAffiche = l.OrdreAffiche,
+                    MachineCode = l.MachineCode,
+                    RisqueDefautId = resolvedId
+                });
+            }
+        }
+
+        return new PlanNcEntete
+        {
+            Id = planId,
             PosteCode = dto.PosteCode,
             Nom = dto.Nom,
-            Version = 0, // Sera définie à l'activation
-            Statut = StatutsPlan.Brouillon,
+            Version = 1,
+            Statut = StatutsPlan.Actif,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
-            PlanNcLignes = new List<PlanNcLigne>()
-        });
+            Remarques = dto.Remarques,
+            LegendeMoyens = dto.LegendeMoyens,
+            PlanNcLignes = lines
+        };
     }
+
+    protected override string GetStatutInitial() => StatutsPlan.Actif;
 
     /// <summary>
     /// Applique les mises à jour du DTO sur l'entité brouillon NC.
@@ -126,25 +167,44 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             _repository.RemoveLigne(ligne);
         }
 
+        // Cache local pour éviter les doublons de défauts dans le même traitement
+        var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+
         // Ajouter ou mettre à jour les lignes
         foreach (var ligneDto in dto.Lignes)
         {
+            Guid resolvedId;
+            var key = ligneDto.LibelleDefaut?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(key) && cacheDefauts.TryGetValue(key, out var cachedId))
+            {
+                resolvedId = cachedId;
+            }
+            else
+            {
+                resolvedId = await ResolveOrCreateRisqueDefautAsync(ligneDto);
+                if (!string.IsNullOrWhiteSpace(key) && resolvedId != Guid.Empty)
+                {
+                    cacheDefauts[key] = resolvedId;
+                }
+            }
+            
             var ligneEnBase = ligneDto.Id.HasValue && ligneDto.Id.Value != Guid.Empty
                 ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == ligneDto.Id.Value)
                 : null;
 
             if (ligneEnBase != null)
             {
-                PlanNcMapper.MettreAJourLigne(ligneEnBase, ligneDto);
+                PlanNcMapper.MettreAJourLigne(ligneEnBase, ligneDto, resolvedId);
             }
             else
             {
-                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(plan.Id, ligneDto);
+                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(plan.Id, ligneDto, resolvedId);
+                // Important: On l'ajoute à la collection du parent pour EF
+                plan.PlanNcLignes.Add(nouvelleLigne);
                 _repository.AddLigne(nouvelleLigne);
             }
         }
-
-        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -177,27 +237,53 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         int nouvelleVersion, 
         string user)
     {
-        var nouveauPlan = new PlanNcEntete
+        var nouveauPlanId = Guid.NewGuid();
+        var lines = new List<PlanNcLigne>();
+
+        // Cache local pour éviter les doublons de défauts dans le même traitement
+        var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var l in dto.Lignes)
         {
-            Id = Guid.NewGuid(),
+            Guid resolvedId;
+            var key = l.LibelleDefaut?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(key) && cacheDefauts.TryGetValue(key, out var cachedId))
+            {
+                resolvedId = cachedId;
+            }
+            else
+            {
+                resolvedId = await ResolveOrCreateRisqueDefautAsync(l);
+                if (!string.IsNullOrWhiteSpace(key) && resolvedId != Guid.Empty)
+                {
+                    cacheDefauts[key] = resolvedId;
+                }
+            }
+
+            lines.Add(new PlanNcLigne
+            {
+                Id = Guid.NewGuid(),
+                PlanNcenteteId = nouveauPlanId,
+                OrdreAffiche = l.OrdreAffiche,
+                MachineCode = l.MachineCode,
+                RisqueDefautId = resolvedId
+            });
+        }
+
+        return new PlanNcEntete
+        {
+            Id = nouveauPlanId,
             PosteCode = ancienPlan.PosteCode,
             Nom = dto.Nom,
             Version = nouvelleVersion,
-            Statut = StatutsPlan.Brouillon,
+            Statut = StatutsPlan.Actif,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
             Remarques = dto.Remarques,
             LegendeMoyens = dto.LegendeMoyens,
-            PlanNcLignes = dto.Lignes.Select(l => new PlanNcLigne
-            {
-                Id = Guid.NewGuid(),
-                OrdreAffiche = l.OrdreAffiche,
-                MachineCode = l.MachineCode,
-                RisqueDefautId = l.RisqueDefautId
-            }).ToList()
+            PlanNcLignes = lines
         };
-
-        return await Task.FromResult(nouveauPlan);
     }
 
     /// <summary>
@@ -206,9 +292,11 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     protected override async Task<PlanNcEntete?> ObtenirBrouillonExistantAsync(CreatePlanNcRequestDto dto)
     {
         var tousLesPlans = await _repository.GetTousLesPlansAsync();
+        // Pour les NC, on considère qu'il n'y a qu'un seul plan "de référence" par poste.
+        // Si un plan (Actif ou Brouillon) existe déjà pour ce poste, on le retourne pour éviter les doublons.
         return tousLesPlans.FirstOrDefault(p => 
             p.PosteCode == dto.PosteCode && 
-            p.Statut == StatutsPlan.Brouillon);
+            (p.Statut == StatutsPlan.Brouillon || p.Statut == StatutsPlan.Actif));
     }
 
     // ==================== PUBLIC METHODS ====================
@@ -246,14 +334,20 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// </summary>
     public async Task<Guid> MettreAJourPlanAsync(Guid planId, SavePlanNcDto request, string modifiePar)
     {
-        // Mettre à jour le brouillon
-        await UpdateDraftAsync(planId, request, modifiePar);
-
-        // Activer le plan (le passer en ACTIF avec versionning)
-        await ActiverPlanAsync(planId, modifiePar, request);
-
         var plan = await _repository.GetPlanAvecRelationsAsync(planId);
-        return plan?.Id ?? Guid.Empty;
+        if (plan == null) throw new KeyNotFoundException("Plan introuvable.");
+
+        // On bypass UpdateDraftAsync car il refuse de modifier les plans ACTIFS.
+        // Pour les résultats de contrôle, on autorise la modification directe.
+        await ApplierMiseAJourDraftAsync(plan, request, SecuriserNomAuteur(modifiePar));
+
+        if (plan.Statut == StatutsPlan.Brouillon)
+        {
+            plan.Statut = StatutsPlan.Actif;
+        }
+
+        await _unitOfWork.CommitAsync();
+        return plan.Id;
     }
 
     /// <summary>
@@ -279,6 +373,8 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         // Ajouter ou mettre à jour les lignes
         foreach (var ligneDto in lignesModifiees)
         {
+            var resolvedId = await ResolveOrCreateRisqueDefautAsync(ligneDto);
+            
             var isNew = !ligneDto.Id.HasValue || ligneDto.Id.Value == Guid.Empty;
             var ligneEnBase = !isNew && ligneDto.Id is Guid ligneId
                 ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == ligneId)
@@ -286,11 +382,11 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
 
             if (ligneEnBase != null)
             {
-                PlanNcMapper.MettreAJourLigne(ligneEnBase, ligneDto);
+                PlanNcMapper.MettreAJourLigne(ligneEnBase, ligneDto, resolvedId);
             }
             else
             {
-                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(planId, ligneDto);
+                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(planId, ligneDto, resolvedId);
                 _repository.AddLigne(nouvelleLigne);
             }
         }
@@ -299,11 +395,6 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         if (plan.Statut == StatutsPlan.Brouillon)
         {
             plan.Statut = StatutsPlan.Actif;
-            var ancienPlanActif = await _repository.GetPlanActifAsync(plan.PosteCode);
-            if (ancienPlanActif != null && ancienPlanActif.Id != plan.Id)
-            {
-                ancienPlanActif.Statut = StatutsPlan.Archive;
-            }
         }
 
         await _repository.SaveChangesAsync();
@@ -394,5 +485,35 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         await _repository.SaveChangesAsync();
 
         return nouveauPlan.Id;
+    }
+    /// <summary>
+    /// Résout un RisqueDefautId à partir d'un DTO, en créant le défaut s'il n'existe pas.
+    /// </summary>
+    private async Task<Guid> ResolveOrCreateRisqueDefautAsync(LigneNcEditDto dto)
+    {
+        if (dto.RisqueDefautId.HasValue && dto.RisqueDefautId.Value != Guid.Empty)
+            return dto.RisqueDefautId.Value;
+
+        if (string.IsNullOrWhiteSpace(dto.LibelleDefaut))
+            return Guid.Empty;
+
+        var libelle = dto.LibelleDefaut.Trim();
+
+        // 1. Chercher par libellé (Simple et direct)
+        var existant = await _unitOfWork.DictionnaireQualiteRepository.GetRisqueDefautByLibelleAsync(libelle);
+        if (existant != null) return existant.Id;
+
+        // 2. Créer un nouveau défaut (Le code devient automatique et identique au libellé)
+        var nouveau = new RisqueDefaut
+        {
+            Id = Guid.NewGuid(),
+            // On prend le libellé comme code (tronqué à 30 car c'est la limite de la colonne CodeDefaut)
+            CodeDefaut = libelle.Length > 30 ? libelle.Substring(0, 30).ToUpper() : libelle.ToUpper(),
+            LibelleDefaut = libelle,
+            Actif = true
+        };
+
+        await _unitOfWork.DictionnaireQualiteRepository.AddRisqueDefautAsync(nouveau);
+        return nouveau.Id;
     }
 }
