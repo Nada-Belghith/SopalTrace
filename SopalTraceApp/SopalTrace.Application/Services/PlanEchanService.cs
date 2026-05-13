@@ -1,79 +1,134 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Constants;
+using SopalTrace.Domain.Entities;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Services;
 
-public class PlanEchanService : IPlanEchanService
+public class PlanEchanService : BasePlanLifecycleService<PlanEchantillonnageEntete, CreatePlanEchanRequestDto, UpdatePlanEchanRequestDto>, IPlanEchanService
 {
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IValidator<CreatePlanEchanRequestDto> _createValidator;
     private readonly ILogger<PlanEchanService> _logger;
 
     public PlanEchanService(IUnitOfWork unitOfWork, IValidator<CreatePlanEchanRequestDto> createValidator, ILogger<PlanEchanService> logger)
+        : base(unitOfWork)
     {
-        _unitOfWork = unitOfWork;
         _createValidator = createValidator;
         _logger = logger;
     }
 
-    public async Task<Guid> CreerPlanAsync(CreatePlanEchanRequestDto request, string creePar)
+    protected override async Task<List<string>> ValidateCreationAsync(CreatePlanEchanRequestDto dto)
     {
-        var valResult = await _createValidator.ValidateAsync(request);
-        if (!valResult.IsValid) throw new ValidationException(valResult.Errors);
+        var erreurs = new List<string>();
+        var validationResult = await _createValidator.ValidateAsync(dto);
+        if (!validationResult.IsValid)
+            erreurs.AddRange(validationResult.Errors.Select(e => e.ErrorMessage));
+        if (await _unitOfWork.PlanEchanRepository.ExistePlanActifAsync())
+            erreurs.Add("Un profil d'échantillonnage ACTIF existe déjà.");
+        return erreurs;
+    }
 
-        if (await _unitOfWork.PlanEchanRepository.ExistePlanActifAsync(request.CodeReference))
-            throw new Exception($"Un profil d'échantillonnage ACTIF existe déjà avec la référence {request.CodeReference}.");
+    protected override async Task HandleVersioningBeforeActivationAsync(PlanEchantillonnageEntete plan, string user) => await Task.CompletedTask;
 
-        var nouveauPlan = PlanEchanMapper.ConstruireNouveauPlan(request, creePar);
+    /// <summary>
+    /// Le plan d'échantillonnage n'a pas de cycle brouillon : il naît directement ACTIF.
+    /// La contrainte SQL CK__Plan_Echa__Statu__ n'accepte pas 'BROUILLON'.
+    /// </summary>
+    protected override string GetStatutInitial() => StatutsPlan.Actif;
 
-        await _unitOfWork.PlanEchanRepository.AddPlanAsync(nouveauPlan);
-        await _unitOfWork.CommitAsync();
+    protected override async Task<PlanEchantillonnageEntete?> ObtenirEntiteAsync(Guid id) => await _unitOfWork.PlanEchanRepository.GetPlanAvecRelationsAsync(id);
 
-        return nouveauPlan.Id;
+    protected override async Task<PlanEchantillonnageEntete> CreerEntiteAsync(CreatePlanEchanRequestDto dto, string user)
+    {
+        int nqaIdDb = dto.NqaId ?? 0;
+        if (dto.ValeurNqa.HasValue)
+            nqaIdDb = await _unitOfWork.PlanEchanRepository.GetOrCreateNqaAsync(dto.ValeurNqa.Value);
+        return PlanEchanMapper.ConstruireNouveauPlan(dto, nqaIdDb, user);
+    }
+
+    protected override async Task ApplierMiseAJourDraftAsync(PlanEchantillonnageEntete plan, UpdatePlanEchanRequestDto dto, string user)
+    {
+        plan.NiveauControle = dto.NiveauControle;
+        plan.TypePlan = dto.TypePlan;
+        plan.ModeControle = dto.ModeControle;
+        if (dto.ValeurNqa.HasValue)
+            plan.NqaId = await _unitOfWork.PlanEchanRepository.GetOrCreateNqaAsync(dto.ValeurNqa.Value);
+        else if (dto.NqaId.HasValue)
+            plan.NqaId = dto.NqaId.Value;
+        plan.Remarques = dto.Remarques;
+        plan.LegendeMoyens = dto.LegendeMoyens;
+        plan.ModifiePar = user;
+        plan.ModifieLe = DateTime.UtcNow;
+        if (dto.Regles != null)
+        {
+            plan.PlanEchantillonnageRegles.Clear();
+            foreach (var r in dto.Regles)
+                plan.PlanEchantillonnageRegles.Add(new PlanEchantillonnageRegle { Id = Guid.NewGuid(), FicheEnteteId = plan.Id, TailleMinLot = r.TailleMinLot, TailleMaxLot = r.TailleMaxLot, LettreCode = r.LettreCode, EffectifEchantillonA = r.EffectifEchantillonA, NbPostesB = r.NbPostesB, EffectifParPosteAb = r.EffectifParPosteAb, CritereAcceptationAc = r.CritereAcceptationAc, CritereRejetRe = r.CritereRejetRe });
+        }
+    }
+
+    protected override async Task PersisterEntiteAsync(PlanEchantillonnageEntete plan) => await _unitOfWork.PlanEchanRepository.AddPlanAsync(plan);
+
+    protected override async Task<int> CalculerNouvelleVersionAsync(PlanEchantillonnageEntete plan)
+    {
+        // Pour Echantillonnage, il y a typiquement un seul plan actif
+        // On retourne simplement Version + 1
+        return plan.Version + 1;
+    }
+
+    protected override async Task<PlanEchantillonnageEntete> CreerNouvelleVersionEntiteAsync(PlanEchantillonnageEntete ancienPlan, UpdatePlanEchanRequestDto dto, int nouvelleVersion, string user)
+    {
+        int nqaId = dto.NqaId ?? ancienPlan.NqaId;
+        if (dto.ValeurNqa.HasValue)
+            nqaId = await _unitOfWork.PlanEchanRepository.GetOrCreateNqaAsync(dto.ValeurNqa.Value);
+
+        var nouveauPlan = new PlanEchantillonnageEntete { Id = Guid.NewGuid(), NiveauControle = dto.NiveauControle ?? ancienPlan.NiveauControle, TypePlan = dto.TypePlan ?? ancienPlan.TypePlan, ModeControle = dto.ModeControle ?? ancienPlan.ModeControle, NqaId = nqaId, Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, CreePar = user, CreeLe = DateTime.UtcNow, Remarques = dto.Remarques ?? ancienPlan.Remarques, LegendeMoyens = dto.LegendeMoyens ?? ancienPlan.LegendeMoyens };
+
+        // Copier les règles (soit nouvelles, soit anciennes)
+        var regles = dto.Regles?.Any() == true ? dto.Regles : null;
+        if (regles != null)
+        {
+            nouveauPlan.PlanEchantillonnageRegles = regles.Select(r => new PlanEchantillonnageRegle { Id = Guid.NewGuid(), FicheEnteteId = nouveauPlan.Id, TailleMinLot = r.TailleMinLot, TailleMaxLot = r.TailleMaxLot, LettreCode = r.LettreCode, EffectifEchantillonA = r.EffectifEchantillonA, NbPostesB = r.NbPostesB, EffectifParPosteAb = r.EffectifParPosteAb, CritereAcceptationAc = r.CritereAcceptationAc, CritereRejetRe = r.CritereRejetRe }).ToList();
+        }
+        else
+        {
+            nouveauPlan.PlanEchantillonnageRegles = ancienPlan.PlanEchantillonnageRegles.Select(r => new PlanEchantillonnageRegle { Id = Guid.NewGuid(), FicheEnteteId = nouveauPlan.Id, TailleMinLot = r.TailleMinLot, TailleMaxLot = r.TailleMaxLot, LettreCode = r.LettreCode, EffectifEchantillonA = r.EffectifEchantillonA, NbPostesB = r.NbPostesB, EffectifParPosteAb = r.EffectifParPosteAb, CritereAcceptationAc = r.CritereAcceptationAc, CritereRejetRe = r.CritereRejetRe }).ToList();
+        }
+
+        return nouveauPlan;
+    }
+
+    protected override async Task<PlanEchantillonnageEntete?> ObtenirBrouillonExistantAsync(CreatePlanEchanRequestDto dto)
+    {
+        // Pour Echantillonnage, unicité garantie: un seul plan à la fois
+        return null;
     }
 
     public async Task<PlanEchanResponseDto> GetPlanByIdAsync(Guid planId)
     {
         var plan = await _unitOfWork.PlanEchanRepository.GetPlanAvecRelationsAsync(planId);
         if (plan == null) throw new Exception("Plan introuvable.");
-
         return PlanEchanMapper.MapperEntiteVersDto(plan);
     }
 
-    // NOUVELLE LOGIQUE : L'Admin met à jour son Brouillon (V2) et l'active
+    public async Task<PlanEchanResponseDto?> GetPlanActifAsync()
+    {
+        var plan = await _unitOfWork.PlanEchanRepository.GetPlanActifAsync();
+        return plan != null ? PlanEchanMapper.MapperEntiteVersDto(plan) : null;
+    }
+
+    public async Task<Guid> CreerPlanAsync(CreatePlanEchanRequestDto request, string creePar) => await CreerBrouillonAsync(request, creePar);
+
     public async Task<bool> MettreAJourPlanAsync(Guid planId, UpdatePlanEchanRequestDto request)
     {
-        var plan = await _unitOfWork.PlanEchanRepository.GetPlanAvecRelationsAsync(planId);
-        if (plan == null) return false;
-
-        // Mise à jour des valeurs du plan
-        plan.NiveauControle = request.NiveauControle;
-        plan.TypePlan = request.TypePlan;
-        plan.ModeControle = request.ModeControle;
-        plan.NqaId = request.NqaId;
-        plan.FormulaireId = request.FormulaireId;
-
-        // ISO 9001 : Activation et archivage de l'ancienne version
-        if (plan.Statut == StatutsPlan.Brouillon)
-        {
-            plan.Statut = StatutsPlan.Actif;
-
-            var ancienPlanActif = await _unitOfWork.PlanEchanRepository.GetPlanActifAsync(plan.CodeReference);
-            if (ancienPlanActif != null && ancienPlanActif.Id != plan.Id)
-            {
-                ancienPlanActif.Statut = StatutsPlan.Archive;
-                ancienPlanActif.CreeLe = DateTime.UtcNow;
-                ancienPlanActif.CommentaireVersion = $"Archivé automatiquement suite à l'activation V{plan.Version}";
-            }
-        }
-
-        await _unitOfWork.CommitAsync();
+        await UpdateDraftAsync(planId, request, request.ModifiePar ?? "");
         return true;
     }
 
@@ -83,15 +138,39 @@ public class PlanEchanService : IPlanEchanService
         if (ancienPlan == null) throw new Exception("Plan introuvable.");
         if (ancienPlan.Statut == StatutsPlan.Archive) throw new Exception("Impossible de versionner un plan archivé.");
 
-        // CORRECTION MAJEURE : On NE TOUCHE PAS à l'ancienne version ici pour ne pas bloquer la prod.
-        // L'archivage se fera au moment du PUT (MettreAJourPlanAsync).
+        ancienPlan.Statut = StatutsPlan.Archive;
+        ancienPlan.ModifiePar = request.ModifiePar;
+        ancienPlan.ModifieLe = DateTime.UtcNow;
 
-        // Le mapper s'occupe de créer la V2 avec le statut BROUILLON
-        var nouveauPlan = PlanEchanMapper.DupliquerEntitePlan(ancienPlan, request.ModifiePar, request.MotifModification);
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan);
+        var updateDto = request.Donnees ?? new UpdatePlanEchanRequestDto { NiveauControle = ancienPlan.NiveauControle, TypePlan = ancienPlan.TypePlan, ModeControle = ancienPlan.ModeControle, NqaId = ancienPlan.NqaId, ModifiePar = request.ModifiePar };
 
-        await _unitOfWork.PlanEchanRepository.AddPlanAsync(nouveauPlan);
+        var nouveauPlan = await CreerNouvelleVersionEntiteAsync(ancienPlan, updateDto, nouvelleVersion, request.ModifiePar);
+        nouveauPlan.Statut = StatutsPlan.Actif;
+
+        await PersisterEntiteAsync(nouveauPlan);
         await _unitOfWork.CommitAsync();
-
         return nouveauPlan.Id;
+    }
+
+    public async Task<Guid> RestaurerPlanAsync(RestaurerEchanRequestDto request)
+    {
+        var planArchive = await _unitOfWork.PlanEchanRepository.GetPlanAvecRelationsAsync(request.ArchiveId);
+        if (planArchive == null || planArchive.Statut != StatutsPlan.Archive) throw new Exception("Plan archivé introuvable.");
+
+        var nouveauPlanActif = PlanEchanMapper.DupliquerEntitePlan(planArchive, request.ModifiePar, request.MotifRestauration);
+        nouveauPlanActif.Statut = StatutsPlan.Actif;
+
+        var ancienPlanActif = await _unitOfWork.PlanEchanRepository.GetPlanActifAsync();
+        if (ancienPlanActif?.Id != planArchive.Id)
+        {
+            ancienPlanActif.Statut = StatutsPlan.Archive;
+            ancienPlanActif.ModifieLe = DateTime.UtcNow;
+            ancienPlanActif.ModifiePar = request.ModifiePar;
+        }
+
+        await _unitOfWork.PlanEchanRepository.AddPlanAsync(nouveauPlanActif);
+        await _unitOfWork.CommitAsync();
+        return nouveauPlanActif.Id;
     }
 }

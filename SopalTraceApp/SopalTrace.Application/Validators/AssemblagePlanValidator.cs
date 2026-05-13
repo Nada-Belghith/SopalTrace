@@ -1,14 +1,15 @@
-﻿using FluentValidation;
+using FluentValidation;
 using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 
 namespace SopalTrace.Application.Validators;
 
-public class CreatePlanAssValidator : AbstractValidator<CreatePlanAssRequestDto>
+public class CreatePlanAssValidator : AbstractValidator<CreatePlanAssDto>
 {
     public CreatePlanAssValidator()
     {
         RuleFor(x => x.OperationCode).NotEmpty().WithMessage("Le code opération est obligatoire.");
-        RuleFor(x => x.TypeRobinetCode).NotEmpty().WithMessage("Le type de robinet est obligatoire.");
+        RuleFor(x => x.NatureComposantCode).NotEmpty().WithMessage("La nature composant est obligatoire.");
+        RuleFor(x => x.Code).NotEmpty().WithMessage("Le code du modele d'assemblage est obligatoire.");
         RuleFor(x => x.Nom).NotEmpty().WithMessage("Le nom du plan est obligatoire.");
 
         // RÈGLE MÉTIER : Si c'est un modèle générique, l'article DOIT être nul. Sinon il est obligatoire.
@@ -42,19 +43,5 @@ public class LigneAssEditDtoValidator : AbstractValidator<LigneAssEditDto>
         RuleFor(x => x.TypeCaracteristiqueId).NotEmpty().WithMessage("Le type de caractéristique est obligatoire.");
         RuleFor(x => x.TypeControleId).NotEmpty().WithMessage("Le type de contrôle est obligatoire.");
 
-        When(ligne => ligne.ValeurNominale.HasValue, () =>
-        {
-            RuleFor(x => x.ToleranceSuperieure).NotNull().WithMessage("Tolérance supérieure requise.");
-            RuleFor(x => x.ToleranceInferieure).NotNull().WithMessage("Tolérance inférieure requise.");
-            RuleFor(x => x.Unite).NotEmpty().WithMessage("Unité requise pour une mesure.");
-        });
-
-        When(ligne => !ligne.ValeurNominale.HasValue, () =>
-        {
-            RuleFor(x => x.LimiteSpecTexte).NotEmpty().WithMessage("Une consigne textuelle (LimiteSpecTexte) est obligatoire.");
-            RuleFor(x => x.ToleranceSuperieure).Null();
-            RuleFor(x => x.ToleranceInferieure).Null();
-            RuleFor(x => x.Unite).Null();
-        });
     }
 }

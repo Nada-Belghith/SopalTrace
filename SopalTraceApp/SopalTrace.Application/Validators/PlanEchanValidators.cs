@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
 
 namespace SopalTrace.Application.Validators.QualityPlans;
@@ -7,12 +7,10 @@ public class CreatePlanEchanRequestValidator : AbstractValidator<CreatePlanEchan
 {
     public CreatePlanEchanRequestValidator()
     {
-        RuleFor(x => x.CodeReference)
-            .NotEmpty().WithMessage("Le code de référence est obligatoire.");
 
         RuleFor(x => x.NiveauControle)
             .NotEmpty().WithMessage("Le niveau de contrôle est obligatoire.")
-            .Must(x => x == "I" || x == "II" || x == "III")
+            .Must(x => x == "NIVEAU I" || x == "NIVEAU II" || x == "NIVEAU III" || x == "I" || x == "II" || x == "III")
             .WithMessage("Le niveau de contrôle doit être I, II ou III.");
 
         RuleFor(x => x.TypePlan)
@@ -22,11 +20,12 @@ public class CreatePlanEchanRequestValidator : AbstractValidator<CreatePlanEchan
 
         RuleFor(x => x.ModeControle)
             .NotEmpty().WithMessage("Le mode de contrôle est obligatoire.")
-            .Must(x => x == "NORMAL" || x == "REDUIT" || x == "RENFORCE")
-            .WithMessage("Le mode de contrôle doit être NORMAL, REDUIT ou RENFORCE.");
+            .Must(x => x == "NORMAL" || x == "REDUIT" || x == "RÉDUIT" || x == "RENFORCE" || x == "RENFORCÉ")
+            .WithMessage("Le mode de contrôle doit être NORMAL, RÉDUIT ou RENFORCÉ.");
 
         RuleFor(x => x.NqaId)
-            .GreaterThan(0).WithMessage("Le NQA est obligatoire.");
+            .Must((dto, nqaId) => (nqaId.HasValue && nqaId > 0) || (dto.ValeurNqa.HasValue && dto.ValeurNqa > 0))
+            .WithMessage("Le NQA est obligatoire.");
     }
 }
 

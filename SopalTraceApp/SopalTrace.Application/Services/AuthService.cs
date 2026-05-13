@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using SopalTrace.Application.DTOs.Auth;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Exceptions;
+using SopalTrace.Domain.Constants;
 using System.Security.Cryptography;
 
 namespace SopalTrace.Application.Services;
@@ -15,7 +16,7 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
 
-    private readonly string[] _rolesAutorises = { "PROD_GAZ", "QUAL", "MAG", "DI" };
+    private readonly string[] _rolesAutorises = RolesApp.TousLesRolesAutorises;
 
     public AuthService(IErpService erpService, IUserRepository userRepository, IJournalConnexionRepository journalRepository, ISecurityService securityService, IEmailService emailService, ILogger<AuthService> logger)
     {
@@ -146,7 +147,10 @@ public class AuthService : IAuthService
             throw new UserNotFoundInErpException(matricule);
 
         if (!_rolesAutorises.Contains(employe.CodeMetier))
-            throw new RoleNotAllowedException(employe.IntituleMetier);
+        {
+            string roleAffiche = string.IsNullOrWhiteSpace(employe.IntituleMetier) ? employe.CodeMetier : employe.IntituleMetier;
+            throw new RoleNotAllowedException(roleAffiche);
+        }
 
         return employe;
     }

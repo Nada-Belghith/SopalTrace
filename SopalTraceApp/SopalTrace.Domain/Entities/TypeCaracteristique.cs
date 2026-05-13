@@ -11,10 +11,6 @@ public partial class TypeCaracteristique
 
     public string Libelle { get; set; } = null!;
 
-    public string? UniteDefaut { get; set; }
-
-    public bool EstNumerique { get; set; }
-
     public bool Actif { get; set; }
 
     public virtual ICollection<ModeleFabLigne> ModeleFabLignes { get; set; } = new List<ModeleFabLigne>();

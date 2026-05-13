@@ -15,7 +15,9 @@ export const usePlanNcStore = defineStore('planNc', () => {
     posteCode: '',
     nom: '',
     version: 1,
-    statut: 'BROUILLON',
+    statut: 'ACTIF',
+    remarques: '',
+    legendeMoyens: '',
   });
 
   const lignes = ref([]);
@@ -38,10 +40,13 @@ export const usePlanNcStore = defineStore('planNc', () => {
     return {
       PosteCode: entete.value.posteCode,
       Nom: entete.value.nom,
+      Remarques: entete.value.remarques || '',
+      LegendeMoyens: entete.value.legendeMoyens || '',
       Lignes: lignes.value.map((l, idx) => ({
         Id: l.id,
         MachineCode: l.machineCode,
         RisqueDefautId: l.risqueDefautId,
+        LibelleDefaut: l._libelleDefautBrut || (risquesDefauts.value.find(r => r.id === l.risqueDefautId)?.libelle) || '',
         OrdreAffiche: idx + 1
       }))
     };
@@ -83,7 +88,9 @@ export const usePlanNcStore = defineStore('planNc', () => {
         posteCode: data.posteCode,
         nom: data.nom,
         version: data.version,
-        statut: data.statut
+        statut: data.statut,
+        remarques: data.remarques || '',
+        legendeMoyens: data.legendeMoyens || '',
       };
       lignes.value = (data.lignes || []).map(l => ({
         _uid: uuidv4(),
@@ -106,21 +113,18 @@ export const usePlanNcStore = defineStore('planNc', () => {
       posteCode,
       nom: `Fiche de Contrôle - ${p?.libelle || posteCode}`,
       version: 1,
-      statut: 'BROUILLON',
+      statut: 'ACTIF',
     };
     lignes.value = [];
-    ajouterLigne();
+    // On ne pré-initialise plus de ligne par défaut
     planInitialise.value = true;
   };
 
   const ajouterLigne = () => {
-    // On présélectionne la première machine du poste si possible
-    const machinesDuPoste = machines.value.filter(m => m.posteCode === entete.value.posteCode);
-    
     lignes.value.push({
       _uid: uuidv4(),
       id: null,
-      machineCode: machinesDuPoste[0]?.code || '',
+      machineCode: '', // Ne pas pré-remplir
       risqueDefautId: null,
       ordreAffiche: lignes.value.length + 1
     });
@@ -176,9 +180,73 @@ export const usePlanNcStore = defineStore('planNc', () => {
     }
   };
 
+  const resetState = () => {
+    entete.value = {
+      id: null,
+      posteCode: '',
+      nom: '',
+      version: 1,
+      statut: 'ACTIF',
+      remarques: '',
+      legendeMoyens: '',
+    };
+    lignes.value = [];
+    planInitialise.value = false;
+    snapshotOriginal.value = null;
+  };
+
+  const importerDepuisExcel = async (file) => {
+    isLoading.value = true;
+    try {
+      const res = await planNcService.importerExcel(file);
+      const data = res.data.data;
+
+      // Mettre à jour le poste si détecté dans le fichier
+      if (data.posteCode && !entete.value.posteCode) {
+        entete.value.posteCode = data.posteCode;
+      }
+      if (data.nomPlan) entete.value.nom = data.nomPlan;
+      if (data.remarques) entete.value.remarques = data.remarques.trim();
+
+      // Mapper les lignes importées
+      const nouvellesLignes = (data.lignes || []).map(l => {
+        // Chercher le défaut par libellé (insensible à la casse)
+        const defautTrouve = risquesDefauts.value.find(rd =>
+          rd.libelle?.trim().toLowerCase() === l.libelleDefaut?.trim().toLowerCase()
+        );
+
+        return {
+          _uid: uuidv4(),
+          id: null,
+          machineCode: l.machineCode || '',
+          risqueDefautId: defautTrouve?.id || null,
+          ordreAffiche: 0,
+          // On conserve le libellé brut si non trouvé, pour affichage
+          _libelleDefautBrut: defautTrouve ? null : l.libelleDefaut
+        };
+      });
+
+      if (nouvellesLignes.length > 0) {
+        lignes.value = nouvellesLignes;
+        planInitialise.value = true;
+      }
+
+      const nbNonResolus = nouvellesLignes.filter(l => !l.risqueDefautId).length;
+      return {
+        success: true,
+        total: nouvellesLignes.length,
+        nbNonResolus
+      };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     postes, machines, risquesDefauts, isDicosLoaded,
     entete, lignes, isLoading, planInitialise, plansExistants,
-    fetchDictionnaires, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc, ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan
+    fetchDictionnaires, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc,
+    ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan,
+    resetState, importerDepuisExcel
   };
 });

@@ -15,8 +15,6 @@ public static class CaracteristiqueMapper
             Id = Guid.NewGuid(),
             Code = codeGenere,
             Libelle = dto.Libelle,
-            UniteDefaut = dto.UniteDefaut,
-            EstNumerique = dto.EstNumerique,
             Actif = true
         };
     }

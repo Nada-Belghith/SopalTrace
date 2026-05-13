@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -36,7 +36,7 @@ public class PlanAssemblageController : ControllerBase
     [ProducesResponseType(409)]
     public async Task<IActionResult> Create([FromBody] CreatePlanAssRequestDto req)
     {
-        var id = await _service.CreerPlanAsync(req, "ADMIN");
+        var id = await _service.CreerPlanAssemblageAsync(req with { CreePar = req.CreePar ?? "ADMIN" });
         return Ok(new { success = true, id });
     }
 
@@ -56,7 +56,7 @@ public class PlanAssemblageController : ControllerBase
     [ProducesResponseType(400)]
     public async Task<IActionResult> UpdateFullTree(Guid id, [FromBody] List<SectionAssEditDto> sections)
     {
-        var ok = await _service.MettreAJourValeursPlanAsync(id, sections);
+        var ok = await _service.MettreAJourValeursPlanAsync(id, sections, true);
         if (!ok) return NotFound(new { success = false, message = "Plan non trouvé" });
         return Ok(new { success = true, message = "Plan synchronisé et activé." });
     }

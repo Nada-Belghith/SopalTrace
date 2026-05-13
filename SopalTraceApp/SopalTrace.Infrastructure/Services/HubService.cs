@@ -28,12 +28,15 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "FAB",
-                m.Libelle,
-                m.NatureComposantCode,
-                m.TypeRobinetCode,
+                (m.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                (m.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (m.Libelle ?? "Modèle Sans Nom"),
+                m.NatureComposantCode ?? "N/A",
+                m.FamilleProduitFiniCode ?? "N/A",
                 m.OperationCode ?? "N/A",
+                "N/A",
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Gabarit de fabrication générique."))
             .ToListAsync();
         result.AddRange(fabModeles);
@@ -41,16 +44,18 @@ public class HubService : IHubService
         // 2. ASSEMBLAGE
         var assModeles = await _context.PlanAssEntetes
             .AsNoTracking()
-            .Where(m => m.EstModele)
             .Select(m => new HubModeleDto(
                 m.Id,
                 "ASS",
-                m.Nom,
-                "N/A",
-                m.TypeRobinetCode,
-                m.OperationCode,
+                (m.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                (m.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (m.Designation ?? "Plan Sans Nom"),
+                m.NatureComposantCode ?? "PF",
+                m.FamilleProduitFiniCode ?? "N/A",
+                m.OperationCode ?? "N/A",
+                m.PosteCode ?? "N/A",
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Plan Maître d'assemblage."))
             .ToListAsync();
         result.AddRange(assModeles);
@@ -61,46 +66,48 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "VM",
-                m.Nom,
+                m.Nom ?? "Machine Sans Nom",
                 "MACHINE",
                 "VM",
-                m.MachineCode,
+                "VÉRIF",
+                m.MachineCode ?? "N/A",
                 m.Version ?? 1,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Vérification des étalons machines."))
             .ToListAsync();
         result.AddRange(vmModeles);
 
-        // 4. ÉCHANTILLONNAGE (Modèles uniquement : CodeArticleSage == null)
+        // 4. ÉCHANTILLONNAGE
         var echModeles = await _context.PlanEchantillonnageEntetes
             .AsNoTracking()
-            .Where(m => m.CodeArticleSage == null)
             .Join(_context.Nqas, m => m.NqaId, n => n.Id, (m, n) => new HubModeleDto(
                 m.Id,
                 "ECH",
-                "Profil: " + m.CodeReference,
+                "Plan Global",
                 "N/A",
-                m.TypePlan,
+                m.TypePlan ?? "N/A",
                 "NQA " + n.ValeurNqa,
+                "N/A",
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Niveau de contrôle: " + m.NiveauControle))
             .ToListAsync();
         result.AddRange(echModeles);
 
-        // 5. PRODUIT FINI (Modèles uniquement : CodeArticleSage == null)
+        // 5. PRODUIT FINI
         var pfModeles = await _context.PlanPfEntetes
             .AsNoTracking()
-            .Where(m => m.CodeArticleSage == null)
+            .Where(m => m.FamilleProduitFiniCode != null && m.Statut == "ACTIF")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "PF",
-                string.IsNullOrWhiteSpace(m.Designation) ? $"Plan PF {m.TypeRobinetCode}" : m.Designation,
+                "Plan de contrôle produit fini",
                 "PRODUIT FINI",
-                m.TypeRobinetCode,
+                m.FamilleProduitFiniCode ?? "N/A",
                 "CONTRÔLE FINAL",
+                "N/A",
                 m.Version,
-                m.Statut,
+                m.Statut ?? "ACTIF",
                 "Gabarit de contrôle final."))
             .ToListAsync();
         result.AddRange(pfModeles);
@@ -111,11 +118,12 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RC",
-                m.Nom,
+                m.Nom ?? "Fiche Sans Nom",
                 "POSTE",
                 "RC",
-                m.PosteCode,
-                m.Version ?? 1,
+                "CONTRÔLE",
+                m.PosteCode ?? "N/A",
+                m.Version,
                 m.Statut,
                 "Fiche de contrôle par poste de travail."))
             .ToListAsync();
@@ -128,17 +136,20 @@ public class HubService : IHubService
     {
         var result = new List<HubPlanDto>();
 
-        // 1. PLANS DE FABRICATION (Instanciés par article)
+        // 1. PLANS DE FABRICATION
         var fabPlans = await _context.PlanFabEntetes
             .AsNoTracking()
             .Include(p => p.ModeleSource)
             .Select(p => new HubPlanDto(
                 p.Id,
                 "FAB",
-                p.Nom ?? $"Plan {p.CodeArticleSage}",
+                (p.ModeleSource != null && p.ModeleSource.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                (p.ModeleSource != null && p.ModeleSource.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (p.Nom ?? $"Plan {p.CodeArticleSage}"),
                 p.ModeleSource != null ? p.ModeleSource.NatureComposantCode : "N/A",
-                p.ModeleSource != null ? (p.ModeleSource.TypeRobinetCode ?? "N/A") : "N/A",
+                p.FamilleProduitFiniCode ?? (p.ModeleSource != null ? (p.ModeleSource.FamilleProduitFiniCode ?? "N/A") : "N/A"),
                 p.ModeleSource != null ? (p.ModeleSource.OperationCode ?? "N/A") : (p.OperationCode ?? "N/A"),
+                "N/A",
                 p.Version,
                 p.Statut,
                 $"Plan article {p.CodeArticleSage}",
@@ -147,51 +158,10 @@ public class HubService : IHubService
             .ToListAsync();
         result.AddRange(fabPlans);
 
-        // 2. PLANS PRODUIT FINI (Par article)
-        var pfPlans = await _context.PlanPfEntetes
-            .AsNoTracking()
-            .Where(m => m.CodeArticleSage != null)
-            .Select(m => new HubPlanDto(
-                m.Id,
-                "PF",
-                string.IsNullOrWhiteSpace(m.Designation) ? $"Plan PF {m.CodeArticleSage}" : m.Designation,
-                "PRODUIT FINI",
-                m.TypeRobinetCode,
-                "CONTRÔLE FINAL",
-                m.Version,
-                m.Statut,
-                $"Plan final article {m.CodeArticleSage}",
-                m.CodeArticleSage,
-                m.Designation))
-            .ToListAsync();
-        result.AddRange(pfPlans);
-
-        // 3. PLANS ÉCHANTILLONNAGE (Par article)
-        // Note: Echantillonnage n'a pas de champ Designation en propre, on le récupère via l'article SAGE
-        var echPlans = await _context.PlanEchantillonnageEntetes
-            .AsNoTracking()
-            .Where(m => m.CodeArticleSage != null)
-            .Join(_context.Itmmasters, 
-                p => p.CodeArticleSage, 
-                i => i.CodeArticle, 
-                (p, i) => new { p, i.Designation })
-            .Join(_context.Nqas, 
-                x => x.p.NqaId, 
-                n => n.Id, 
-                (x, n) => new HubPlanDto(
-                    x.p.Id,
-                    "ECH",
-                    "Article: " + x.p.CodeArticleSage,
-                    "N/A",
-                    x.p.TypePlan,
-                    "NQA " + n.ValeurNqa,
-                    x.p.Version,
-                    x.p.Statut,
-                    $"Plan échan. article {x.p.CodeArticleSage}",
-                    x.p.CodeArticleSage,
-                    x.Designation))
-            .ToListAsync();
-        result.AddRange(echPlans);
+        // NOTE: Plans Produit Fini (PlanPfEntetes) ne sont PAS inclus ici car :
+        // - Les plans PF sont organisés par FAMILLE (FamilleProduitFiniCode), pas par ARTICLE
+        // - Cette vue "Plans par Article" affiche uniquement les plans articles (FAB/ASS)
+        // - Les plans PF sont accessibles via leur propre interface/hub
 
         return result;
     }
@@ -309,6 +279,21 @@ public class HubService : IHubService
 
                 _context.PlanFabSections.RemoveRange(plan.PlanFabSections);
                 _context.PlanFabEntetes.Remove(plan);
+
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            case "RC":
+            {
+                var plan = await _context.PlanNcEntetes
+                    .Include(p => p.PlanNcLignes)
+                    .FirstOrDefaultAsync(p => p.Id == id);
+
+                if (plan is null) return false;
+                if (plan.Statut != "BROUILLON") return false;
+
+                _context.PlanNcLignes.RemoveRange(plan.PlanNcLignes);
+                _context.PlanNcEntetes.Remove(plan);
 
                 await _context.SaveChangesAsync();
                 return true;

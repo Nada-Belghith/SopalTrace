@@ -21,11 +21,7 @@ public partial class Machine
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 
-    public virtual ICollection<PieceReference> PieceReferences { get; set; } = new List<PieceReference>();
-
     public virtual ICollection<PlanAssLigne> PlanAssLignes { get; set; } = new List<PlanAssLigne>();
-
-    public virtual ICollection<PlanEchantillonnageEntete> PlanEchantillonnageEntetes { get; set; } = new List<PlanEchantillonnageEntete>();
 
     public virtual ICollection<PlanFabEntete> PlanFabEntetes { get; set; } = new List<PlanFabEntete>();
 
@@ -38,4 +34,6 @@ public partial class Machine
     public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 
     public virtual ICollection<PosteTravail> CodePostes { get; set; } = new List<PosteTravail>();
+
+    public virtual ICollection<RefFamilleCorp> RefFamilleCorps { get; set; } = new List<RefFamilleCorp>();
 }

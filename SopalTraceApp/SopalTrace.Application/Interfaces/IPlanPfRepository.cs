@@ -10,12 +10,16 @@ public interface IPlanPfRepository
     Task<List<PlanPfEntete>> GetGenericPlansAsync();
     Task<PlanPfEntete?> GetPlanByIdAsync(Guid id);
     Task<PlanPfEntete?> GetPlanPourArchivageAsync(Guid id);
-    Task<bool> ExistsActiveOrDraftPlanAsync(string typeRobinetCode);
+    
+    Task<bool> ExistsActiveOrDraftPlanAsync(string familleProduitFiniCode);
+    Task<PlanPfEntete?> GetDraftPlanByFamilleAsync(string familleProduitFiniCode);
+    
     Task AddPlanAsync(PlanPfEntete plan);
-    Task<List<PlanPfEntete>> GetActivePlansByTypeRobinetAsync(string typeRobinetCode, Guid excludeId);
-    Task<List<PlanPfEntete>> GetActivePlansByTypeRobinetAsync(string typeRobinetCode);
+    Task<List<PlanPfEntete>> GetActivePlansByFamilleAsync(string familleProduitFiniCode);
     Task UpdatePlanAsync(PlanPfEntete plan);
-    Task<int> GetDerniereVersionPlanAsync(string typeRobinetCode);
+    Task<int> GetDerniereVersionPlanAsync(string familleProduitFiniCode);
+    
     Task SaveChangesAsync();
     void ClearTracking();
+    void DeletePlan(PlanPfEntete plan);
 }

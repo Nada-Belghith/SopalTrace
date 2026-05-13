@@ -1,27 +1,34 @@
-﻿using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Entities;
 using System;
-using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Interfaces;
 
 public interface IPlanAssRepository
 {
-    // Bien vérifier les '?' ici, ils indiquent qu'on autorise les retours null
     Task<string?> GetDesignationArticleSageAsync(string codeArticleSage);
+    
+    // Versions
+    Task<int> GetDerniereVersionAsync(string operationCode, string? familleCode, string? codeArticleSage);
+    Task<int> GetDerniereVersionParCodeAsync(string code);
 
-    Task<int> GetDerniereVersionAsync(string operationCode, string typeRobinetCode, string? codeArticleSage);
+    // Existence
+    Task<bool> ExistePlanMaitreActifAsync(string operationCode, string? familleCode);
+    Task<bool> ExisteExceptionActiveAsync(string opCode, string? familleCode, string articleCode);
+    Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode);
+    Task<bool> ExisteParCodeAsync(string code);
+    Task<bool> ExisteParCodeEtLibelleAsync(string code, string libelle);
 
-    Task<bool> ExistePlanMaitreActifAsync(string operationCode, string typeRobinetCode);
-    Task<bool> ExisteExceptionActiveAsync(string operationCode, string typeRobinetCode, string codeArticleSage);
-
+    // Récupération
     Task<PlanAssEntete?> GetPlanAvecRelationsAsync(Guid planId);
-    Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string typeRobinetCode);
-    Task<PlanAssEntete?> GetPlanActifExceptionAsync(string operationCode, string typeRobinetCode, string codeArticleSage);
+    Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode);
+    Task<PlanAssEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage);
     Task<PlanAssEntete?> GetPlanByIdAsync(Guid planId);
+    Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string? familleCode, string? codeArticleSage);
+    Task<IReadOnlyList<PlanAssEntete>> GetModelesParFiltresAsync(string? natureComposantCode, string? operationCode, string? posteCode = null, string? familleProduitCode = null);
 
+    // Persistance
     Task AddPlanAsync(PlanAssEntete plan);
     Task SaveChangesAsync();
-
-    Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string typeRobinetCode, string? codeArticleSage);
 }

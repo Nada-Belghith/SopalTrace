@@ -7,7 +7,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   const hasCustomInstrumentsGlobal = computed(() => {
     return (sectionsRef.value || []).some(section =>
       (section.lignes || []).some(ligne => 
-        /[\*~!@#$%^&]/.test(ligne.instrumentCode || '')
+        /[*~!@#$%^&]/.test(ligne.instrumentCode || '')
       )
     );
   });
@@ -22,12 +22,6 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   const validerLegendeMoyens = () => {
     if (hasCustomInstrumentsGlobal.value && !legendeMoyensRef.value?.trim()) {
       showLegendValidation.value = true;
-      toast.add({ 
-        severity: 'warn', 
-        summary: '⚠️ Légende OBLIGATOIRE', 
-        detail: 'Vous utilisez du texte personnalisé (* *** etc.) - veuillez remplir la légende des moyens.', 
-        life: 5000 
-      });
       return false;
     }
     showLegendValidation.value = false;
@@ -45,24 +39,19 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
     }
 
     let hasIncompleteLines = false;
-    let hasIncompleteSections = false;
 
     sectionsRef.value.forEach(section => {
-      if (!section.typeSectionId) {
-        hasIncompleteSections = true;
-      }
-      
       (section.lignes || []).forEach(ligne => {
-        if (!isIdValide(ligne.typeControleId) || !isIdValide(ligne.typeCaracteristiqueId)) {
+        // En Fabrication, on peut saisir un libellé à la main (libelleAffiche) 
+        // ou choisir une caractéristique (typeCaracteristiqueId).
+        const hasCarac = isIdValide(ligne.typeCaracteristiqueId) || !isNullOrEmpty(ligne.libelleAffiche);
+        const hasCtrl = isIdValide(ligne.typeControleId);
+
+        if (!hasCarac || !hasCtrl) {
           hasIncompleteLines = true;
         }
       });
     });
-
-    if (hasIncompleteSections) {
-      toast.add({ severity: 'error', summary: 'Section incomplète', detail: 'Veuillez définir la nature de toutes vos sections.', life: 6000 });
-      return false;
-    }
 
     if (hasIncompleteLines) {
       toast.add({ severity: 'error', summary: 'Ligne incomplète', detail: 'Les lignes de contrôle ajoutées doivent obligatoirement avoir une "Caractéristique" et un "Type de contrôle".', life: 6000 });
@@ -87,20 +76,6 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
         if (!ligne.typeControleId) {
           hasMissingTypeControle = true;
         }
-
-        const hasValeurNominale =
-          ligne.valeurNominale !== null &&
-          ligne.valeurNominale !== undefined &&
-          ligne.valeurNominale !== '';
-
-        if (hasValeurNominale) {
-          const tolSupMissing = ligne.toleranceSuperieure === null || ligne.toleranceSuperieure === undefined;
-          const tolInfMissing = ligne.toleranceInferieure === null || ligne.toleranceInferieure === undefined;
-
-          if (tolSupMissing || tolInfMissing) {
-            hasMissingActivationFields = true;
-          }
-        }
       });
     });
 
@@ -110,16 +85,6 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
         summary: 'Ligne incomplète',
         detail: 'Veuillez définir le "Type de contrôle" pour toutes vos lignes, ou supprimez les lignes vides avant d\'activer le plan.',
         life: 6000
-      });
-      return false;
-    }
-
-    if (hasMissingActivationFields) {
-      toast.add({
-        severity: 'error',
-        summary: 'Champs obligatoires manquants',
-        detail: 'Si une valeur nominale est saisie, renseignez aussi Tolérance min, Tolérance max.',
-        life: 7000
       });
       return false;
     }

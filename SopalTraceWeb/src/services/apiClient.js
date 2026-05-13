@@ -14,8 +14,14 @@ const apiClient = axios.create({
 // Intercepteur de requêtes
 apiClient.interceptors.request.use(
   (config) => {
-      // Log des requêtes sortantes
+    // Log des requêtes sortantes
     logger.debug(`➡️ REQUÊTE : ${config.method?.toUpperCase()} ${config.url}`);
+    
+    // Injection du Token JWT si présent
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     
     return config;
   },
@@ -41,15 +47,26 @@ apiClient.interceptors.response.use(
         case 400: 
           apiError.message = data.error || data.message || "Données invalides.";
           apiError.details = data.details || [];
-          logger.warn(`Validation échouée (${apiError.status})`, apiError.details); // LOG AVERTISSEMENT
+          logger.warn(`Validation échouée (${apiError.status})`, apiError.details); 
           break;
         case 401:
           apiError.message = "Session expirée, veuillez vous reconnecter.";
           logger.warn("Non autorisé (401). Déconnexion requise.");
+          
+          // Déconnexion automatique si on reçoit un 401
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+          break;
+        case 403:
+          apiError.message = "Vous n'avez pas les droits nécessaires pour cette action.";
+          logger.error("Accès refusé (403)");
           break;
         case 500:
           apiError.message = "Erreur interne du serveur SopalTrace.";
-          logger.error("Crash serveur (500)", data); // LOG CRITIQUE
+          logger.error("Crash serveur (500)", data); 
           break;
         default:
           logger.error(`Erreur HTTP ${apiError.status}`, data);

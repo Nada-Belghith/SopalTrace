@@ -180,4 +180,40 @@ public class PlanVerifMachineController : ControllerBase
         if (!ok) return NotFound(new { success = false, message = "Plan introuvable." });
         return Ok(new { success = true, message = "Arbre synchronisé." });
     }
+
+    [HttpPost("import-excel")]
+    public async Task<IActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { success = false, message = "Veuillez sélectionner un fichier." });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var result = await excelService.ParseVerifMachineExcelAsync(stream, file.FileName);
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = $"Erreur lors de l'import : {ex.Message}" });
+        }
+    }
+
+    // =========================================================================
+    // GET /api/plans-verif-machine/machine/{machineCode}/familles
+    // Retourne les familles de corps configurées pour une machine dans Machine_FamilleCorps
+    // =========================================================================
+    [HttpGet("machine/{machineCode}/familles")]
+    public async Task<IActionResult> GetFamillesParMachine(string machineCode)
+    {
+        try
+        {
+            var familles = await _service.GetFamillesParMachineAsync(machineCode);
+            return Ok(new { success = true, data = familles });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
 }

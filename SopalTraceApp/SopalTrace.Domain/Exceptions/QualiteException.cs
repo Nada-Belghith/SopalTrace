@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace SopalTrace.Domain.Exceptions;
 
@@ -33,6 +33,12 @@ public class DoublonModeleException : DomainException
 {
     public DoublonModeleException()
         : base("Un modèle ACTIF existe déjà pour cette combinaison (Type/Nature/Opération).") { }
+}
+
+public class DoublonCodeModeleException : DomainException
+{
+    public DoublonCodeModeleException(string code)
+        : base($"Le code modèle '{code}' est déjà utilisé. Veuillez en choisir un autre.") { }
 }
 
 public class DoublonPlanException : DomainException

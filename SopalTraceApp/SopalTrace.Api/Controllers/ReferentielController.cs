@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
-using SopalTrace.Infrastructure.Services;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Api.Controllers;
@@ -17,9 +17,9 @@ public class ReferentielController : ControllerBase
     }
 
     [HttpGet("fabrication")]
-    public async Task<IActionResult> GetDictionnairesFabrication()
+    public async Task<IActionResult> GetDictionnairesFabrication([FromQuery] string? natureComposantCode = null, [FromQuery] string? operationCode = null)
     {
-        var data = await _referentielService.GetFabricationReferentielsAsync();
+        var data = await _referentielService.GetFabricationReferentielsAsync(natureComposantCode, operationCode);
         return Ok(new { success = true, data });
     }
 
@@ -36,6 +36,7 @@ public class ReferentielController : ControllerBase
         var data = await _referentielService.GetPlanNcReferentielsAsync();
         return Ok(new { success = true, data });
     }
+
     [HttpGet("article/{codeArticle}")]
     public async Task<IActionResult> GetArticle(string codeArticle)
     {
@@ -45,8 +46,30 @@ public class ReferentielController : ControllerBase
         var article = await _referentielService.GetArticleInfosAsync(codeArticle);
 
         if (article == null)
-            return NotFound($"Aucun article trouvé pour le code '{codeArticle}' dans l'ERP.");
+            return NotFound($"Aucun article trouve pour le code '{codeArticle}' dans l'ERP.");
 
         return Ok(article);
+    }
+
+    /// <summary>
+    /// Cree une nouvelle piece de reference (PRC, PRNC) ou un etalon fuite (FEC, FENC)
+    /// directement depuis le formulaire Verification Machine.
+    /// </summary>
+    [HttpPost("piece-reference")]
+    public async Task<IActionResult> CreatePieceReference([FromBody] CreatePieceReferenceDto request)
+    {
+        try
+        {
+            var result = await _referentielService.CreatePieceReferenceAsync(request);
+            return Ok(new { success = true, data = result });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 }

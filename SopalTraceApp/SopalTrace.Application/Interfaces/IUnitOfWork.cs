@@ -12,6 +12,7 @@ public interface IUnitOfWork : IAsyncDisposable
     IPlanNcRepository PlanNcRepository { get; }
 
     IPlanVerifMachineRepository PlanVerifMachineRepository { get; }
+    IDictionnaireQualiteRepository DictionnaireQualiteRepository { get; }
 
     Task BeginTransactionAsync();
     Task<int> CommitAsync();

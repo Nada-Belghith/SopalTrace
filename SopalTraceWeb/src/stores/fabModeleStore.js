@@ -11,30 +11,39 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const typesControle = ref([]);
   const moyensControle = ref([]);
   const periodicites = ref([]);
-  const typesSection = ref([]); 
-  // const groupesInstruments = ref([]); 
-  const instruments = ref([]); 
-  const gammesOperatoires = ref([]); // <-- NOUVEAU
+  const reglesEchantillonnage = ref([]); // Ajouté pour les règles ISO
+  const typesSection = ref([]);
+  const instruments = ref([]);
+  const postes = ref([]);
+  const famillesProduit = ref([]);
+  const gammesOperatoires = ref([]);
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU MODÈLE ---
   const entete = ref({
-    operationCode: '', 
+    code: '',
+    operationCode: '',
     natureComposantCode: '',
     typeRobinetCode: '',
     libelle: '',
-    notes: ''
+    notes: '',
+    legendeMoyens: '',
+    posteCode: '',   // Poste de travail (71, 72, 78) — utile pour PF auto soupape
+    familleProduitCode: ''
   });
-  
+
   const sections = ref([]);
   const isLoading = ref(false);
-  const version = ref(1); // <-- NOUVEAU : Rend la version dynamique
+  const version = ref(1);
 
   const codeModeleAuto = computed(() => {
     const op = entete.value.operationCode || 'XXX';
     const nat = entete.value.natureComposantCode || 'XXX';
-    const typ = entete.value.typeRobinetCode || 'ALL';
-    return `MOD-${op}-${nat}-${typ}-V${version.value}`.toUpperCase();
+    const fam = entete.value.natureComposantCode === 'PF' && entete.value.familleProduitCode ? `-${entete.value.familleProduitCode}` : '';
+    const poste = entete.value.posteCode ? `P${entete.value.posteCode}` : '';
+
+    const prefix = (nat === 'PF' || nat === 'PISTON') ? 'PLAN' : 'MOD';
+    return `${prefix}-${op}-${nat}${fam}-${poste}`.toUpperCase();
   });
 
   // --- ACTIONS ---
@@ -42,7 +51,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     try {
       const response = await fabPlanService.getDictionnaires();
       const data = response.data.data;
-      
+
       operations.value = data.operations || [];
       typesRobinet.value = data.typesRobinet || [];
       naturesComposant.value = data.naturesComposant || [];
@@ -50,16 +59,21 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       typesControle.value = data.typesControle || [];
       moyensControle.value = data.moyensControle || [];
       periodicites.value = data.periodicites || [];
-      typesSection.value = data.typesSection || data.typesSections || []; 
-      // groupesInstruments.value = data.groupesInstruments || []; 
-      instruments.value = data.instruments || []; 
-      
-      gammesOperatoires.value = data.gammes || []; // <-- NOUVEAU
+      reglesEchantillonnage.value = data.reglesEchantillonnage || []; // Récupération depuis le backend
+      typesSection.value = data.typesSection || data.typesSections || [];
+      instruments.value = data.instruments || [];
+      postes.value = data.postes || [];
+      famillesProduit.value = (data.famillesProduit || []).map(f => ({
+        code: f.code,
+        libelle: f.designation || f.libelle || '',
+        typeRobinetCode: f.typeRobinetCode
+      }));
+      gammesOperatoires.value = data.gammes || [];
 
       isDicosLoaded.value = true;
     } catch (apiError) {
       console.error("Erreur réseau (Dictionnaires):", apiError);
-      throw apiError; 
+      throw apiError;
     }
   };
 
@@ -67,9 +81,10 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     sections.value.push({
       id: crypto.randomUUID(),
       ordreAffiche: sections.value.length + 1,
-      typeSectionId: '', // ID Strict obligatoire
-      periodiciteId: null, // ID Strict optionnel
-      libelleSection: '', // Le texte libre pour l'opérateur !
+      typeSectionId: '',
+      periodiciteId: null,
+      regleEchantillonnageId: null, // Ajouté pour la règle d'échantillonnage
+      libelleSection: '',
       frequenceLibelle: '',
       notes: '',
       lignes: []
@@ -89,16 +104,15 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       id: crypto.randomUUID(),
       ordreAffiche: section.lignes.length + 1,
       typeCaracteristiqueId: typesCaracteristique.value.length > 0 ? typesCaracteristique.value[0].id : '',
-      typeControleId: null, 
+      typeControleId: null,
       libelleAffiche: '',
       moyenControleId: null,
-      // groupeInstrumentId: null,
-      instrumentCode: null, 
+      instrumentCode: null,
       periodiciteId: null,
       instruction: '',
+      observations: '',
       estCritique: false,
       limiteSpecTexte: ''
-
     });
   };
 
@@ -110,51 +124,73 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     }
   };
 
+  const mapPayload = (legendeMoyens = '') => ({
+    code: entete.value.code || codeModeleAuto.value,
+    libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
+    typeRobinetCode: entete.value.typeRobinetCode || null,
+    natureComposantCode: entete.value.natureComposantCode || '',
+    operationCode: entete.value.operationCode || '',
+    posteCode: entete.value.posteCode || null,
+    familleProduitCode: (entete.value.natureComposantCode === 'PISTON') ? null : (entete.value.familleProduitCode || null),
+    notes: entete.value.notes || "",
+    legendeMoyens: legendeMoyens || '',
+    sections: sections.value.map(s => ({
+      ordreAffiche: s.ordreAffiche,
+      typeSectionId: s.typeSectionId,
+      periodiciteId: s.periodiciteId,
+      regleEchantillonnageId: s.regleEchantillonnageId, // Ajouté ici
+      libelleSection: s.libelleSection,
+      frequenceLibelle: s.frequenceLibelle,
+      notes: s.notes,
+      lignes: s.lignes.map(l => ({
+        ordreAffiche: l.ordreAffiche,
+        typeCaracteristiqueId: l.typeCaracteristiqueId,
+        libelleAffiche: l.libelleAffiche,
+        typeControleId: l.typeControleId,
+        moyenControleId: l.moyenControleId,
+        instrumentCode: l.instrumentCode,
+        periodiciteId: l.periodiciteId,
+        instruction: l.instruction,
+        observations: l.observations,
+        estCritique: l.estCritique,
+        unite: l.unite || '',
+        limiteSpecTexte: l.limiteSpecTexte || null
+      }))
+    }))
+  });
+
   const saveModele = async (legendeMoyens = '') => {
     isLoading.value = true;
     try {
-      const payload = {
-        code: codeModeleAuto.value,
-        libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value}`,
-        typeRobinetCode: entete.value.typeRobinetCode || null,
-        natureComposantCode: entete.value.natureComposantCode || '',
-        operationCode: entete.value.operationCode || '', 
-        notes: entete.value.notes || "",
-        legendeMoyens: legendeMoyens || '',
-        sections: sections.value.map(s => ({
-          ordreAffiche: s.ordreAffiche,
-          typeSectionId: s.typeSectionId, // Ajouté dans le mapping
-          periodiciteId: s.periodiciteId, // Ajouté dans le mapping
-          libelleSection: s.libelleSection || 'SECTION SANS NOM',
-          frequenceLibelle: s.frequenceLibelle,
-          notes: s.notes, // Ajouté dans le mapping
-          lignes: s.lignes.map(l => ({
-            ordreAffiche: l.ordreAffiche,
-            typeCaracteristiqueId: l.typeCaracteristiqueId,
-            libelleAffiche: l.libelleAffiche,
-            typeControleId: l.typeControleId,
-            moyenControleId: l.moyenControleId,
-            // groupeInstrumentId: l.groupeInstrumentId,
-            instrumentCode: l.instrumentCode, // <-- NOUVEAU
-            periodiciteId: l.periodiciteId,
-            instruction: l.instruction,
-            estCritique: l.estCritique,
-            limiteSpecTexte: l.limiteSpecTexte || null
-          }))
-        }))
-      };
+      const payload = mapPayload(legendeMoyens);
+      const res = await fabPlanService.creerModele(payload);
+      return res.data.modeleId;
+    } finally {
+      isLoading.value = false;
+    }
+  };
 
-      await fabPlanService.creerModele(payload);
+  const creerNouvelleVersion = async (id, motif, legendeMoyens = '') => {
+    isLoading.value = true;
+    try {
+      const payload = {
+        ...mapPayload(legendeMoyens),
+        ancienId: id,
+        modifiePar: 'Admin',
+        motifModification: motif
+      };
+      const res = await fabPlanService.creerNouvelleVersionModele(payload);
+      return res.data.modeleId;
     } finally {
       isLoading.value = false;
     }
   };
 
   return {
-    operations, typesRobinet, naturesComposant, 
-    typesCaracteristique, typesControle, moyensControle, 
-    periodicites, typesSection, instruments, gammesOperatoires, isDicosLoaded, 
+    operations, typesRobinet, naturesComposant,
+    typesCaracteristique, typesControle, moyensControle,
+    periodicites, typesSection, reglesEchantillonnage, instruments, postes, famillesProduit, gammesOperatoires, isDicosLoaded,
     entete, sections, isLoading, version, codeModeleAuto,
-    fetchDictionnaires, addSection, removeSection, addLigneLibre, removeLigne, saveModele
+    fetchDictionnaires, addSection, removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion
   };
 });

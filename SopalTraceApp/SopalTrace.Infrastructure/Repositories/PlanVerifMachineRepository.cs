@@ -72,6 +72,19 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
         return defaultMoyenId;
     }
 
+    /// <summary>
+    /// Retourne les familles de corps liées à cette machine dans la table Machine_FamilleCorps.
+    /// La relation many-to-many est déjà mappée dans le DbContext via la navigation RefFamilleCorps.
+    /// </summary>
+    public async Task<List<RefFamilleCorp>> GetFamillesParMachineAsync(string machineCode)
+    {
+        var machine = await _context.Machines
+            .Include(m => m.RefFamilleCorps)
+            .FirstOrDefaultAsync(m => m.CodeMachine == machineCode);
+
+        return machine?.RefFamilleCorps?.ToList() ?? new List<RefFamilleCorp>();
+    }
+
     public void RemoveLigne(PlanVerifMachineLigne ligne) => _context.PlanVerifMachineLignes.Remove(ligne);
     public void RemoveEcheance(PlanVerifMachineEcheance echeance) => _context.PlanVerifMachineEcheances.Remove(echeance);
     public void RemoveMatricePiece(PlanVerifMachineMatricePiece matricePiece) => _context.Remove(matricePiece);

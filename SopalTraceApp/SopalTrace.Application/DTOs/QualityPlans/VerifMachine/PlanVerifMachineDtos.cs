@@ -5,8 +5,20 @@ using System.Collections.Generic;
 namespace SopalTrace.Application.DTOs.QualityPlans.VerifMachine;
 
 // ==========================================
-// DTOs UNIFIÉS POUR LE FRONTEND (CRÉATION)
+// DTO LECTURE : Familles de corps d'une machine
 // ==========================================
+
+/// <summary>
+/// Représente une famille de corps liée à une machine via Machine_FamilleCorps.
+/// Retourné par GET /api/plans-verif-machine/machine/{code}/familles
+/// </summary>
+public record FamilleCorpsDto
+{
+    public Guid Id { get; init; }
+    public string Code { get; init; }
+    public string Designation { get; init; }
+}
+
 
 public record CreateVerifMachineModeleDto
 {
@@ -18,6 +30,9 @@ public record CreateVerifMachineModeleDto
     public bool AfficheMoyenDetectionRisques { get; init; }
     public bool AfficheFamilles { get; init; }
     public bool AfficheFuiteEtalon { get; init; }
+
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
 
     public List<VmFamilleDto> Familles { get; init; } = new();
     public List<VmLigneDto> LignesConformite { get; init; } = new();
@@ -71,6 +86,9 @@ public record PlanVerifMachineResponseDto
     public bool AfficheMoyenDetectionRisques { get; init; }
     public bool AfficheFamilles { get; init; }
     public bool AfficheFuiteEtalon { get; init; }
+
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
 
     public string CreePar { get; init; }
     public DateTime CreeLe { get; init; }

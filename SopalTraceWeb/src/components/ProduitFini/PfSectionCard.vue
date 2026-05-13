@@ -11,13 +11,13 @@
             </span>
             
             <select :value="localGroupe.typeSectionId" @change="(e) => { updateGroupe('typeSectionId', e.target.value); }" :disabled="isReadOnly" class="w-64 rounded-lg px-2 py-1.5 text-xs font-bold outline-none focus:border-blue-500 shadow-sm" :class="isReadOnly ? 'bg-slate-100 border-slate-200 cursor-not-allowed text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer'">
-              <option value="" disabled>--Nature de la section--</option>
+              <option value="" disabled>--Contrôle Produit Fini--</option>
               <option v-for="ts in (store.typesSection || [])" :key="ts.id" :value="ts.id">{{ ts.libelle }}</option>
             </select>
 
             <select :value="localGroupe.modeFreq" @change="(e) => { updateGroupe('modeFreq', e.target.value); }" :disabled="isReadOnly" :class="['rounded-lg px-2 py-1.5 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-100 border border-slate-300 text-slate-600 cursor-pointer']">
               <option value="SANS">Sans fréquence</option>
-              <option value="VARIABLE">➕ Fréquence des pièces par heure</option>
+              <option value="VARIABLE">➕ Fréquence des pièces</option>
               <option value="FIXE">➕ Règle d'Échantillonnage</option>
             </select>
 
@@ -28,6 +28,7 @@
                 <select :value="localGroupe.typeVariable" @change="(e) => { updateGroupe('typeVariable', e.target.value); }" :disabled="isReadOnly" :class="['text-slate-700 font-bold outline-none text-xs ml-1 border-l border-slate-200 pl-2', isReadOnly ? 'cursor-not-allowed text-slate-500' : 'cursor-pointer']">
                   <option value="HEURE">/ Heure(s)</option>
                   <option value="SERIE">par Série</option>
+                  <option value="ECHANTILLON">Échantillons</option>
                 </select>
 
                 <template v-if="localGroupe.typeVariable === 'HEURE'">
@@ -35,19 +36,30 @@
                     <input type="number" :value="localGroupe.freqHours" @input="(e) => { updateGroupe('freqHours', parseInt(e.target.value)); }" min="1" max="24" :disabled="isReadOnly" class="w-12 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs" :class="isReadOnly ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-slate-100'" />
                     <span class="text-[10px] font-bold text-slate-500 uppercase pr-1">H</span>
                 </template>
-                <i v-if="localGroupe.isNewFreq" class="pi pi-sparkles text-emerald-500 ml-1" title="Nouvelle fréquence"></i>
+
+                <!-- BOUTON RACCOURCI 100% -->
+                <button v-if="!isReadOnly" 
+                        @click="set100Percent" 
+                        type="button"
+                        :class="[
+                          'flex items-center ml-2 pl-2 border-l border-slate-200 transition-all hover:scale-110 active:scale-95',
+                          is100Percent ? 'text-blue-600' : 'text-slate-300 hover:text-blue-400'
+                        ]"
+                        title="Appliquer 100% (100% des pièces/h)">
+                  <span :class="['font-black text-[11px]', is100Percent ? 'animate-pulse' : '']"> 100%</span>
+                </button>
             </div>
 
             <div v-if="localGroupe.modeFreq === 'FIXE'" class="flex items-center animate-in fade-in slide-in-from-left-4">
-                <select :value="localGroupe.periodiciteId" @change="(e) => { updateGroupe('periodiciteId', e.target.value); }" :disabled="isReadOnly" :class="['w-64 rounded-lg px-2 py-1.5 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-700 cursor-pointer']">
+                <select :value="localGroupe.regleEchantillonnageId" @change="(e) => { updateGroupe('regleEchantillonnageId', e.target.value); }" :disabled="isReadOnly" :class="['w-64 rounded-lg px-2 py-1.5 text-[11px] font-bold outline-none focus:border-blue-500 shadow-sm', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-700 cursor-pointer']">
                   <option :value="null" disabled>Sélectionner la règle...</option>
-                  <option v-for="p in periodesFixes" :key="p.id" :value="p.id">{{ p.libelle.substring(0, 35) }}{{ p.libelle.length > 35 ? '...' : '' }}</option>
+                  <option v-for="r in (store.reglesEchantillonnage || [])" :key="r.id" :value="r.id">{{ r.libelle.substring(0, 35) }}{{ r.libelle.length > 35 ? '...' : '' }}</option>
                 </select>
             </div>
           </div>
 
           <div class="w-full border text-[11px] font-black tracking-widest rounded px-3 py-2 flex items-center shadow-inner transition-colors bg-white border-slate-200 text-slate-700">
-              <span class="text-blue-500 mr-2 uppercase">Aperçu :</span> {{ apercu || 'SÉLECTIONNEZ UNE NATURE POUR GÉNÉRER LE TITRE' }}
+              <span class="text-blue-500 mr-2 uppercase">Aperçu :</span> {{ apercu || 'Contrôle Produit Fini' }}
           </div>
         </div>
 
@@ -100,30 +112,69 @@ const updateGroupe = (key, value) => {
   emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
 };
 
-const periodesFixes = computed(() => (store.periodicites || []).filter(p => 
-  (p.frequenceNum === null || p.frequenceNum === undefined) && p.frequenceUnite !== 'MACHINE'
-));
+// ✅ Détecter si on est à 100% (soit par la nature choisie, soit par les chiffres)
+const is100Percent = computed(() => {
+  // 1. Par la Nature sélectionnée
+  const typeSec = (store.typesSection || []).find(ts => ts.id === localGroupe.value.typeSectionId);
+  if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) return true;
+
+  // 2. Par les chiffres saisis
+  return localGroupe.value.modeFreq === 'VARIABLE' && 
+         localGroupe.value.freqNum === 1 && 
+         localGroupe.value.typeVariable === 'HEURE' && 
+         (localGroupe.value.freqHours === 1 || !localGroupe.value.freqHours);
+});
+
+// ✅ Auto-configurer la fréquence si la nature choisie contient "100%"
+watch(() => localGroupe.value.typeSectionId, (newId) => {
+  const typeSec = (store.typesSection || []).find(ts => ts.id === newId);
+  if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) {
+    set100Percent();
+  }
+});
+
+const set100Percent = () => {
+  if (isReadOnly.value) return;
+  localGroupe.value.modeFreq = 'VARIABLE';
+  localGroupe.value.freqNum = 1;
+  localGroupe.value.typeVariable = 'HEURE';
+  localGroupe.value.freqHours = 1;
+  verifierVariables();
+  emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
+};
+
+
 
 const apercu = computed(() => {
   const typeSec = (store.typesSection || []).find(ts => ts.id === localGroupe.value.typeSectionId);
-  if (!typeSec) return '';
   
-  let txt = `Contrôle Produit Fini par ${typeSec.libelle}`;
-  
-  if (localGroupe.value.modeFreq === 'FIXE' && localGroupe.value.periodiciteId) {
-    const per = (store.periodicites || []).find(p => p.id === localGroupe.value.periodiciteId);
-    if (per) txt += ` (${per.libelle})`;
+  if (!typeSec) {
+      return localGroupe.value.libelleSection || 'Contrôle Produit Fini';
+  }
+
+  let txt = `Contrôle Produit Fini ${typeSec.libelle}`;
+
+  if (localGroupe.value.modeFreq === 'FIXE' && localGroupe.value.regleEchantillonnageId) {
+    const regle = (store.reglesEchantillonnage || []).find(r => r.id === localGroupe.value.regleEchantillonnageId);
+    if (regle) txt += ` (${regle.libelle})`;
   } else if (localGroupe.value.modeFreq === 'VARIABLE') {
-    const sP = localGroupe.value.freqNum > 1 ? 's' : '';
-    const libelleFreq = localGroupe.value.typeVariable === 'HEURE'
-      ? (() => {
-          const sH = localGroupe.value.freqHours > 1 ? 's' : '';
-          return localGroupe.value.freqHours === 1
-            ? `${localGroupe.value.freqNum} pièce${sP} / heure`
-            : `${localGroupe.value.freqNum} pièce${sP} / ${localGroupe.value.freqHours} heure${sH}`;
-        })()
-      : `une série de ${localGroupe.value.freqNum} pièces`;
-    txt += ` (${libelleFreq})`;
+    // ✅ CAS SPÉCIAL 100% : On récupère le libellé depuis la base (Periodicite)
+    if (is100Percent.value) {
+      const period100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || (p.code === '100PCT_1H'));
+      const label100 = period100 ? period100.libelle : "100% des pièces/h";
+      txt += ` (${label100})`;
+    } else {
+      const sP = localGroupe.value.freqNum > 1 ? 's' : '';
+      const libelleFreq = localGroupe.value.typeVariable === 'HEURE'
+        ? (() => {
+            const sH = localGroupe.value.freqHours > 1 ? 's' : '';
+            return localGroupe.value.freqHours === 1
+              ? `${localGroupe.value.freqNum} pièce${sP} / heure`
+              : `${localGroupe.value.freqNum} pièce${sP} / ${localGroupe.value.freqHours} heure${sH}`;
+          })()
+        : (localGroupe.value.typeVariable === 'ECHANTILLON' ? `${localGroupe.value.freqNum} échantillon${sP}` : `une série de ${localGroupe.value.freqNum} pièces`);
+      txt += ` (${libelleFreq})`;
+    }
   }
   
   return txt;
@@ -132,44 +183,54 @@ const apercu = computed(() => {
 const verifierVariables = () => {
   const groupe = localGroupe.value; 
   const typeSec = (store.typesSection || []).find(ts => ts.id === groupe.typeSectionId);
-  let texteBase = typeSec ? typeSec.libelle : "???";
-  let titre = `Contrôle Produit Fini par ${texteBase}`;
+  
+  let titre;
+  if (typeSec) {
+      titre = `Contrôle Produit Fini ${typeSec.libelle}`;
+  } else {
+      // Si pas de nature, on garde le libellé actuel (ex: import Excel) ou on met le libellé par défaut
+      titre = groupe.libelleSection || 'Contrôle Produit Fini';
+  }
 
   if (groupe.modeFreq === 'SANS') {
-      localGroupe.value.periodiciteId = null;
-      localGroupe.value.isNewFreq = false;
-      localGroupe.value.nom = titre;
+      localGroupe.value.regleEchantillonnageId = null;
+      localGroupe.value.libelleSection = titre;
   }
   else if (groupe.modeFreq === 'FIXE') {
-      const perio = (store.periodicites || []).find(p => p.id === groupe.periodiciteId);
-      localGroupe.value.isNewFreq = false;
-      localGroupe.value.nom = perio ? `${titre} (${perio.libelle})` : `${titre} (Veuillez choisir une règle)`;
+      const regle = (store.reglesEchantillonnage || []).find(r => r.id === groupe.regleEchantillonnageId);
+      localGroupe.value.libelleSection = regle ? `${titre} (${regle.libelle})` : `${titre} (Veuillez choisir une règle)`;
   }
   else if (groupe.modeFreq === 'VARIABLE') {
       let libelleFreq = "";
-      const sP = groupe.freqNum > 1 ? 's' : '';
       
-      if (groupe.typeVariable === 'HEURE') {
-          const sH = groupe.freqHours > 1 ? 's' : '';
-          if (groupe.freqHours === 1) {
-              libelleFreq = `${groupe.freqNum} pièce${sP} / heure`;
-          } else {
-              libelleFreq = `${groupe.freqNum} pièce${sP} / ${groupe.freqHours} heure${sH}`;
-          }
+      // ✅ CAS SPÉCIAL 100% : Libellé simplifié pour la base de données
+      if (is100Percent.value) {
+          libelleFreq = "100% des pièces/h";
       } else {
-          libelleFreq = `une série de ${groupe.freqNum} pièces`;
+          const sP = groupe.freqNum > 1 ? 's' : '';
+          if (groupe.typeVariable === 'HEURE') {
+              const sH = groupe.freqHours > 1 ? 's' : '';
+              if (groupe.freqHours === 1) {
+                  libelleFreq = `${groupe.freqNum} pièce${sP} / heure`;
+              } else {
+                  libelleFreq = `${groupe.freqNum} pièce${sP} / ${groupe.freqHours} heure${sH}`;
+              }
+          } else if (groupe.typeVariable === 'ECHANTILLON') {
+              libelleFreq = `${groupe.freqNum} échantillon${sP}`;
+          } else {
+              libelleFreq = `une série de ${groupe.freqNum} pièces`;
+          }
       }
 
-      const perio = (store.periodicites || []).find(p => p.libelle.toLowerCase() === libelleFreq.toLowerCase());
+      const regle = (store.reglesEchantillonnage || []).find(r => r.libelle.toLowerCase() === libelleFreq.toLowerCase());
       
-      if (perio) {
-          localGroupe.value.periodiciteId = perio.id;
-          localGroupe.value.isNewFreq = false;
-          localGroupe.value.nom = `${titre} (${perio.libelle})`;
+      if (regle) {
+          localGroupe.value.regleEchantillonnageId = regle.id;
+          localGroupe.value.libelleSection = `${titre} (${regle.libelle})`;
       } else {
-          localGroupe.value.periodiciteId = null;
-          localGroupe.value.isNewFreq = true;
-          localGroupe.value.nom = `${titre} (${libelleFreq})`;
+          localGroupe.value.regleEchantillonnageId = null;
+          // On garde le libellé pour que le backend puisse potentiellement créer la règle ou l'identifier
+          localGroupe.value.libelleSection = `${titre} (${libelleFreq})`;
       }
   }
 };
@@ -188,9 +249,6 @@ const ajouterLigne = () => {
     moyenControleId: null,
     moyenTexteLibre: '',
     instrumentCode: null,
-    valeurNominale: null,
-    toleranceSuperieure: null,
-    toleranceInferieure: null,
     limiteSpecTexte: '', 
     unite: '',          
     instruction: '',

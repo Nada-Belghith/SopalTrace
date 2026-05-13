@@ -23,7 +23,7 @@ public class PlanPfRepository : IPlanPfRepository
     {
         return await _context.PlanPfEntetes
             .AsNoTracking()
-            .Include(p => p.TypeRobinetCodeNavigation)
+            .Include(p => p.FamilleProduitFiniCodeNavigation)
             .OrderByDescending(p => p.CreeLe)
             .ToListAsync();
     }
@@ -31,9 +31,7 @@ public class PlanPfRepository : IPlanPfRepository
     public async Task<PlanPfEntete?> GetPlanByIdAsync(Guid id)
     {
         return await _context.PlanPfEntetes
-            .Include(p => p.TypeRobinetCodeNavigation)
-            .Include(p => p.PlanPfSections)
-                .ThenInclude(s => s.TypeSection)
+            .Include(p => p.FamilleProduitFiniCodeNavigation)
             .Include(p => p.PlanPfSections)
                 .ThenInclude(s => s.PlanPfLignes)
                     .ThenInclude(l => l.TypeCaracteristique)
@@ -52,55 +50,50 @@ public class PlanPfRepository : IPlanPfRepository
     public async Task<PlanPfEntete?> GetPlanPourArchivageAsync(Guid id)
     {
         return await _context.PlanPfEntetes
-            .Include(p => p.TypeRobinetCodeNavigation) // Ajouté pour éviter le NULL sur la FK
             .Include(p => p.PlanPfSections)
                 .ThenInclude(s => s.PlanPfLignes)
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    public async Task<bool> ExistsActiveOrDraftPlanAsync(string typeRobinetCode)
+    public async Task<bool> ExistsActiveOrDraftPlanAsync(string familleProduitFiniCode)
     {
         return await _context.PlanPfEntetes
-            .AnyAsync(p => p.TypeRobinetCode == typeRobinetCode && p.Statut != StatutsPlan.Archive);
+            .AnyAsync(p => p.FamilleProduitFiniCode == familleProduitFiniCode && p.Statut != StatutsPlan.Archive);
     }
 
-    public async Task AddPlanAsync(PlanPfEntete plan)
+    public async Task<PlanPfEntete?> GetDraftPlanByFamilleAsync(string familleProduitFiniCode)
+    {
+        return await _context.PlanPfEntetes
+            .FirstOrDefaultAsync(p => p.FamilleProduitFiniCode == familleProduitFiniCode && p.Statut == StatutsPlan.Brouillon);
+    }
+
+    public Task AddPlanAsync(PlanPfEntete plan)
     {
         _context.PlanPfEntetes.Add(plan);
+        return Task.CompletedTask;
     }
 
-    public async Task<List<PlanPfEntete>> GetActivePlansByTypeRobinetAsync(string typeRobinetCode, Guid excludeId)
+    public async Task<List<PlanPfEntete>> GetActivePlansByFamilleAsync(string familleProduitFiniCode)
     {
         return await _context.PlanPfEntetes
             .Include(p => p.PlanPfSections)
                 .ThenInclude(s => s.PlanPfLignes)
-            .Where(p => p.TypeRobinetCode == typeRobinetCode && p.Statut == StatutsPlan.Actif && p.Id != excludeId)
+            .Where(p => p.FamilleProduitFiniCode == familleProduitFiniCode && p.Statut == StatutsPlan.Actif)
             .ToListAsync();
     }
 
-    public async Task<List<PlanPfEntete>> GetActivePlansByTypeRobinetAsync(string typeRobinetCode)
-    {
-        return await _context.PlanPfEntetes
-            .Include(p => p.PlanPfSections)
-                .ThenInclude(s => s.PlanPfLignes)
-            .Where(p => p.TypeRobinetCode == typeRobinetCode && p.Statut == StatutsPlan.Actif)
-            .ToListAsync();
-    }
-
-    public async Task UpdatePlanAsync(PlanPfEntete plan)
+    public Task UpdatePlanAsync(PlanPfEntete plan)
     {
         _context.PlanPfEntetes.Update(plan);
+        return Task.CompletedTask;
     }
 
-    public async Task<int> GetDerniereVersionPlanAsync(string typeRobinetCode)
+    public async Task<int> GetDerniereVersionPlanAsync(string familleProduitFiniCode)
     {
-        var derniereVersion = await _context.PlanPfEntetes
-            .Where(p => p.TypeRobinetCode == typeRobinetCode)
-            .OrderByDescending(p => p.Version)
-            .Select(p => p.Version)
-            .FirstOrDefaultAsync();
-
-        return derniereVersion;
+        return await _context.PlanPfEntetes
+            .Where(p => p.FamilleProduitFiniCode == familleProduitFiniCode)
+            .Select(p => (int?)p.Version)
+            .MaxAsync() ?? -1;
     }
 
     public async Task SaveChangesAsync()
@@ -111,5 +104,10 @@ public class PlanPfRepository : IPlanPfRepository
     public void ClearTracking()
     {
         _context.ChangeTracker.Clear();
+    }
+
+    public void DeletePlan(PlanPfEntete plan)
+    {
+        _context.PlanPfEntetes.Remove(plan);
     }
 }

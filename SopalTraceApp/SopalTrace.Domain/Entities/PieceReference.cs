@@ -15,11 +15,7 @@ public partial class PieceReference
 
     public string? FamilleDesc { get; set; }
 
-    public string? MachineCode { get; set; }
-
     public bool Actif { get; set; }
-
-    public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual ICollection<PlanVerifMachineMatricePiece> PlanVerifMachineMatricePieces { get; set; } = new List<PlanVerifMachineMatricePiece>();
 }

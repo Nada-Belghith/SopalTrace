@@ -8,20 +8,24 @@ namespace SopalTrace.Application.Interfaces;
 public interface IPlanFabricationRepository
 {
     Task<bool> ExisteArticleSageAsync(string codeArticleSage);
-
-    // AJOUT DU '?' APRÈS string
     Task<string?> GetDesignationArticleSageAsync(string codeArticleSage);
+    Task<Itmmaster?> GetArticleItmAsync(string codeArticleSage);
+    Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode);
 
     // Modèles
-    Task<bool> ExisteModeleActifAsync(string typeRobinetCode, string natureCode, string? operationCode);
-    Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode);
+    Task<bool> ExisteModeleActifAsync(string natureCode, string? operationCode);
+    Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode);
     Task<ModeleFabEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId);
     Task<ModeleFabEntete?> GetModeleAvecRelationsAsync(Guid modeleId);
     Task<ModeleFabEntete?> GetModelePourArchivageAsync(Guid modeleId);
     Task AddModeleAsync(ModeleFabEntete modele);
+    Task<bool> ExisteModeleParCodeAsync(string code);
+    Task<bool> ExisteModeleParCodeEtLibelleAsync(string code, string libelle);
+    void DeleteModele(ModeleFabEntete modele);
 
-    // --> AJOUTEZ CECI POUR SÉCURISER VOTRE CRÉATION V2
-    Task<int> GetDerniereVersionModeleAsync(string typeRobinetCode, string natureCode, string operationCode); 
+    Task<int> GetDerniereVersionModeleAsync(string? natureCode, string? operationCode); 
+    Task<int> GetDerniereVersionModeleParCodeAsync(string code);
+    Task<ModeleFabEntete?> GetBrouillonModeleLePlusRecentAsync(string? natureCode, string? operationCode); 
 
     // Plans
     Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage);
@@ -34,8 +38,7 @@ public interface IPlanFabricationRepository
     Task<List<PlanFabLigne>> GetLignesDuPlanAsync(Guid planId);
     Task<PlanFabEntete?> GetPlanByIdAsync(Guid planId);
     
-    // --> AJOUT : Méthode nécessaire pour l'UI de clonage
-    Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode);
+    Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? natureCode, string? operationCode);
 
     void Delete(PlanFabEntete plan);
     void DeleteSection(PlanFabSection section);
@@ -43,18 +46,13 @@ public interface IPlanFabricationRepository
 
     Task AddPlanAsync(PlanFabEntete plan);
 
-    // --- NOUVEAU : Méthodes explicites pour forcer les INSERTS ---
     Task AddPlanSectionAsync(PlanFabSection section);
     Task AddPlanLigneAsync(PlanFabLigne ligne);
 
-    // Unité de travail
     Task SaveChangesAsync();
     Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null);
-    Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string typeRobinetCode, string natureCode, string operationCode);
-    Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string typeRobinetCode, string natureComposantCode, string opCode);
+    Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string natureCode, string operationCode);
+    Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode);
 
-    /// <summary>
-    /// Supprime un plan et toutes ses sections et lignes en cascade
-    /// </summary>
     Task DeletePlanWithChildrenAsync(Guid planId);
 }

@@ -6,49 +6,26 @@ using SopalTrace.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace SopalTrace.Application.Mappers;
 
 public static class PlanPfMapper
 {
-    private static Guid? NullIfEmpty(Guid? value) => (value == null || value == Guid.Empty) ? null : value;
-    private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
-
-    private static (string? InstrumentCode, string? MoyenTexteLibre) NormalizeInstrumentCode(string? instrumentCode, string? moyenTexteLibre = null)
-    {
-        var normalizedInstrumentCode = string.IsNullOrWhiteSpace(instrumentCode) ? null : instrumentCode.Trim();
-        var normalizedMoyenTexteLibre = string.IsNullOrWhiteSpace(moyenTexteLibre) ? null : moyenTexteLibre.Trim();
-
-        if (!string.IsNullOrWhiteSpace(normalizedMoyenTexteLibre))
-        {
-            return (normalizedInstrumentCode, normalizedMoyenTexteLibre);
-        }
-
-        // Si le code ressemble à du texte libre (caractères spéciaux), on le bascule en texte libre
-        if (normalizedInstrumentCode != null && normalizedInstrumentCode.Any(ch => !char.IsLetterOrDigit(ch) && ch != '-' && ch != '_' && ch != '/'))
-        {
-            return (null, normalizedInstrumentCode);
-        }
-
-        return (normalizedInstrumentCode, null);
-    }
-
     public static PlanPfEnteteDto MapVersDto(PlanPfEntete entite)
     {
         return new PlanPfEnteteDto
         {
             Id = entite.Id,
-            TypeRobinetCode = entite.TypeRobinetCode,
-            Designation = entite.Designation ?? string.Empty,
+            FamilleProduitFiniCode = entite.FamilleProduitFiniCode,
+            FamilleProduitFiniLibelle = entite.FamilleProduitFiniCodeNavigation?.Designation ?? string.Empty,
             Version = entite.Version,
             Statut = entite.Statut,
-            DateApplication = entite.DateApplication,
             CreePar = entite.CreePar,
             CreeLe = entite.CreeLe,
             ModifiePar = entite.ModifiePar ?? string.Empty,
             ModifieLe = entite.ModifieLe,
-            CommentaireVersion = entite.CommentaireVersion ?? string.Empty,
+            Remarques = entite.Remarques ?? string.Empty,
+            LegendeMoyens = entite.LegendeMoyens ?? string.Empty,
             Sections = entite.PlanPfSections.OrderBy(s => s.OrdreAffiche).Select(MapSectionVersDto).ToList()
         };
     }
@@ -62,6 +39,8 @@ public static class PlanPfMapper
             TypeSectionId = entite.TypeSectionId,
             TypeSectionLibelle = entite.TypeSection?.Libelle ?? string.Empty,
             LibelleSection = entite.LibelleSection,
+            RegleEchantillonnageId = entite.RegleEchantillonnageId,
+            RegleEchantillonnageLibelle = entite.RegleEchantillonnage?.Libelle ?? string.Empty,
             Notes = entite.Notes ?? string.Empty,
             OrdreAffiche = entite.OrdreAffiche,
             Lignes = entite.PlanPfLignes.OrderBy(l => l.OrdreAffiche).Select(MapLigneVersDto).ToList()
@@ -84,19 +63,17 @@ public static class PlanPfMapper
             MoyenControleLibelle = entite.MoyenControle?.Libelle ?? string.Empty,
             InstrumentCode = entite.InstrumentCode ?? string.Empty,
             MoyenTexteLibre = entite.MoyenTexteLibre ?? string.Empty,
-            ToleranceSuperieure = entite.ToleranceSuperieure,
-            ToleranceInferieure = entite.ToleranceInferieure,
             LimiteSpecTexte = entite.LimiteSpecTexte ?? string.Empty,
             DefauthequeId = entite.DefauthequeId,
             DefauthequeLibelle = entite.Defautheque != null ? $"{entite.Defautheque.Code} - {entite.Defautheque.Description}" : string.Empty,
             Instruction = entite.Instruction ?? string.Empty,
-            Observations = entite.Observations ?? string.Empty
+            Observations = entite.Observations ?? string.Empty,
+            EstCritique = entite.EstCritique
         };
     }
 
     public static void MettreAJourArchitectureComplete(PlanPfEntete entite, List<SectionPfEditDto> sectionsDto, bool forceNewIds = false)
     {
-        // 1. On indexe les entités existantes pour les réutiliser (évite les conflits de Tracking EF Core)
         var sectionsExistantes = forceNewIds ? new Dictionary<Guid, PlanPfSection>() : entite.PlanPfSections.ToDictionary(s => s.Id);
         var lignesExistantes = forceNewIds ? new Dictionary<Guid, PlanPfLigne>() : entite.PlanPfSections.SelectMany(s => s.PlanPfLignes).GroupBy(l => l.Id).ToDictionary(g => g.Key, g => g.First());
 
@@ -110,11 +87,21 @@ public static class PlanPfMapper
                 : secDto.Id.Value;
 
             PlanPfSection sectionEntity;
+
+            // ✅ Ajouter le préfixe "Contrôle Produit Fini" si absent
+            var libelleComplet = secDto.LibelleSection ?? string.Empty;
+            if (!libelleComplet.StartsWith("Contrôle Produit Fini"))
+            {
+                libelleComplet = $"Contrôle Produit Fini {libelleComplet}".Trim();
+            }
+
             if (!forceNewIds && sectionsExistantes.TryGetValue(sectionId, out var existingSec))
             {
                 sectionEntity = existingSec;
-                sectionEntity.TypeSectionId = secDto.TypeSectionId ?? sectionEntity.TypeSectionId;
-                sectionEntity.LibelleSection = secDto.LibelleSection;
+                sectionEntity.TypeSectionId = MapperHelper.NullIfEmpty(secDto.TypeSectionId) ?? sectionEntity.TypeSectionId;
+                sectionEntity.LibelleSection = libelleComplet;
+                sectionEntity.RegleEchantillonnageId = secDto.RegleEchantillonnageId;
+                sectionEntity.RegleEchantillonnageLibelle = secDto.RegleEchantillonnageLibelle;
                 sectionEntity.OrdreAffiche = secDto.OrdreAffiche;
                 sectionEntity.Notes = secDto.Notes;
                 sectionEntity.PlanPfLignes.Clear();
@@ -125,8 +112,10 @@ public static class PlanPfMapper
                 {
                     Id = sectionId,
                     PlanEnteteId = entite.Id,
-                    TypeSectionId = secDto.TypeSectionId ?? Guid.Empty,
-                    LibelleSection = secDto.LibelleSection,
+                    TypeSectionId = MapperHelper.NullIfEmpty(secDto.TypeSectionId),
+                    LibelleSection = libelleComplet,
+                    RegleEchantillonnageId = secDto.RegleEchantillonnageId,
+                    RegleEchantillonnageLibelle = secDto.RegleEchantillonnageLibelle,
                     OrdreAffiche = secDto.OrdreAffiche,
                     Notes = secDto.Notes,
                     PlanPfLignes = new List<PlanPfLigne>()
@@ -140,25 +129,24 @@ public static class PlanPfMapper
                     : lDto.Id.Value;
 
                 PlanPfLigne ligneEntity;
-                var instrumentData = NormalizeInstrumentCode(lDto.InstrumentCode, lDto.MoyenTexteLibre);
+                var instrumentData = MapperHelper.NormalizeInstrumentCode(lDto.InstrumentCode, lDto.MoyenTexteLibre);
 
                 if (!forceNewIds && lignesExistantes.TryGetValue(ligneId, out var existingLigne))
                 {
                     ligneEntity = existingLigne;
                     ligneEntity.SectionId = sectionId;
                     ligneEntity.OrdreAffiche = lDto.OrdreAffiche;
-                    ligneEntity.TypeCaracteristiqueId = NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty;
-                    ligneEntity.LibelleAffiche = NullIfEmpty(lDto.LibelleAffiche);
-                    ligneEntity.TypeControleId = NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty;
-                    ligneEntity.MoyenControleId = NullIfEmpty(lDto.MoyenControleId) ?? Guid.Empty;
-                    ligneEntity.InstrumentCode = NullIfEmpty(instrumentData.InstrumentCode);
-                    ligneEntity.MoyenTexteLibre = NullIfEmpty(instrumentData.MoyenTexteLibre);
-                    ligneEntity.ToleranceSuperieure = lDto.ToleranceSuperieure;
-                    ligneEntity.ToleranceInferieure = lDto.ToleranceInferieure;
-                    ligneEntity.LimiteSpecTexte = NullIfEmpty(lDto.LimiteSpecTexte);
+                    ligneEntity.TypeCaracteristiqueId = MapperHelper.NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty;
+                    ligneEntity.LibelleAffiche = MapperHelper.NullIfEmpty(lDto.LibelleAffiche);
+                    ligneEntity.TypeControleId = MapperHelper.NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty;
+                    ligneEntity.MoyenControleId = MapperHelper.NullIfEmpty(lDto.MoyenControleId);
+                    ligneEntity.InstrumentCode = MapperHelper.NullIfEmpty(instrumentData.InstrumentCode);
+                    ligneEntity.MoyenTexteLibre = MapperHelper.NullIfEmpty(instrumentData.MoyenTexteLibre);
+                    ligneEntity.LimiteSpecTexte = MapperHelper.NullIfEmpty(lDto.LimiteSpecTexte);
                     ligneEntity.DefauthequeId = lDto.DefauthequeId;
-                    ligneEntity.Instruction = NullIfEmpty(lDto.Instruction);
-                    ligneEntity.Observations = NullIfEmpty(lDto.Observations);
+                    ligneEntity.Instruction = MapperHelper.NullIfEmpty(lDto.Instruction);
+                    ligneEntity.Observations = MapperHelper.NullIfEmpty(lDto.Observations);
+                    ligneEntity.EstCritique = lDto.EstCritique;
                 }
                 else
                 {
@@ -168,18 +156,17 @@ public static class PlanPfMapper
                         PlanEnteteId = entite.Id,
                         SectionId = sectionId,
                         OrdreAffiche = lDto.OrdreAffiche,
-                        TypeCaracteristiqueId = NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty,
-                        LibelleAffiche = NullIfEmpty(lDto.LibelleAffiche),
-                        TypeControleId = NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty,
-                        MoyenControleId = NullIfEmpty(lDto.MoyenControleId) ?? Guid.Empty,
-                        InstrumentCode = NullIfEmpty(instrumentData.InstrumentCode),
-                        MoyenTexteLibre = NullIfEmpty(instrumentData.MoyenTexteLibre),
-                        ToleranceSuperieure = lDto.ToleranceSuperieure,
-                        ToleranceInferieure = lDto.ToleranceInferieure,
-                        LimiteSpecTexte = NullIfEmpty(lDto.LimiteSpecTexte),
+                        TypeCaracteristiqueId = MapperHelper.NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty,
+                        LibelleAffiche = MapperHelper.NullIfEmpty(lDto.LibelleAffiche),
+                        TypeControleId = MapperHelper.NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty,
+                        MoyenControleId = MapperHelper.NullIfEmpty(lDto.MoyenControleId),
+                        InstrumentCode = MapperHelper.NullIfEmpty(instrumentData.InstrumentCode),
+                        MoyenTexteLibre = MapperHelper.NullIfEmpty(instrumentData.MoyenTexteLibre),
+                        LimiteSpecTexte = MapperHelper.NullIfEmpty(lDto.LimiteSpecTexte),
                         DefauthequeId = lDto.DefauthequeId,
-                        Instruction = NullIfEmpty(lDto.Instruction),
-                        Observations = NullIfEmpty(lDto.Observations)
+                        Instruction = MapperHelper.NullIfEmpty(lDto.Instruction),
+                        Observations = MapperHelper.NullIfEmpty(lDto.Observations),
+                        EstCritique = lDto.EstCritique
                     };
                 }
 
@@ -196,14 +183,14 @@ public static class PlanPfMapper
         return new PlanPfEntete
         {
             Id = Guid.NewGuid(),
-            TypeRobinetCode = request.TypeRobinetCode ?? ancienPlan.TypeRobinetCode,
-            Designation = request.Designation ?? ancienPlan.Designation,
+            FamilleProduitFiniCode = request.FamilleProduitFiniCode ?? ancienPlan.FamilleProduitFiniCode,
             Version = nouvelleVersion,
             Statut = StatutsPlan.Actif,
-            DateApplication = DateOnly.FromDateTime(DateTime.UtcNow),
             CreePar = auteurSecure,
             CreeLe = DateTime.UtcNow,
             CommentaireVersion = request.MotifModification,
+            Remarques = request.Remarques,
+            LegendeMoyens = request.LegendeMoyens,
             PlanPfSections = new List<PlanPfSection>(),
             PlanPfLignes = new List<PlanPfLigne>()
         };

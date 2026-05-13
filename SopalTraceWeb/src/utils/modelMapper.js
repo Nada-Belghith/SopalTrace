@@ -57,9 +57,6 @@ export function mapBackendLigneToEditor(ligne) {
     periodiciteId: ligne.periodiciteId || null,
     instruction: ligne.instruction || '',
     estCritique: ligne.estCritique || false,
-    valeurNominale: ligne.valeurNominale ?? null,
-    toleranceInferieure: ligne.toleranceInferieure ?? null,
-    toleranceSuperieure: ligne.toleranceSuperieure ?? null,
     unite: ligne.unite || '',
     limiteSpecTexte: ligne.limiteSpecTexte || '',
     observations: ligne.observations || '',
@@ -96,9 +93,6 @@ export function prepareModelePayload(entete, sections) {
         periodiciteId: l.periodiciteId,
         instruction: l.instruction,
         estCritique: l.estCritique,
-        valeurNominale: l.valeurNominale ?? null,
-        toleranceInferieure: l.toleranceInferieure ?? null,
-        toleranceSuperieure: l.toleranceSuperieure ?? null,
         unite: l.unite || '',
         limiteSpecTexte: l.limiteSpecTexte || '',
         observations: l.observations || '',
@@ -127,7 +121,7 @@ export function createModeleSnapshot(entete, sections) {
       freqNum: s.freqNum,
       typeVariable: s.typeVariable,
       freqHours: s.freqHours,
-      nom: s.nom,
+      libelleSection: s.libelleSection,
       lignes: s.lignes.map(l => ({
         typeCaracteristiqueId: l.typeCaracteristiqueId,
         libelleAffiche: l.libelleAffiche,
@@ -137,9 +131,6 @@ export function createModeleSnapshot(entete, sections) {
         instrumentCode: l.instrumentCode,
         instruction: l.instruction,
         estCritique: l.estCritique,
-        valeurNominale: l.valeurNominale,
-        toleranceInferieure: l.toleranceInferieure,
-        toleranceSuperieure: l.toleranceSuperieure,
         unite: l.unite,
         limiteSpecTexte: l.limiteSpecTexte,
         observations: l.observations,
@@ -192,6 +183,9 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
       } else if (g.typeVariable === 'SERIE') {
         libelleFreq = `une série de ${g.freqNum} pièces`;
         codeFreq = `SERIE_${g.freqNum}P`;
+      } else if (g.typeVariable === 'ECHANTILLON') {
+        libelleFreq = `${g.freqNum} échantillon${sP}`;
+        codeFreq = `ECH_${g.freqNum}`;
       }
 
       // Chercher si cette périodicité existe déjà
@@ -207,7 +201,7 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
           code: codeFreq,
           libelle: libelleFreq,
           frequenceNum: g.freqNum,
-          frequenceUnite: g.typeVariable === 'HEURE' ? `${g.freqHours}_HEURE` : 'SERIE',
+          frequenceUnite: g.typeVariable === 'HEURE' ? `${g.freqHours}_HEURE` : (g.typeVariable === 'ECHANTILLON' ? 'ECHANTILLON' : 'SERIE'),
           ordreAffichage: 5
         };
         const res = await createPeriodiciteCallback(payloadFreq);
@@ -222,7 +216,7 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
     id: g.isFromDb ? g.id : null,
     ordreAffiche: idx + 1,
     typeSectionId: g.typeSectionId || null,
-    libelleSection: g.nom,
+    libelleSection: g.libelleSection,
     periodiciteId: g.periodiciteId,
     frequenceLibelle: g.periodiciteId
       ? (existingPeriodicites || []).find(p => p.id === g.periodiciteId)?.libelle
@@ -239,10 +233,6 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
       periodiciteId: g.periodiciteId,
       instruction: l.instruction,
       estCritique: l.estCritique,
-      // Préserver valeurs numériques et champs libres pour sauvegarde
-      valeurNominale: l.valeurNominale ?? null,
-      toleranceSuperieure: l.toleranceSuperieure ?? null,
-      toleranceInferieure: l.toleranceInferieure ?? null,
       unite: l.unite || '',
       limiteSpecTexte: l.limiteSpecTexte || '',
       observations: l.observations || '',

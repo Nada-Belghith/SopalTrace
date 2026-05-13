@@ -7,5 +7,7 @@ export const fabPlanService = {
   // Modèles (compat wrapper)
   creerModele: (...args) => qualityPlansService.createModele(...args),
   getModeleById: (...args) => qualityPlansService.getModeleById(...args),
-  nouvelleVersionModele: (...args) => qualityPlansService.newModeleVersion(...args)
+  nouvelleVersionModele: (...args) => qualityPlansService.newModeleVersion(...args),
+  updateModeleValeurs: (...args) => qualityPlansService.updateModeleValeurs(...args),
+  activerModele: (...args) => qualityPlansService.activerModele(...args)
 };

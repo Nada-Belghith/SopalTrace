@@ -15,14 +15,6 @@ public partial class PlanVerifMachineEntete
 
     public string? Statut { get; set; }
 
-    public bool? AfficheConformite { get; set; }
-
-    public bool? AfficheMoyenDetectionRisques { get; set; }
-
-    public bool? AfficheFamilles { get; set; }
-
-    public bool? AfficheFuiteEtalon { get; set; }
-
     public string CreePar { get; set; } = null!;
 
     public DateTime? CreeLe { get; set; }
@@ -30,6 +22,10 @@ public partial class PlanVerifMachineEntete
     public string? ModifiePar { get; set; }
 
     public DateTime? ModifieLe { get; set; }
+
+    public string? Remarques { get; set; }
+
+    public string? LegendeMoyens { get; set; }
 
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
 

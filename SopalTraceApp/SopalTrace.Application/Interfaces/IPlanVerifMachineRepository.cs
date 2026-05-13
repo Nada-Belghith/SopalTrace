@@ -14,6 +14,9 @@ public interface IPlanVerifMachineRepository
 
     Task<Guid> GetDefaultRefMoyenDetectionIdAsync();
 
+    /// <summary>Retourne les familles de corps configurées pour une machine dans Machine_FamilleCorps.</summary>
+    Task<List<RefFamilleCorp>> GetFamillesParMachineAsync(string machineCode);
+
     Task AddPlanAsync(PlanVerifMachineEntete plan);
 
     // Pour gérer les suppressions d'enfants dans le Tree Update

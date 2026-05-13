@@ -38,6 +38,20 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         return plans.Select(p => PlanVerifMachineMapper.MapperEntiteVersDto(p)).ToList();
     }
 
+    /// <summary>
+    /// Retourne les familles de corps configurées pour une machine dans Machine_FamilleCorps.
+    /// </summary>
+    public async Task<List<FamilleCorpsDto>> GetFamillesParMachineAsync(string machineCode)
+    {
+        var familles = await _unitOfWork.PlanVerifMachineRepository.GetFamillesParMachineAsync(machineCode);
+        return familles.Select(f => new FamilleCorpsDto
+        {
+            Id = f.Id,
+            Code = f.Code,
+            Designation = f.Designation
+        }).ToList();
+    }
+
     // Rétrocompatibilité si vous l'utilisez ailleurs
     public async Task<PlanVerifMachineResponseDto> GetPlanByIdAsync(Guid planId)
     {
@@ -69,7 +83,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersionExistante = tousLesPlans
             .Where(p => p.MachineCode == request.MachineCode)
-            .Max(p => p.Version) ?? 0;
+            .Max(p => p.Version) ?? -1;
         
         nouveauPlan.Version = maxVersionExistante + 1;
         nouveauPlan.Statut = "ACTIF";
@@ -123,7 +137,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersion = tousLesPlans
             .Where(p => p.MachineCode == planActuel.MachineCode)
-            .Max(p => p.Version) ?? 0;
+            .Max(p => p.Version) ?? -1;
             
         nouveauPlan.Version = maxVersion + 1; // Incrémentation propre (V+1)
 
@@ -153,7 +167,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersion = tousLesPlans
             .Where(p => p.MachineCode == ancienPlan.MachineCode)
-            .Max(p => p.Version) ?? 0;
+            .Max(p => p.Version) ?? -1;
             
         nouveauPlan.Version = maxVersion + 1;
 
@@ -198,7 +212,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersion = tousLesPlans
             .Where(p => p.MachineCode == planArchived.MachineCode)
-            .Max(p => p.Version) ?? 0;
+            .Max(p => p.Version) ?? -1;
 
         // 3. Créer une nouvelle version basée sur l'archive
         var nouveauPlan = PlanVerifMachineMapper.DupliquerEntitePlan(planArchived, restaurePar, motif);
@@ -228,7 +242,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         foreach (var lDto in lignesModifiees)
         {
             var isNewLigne = !lDto.Id.HasValue || lDto.Id.Value == Guid.Empty;
-            var ligneEnBase = isNewLigne ? null : plan.PlanVerifMachineLignes.FirstOrDefault(l => l.Id == lDto.Id.Value);
+            var ligneEnBase = isNewLigne ? null : plan.PlanVerifMachineLignes.FirstOrDefault(l => l.Id == lDto.Id!.Value);
 
             if (ligneEnBase == null)
             {

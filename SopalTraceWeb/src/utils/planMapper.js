@@ -30,9 +30,6 @@ export function mapBackendPlanToEditor(backendData) {
         groupeInstrumentId: l.groupeInstrumentId || null,
         instrumentCode: l.instrumentCode || null,
         periodiciteId: l.periodiciteId || null,
-        valeurNominale: l.valeurNominale || null,
-        toleranceSuperieure: l.toleranceSuperieure || null,
-        toleranceInferieure: l.toleranceInferieure || null,
         unite: l.unite || '',
         limiteSpecTexte: l.limiteSpecTexte || '',
         observations: l.observations || '',
@@ -62,9 +59,6 @@ export function preparePlanValuesPayload(sections) {
       groupeInstrumentId: l.groupeInstrumentId,
       instrumentCode: l.instrumentCode,
       periodiciteId: l.periodiciteId,
-      valeurNominale: l.valeurNominale,
-      toleranceSuperieure: l.toleranceSuperieure,
-      toleranceInferieure: l.toleranceInferieure,
       unite: l.unite,
       limiteSpecTexte: l.limiteSpecTexte,
       observations: l.observations,
@@ -87,10 +81,7 @@ export function isMesure(typeControleId, typesControle = []) {
  */
 export function cleanupLineValuesOnTypeChange(ligne, typeControleId, isMesureType) {
   if (!isMesureType) {
-    // Pas une mesure : vider les tolérances numériques
-    ligne.valeurNominale = null;
-    ligne.toleranceSuperieure = null;
-    ligne.toleranceInferieure = null;
+    // Pas une mesure : vider l'unité
     ligne.unite = null;
   } else {
     // C'est une mesure : vider le texte libre
@@ -123,9 +114,6 @@ export function createEmptyLine(typeCharacteristiqueId, typeControleId, index = 
     typeCaracteristiqueId: typeCharacteristiqueId,
     libelleAffiche: 'Nouvelle Caractéristique',
     typeControleId: typeControleId,
-    valeurNominale: null,
-    toleranceSuperieure: null,
-    toleranceInferieure: null,
     unite: '',
     limiteSpecTexte: '',
     estCritique: false

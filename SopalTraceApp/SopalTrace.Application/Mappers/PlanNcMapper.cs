@@ -14,10 +14,12 @@ public static class PlanNcMapper
             Id = plan.Id,
             PosteCode = plan.PosteCode,
             Nom = plan.Nom,
-            Version = plan.Version ?? 0,
-            Statut = plan.Statut ?? "",
+            Version = plan.Version,
+            Statut = plan.Statut,
             CreePar = plan.CreePar,
-            CreeLe = plan.CreeLe ?? DateTime.MinValue,
+            CreeLe = plan.CreeLe,
+            Remarques = plan.Remarques,
+            LegendeMoyens = plan.LegendeMoyens,
             Lignes = plan.PlanNcLignes.Select(l => new LigneNcResponseDto
             {
                 Id = l.Id,
@@ -29,7 +31,7 @@ public static class PlanNcMapper
         };
     }
 
-    public static PlanNcLigne ConstruireNouvelleLigne(Guid planId, LigneNcEditDto dto)
+    public static PlanNcLigne ConstruireNouvelleLigne(Guid planId, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
     {
         return new PlanNcLigne
         {
@@ -37,15 +39,15 @@ public static class PlanNcMapper
             PlanNcenteteId = planId,
             OrdreAffiche = dto.OrdreAffiche,
             MachineCode = dto.MachineCode,
-            RisqueDefautId = dto.RisqueDefautId
+            RisqueDefautId = resolvedRisqueDefautId
         };
     }
 
-    public static void MettreAJourLigne(PlanNcLigne ligne, LigneNcEditDto dto)
+    public static void MettreAJourLigne(PlanNcLigne ligne, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
     {
         ligne.OrdreAffiche = dto.OrdreAffiche;
         ligne.MachineCode = dto.MachineCode;
-        ligne.RisqueDefautId = dto.RisqueDefautId;
+        ligne.RisqueDefautId = resolvedRisqueDefautId;
     }
 
     public static PlanNcEntete DupliquerEntitePlan(PlanNcEntete source, string modifiePar, string motif)
@@ -60,6 +62,8 @@ public static class PlanNcMapper
             Statut = "BROUILLON",
             CreePar = modifiePar,
             CreeLe = DateTime.UtcNow,
+            Remarques = source.Remarques,
+            LegendeMoyens = source.LegendeMoyens,
             PlanNcLignes = source.PlanNcLignes.Select(l => new PlanNcLigne
             {
                 Id = Guid.NewGuid(),

@@ -1,9 +1,15 @@
 <template>
   <div class="p-6">
     <Toast position="top-right" />
-    <ConfirmDialog />
+    <VersioningDialog :visible="showVersioningDialog"
+                      mode="restore"
+                      :is-loading="isRestoring"
+                      @confirm="onVersioningConfirm"
+                      @cancel="showVersioningDialog = false"
+                      @update:visible="showVersioningDialog = $event" />
 
     <PlanHeader 
+      v-if="store.entete"
       :id="store.entete.id"
       title="Plan de Vérification Machine"
       :subtitle="store.entete.nom"
@@ -12,8 +18,8 @@
       :is-read-only="isReadOnly"
       :version="store.entete.version"
       :statut="store.entete.statut"
-      :is-restoring="store.isLoading"
-      @restaurer="confirmRestaurer"
+      :is-restoring="isRestoring"
+      @restaurer="onRestaurerClick"
     />
     
     <VerifMachineForm :isReadOnly="isReadOnly" @saved="onSaved" />
@@ -22,22 +28,22 @@
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router';
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, ref } from 'vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
-import ConfirmDialog from 'primevue/confirmdialog';
+import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import VerifMachineForm from '@/components/VerifMachine/VerifMachineForm.vue';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 
 const router = useRouter();
 const route = useRoute();
 const toast = useToast();
-const confirm = useConfirm();
 const store = useVerifMachineStore();
 
 const isReadOnly = computed(() => route.query.view === 'true' || store.entete.statut === 'ARCHIVE');
+const showVersioningDialog = ref(false);
+const isRestoring = ref(false);
 
 onMounted(async () => {
   const id = route.params.id;
@@ -77,25 +83,23 @@ const onSaved = (result) => {
   }
 };
 
-const confirmRestaurer = () => {
-  confirm.require({
-    message: `Cette action va archiver le plan actuel pour cette machine (${store.entete.machineCode}) et créer une nouvelle version active basée sur ce plan archivé. Voulez-vous continuer ?`,
-    header: 'Confirmation de restauration',
-    icon: 'ri-history-line',
-    acceptLabel: 'Confirmer la Restauration',
-    rejectLabel: 'Annuler',
-    acceptClass: 'p-button-warning',
-    accept: async () => {
-      try {
-        const res = await store.restaurerPlanVerif(store.entete.id);
-        if (res.success) {
-          toast.add({ severity: 'success', summary: 'Restauré', detail: 'Le plan a été restauré avec succès.', life: 3000 });
-          router.replace(`/dev/verif-machine/editer/${res.planId}`);
-        }
-      } catch {
-        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de la restauration.', life: 3000 });
-      }
+const onRestaurerClick = () => {
+  showVersioningDialog.value = true;
+};
+
+const onVersioningConfirm = async (motif) => {
+  isRestoring.value = true;
+  showVersioningDialog.value = false;
+  try {
+    const res = await store.restaurerPlanVerif(store.entete.id, motif);
+    if (res.success) {
+      toast.add({ severity: 'success', summary: 'Restauré', detail: 'Le plan a été restauré avec succès.', life: 3000 });
+      router.replace(`/dev/verif-machine/editer/${res.planId}`);
     }
-  });
+  } catch {
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de la restauration.', life: 3000 });
+  } finally {
+    isRestoring.value = false;
+  }
 };
 </script>
