@@ -1,9 +1,28 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
+import { useAuthStore } from '@/stores/authStore'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/Auth/LoginView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/Auth/RegisterView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/Auth/ForgotPasswordView.vue'),
+      meta: { requiresAuth: false }
+    },
     {
       path: '/',
       redirect: '/dev/hub'
@@ -11,12 +30,14 @@ const router = createRouter({
     {
       path: '/dev',
       component: MainLayout,
+      meta: { requiresAuth: true }, // Toutes les routes sous /dev demandent une connexion
       children: [
         // 1. LE HUB (Le choix du type de plan - Image 1)
         {
           path: 'hub',
           name: 'dev-hub',
           component: () => import('@/views/QualityPlans/DevModelHub.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE', 'QUALITE'] } // Exemple de restriction
         },
         {
           path: 'hub-plans',
@@ -24,20 +45,22 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/DevPlanHub.vue'),
         },
 
-        // 2. Ã‰DITEUR FABRICATION (TRN, ESP, USI) - GABARITS
-        // GÃ¨re les Corps et Volants pour les 3 premiÃ¨res opÃ©rations
+        // 2. ÉDITEUR FABRICATION (TRN, ESP, USI) - GABARITS
+        // Gère les Corps et Volants pour les 3 premières opérations
         {
           path: 'fab/nouveau', 
           name: 'dev-fab-modele-create',
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE'] }
         },
         {
           path: 'fab/editer/:id',
           name: 'dev-fab-edit',
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE'] }
         },
 
-        // === NOUVEAU : Ã‰DITEUR PLANS PAR ARTICLE (Production) ===
+        // === NOUVEAU : ÉDITEUR PLANS PAR ARTICLE (Production) ===
         {
           path: 'fab/plans/nouveau',
           name: 'dev-fab-plan-create',
@@ -49,15 +72,15 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/Fabrication/FabPlanEditor.vue'),
         },
 
-        // 3. Ã‰DITEUR ASSEMBLAGE (Plan MaÃ®tre & RÃ©sultats)
-        // GÃ¨re RGAFM (Manu), RGAFA (Auto), Soupape
+        // 3. ÉDITEUR ASSEMBLAGE (Plan Maître & Résultats)
+        // Gère RGAFM (Manu), RGAFA (Auto), Soupape
         // {
         //   path: 'assemblage/nouveau',
         //   name: 'dev-ass-create',
         //   component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
         // },
 
-        // 4. Ã‰DITEUR PRODUIT FINI
+        // 4. ÉDITEUR PRODUIT FINI
         {
           path: 'produit-fini/nouveau',
           name: 'dev-pf-create',
@@ -69,7 +92,7 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/ProduitFini/PfPlanEditor.vue'),
         },
 
-        // 5. Ã‰DITEUR VÃ‰RIF MACHINE (BEE, MAS, SER...)
+        // 5. ÉDITEUR VÉRIF MACHINE (BEE, MAS, SER...)
         {
           path: 'verif-machine/nouveau',
           name: 'dev-vm-create',
@@ -81,7 +104,7 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue'),
         },
 
-        // 6. RÃ‰SULTAT DE CONTRÃ”LE (NC)
+        // 6. RÉSULTAT DE CONTRÔLE (NC)
         {
           path: 'resultat-controle/nouveau',
           name: 'dev-rc-create',
@@ -108,5 +131,32 @@ const router = createRouter({
     }
   ]
 })
+
+// Navigation Guard — style Vue Router 4 (return au lieu de next)
+router.beforeEach(async (to) => {
+  const authStore = useAuthStore();
+
+  // 1. Vérification de l'authentification
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth !== false);
+
+  if (requiresAuth && !authStore.isAuthenticated) {
+    authStore.logout(); // logout() redirige déjà vers /login
+    return false;
+  }
+
+  // 2. Si l'user est déjà connecté et tente d'aller sur /login
+  if (to.name === 'login' && authStore.isAuthenticated) {
+    return { name: 'dev-hub' };
+  }
+
+  // 3. Vérification des rôles (Routage Intelligent)
+  const requiredRoles = to.meta.roles;
+  if (requiredRoles && !authStore.hasAccess(requiredRoles)) {
+    return { name: 'dev-hub' }; // Accès refusé → redirection hub
+  }
+
+  // ✅ Laisser passer
+  return true;
+});
 
 export default router

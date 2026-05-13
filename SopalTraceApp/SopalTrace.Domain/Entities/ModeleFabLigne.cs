@@ -17,15 +17,7 @@ public partial class ModeleFabLigne
 
     public string? LibelleAffiche { get; set; }
 
-    public double? ValeurNominale { get; set; }
-
-    public double? ToleranceSuperieure { get; set; }
-
-    public double? ToleranceInferieure { get; set; }
-
     public string? LimiteSpecTexte { get; set; }
-
-    public string? Unite { get; set; }
 
     public Guid? TypeControleId { get; set; }
 

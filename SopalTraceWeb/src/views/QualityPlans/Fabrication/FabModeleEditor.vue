@@ -23,7 +23,7 @@
       >
         <template #actions>
           <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-4 hidden md:flex">
-            <span class="text-[10px] font-black text-slate-400 uppercase">Code Modèle:</span>
+            <span class="text-[10px] font-black text-slate-400 uppercase">Code:</span>
             <span class="font-mono font-bold text-sm text-slate-700">{{ codeAffiche }}</span>
           </div>
         </template>
@@ -32,7 +32,8 @@
       <div class="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
         <div class="bg-[#1e293b] text-white px-5 py-3.5 flex justify-between items-center">
           <div class="flex items-center gap-3 font-bold tracking-wide">
-            <i class="pi pi-book text-lg"></i> Éditeur de Structure
+            <i :class="isReadOnly ? 'pi pi-eye' : 'pi pi-book'" class="text-lg"></i>
+            {{ isReadOnly ? 'Visualisation du modèle' : 'Éditeur de Structure' }}
             <span v-if="isForcedView" class="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-xs ml-2 uppercase tracking-widest border border-blue-400/30">Mode Lecture</span>
           </div>
           <button @click="$router.push('/dev/hub')" class="text-slate-400 hover:text-white transition-colors">
@@ -46,11 +47,14 @@
               <FabModeleHeader :is-edit-mode="isEditMode" :is-read-only="isReadOnly" />
             </div>
 
-            <div v-if="!isReadOnly && (store.entete.natureComposantCode === 'PISTON' || (store.entete.operationCode === 'ASS' && store.entete.natureComposantCode === 'PF'))" class="ml-8 w-64 relative shrink-0">
-              <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx" class="hidden" />
-              <button @click="$refs.fileInput.click()" class="w-full p-3 bg-emerald-50 text-center border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl hover:bg-emerald-100 transition-colors text-emerald-600 font-black uppercase tracking-widest flex flex-col items-center justify-center gap-2 text-[10px] shadow-sm">
-                <i class="pi pi-file-excel text-2xl mb-1"></i> 
-                <span>Importer un fichier Excel</span>
+            <div v-if="!isReadOnly && (store.entete.natureComposantCode === 'PISTON' || (store.entete.operationCode === 'ASS' && store.entete.natureComposantCode === 'PF'))" class="ml-8 shrink-0 flex items-center">
+              <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.csv" class="hidden" />
+              <button @click="$refs.fileInput.click()" 
+                class="h-10 px-5 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
+                :disabled="isLoading">
+                <i v-if="!isLoading" class="ri-file-excel-2-line text-xl"></i>
+                <i v-else class="ri-loader-4-line animate-spin text-xl"></i>
+                <span>Importer la structure Excel</span>
               </button>
             </div>
           </div>
@@ -65,6 +69,21 @@
             </div>
           </template>
 
+          <!-- Mode LECTURE -->
+          <div v-if="isReadOnly" class="p-4 md:p-6">
+            <PlanReadView
+              :sections="groupes"
+              :remarques="store.entete.notes"
+              :legende-moyens="store.entete.legendeMoyens"
+              :types-section="store.typesSection || []"
+              :types-caracteristique="store.typesCaracteristique || []"
+              :types-controle="store.typesControle || []"
+              :moyens-controle="store.moyensControle || []"
+              :periodicites="store.periodicites || []"
+            />
+          </div>
+
+          <!-- Mode EDITION -->
           <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
             <table class="w-full text-left border-collapse min-w-[1200px]">
               <FabTableHeader :columns="modeleColumns" />
@@ -98,13 +117,16 @@
             </button>
           </div>
 
-          <RemarquesLegendeBox 
-            v-model:remarques="store.entete.notes"
-            v-model:legendeMoyens="store.entete.legendeMoyens"
-            :show-validation="showLegendValidation"
-            :has-custom-instruments="hasCustomInstrumentsGlobal"
-            :is-read-only="isReadOnly"
-          />
+          <!-- Notes & Légende en mode éditeur uniquement -->
+          <div v-if="!isReadOnly" class="mt-2">
+            <RemarquesLegendeBox 
+              v-model:remarques="store.entete.notes"
+              v-model:legendeMoyens="store.entete.legendeMoyens"
+              :show-validation="showLegendValidation"
+              :has-custom-instruments="hasCustomInstrumentsGlobal"
+              :is-read-only="isReadOnly"
+            />
+          </div>
         </div>
 
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end" v-if="!isForcedView">
@@ -136,6 +158,7 @@ import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/m
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import FabModeleHeader from '@/components/Fabrication/FabModeleHeader.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import FabSectionCard from '@/components/Fabrication/FabSectionCard.vue';
@@ -219,19 +242,57 @@ const isReadOnly = computed(() => (isEditMode.value && isArchived.value) || isFo
 
 const codeAffiche = computed(() => {
   if (isEditMode.value && codeOriginal.value) {
+    // Si on est en simple lecture (Consultation), on affiche le code actuel
+    if (isReadOnly.value) return codeOriginal.value;
+    
+    // Si on est en train d'éditer pour une nouvelle version, on affiche ce que sera le prochain code
     return `${codeOriginal.value.replace(/-V\d+$/i, '')}-V${version.value + 1}`;
   }
-  return store.codeModeleAuto;
+  return store.entete.code || store.codeModeleAuto;
 });
 
 const headerTitle = computed(() => {
-  if (isForcedView.value) return 'Consultation du Modèle'; // Titre adapté
+  const nature = store.entete.natureComposantCode;
+  const famille = store.entete.familleProduitCode;
+  const poste = store.entete.posteCode;
+
+  if (isForcedView.value) return 'Consultation du Modèle';
+
+  if (nature === 'PISTON') {
+    return 'Plan en cours de fabrication PISTON';
+  }
+
+  if (nature === 'PF') {
+    let title = 'Plan en cours de fabrication PF';
+    if (famille) {
+      title += ` - ${famille}`;
+    }
+    // Ajouter le poste si c'est avec soupape et qu'un poste est sélectionné
+    const famObject = store.famillesProduit?.find(f => f.code === famille);
+    const isSoupape = famObject?.libelle?.toLowerCase().includes('soupape');
+    if (isSoupape && poste) {
+      title += ` - Poste ${poste}`;
+    }
+    return title;
+  }
+
   if (isEditMode.value) return isArchived.value ? 'Restauration d\'Archive' : `Édition du Modèle`;
   return 'Création d\'un Modèle';
 });
 
 const headerSubtitle = computed(() => {
-  if (isForcedView.value) return 'Mode lecture seule (Aperçu de la structure).'; // Sous-titre adapté
+  const nature = store.entete.natureComposantCode;
+
+  if (isForcedView.value) return 'Mode lecture seule (Aperçu de la structure).';
+
+  if (nature === 'PISTON') {
+    return 'Configuration générique pour les PISTONS (sans choix de famille).';
+  }
+
+  if (nature === 'PF') {
+    return 'Configurez le plan selon la famille de produit fini sélectionnée.';
+  }
+
   if (isEditMode.value) {
     return isArchived.value 
       ? 'Vous consultez une archive. Enregistrer restaurera cette version en production.'
@@ -273,41 +334,88 @@ const onFileSelected = async (event) => {
     const response = await qualityPlansService.importExcel(formData);
     const parsedData = response.data.data;
 
-    if (parsedData && parsedData.sections) {
-      groupes.value = parsedData.sections.map(sec => ({
-        id: sec.id || crypto.randomUUID(),
-        isFromDb: false,
-        libelleSection: sec.nom,
-        typeSectionId: sec.typeSectionId,
-        modeFreq: sec.modeFreq,
-        periodiciteId: sec.periodiciteId,
-        freqNum: sec.freqNum,
-        typeVariable: sec.typeVariable,
-        freqHours: sec.freqHours,
-        lignes: sec.lignes.map(lig => ({
-          id: lig.id || crypto.randomUUID(),
-          isFromDb: false,
-          typeCaracteristiqueId: lig.typeCaracteristiqueId,
-          typeControleId: lig.typeControleId,
-          moyenControleId: lig.moyenControleId,
-          instrumentCode: lig.instrumentCode,
-          valeurNominale: lig.valeurNominale,
-          toleranceSuperieure: lig.toleranceSuperieure,
-          toleranceInferieure: lig.toleranceInferieure,
-          unite: lig.unite || '',
-          limiteSpecTexte: lig.limiteSpecTexte,
-          observations: lig.observations,
-          instruction: lig.instruction,
-          estCritique: lig.estCritique,
-          libelleAffiche: lig.libelleAffiche
-        }))
-      }));
+    if (parsedData) {
+      // Ajouter les remarques du fichier
+      if (parsedData.remarques && parsedData.remarques.trim() !== '') {
+        store.entete.notes = (store.entete.notes ? store.entete.notes + '\n' : '') + parsedData.remarques.trim();
+      }
+
+      // Ajouter les sections
+      if (parsedData.sections && parsedData.sections.length > 0) {
+        // Afficher un aperçu avant d'importer
+        const sectionsApercu = parsedData.sections
+          .filter(sec => sec && sec.nom) // Sections valides uniquement
+          .map(sec => {
+            const hasLines = sec.lignes && sec.lignes.length > 0;
+            return {
+              id: sec.id || crypto.randomUUID(),
+              isFromDb: false,
+              libelleSection: sec.nom,  // ✅ Aperçu : stocker le nom de la section
+              typeSectionId: sec.typeSectionId || null,  // ✅ NULL si pas trouvé (pas auto-create)
+              notes: sec.notes || '',
+              modeFreq: sec.modeFreq || 'SANS',
+              periodiciteId: sec.periodiciteId || null,
+              freqNum: sec.freqNum || 0,
+              typeVariable: sec.typeVariable || '',
+              freqHours: sec.freqHours || 1,
+              regleEchantillonnageId: sec.regleEchantillonnageId || null,  // ✅ NULL si pas trouvé
+              frequenceLibelle: sec.frequenceLibelle || null,
+              lignes: hasLines 
+                ? sec.lignes.map(lig => ({
+                    id: lig.id || crypto.randomUUID(),
+                    isFromDb: false,
+                    typeCaracteristiqueId: lig.typeCaracteristiqueId || null,
+                    typeControleId: lig.typeControleId || null,
+                    moyenControleId: lig.moyenControleId || null,
+                    instrumentCode: lig.instrumentCode || '',
+                    unite: lig.unite || '',
+                    limiteSpecTexte: lig.limiteSpecTexte || '',
+                    observations: lig.observations || '',
+                    instruction: lig.instruction || '',
+                    estCritique: lig.estCritique || false,
+                    libelleAffiche: lig.libelleAffiche || ''
+                  }))
+                : [] // ✅ Sections sans lignes (complexes) restent vides pour édition
+            };
+          });
+
+        // Remplacer les groupes par les sections importées
+        groupes.value = sectionsApercu;
+
+        // Afficher détails de l'import
+        const totalSections = sectionsApercu.length;
+        const sectionsAvecLignes = sectionsApercu.filter(s => s.lignes.length > 0).length;
+        const sectionsSansLignes = totalSections - sectionsAvecLignes;
+
+        let detailMessage = `${totalSections} section(s) importée(s)`;
+        if (sectionsSansLignes > 0) {
+          detailMessage += ` (${sectionsAvecLignes} avec lignes, ${sectionsSansLignes} pour aperçu)`;
+        }
+
+        toast.add({
+          severity: 'success',
+          summary: 'Import réussi',
+          detail: detailMessage,
+          life: 5000
+        });
+      } else {
+        toast.add({
+          severity: 'warn',
+          summary: 'Import terminé',
+          detail: 'Aucune section n\'a été trouvée dans le fichier.',
+          life: 4000
+        });
+      }
 
       await store.fetchDictionnaires();
-      toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Les données ont été chargées depuis le fichier Excel.', life: 4000 });
     }
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: error.response?.data?.message || 'Impossible de lire le fichier.', life: 4000 });
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur d\'import',
+      detail: error.response?.data?.message || 'Impossible de lire le fichier.',
+      life: 4000
+    });
   } finally {
     store.isLoading = false;
     if (fileInput.value) fileInput.value.value = '';
@@ -340,12 +448,15 @@ const chargerModelePourEdition = async (id) => {
     statut.value = data.statut;
     version.value = data.version;
     
+    store.entete.code = data.code;
     store.entete.operationCode = data.operationCode;
     store.entete.natureComposantCode = data.natureComposantCode;
     store.entete.typeRobinetCode = data.typeRobinetCode;
     store.entete.libelle = data.libelle;
     store.entete.notes = data.notes || '';
     store.entete.legendeMoyens = data.legendeMoyens || '';
+    store.entete.posteCode = data.posteCode || '';
+    store.entete.familleProduitCode = data.familleProduitCode || '';
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
       (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -412,9 +523,6 @@ const chargerModelePourEdition = async (id) => {
           instrumentCode: lig.instrumentCode,
           instruction: lig.instruction || '',
           estCritique: lig.estCritique,
-          valeurNominale: lig.valeurNominale ?? null,
-          toleranceSuperieure: lig.toleranceSuperieure ?? null,
-          toleranceInferieure: lig.toleranceInferieure ?? null,
           unite: lig.unite || '',
           limiteSpecTexte: lig.limiteSpecTexte || '',
           observations: lig.observations || '',
@@ -496,9 +604,6 @@ const sauvegarderV2 = async (motif) => {
         periodiciteId: l.periodiciteId,
         instruction: l.instruction,
         estCritique: l.estCritique,
-        valeurNominale: l.valeurNominale ?? null,
-        toleranceSuperieure: l.toleranceSuperieure ?? null,
-        toleranceInferieure: l.toleranceInferieure ?? null,
         unite: l.unite || '',
         limiteSpecTexte: l.limiteSpecTexte || '',
         observations: l.observations || '',
@@ -516,6 +621,10 @@ const sauvegarderV2 = async (motif) => {
 
       natureComposantCode: store.entete.natureComposantCode || null,
       typeRobinetCode: store.entete.typeRobinetCode || null,
+      operationCode: store.entete.operationCode || null,
+      code: store.entete.code,
+      posteCode: store.entete.posteCode || null,
+      familleProduitCode: store.entete.familleProduitCode || null,
       sections: sectionsForPayload
     };
 
@@ -582,7 +691,16 @@ const resetForNewModele = () => {
   codeOriginal.value = '';
   statut.value = 'BROUILLON';
   version.value = 0;
-  store.entete = { operationCode: '', natureComposantCode: '', typeRobinetCode: '', libelle: '', notes: '', legendeMoyens: '' };
+  store.entete = { 
+    operationCode: '', 
+    natureComposantCode: '', 
+    typeRobinetCode: '', 
+    libelle: '', 
+    notes: '', 
+    legendeMoyens: '', 
+    posteCode: '',
+    familleProduitCode: '' 
+  };
   groupes.value = [];
 };
 </script>

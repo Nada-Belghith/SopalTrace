@@ -23,6 +23,8 @@ public partial class PlanAssSection
 
     public string? Notes { get; set; }
 
+    public Guid? RegleEchantillonnageId { get; set; }
+
     public virtual Nqa? Nqa { get; set; }
 
     public virtual Periodicite? Periodicite { get; set; }
@@ -30,6 +32,8 @@ public partial class PlanAssSection
     public virtual ICollection<PlanAssLigne> PlanAssLignes { get; set; } = new List<PlanAssLigne>();
 
     public virtual PlanAssEntete PlanEntete { get; set; } = null!;
+
+    public virtual RefRegleEchantillonnage? RegleEchantillonnage { get; set; }
 
     public virtual TypeSection? TypeSection { get; set; }
 }

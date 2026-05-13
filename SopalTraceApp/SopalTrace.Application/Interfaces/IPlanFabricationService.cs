@@ -15,5 +15,5 @@ public interface IPlanFabricationService
     Task<Guid> CreerNouvelleVersionPlanAsync(NouvelleVersionRequestDto request);
     Task<Guid> RestaurerPlanArchiveAsync(RestaurerPlanRequestDto request);
     Task<bool> SupprimerBrouillonAsync(Guid planId);
-    Task<IReadOnlyList<PlanResponseDto>> GetPlansByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode);
+    Task<IReadOnlyList<PlanResponseDto>> GetPlansByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode, string? posteCode = null);
 }

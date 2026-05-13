@@ -9,25 +9,17 @@ public partial class PlanAssEntete
 
     public string OperationCode { get; set; } = null!;
 
-    public string? TypeRobinetCode { get; set; }
+    public string? FamilleProduitFiniCode { get; set; }
 
-    public bool EstModele { get; set; }
+    public string? NatureComposantCode { get; set; }
 
-    public string? CodeArticleSage { get; set; }
-
-    public string Nom { get; set; } = null!;
+    public string? PosteCode { get; set; }
 
     public string? Designation { get; set; }
 
     public int Version { get; set; }
 
     public string Statut { get; set; } = null!;
-
-    public int NbPiecesReglage { get; set; }
-
-    public Guid? FicheEchantillonnageId { get; set; }
-
-    public DateOnly? DateApplication { get; set; }
 
     public Guid? FormulaireId { get; set; }
 
@@ -41,13 +33,17 @@ public partial class PlanAssEntete
 
     public DateTime? ModifieLe { get; set; }
 
-    public string? CommentaireVersion { get; set; }
+    public DateTime? ArchiveLe { get; set; }
+
+    public string? ArchivePar { get; set; }
 
     public string? Remarques { get; set; }
 
-    public virtual PlanEchantillonnageEntete? FicheEchantillonnage { get; set; }
+    public virtual FamilleProduitFini? FamilleProduitFiniCodeNavigation { get; set; }
 
     public virtual RefFormulaire? Formulaire { get; set; }
+
+    public virtual NatureComposant? NatureComposantCodeNavigation { get; set; }
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 
@@ -55,5 +51,5 @@ public partial class PlanAssEntete
 
     public virtual ICollection<PlanAssSection> PlanAssSections { get; set; } = new List<PlanAssSection>();
 
-    public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
+    public virtual PosteTravail? PosteCodeNavigation { get; set; }
 }

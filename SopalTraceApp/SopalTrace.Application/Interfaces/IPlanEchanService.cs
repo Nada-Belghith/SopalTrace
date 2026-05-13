@@ -11,6 +11,7 @@ public interface IPlanEchanService
     Task<PlanEchanResponseDto> GetPlanByIdAsync(Guid planId);
     Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionEchanRequestDto request);
     Task<bool> MettreAJourPlanAsync(Guid planId, UpdatePlanEchanRequestDto request);
+    Task<PlanEchanResponseDto?> GetPlanActifAsync();
     Task<Guid> RestaurerPlanAsync(RestaurerEchanRequestDto request);
 
 }

@@ -1,11 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
-
-using SopalTrace.Domain.Interfaces;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanFabEntete : IPlanParArticle
+public partial class PlanFabEntete
 {
     public Guid Id { get; set; }
 
@@ -27,6 +25,8 @@ public partial class PlanFabEntete : IPlanParArticle
 
     public string? MachineDefautCode { get; set; }
 
+    public string? FamilleProduitFiniCode { get; set; }
+
     public Guid? FormulaireId { get; set; }
 
     public string? LegendeMoyens { get; set; }
@@ -42,6 +42,8 @@ public partial class PlanFabEntete : IPlanParArticle
     public string? CommentaireVersion { get; set; }
 
     public string? Remarques { get; set; }
+
+    public virtual FamilleProduitFini? FamilleProduitFiniCodeNavigation { get; set; }
 
     public virtual RefFormulaire? Formulaire { get; set; }
 

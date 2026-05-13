@@ -15,7 +15,7 @@ public class ReferentielService : IReferentielService
         _context = context;
     }
 
-    public async Task<ReferentielsResponseDto> GetFabricationReferentielsAsync()
+    public async Task<ReferentielsResponseDto> GetFabricationReferentielsAsync(string? natureComposantCode = null, string? operationCode = null)
     {
         var typesRobinet = (await _context.TypeRobinets
             .Where(x => x.Actif)
@@ -24,15 +24,27 @@ public class ReferentielService : IReferentielService
             .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, null))
             .ToList();
 
-        var naturesComposant = (await _context.NatureComposants
-            .Where(x => x.Actif)
+        var natureQuery = _context.NatureComposants.Where(x => x.Actif);
+        if (!string.IsNullOrEmpty(operationCode))
+        {
+            natureQuery = natureQuery.Where(n => _context.NatureComposantOperations
+                .Any(g => g.OperationCode == operationCode && g.NatureComposantCode == n.Code));
+        }
+
+        var naturesComposant = (await natureQuery
             .Select(x => new { x.Code, x.Libelle, x.EstGenerique })
             .ToListAsync())
             .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, x.EstGenerique))
             .ToList();
 
-        var operations = (await _context.Operations
-            .Where(x => x.Actif)
+        var opQuery = _context.Operations.Where(x => x.Actif);
+        if (!string.IsNullOrEmpty(natureComposantCode))
+        {
+            opQuery = opQuery.Where(o => _context.NatureComposantOperations
+                .Any(g => g.NatureComposantCode == natureComposantCode && g.OperationCode == o.Code));
+        }
+
+        var operations = (await opQuery
             .Select(x => new { x.Code, x.Libelle })
             .ToListAsync())
             .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, null))
@@ -64,6 +76,14 @@ public class ReferentielService : IReferentielService
             .Select(x => new { x.Id, x.Code, x.Libelle })
             .ToListAsync())
             .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
+            .ToList();
+
+        var postes = (await _context.PosteTravails
+            .Where(x => x.Actif)
+            .OrderBy(x => x.CodePoste)
+            .Select(x => new { x.CodePoste, x.Libelle })
+            .ToListAsync())
+            .Select(x => new ReferenceItemDto(null, x.CodePoste, x.Libelle, true, null))
             .ToList();
 
         return new ReferentielsResponseDto(
@@ -99,6 +119,8 @@ public class ReferentielService : IReferentielService
                 .Select(x => new InstrumentDto(x.CodeInstrument, x.Designation, true))
                 .ToListAsync(),
 
+            Postes: postes,
+
             Gammes: await _context.NatureComposantOperations
                 .Select(g => new GammeDto(g.NatureComposantCode, g.OperationCode))
                 .ToListAsync(),
@@ -113,7 +135,18 @@ public class ReferentielService : IReferentielService
                 .Select(x => new { x.Id, x.Code, x.Description })
                 .ToListAsync())
                 .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Description ?? x.Code, true, null))
-                .ToList()
+                .ToList(),
+            ReglesEchantillonnage: (await _context.RefRegleEchantillonnages
+                .Where(x => x.Actif)
+                .Select(x => new { x.Id, x.Code, x.Libelle })
+                .ToListAsync())
+                .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
+                .ToList(),
+
+            FamillesProduit: await _context.FamilleProduitFinis
+                .Where(x => x.Actif == true)
+                .Select(x => new FamilleProduitDto(x.Code, x.Designation ?? string.Empty, x.TypeRobinetCode ?? string.Empty))
+                .ToListAsync()
         );
     }
 
@@ -163,7 +196,7 @@ public class ReferentielService : IReferentielService
 
         var allPieces = await _context.PieceReferences
             .Where(p => p.Actif)
-            .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.FamilleDesc, p.MachineCode, p.TypePiece))
+            .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.FamilleDesc, p.TypePiece))
             .ToListAsync();
 
         var piecesRef = allPieces.Where(p => p.TypePiece == "PRC" || p.TypePiece == "PRNC").ToList();
@@ -189,16 +222,25 @@ public class ReferentielService : IReferentielService
     public async Task<ArticleDto?> GetArticleInfosAsync(string codeArticle)
     {
         var article = await _context.Itmmasters
+            .AsNoTracking()
             .Where(a => a.CodeArticle == codeArticle)
-            .Select(a => new ArticleDto(
-                a.CodeArticle,
-                a.Designation,
-                a.TypeRobinetCode,
-                a.NatureComposantCode
-            ))
             .FirstOrDefaultAsync();
 
-        return article;
+        if (article == null) return null;
+
+        var validOps = await _context.NatureComposantOperations
+            .AsNoTracking()
+            .Where(g => g.NatureComposantCode == article.NatureComposantCode)
+            .Select(g => g.OperationCode)
+            .ToListAsync();
+
+        return new ArticleDto(
+            article.CodeArticle,
+            article.Designation,
+            article.TypeRobinetCode,
+            article.NatureComposantCode,
+            validOps
+        );
     }
 
     public async Task<Guid> CreatePeriodiciteAsync(CreatePeriodiciteDto request)
@@ -221,11 +263,41 @@ public class ReferentielService : IReferentielService
         var existeDeja = await _context.TypeCaracteristiques.AnyAsync(
             x => x.Code == caracteristique.Code || x.Libelle == request.Libelle);
         if (existeDeja)
-            throw new InvalidOperationException("Une caract�ristique avec ce nom existe d�j�.");
+            throw new InvalidOperationException("Une caractéristique avec ce nom existe déjà.");
 
         _context.TypeCaracteristiques.Add(caracteristique);
         await _context.SaveChangesAsync();
 
         return caracteristique.Id;
+    }
+
+    public async Task<PieceRefDto> CreatePieceReferenceAsync(CreatePieceReferenceDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Code))
+            throw new ArgumentException("Le code de la pièce est obligatoire.");
+
+        var typesValides = new[] { "PRC", "PRNC", "FEC", "FENC" };
+        if (!typesValides.Contains(request.TypePiece))
+            throw new ArgumentException($"Type de pièce invalide : '{request.TypePiece}'. Valeurs acceptées : PRC, PRNC, FEC, FENC.");
+
+        var codeNormalisé = request.Code.Trim().ToUpperInvariant();
+        var existeDeja = await _context.PieceReferences.AnyAsync(p => p.Code == codeNormalisé);
+        if (existeDeja)
+            throw new InvalidOperationException($"Une pièce référence avec le code '{codeNormalisé}' existe déjà.");
+
+        var entite = new SopalTrace.Domain.Entities.PieceReference
+        {
+            Id = Guid.NewGuid(),
+            Code = codeNormalisé,
+            TypePiece = request.TypePiece,
+            Designation = request.Designation?.Trim(),
+            FamilleDesc = request.FamilleDesc?.Trim(),
+            Actif = true
+        };
+
+        _context.PieceReferences.Add(entite);
+        await _context.SaveChangesAsync();
+
+        return new PieceRefDto(entite.Id, entite.Code, entite.Designation, entite.FamilleDesc, entite.TypePiece);
     }
 }

@@ -11,13 +11,13 @@ public partial class PlanNcEntete
 
     public string Nom { get; set; } = null!;
 
-    public int? Version { get; set; }
+    public int Version { get; set; }
 
-    public string? Statut { get; set; }
+    public string Statut { get; set; } = null!;
 
     public string CreePar { get; set; } = null!;
 
-    public DateTime? CreeLe { get; set; }
+    public DateTime CreeLe { get; set; }
 
     public string? ModifiePar { get; set; }
 

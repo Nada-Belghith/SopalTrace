@@ -1,4 +1,4 @@
-﻿// AuthController
+// AuthController
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -112,19 +112,19 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
-    [Authorize] // L'utilisateur doit être connecté pour se déconnecter
+    [AllowAnonymous] // On permet le logout même si le token est expiré pour éviter les 401 inutiles
     public async Task<IActionResult> Logout()
     {
         var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        // 💡 On extrait le matricule directement depuis ton badge (Token JWT)
         var matricule = User.FindFirst("matricule")?.Value;
 
         if (Guid.TryParse(userIdString, out Guid userId))
         {
-            // On envoie le matricule au service pour qu'il le journalise
             await _authService.RevokeUserTokensAsync(userId, matricule);
         }
+
+        // On nettoie quand même le cookie de refresh token
+        Response.Cookies.Delete("refreshToken");
 
         return Ok(new { message = "Déconnexion réussie." });
     }

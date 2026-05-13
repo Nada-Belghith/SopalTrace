@@ -7,7 +7,7 @@ namespace SopalTrace.Application.Interfaces;
 
 public interface IModeleFabricationService
 {
-    Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode);
+    Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode, string? posteCode = null);
     Task<Guid> CreerModeleAsync(CreateModeleRequestDto request);
     Task UpdateModeleBrouillonAsync(Guid id, CreateModeleRequestDto request);
     Task ActiverModeleAsync(Guid id, string user);

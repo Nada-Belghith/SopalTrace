@@ -80,7 +80,6 @@ const isAssTrn = computed(() => ['ASS', 'TRN'].includes((props.operationCode || 
 
 const planColumns = computed(() => [
   { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { label: 'Valeur', width: isAssTrn.value ? 'w-[10%]' : 'w-[12%]', bgColor: '#2563eb', textAlign: 'center' },
   { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
   { label: 'Type de contrôle', width: 'w-[12%]', textAlign: 'center' },
   { label: 'Moyen de contrôle', width: 'w-[12%]', textAlign: 'center' },
@@ -89,7 +88,7 @@ const planColumns = computed(() => [
   { label: '', width: 'w-8', textAlign: 'center' }
 ]);
 
-const currentColspan = computed(() => 8);
+const currentColspan = computed(() => 7);
 
 // Helper to generate an id that works in all environments
 
@@ -100,7 +99,7 @@ const generateId = () => {
 };
 
 const addLigneLocal = () => {
-  const nouvelleLigne = { id: generateId(), typeCaracteristiqueId: null, typeControleId: null, moyenControleId: null, moyenTexteLibre: '', instrumentCode: null, valeurNominale: null, toleranceInferieure: null, toleranceSuperieure: null, unite: '', limiteSpecTexte: '', instruction: '', observations: '', estCritique: false };
+  const nouvelleLigne = { id: generateId(), typeCaracteristiqueId: null, typeControleId: null, moyenControleId: null, moyenTexteLibre: '', instrumentCode: null, limiteSpecTexte: '', instruction: '', observations: '', estCritique: false };
   localSection.value.lignes = [ ...(localSection.value.lignes || []), nouvelleLigne ];
   emit('update:section', { ...localSection.value });
 };

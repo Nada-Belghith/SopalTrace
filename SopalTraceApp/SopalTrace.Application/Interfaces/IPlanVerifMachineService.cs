@@ -36,4 +36,10 @@ public interface IPlanVerifMachineService
     // Méthodes conservées pour compatibilité
     Task<Guid> CreerPlanAsync(CreatePlanVerifMachineDto request, string creePar);
     Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<VerifMachineLigneEditDto> lignesModifiees);
+
+    /// <summary>
+    /// Retourne la liste des familles de corps configurées pour une machine
+    /// depuis la table Machine_FamilleCorps (source de vérité).
+    /// </summary>
+    Task<List<FamilleCorpsDto>> GetFamillesParMachineAsync(string machineCode);
 }

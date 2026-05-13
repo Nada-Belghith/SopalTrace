@@ -25,14 +25,6 @@ public partial class PlanPfLigne
 
     public string? MoyenTexteLibre { get; set; }
 
-    public double? ValeurNominale { get; set; }
-
-    public double? ToleranceSuperieure { get; set; }
-
-    public double? ToleranceInferieure { get; set; }
-
-    public string? Unite { get; set; }
-
     public string? LimiteSpecTexte { get; set; }
 
     public Guid? DefauthequeId { get; set; }

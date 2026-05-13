@@ -14,6 +14,35 @@
               </select>
           </div>
       </section>
+
+      <!-- Import Excel (uniquement pour nouveau plan) -->
+      <section v-if="!store.entete.id && !isReadOnly" class="bg-white rounded-xl shadow-sm border border-emerald-200 p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-slate-600 uppercase tracking-wide flex items-center gap-2">
+              <i class="ri-file-excel-2-line text-emerald-600"></i>
+              Importer depuis un fichier Excel
+            </p>
+            <p class="text-[11px] text-slate-400 mt-0.5">
+              Format attendu&nbsp;: 
+              <span class="font-semibold text-slate-500">Col A</span> = N° &nbsp;|&nbsp;
+              <span class="font-semibold text-slate-500">Col B</span> = Machine / Banc d'essai &nbsp;|&nbsp;
+              <span class="font-semibold text-slate-500">Col C</span> = Désignation du défaut
+            </p>
+          </div>
+          <div>
+            <input type="file" ref="fileInput" @change="handleExcelImport" class="hidden" accept=".xlsx,.xls">
+            <button @click="$refs.fileInput.click()"
+              :disabled="store.isLoading || !store.entete.posteCode"
+              class="h-9 px-4 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+              :title="!store.entete.posteCode ? 'Sélectionnez un poste d\'abord' : 'Importer depuis Excel'">
+              <i v-if="!store.isLoading" class="ri-file-excel-2-line text-lg"></i>
+              <i v-else class="ri-loader-4-line animate-spin text-lg"></i>
+              Importer Excel
+            </button>
+          </div>
+        </div>
+      </section>
  
       <template v-if="store.planInitialise">
           <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden border-l-4 border-l-emerald-500">
@@ -118,7 +147,7 @@
 </template>
 
 <script setup>
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, ref } from 'vue';
 import { usePlanNcStore } from '@/stores/planNcStore';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
@@ -137,6 +166,7 @@ const toast = useToast();
 const confirm = useConfirm();
 const router = useRouter();
 const route = useRoute();
+const fileInput = ref(null);
 
 const onCancel = () => {
     router.push('/dev/hub');
@@ -212,6 +242,35 @@ const handleSauvegarder = async () => {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'Une erreur est survenue lors de la sauvegarde.', life: 3000 });
     }
 };
+
+const handleExcelImport = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+        const result = await store.importerDepuisExcel(file);
+        if (result.success) {
+            toast.add({
+                severity: result.nbNonResolus > 0 ? 'warn' : 'success',
+                summary: 'Import réussi',
+                detail: result.nbNonResolus > 0
+                    ? `${result.total} ligne(s) importée(s). ⚠️ ${result.nbNonResolus} défaut(s) non trouvé(s) dans le référentiel — à sélectionner manuellement.`
+                    : `${result.total} ligne(s) importée(s) avec succès.`,
+                life: 6000
+            });
+        }
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'Échec de l\'import',
+            detail: error.response?.data?.message || 'Impossible de lire le fichier Excel.',
+            life: 5000
+        });
+    } finally {
+        // Reset input pour permettre une nouvelle sélection du même fichier
+        if (fileInput.value) fileInput.value.value = '';
+    }
+};
+
 
 </script>
 

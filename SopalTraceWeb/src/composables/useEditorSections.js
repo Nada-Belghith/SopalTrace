@@ -15,6 +15,7 @@ export function useEditorSections() {
       typeVariable: 'HEURE',
       freqHours: 1,
       isNewFreq: false,
+      regleEchantillonnageId: null,
       notes: '',
       ordreAffiche: sections.value.length,
       lignes: []

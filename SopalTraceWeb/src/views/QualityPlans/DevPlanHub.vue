@@ -78,96 +78,114 @@
     <!-- ========================================== -->
     <!-- GRILLE DES RÉSULTATS (Cards)               -->
     <!-- ========================================== -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-
-      <!-- Boucle sur les plans -->
-      <div v-for="plan in filteredPlans" :key="plan.id"
-        @click="consulter(plan.category, plan.id)"
-        :class="[
-          'group bg-white border rounded-xl p-5 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden flex flex-col h-full',
-          categoryStyles[plan.category]?.hoverClass || 'hover:border-slate-300 border-slate-200',
-          plan.statut === 'ARCHIVE' ? 'opacity-80 grayscale-[20%]' : ''
-        ]">
-
-        <!-- Petite barre de couleur en haut selon le type -->
-        <div class="absolute top-0 left-0 w-full h-1" :class="categoryStyles[plan.category]?.colorClass || 'bg-slate-300'"></div>
-
-        <!-- Header Card: Type & Statut -->
-        <div class="flex justify-between items-start mb-3">
-          <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide" :class="categoryStyles[plan.category]?.textClass || 'text-slate-500'">
-            <i :class="categoryStyles[plan.category]?.icon || 'pi pi-file'" class="text-lg"></i>
-            {{ categoryStyles[plan.category]?.label || plan.category }}
-          </div>
-
-          <!-- Badge Statut -->
-          <span :class="[
-            'px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-sm',
-            plan.statut === 'ACTIF' ? 'bg-emerald-100 text-emerald-700' :
-            plan.statut === 'BROUILLON' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+    <div v-else>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <!-- Boucle sur les plans paginés -->
+        <div v-for="plan in paginatedPlans" :key="plan.id"
+          @click="consulter(plan.category, plan.id)"
+          :class="[
+            'group bg-white border rounded-xl p-5 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden flex flex-col h-full',
+            categoryStyles[plan.category]?.hoverClass || 'hover:border-slate-300 border-slate-200',
+            plan.statut === 'ARCHIVE' ? 'opacity-80 grayscale-[20%]' : ''
           ]">
-            {{ plan.statut }}
-          </span>
-        </div>
 
-        <!-- Article Code & Designation (prominant) -->
-        <div v-if="plan.codeArticleSage" class="mb-2">
-          <span class="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
-            {{ plan.codeArticleSage }}
-          </span>
-          <div v-if="plan.designation" class="mt-1.5 text-[11px] font-bold text-slate-500 italic line-clamp-1 leading-tight" :title="plan.designation">
-            {{ plan.designation }}
-          </div>
-        </div>
+          <!-- Petite barre de couleur en haut selon le type -->
+          <div class="absolute top-0 left-0 w-full h-1" :class="categoryStyles[plan.category]?.colorClass || 'bg-slate-300'"></div>
 
-        <!-- Titre & Référence -->
-        <div class="flex-1 mb-3">
-          <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
-            {{ plan.libelle || plan.designation || '(Sans désignation)' }}
-          </h3>
-        </div>
+          <!-- Header Card: Type & Statut -->
+          <div class="flex justify-between items-start mb-3">
+            <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide" :class="categoryStyles[plan.category]?.textClass || 'text-slate-500'">
+              <i :class="categoryStyles[plan.category]?.icon || 'pi pi-file'" class="text-lg"></i>
+              {{ categoryStyles[plan.category]?.label || plan.category }}
+            </div>
 
-        <!-- Tags: Nature, Type, Opération -->
-        <div class="flex flex-wrap gap-1.5 mb-4">
-          <span v-if="plan.nature && plan.nature !== 'N/A'"
-            class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
-            <i class="pi pi-box text-[9px]"></i> {{ plan.nature }}
-          </span>
-          <span v-if="plan.type && plan.type !== 'N/A'"
-            class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
-            <i class="pi pi-tag text-[9px]"></i> {{ plan.type }}
-          </span>
-          <!-- Badge Opération — affiché en couleur distinctive -->
-          <span v-if="plan.poste && plan.poste !== 'N/A'"
-            class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded">
-            <i class="pi pi-cog text-[9px]"></i> {{ plan.poste }}
-          </span>
-        </div>
-
-        <!-- Footer Card: Version + Actions -->
-        <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-          <div class="flex gap-2">
-            <!-- Badge Version -->
-            <span class="inline-flex items-center justify-center bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded">
-              V{{ plan.version }}
+            <!-- Badge Statut -->
+            <span :class="[
+              'px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-sm',
+              plan.statut === 'ACTIF' ? 'bg-emerald-100 text-emerald-700' :
+              plan.statut === 'BROUILLON' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+            ]">
+              {{ plan.statut }}
             </span>
           </div>
 
-          <!-- Actions -->
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button v-if="plan.statut === 'ACTIF' || plan.statut === 'BROUILLON'" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
-              <i class="pi pi-pencil"></i>
-            </button>
-            <button v-if="plan.statut === 'BROUILLON'" @click.stop="confirmSuppressionBrouillon(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Supprimer le brouillon">
-              <i class="pi pi-trash"></i>
-            </button>
-            <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Archiver">
-              <i class="pi pi-box"></i>
-            </button>
+          <!-- Article Code & Designation (prominant) -->
+          <div v-if="plan.codeArticleSage" class="mb-2">
+            <span class="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+              {{ plan.codeArticleSage }}
+            </span>
+            <div v-if="plan.designation" class="mt-1.5 text-[11px] font-bold text-slate-500 italic line-clamp-1 leading-tight" :title="plan.designation">
+              {{ plan.designation }}
+            </div>
+          </div>
 
-            <i class="pi pi-eye text-slate-300 ml-1 transition-colors text-sm" :class="categoryStyles[plan.category]?.textClass || 'group-hover:text-blue-500'"></i>
+          <!-- Titre & Référence -->
+          <div class="flex-1 mb-3">
+            <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
+              {{ plan.libelle || plan.designation || '(Sans désignation)' }}
+            </h3>
+          </div>
+
+          <!-- Tags: Nature, Type, Opération -->
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span v-if="plan.nature && plan.nature !== 'N/A'"
+              class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
+              <i class="pi pi-box text-[9px]"></i> {{ plan.nature }}
+            </span>
+            <span v-if="plan.type && plan.type !== 'N/A'"
+              class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded">
+              <i class="pi pi-tag text-[9px]"></i> {{ plan.type }}
+            </span>
+            <!-- Badge Opération -->
+            <span v-if="plan.operation && plan.operation !== 'N/A'"
+              class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded">
+              <i class="pi pi-cog text-[9px]"></i> {{ plan.operation }}
+            </span>
+            <!-- Badge Poste -->
+            <span v-if="plan.poste && plan.poste !== 'N/A'"
+              class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded">
+              <i class="pi pi-map-marker text-[9px]"></i> {{ plan.poste }}
+            </span>
+          </div>
+
+          <!-- Footer Card: Version + Actions -->
+          <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+            <div class="flex gap-2">
+              <!-- Badge Version -->
+              <span class="inline-flex items-center justify-center bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded">
+                V{{ plan.version }}
+              </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button v-if="plan.statut === 'ACTIF' || plan.statut === 'BROUILLON'" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button v-if="plan.statut === 'BROUILLON'" @click.stop="confirmSuppressionBrouillon(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Supprimer le brouillon">
+                <i class="pi pi-trash"></i>
+              </button>
+              <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Archiver">
+                <i class="pi pi-box"></i>
+              </button>
+
+              <i class="pi pi-eye text-slate-300 ml-1 transition-colors text-sm" :class="categoryStyles[plan.category]?.textClass || 'group-hover:text-blue-500'"></i>
+            </div>
           </div>
         </div>
+      </div>
 
+      <!-- Pagination -->
+      <div class="mt-10 flex justify-center pb-10" v-if="filteredPlans.length > rows">
+        <Paginator
+          :rows="rows"
+          :totalRecords="filteredPlans.length"
+          :first="first"
+          @page="onPage($event)"
+          template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+          currentPageReportTemplate="{first} - {last} sur {totalRecords}"
+          class="!bg-transparent !border-0"
+        />
       </div>
     </div>
 
@@ -189,23 +207,34 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
+import Paginator from 'primevue/paginator';
 import apiClient from '@/services/apiClient';
 
 const router = useRouter();
+const route = useRoute();
 const toast = useToast();
 const confirm = useConfirm();
 
 const activeTab = ref('ALL');
 const searchQuery = ref('');
 const selectedOperation = ref('');
-const vueActuelle = ref('ACTIF');
+// Lire le filtre statut depuis l'URL (ex: ?statut=BROUILLON apres sauvegarde brouillon depuis FabPlanEditor)
+const vueActuelle = ref(route.query.statut || 'ACTIF');
 const isLoading = ref(true);
 const plans = ref([]);
+
+// Pagination
+const first = ref(0);
+const rows = ref(12);
+
+const onPage = (event) => {
+  first.value = event.first;
+};
 
 const tabs = [
   { id: 'ALL', label: 'Tous', short: 'Tous', icon: 'pi pi-th-large' },
@@ -243,7 +272,7 @@ const filteredPlans = computed(() => {
     const matchTab = activeTab.value === 'ALL' || plan.category === activeTab.value;
 
     // 2. Filtre par Opération
-    const matchOp = selectedOperation.value === '' || plan.poste === selectedOperation.value;
+    const matchOp = selectedOperation.value === '' || plan.operation === selectedOperation.value;
 
     // 3. Filtre par Recherche texte
     const q = searchQuery.value.toLowerCase();
@@ -259,19 +288,27 @@ const filteredPlans = computed(() => {
   });
 });
 
+const paginatedPlans = computed(() => {
+  return filteredPlans.value.slice(first.value, first.value + rows.value);
+});
+
 const operationsDisponibles = computed(() => {
   const ops = new Set();
   plans.value.forEach(p => {
     const matchCategory = activeTab.value === 'ALL' || p.category === activeTab.value;
-    if (matchCategory && p.poste && p.poste !== 'N/A') {
-      ops.add(p.poste);
+    if (matchCategory && p.operation && p.operation !== 'N/A') {
+      ops.add(p.operation);
     }
   });
   return Array.from(ops).sort();
 });
 
-watch(activeTab, () => {
-  selectedOperation.value = '';
+watch([activeTab, searchQuery, selectedOperation, vueActuelle], () => {
+  if (activeTab.value === 'ALL') {
+    // optional reset logic
+  }
+  // Reset to first page on filter change
+  first.value = 0;
 });
 
 // === ACTIONS ===

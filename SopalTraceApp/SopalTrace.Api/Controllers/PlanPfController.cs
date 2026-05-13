@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlanProduitFini;
 using SopalTrace.Application.Interfaces;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -117,18 +118,19 @@ public class PlanPfController : ControllerBase
 
 
     [HttpPost("import-excel")]
-    public async Task<ActionResult> ImportExcel([FromForm] Microsoft.AspNetCore.Http.IFormFile file, [FromServices] IExcelImportService excelService)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });
 
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Seuls les fichiers Excel (.xlsx) sont supportés." });
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Seuls les fichiers Excel (.xlsx) ou CSV (.csv) sont supportés." });
 
         try
         {
             using var stream = file.OpenReadStream();
-            var parsedData = await excelService.ParsePlanExcelAsync(stream);
+            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName);
             return Ok(new { message = "Import réussi", data = parsedData });
         }
         catch (Exception ex)

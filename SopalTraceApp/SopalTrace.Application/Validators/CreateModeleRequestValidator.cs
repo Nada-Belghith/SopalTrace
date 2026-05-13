@@ -8,6 +8,7 @@ public class CreateModeleRequestValidator : AbstractValidator<CreateModeleReques
     public CreateModeleRequestValidator()
     {
         RuleFor(x => x.Code).NotEmpty().WithMessage("Le code du modèle est obligatoire.");
+        RuleFor(x => x.Libelle).NotEmpty().WithMessage("Le libellé du modèle est obligatoire.");
         RuleFor(x => x.OperationCode).NotEmpty().WithMessage("Le code de l'opération est obligatoire.");
         RuleFor(x => x.NatureComposantCode).NotEmpty().WithMessage("La nature du composant est obligatoire.");
 
@@ -27,7 +28,9 @@ public class ModeleCreateLigneValidator : AbstractValidator<LigneModeleEditDto>
     public ModeleCreateLigneValidator()
     {
         RuleFor(l => l.TypeCaracteristiqueId)
-            .NotEmpty().WithMessage("La catégorie de la caractéristique est obligatoire.");
+            .NotEmpty()
+            .When(l => string.IsNullOrEmpty(l.LibelleAffiche))
+            .WithMessage("La catégorie de la caractéristique est obligatoire si aucun libellé n'est saisi.");
 
         RuleFor(l => l.TypeControleId)
             .NotEmpty().WithMessage("Le type de contrôle est obligatoire.");

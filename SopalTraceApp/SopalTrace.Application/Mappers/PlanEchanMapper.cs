@@ -59,7 +59,7 @@ public static class PlanEchanMapper
             // ✅ On assigne l'ID trouvé par le service
             NqaId = nqaIdDb, 
             
-            Version = 1,
+            Version = 0,
             Statut = StatutsPlan.Actif, 
             CreePar = creePar,
             CreeLe = DateTime.UtcNow,

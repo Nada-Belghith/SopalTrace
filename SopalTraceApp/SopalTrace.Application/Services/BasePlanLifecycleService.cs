@@ -91,6 +91,13 @@ public abstract class BasePlanLifecycleService<TEntete, TCreateDto, TUpdateDto>
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Hook: Retourne le statut initial du plan à la création.
+    /// Par défaut: BROUILLON. Les plans sans cycle brouillon (ex: Echantillonnage)
+    /// peuvent surcharger pour retourner ACTIF directement.
+    /// </summary>
+    protected virtual string GetStatutInitial() => StatutsPlan.Brouillon;
+
     // ==================== ABSTRACT METHODS (à implémenter par les enfants) ====================
 
     /// <summary>
@@ -194,10 +201,9 @@ public abstract class BasePlanLifecycleService<TEntete, TCreateDto, TUpdateDto>
         // 3. Créer l'entité via le hook
         var plan = await CreerEntiteAsync(dto, SecuriserNomAuteur(user));
 
-        // 4. Initialiser le plan au statut BROUILLON
-        plan.Statut = StatutsPlan.Brouillon;
-        // La version sera 1 par défaut pour un nouveau plan (ou gérée par l'implémentation de CreerEntite si besoin)
-        if (plan.Version <= 0) plan.Version = 1;
+        // 4. Initialiser le plan au statut défini par le hook (BROUILLON par défaut, ACTIF pour certains plans)
+        plan.Statut = GetStatutInitial();
+        // Version 0 = état initial (brouillon), version incrémentée à l'activation
 
         // 5. Persister
         try 
@@ -332,6 +338,6 @@ public abstract class BasePlanLifecycleService<TEntete, TCreateDto, TUpdateDto>
     {
         if (string.IsNullOrWhiteSpace(auteur))
             return "SYSTEM";
-        return auteur.Length > 20 ? auteur[..20] : auteur;
+        return auteur.Length > 50 ? auteur[..50] : auteur;
     }
 }

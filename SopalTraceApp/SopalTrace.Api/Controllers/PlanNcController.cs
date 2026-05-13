@@ -59,4 +59,17 @@ public class PlanNcController : ControllerBase
         var id = await _service.RestaurerPlanAsync(request.AncienId, request.ModifiePar ?? "ADMIN", request.MotifModification);
         return Ok(new { success = true, planId = id, message = "Plan restauré avec succès." });
     }
+
+    [HttpPost("import-excel")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { success = false, message = "Aucun fichier fourni." });
+
+        using var stream = file.OpenReadStream();
+        var result = await excelService.ParsePlanNcExcelAsync(stream, file.FileName);
+        return Ok(new { success = true, data = result });
+    }
 }
+

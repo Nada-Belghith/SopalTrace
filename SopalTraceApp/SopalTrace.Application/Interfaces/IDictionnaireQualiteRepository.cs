@@ -6,7 +6,8 @@ namespace SopalTrace.Application.Interfaces;
 
 public interface IDictionnaireQualiteRepository
 {
-    Task<Periodicite> GetPeriodiciteByLibelleAsync(string libelle);
+    Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle);
+    Task AddPeriodiciteAsync(Periodicite entite);
     Task<TypeSection> GetTypeSectionByLibelleAsync(string libelle);
     Task AddTypeSectionAsync(TypeSection entite);
     
@@ -18,4 +19,19 @@ public interface IDictionnaireQualiteRepository
 
     Task<MoyenControle> GetMoyenControleByLibelleAsync(string libelle);
     Task AddMoyenControleAsync(MoyenControle entite);
+
+    Task<Instrument> GetInstrumentByCodeAsync(string codeInstrument);
+    Task AddInstrumentAsync(Instrument entite);
+
+    Task<RefRegleEchantillonnage> GetRegleEchantillonnageByLibelleAsync(string libelle);
+    Task AddRegleEchantillonnageAsync(RefRegleEchantillonnage entite);
+
+    Task<PieceReference> GetPieceReferenceByCodeAsync(string code);
+    Task AddPieceReferenceAsync(PieceReference entite);
+
+    Task<RefFamilleCorp> GetFamilleCorpsByCodeAsync(string code);
+    Task AddFamilleCorpsAsync(RefFamilleCorp entite);
+
+    Task<RefMoyenDetection> GetMoyenDetectionByLibelleAsync(string libelle);
+    Task AddMoyenDetectionAsync(RefMoyenDetection entite);
 }

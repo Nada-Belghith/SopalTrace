@@ -5,7 +5,7 @@ export const usePlanEchanStore = defineStore('planEchan', {
   state: () => ({
     entete: {
       id: null,
-      niveauControle: 'NIVEAU I',
+      niveauControle: 'I',
       typePlan: 'SIMPLE',
       modeControle: 'NORMAL',
       nqaId: null,
@@ -52,6 +52,16 @@ export const usePlanEchanStore = defineStore('planEchan', {
         this.regles = data.regles.map(r => ({ ...r, _uid: Math.random().toString(36).substr(2, 9) }));
       } finally {
         this.isLoading = false;
+      }
+    },
+
+    async getPlanActif() {
+      try {
+        const res = await apiClient.get('/plans-echantillonnage/actif');
+        return res.data.data;
+      } catch (error) {
+        console.error("Erreur lors de la récupération du plan actif:", error);
+        return null;
       }
     },
 

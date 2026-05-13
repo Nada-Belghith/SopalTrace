@@ -1,39 +1,69 @@
 <template>
   <div class="mb-10">
     <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">1. Informations générales</h3>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+
+      <!-- FAMILLE (Obligatoire) -->
+      <div>
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Famille *</label>
+        <select 
+          v-model="store.entete.familleProduitCode" 
+          :disabled="isEditMode || isReadOnly || isPiston" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || isPiston) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          <option value="">-- Sélectionner --</option>
+          <option v-for="fam in famillesFiltrees" :key="fam.code" :value="fam.code">
+            {{ fam.code }}
+          </option>
+        </select>
+      </div>
+
       <!-- OPÉRATION (Obligatoire) -->
       <div>
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Opération *</label>
-        <select v-model="store.entete.operationCode" :disabled="isEditMode || isReadOnly" :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+        <select 
+          v-model="store.entete.operationCode" 
+          :disabled="isEditMode || isReadOnly" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Sélectionner --</option>
           <option v-for="op in operationsFiltrees" :key="op.code" :value="op.code">{{ op.code }} - {{ op.libelle }}</option>
         </select>
       </div>
 
-      <!-- COMPOSANT (Obligatoire, filtré dynamiquement) -->
+      <!-- ARTICLE (Obligatoire) -->
       <div>
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Composant *</label>
-        <select v-model="store.entete.natureComposantCode" :disabled="isEditMode || isReadOnly" :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Article *</label>
+        <select 
+          v-model="store.entete.natureComposantCode" 
+          :disabled="isEditMode || isReadOnly" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
           <option value="">-- Sélectionner --</option>
           <option v-for="nat in composantsFiltres" :key="nat.code" :value="nat.code">{{ nat.libelle }}</option>
         </select>
       </div>
 
-      <!-- TYPE ROBINET (Optionnel, Masqué si Piston) -->
-      <div v-if="store.entete.natureComposantCode !== 'PISTON'">
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Type Robinet *</label>
-        <select v-model="store.entete.typeRobinetCode" :disabled="isEditMode || isReadOnly" :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
-          <option value="">-- Tous les types --</option>
-          <option v-for="typ in (store.typesRobinet || [])" :key="typ.code" :value="typ.code">{{ typ.libelle }}</option>
+      <!-- POSTE (Visible UNIQUEMENT si Famille=soupape ET Article=PF) -->
+      <div v-if="afficherPoste">
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Poste</label>
+        <select 
+          v-model="store.entete.posteCode" 
+          :disabled="isEditMode || isReadOnly" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          <option value="">-- Tous les postes --</option>
+          <option v-for="p in postesDisponibles" :key="p.code" :value="p.code">
+           {{ p.libelle }}
+          </option>
         </select>
       </div>
 
-      <!-- LIBELLÉ (Optionnel, pas d'étoile) -->
-      <div :class="store.entete.natureComposantCode === 'PISTON' ? 'md:col-span-2' : ''">
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du Gabarit</label>
-        <input v-model="store.entete.libelle" type="text" placeholder="Ex: Modèle Standard Corps..." :disabled="isReadOnly" :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
+      <!-- LIBELLÉ -->
+      <div>
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du Gabarit *</label>
+        <input 
+          v-model="store.entete.libelle" 
+          type="text" 
+          placeholder="Ex: Modèle Standard Corps..." 
+          :disabled="isEditMode || isReadOnly" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
     </div>
@@ -45,7 +75,7 @@ import { computed, watch } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 
 const store = useFabModeleStore();
-defineProps({
+const props = defineProps({
   isEditMode: {
     type: Boolean,
     default: false
@@ -57,116 +87,140 @@ defineProps({
 });
 
 // =========================================================================
-// FILTRES DYNAMIQUES BASÉS SUR LA GAMME OPÉRATOIRE (BDD)
+// LOGIQUE PRINCIPALE : AFFICHER POSTE SI FAMILLE=SOUPAPE ET ARTICLE=PF
 // =========================================================================
 
-// 1. Filtre les opérations possibles selon le composant sélectionné
-const operationsFiltrees = computed(() => {
-  const nat = store.entete.natureComposantCode;
-  const toutesLesOperations = store.operations || [];
-  const gammes = store.gammesOperatoires || [];
+const afficherPoste = computed(() => {
+  const famille = String(store.entete.familleProduitCode || '').trim().toLowerCase();
+  const article = String(store.entete.natureComposantCode || '').trim().toUpperCase();
 
-  if (!nat) return toutesLesOperations;
-
-  // On cherche les opérations autorisées pour cette nature dans la table de gammes
-  const operationsPermises = gammes
-    .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === nat.trim().toUpperCase())
-    .map(g => (g.operationCode || '').trim().toUpperCase());
-  
-  if (operationsPermises.length > 0) {
-    return toutesLesOperations.filter(op => operationsPermises.includes((op.code || '').trim().toUpperCase()));
-  }
-
-  // Fallback : Si aucune règle n'est définie en BDD, on affiche tout pour ne pas bloquer l'utilisateur
-  return toutesLesOperations;
+  // Afficher Poste UNIQUEMENT si :
+  // 1. Famille contient "soupape"
+  // 2. ET Article = "PF"
+  return famille.includes('soupape') && article === 'PF';
 });
 
-// 2. Filtre les composants possibles selon l'opération sélectionnée
+const isPiston = computed(() => {
+  return String(store.entete.natureComposantCode || '').trim().toUpperCase() === 'PISTON';
+});
+
+// =========================================================================
+// FILTRES DYNAMIQUES
+// =========================================================================
+
 const composantsFiltres = computed(() => {
-  const op = store.entete.operationCode;
-  const tousLesComposants = store.naturesComposant || [];
+  const toutesLesNatures = store.naturesComposant || [];
+  const selectedOp = (store.entete.operationCode || '').trim().toUpperCase();
   const gammes = store.gammesOperatoires || [];
 
-  if (!op) return tousLesComposants;
+  if (!selectedOp || !gammes.length) return toutesLesNatures;
 
-  // On cherche les natures autorisées pour cette opération dans la table de gammes
-  const composantsPermis = gammes
-    .filter(g => (g.operationCode || '').trim().toUpperCase() === op.trim().toUpperCase())
+  // Filtrer les natures autorisées pour l'opération sélectionnée
+  const naturesPermises = gammes
+    .filter(g => (g.operationCode || '').trim().toUpperCase() === selectedOp)
     .map(g => (g.natureComposantCode || '').trim().toUpperCase());
-  
-  if (composantsPermis.length > 0) {
-    return tousLesComposants.filter(n => composantsPermis.includes((n.code || '').trim().toUpperCase()));
-  }
 
-  return tousLesComposants;
+  return toutesLesNatures.filter(n => naturesPermises.includes((n.code || '').trim().toUpperCase()));
 });
 
-// =========================================================================
-// SÉCURITÉS ET AFFECTATIONS AUTOMATIQUES (Réactives)
-// =========================================================================
-
-// Si on change l'opération, on vérifie si le composant actuel est toujours compatible via la BDD
-watch(() => store.entete.operationCode, (newOp) => {
-  const nat = store.entete.natureComposantCode;
-  if (!newOp || !nat) return;
-
-  const gammes = store.gammesOperatoires || [];
-  // On vérifie si le couple (nat, newOp) existe dans la gamme
-  const estCompatible = gammes.some(g => 
-    (g.operationCode || '').trim().toUpperCase() === newOp.trim().toUpperCase() && 
-    (g.natureComposantCode || '').trim().toUpperCase() === nat.trim().toUpperCase()
-  );
-
-  // Fallback : si aucune gamme n'est définie pour cette opération en BDD, on considère que c'est libre
-  const opADesRegles = gammes.some(g => (g.operationCode || '').trim().toUpperCase() === newOp.trim().toUpperCase());
-
-  if (opADesRegles && !estCompatible) {
-    store.entete.natureComposantCode = '';
+const famillesFiltrees = computed(() => {
+  const allFamilies = store.famillesProduit || [];
+  if (isPiston.value) {
+    // On ajoute 'TOUS' au début mais on laisse les autres familles accessibles
+    return [{ code: 'TOUS' }, ...allFamilies];
   }
+  return allFamilies;
 });
 
-// Si on change le composant, on vérifie l'opération et on tente une auto-sélection
-watch(() => store.entete.natureComposantCode, (nouvelleNature, ancienneNature) => {
-  const op = store.entete.operationCode;
+const operationsFiltrees = computed(() => {
+  const toutesLesOperations = store.operations || [];
+  const selectedNature = (store.entete.natureComposantCode || '').trim().toUpperCase();
   const gammes = store.gammesOperatoires || [];
-  
-  if (nouvelleNature) {
-    const targetNature = nouvelleNature.trim().toUpperCase();
+
+  if (!gammes.length) return toutesLesOperations;
+
+  // Si une nature est sélectionnée, on filtre les opérations liées à cette nature
+  if (selectedNature) {
+    const opsPermises = gammes
+      .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === selectedNature)
+      .map(g => (g.operationCode || '').trim().toUpperCase());
     
-    // 1. Vérification de compatibilité de l'opération actuelle
-    if (op) {
-      const targetOp = op.trim().toUpperCase();
-      const estCompatible = gammes.some(g => 
-        (g.natureComposantCode || '').trim().toUpperCase() === targetNature && 
-        (g.operationCode || '').trim().toUpperCase() === targetOp
-      );
-      
-      const natADesRegles = gammes.some(g => (g.natureComposantCode || '').trim().toUpperCase() === targetNature);
-
-      if (natADesRegles && !estCompatible) {
-        store.entete.operationCode = ''; 
-      }
-    }
-
-    // 2. AUTO-SÉLECTION : Si une SEULE opération est possible pour ce composant en BDD, on l'affecte
-    if (!store.entete.operationCode) {
-      const opsPossibles = gammes
-        .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === targetNature)
-        .map(g => g.operationCode);
-      
-      if (opsPossibles.length === 1) {
-        store.entete.operationCode = opsPossibles[0];
-      }
-    }
+    return toutesLesOperations.filter(op => opsPermises.includes((op.code || '').trim().toUpperCase()));
   }
-  
-  // LOGIQUE SPÉCIFIQUE (Non liée aux gammes)
-  if (nouvelleNature === 'PISTON') {
-    store.entete.typeRobinetCode = ''; 
-  } else if (nouvelleNature === 'VOLANT') {
-    store.entete.typeRobinetCode = 'MAN';
-  } else if (ancienneNature === 'VOLANT' && ['CORPS', 'PF'].includes(nouvelleNature)) {
-    store.entete.typeRobinetCode = '';
+
+  // Sinon, on montre toutes les opérations qui existent dans les gammes (pour éviter les erreurs)
+  const toutesOpsDansGammes = [...new Set(gammes.map(g => (g.operationCode || '').trim().toUpperCase()))];
+  return toutesLesOperations.filter(op => toutesOpsDansGammes.includes((op.code || '').trim().toUpperCase()));
+});
+
+const postesDisponibles = computed(() =>
+  (store.postes || [])
+    .map(p => ({
+      code: p.code || p.Code || p.codePoste || p.CodePoste,
+      libelle: p.libelle || p.Libelle || p.designation || p.Designation
+    }))
+    .filter(p => p.code)
+);
+
+// =========================================================================
+// WATCHERS POUR CASCADE DE RÉINITIALISATION
+// =========================================================================
+
+// Si Famille change → Réinitialise Opération, Article, Poste
+watch(() => store.entete.familleProduitCode, (newVal, oldVal) => {
+  if (newVal !== oldVal) {
+    // Évite la boucle si c'est un auto-remplissage PISTON
+    if (newVal === 'TOUS' && isPiston.value) return;
+
+    store.entete.operationCode = '';
+    store.entete.natureComposantCode = '';
+    store.entete.posteCode = '';
   }
 });
+
+// Si Opération change → Réinitialise Article, Poste
+watch(() => store.entete.operationCode, (newVal, oldVal) => {
+  if (newVal !== oldVal) {
+    // Évite la boucle si c'est un auto-remplissage PISTON
+    if (newVal === 'ASS' && isPiston.value) return;
+
+    store.entete.natureComposantCode = '';
+    store.entete.posteCode = '';
+  }
+});
+
+// Si Article change → Réinitialise Poste
+watch(() => store.entete.natureComposantCode, (newVal, oldVal) => {
+  if (newVal !== oldVal) {
+    store.entete.posteCode = '';
+    
+    const isPistonNew = String(newVal || '').trim().toUpperCase() === 'PISTON';
+    const isPistonOld = String(oldVal || '').trim().toUpperCase() === 'PISTON';
+
+    // Règle spécifique PISTON : Force la famille et l'opération
+    if (isPistonNew) {
+      // Note: On utilise 'TOUS' ou 'ASS AUTO' selon ce qui est défini dans famillesFiltrees
+      store.entete.familleProduitCode = 'TOUS'; 
+      store.entete.operationCode = 'ASS';
+    } else if (isPistonOld) {
+      // Si on quitte le mode PISTON, on vide les champs forcés
+      store.entete.familleProduitCode = '';
+      store.entete.operationCode = '';
+    }
+  }
+});
+
+// Si condition Poste change (soupape check) → Réinitialise Poste
+watch(afficherPoste, (val) => {
+  if (!val) {
+    store.entete.posteCode = '';
+  }
+});
+
+// Auto-remplissage du code modèle
+watch(() => store.codeModeleAuto, (newVal, oldVal) => {
+  if (!props.isEditMode && (!store.entete.code || store.entete.code === oldVal)) {
+    store.entete.code = newVal;
+  }
+}, { immediate: true });
 </script>

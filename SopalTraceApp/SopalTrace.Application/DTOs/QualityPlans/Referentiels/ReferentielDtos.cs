@@ -3,6 +3,13 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 
+public record CreatePieceReferenceDto(
+    string Code,
+    string TypePiece,
+    string? Designation,
+    string? FamilleDesc
+);
+
 public record ReferenceItemDto(
     Guid? Id,
     string Code,
@@ -46,14 +53,19 @@ public record CreatePeriodiciteDto
 
 public record CreateCaracteristiqueDto
 {
-    public string Libelle { get; init; }
-    public string? UniteDefaut { get; init; }
-    public bool EstNumerique { get; init; }
+    public string Libelle { get; init; } = string.Empty;
 }
 // Ajout du DTO pour les gammes
 public record GammeDto(
     string NatureComposantCode,
     string OperationCode
+);
+
+// Ajout du DTO pour les familles
+public record FamilleProduitDto(
+    string Code,
+    string Designation,
+    string TypeRobinetCode
 );
 
 public record ReferentielsResponseDto(
@@ -66,13 +78,16 @@ public record ReferentielsResponseDto(
     List<PeriodiciteDto> Periodicites,
     List<ReferenceItemDto> TypesSections,
     List<InstrumentDto> Instruments,
+    List<ReferenceItemDto> Postes,
     List<GammeDto> Gammes,
     List<ReferenceItemIntDto> Nqa,
-    List<ReferenceItemDto> Defautheque
+    List<ReferenceItemDto> Defautheque,
+    List<ReferenceItemDto> ReglesEchantillonnage,
+    List<FamilleProduitDto> FamillesProduit
 )
 {
     public ReferentielsResponseDto()
-        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new()) 
+        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new()) 
     {
     }
 }
@@ -91,7 +106,6 @@ public record PieceRefDto(
     string Code,
     string? Designation,
     string? FamilleDesc,
-    string? MachineCode,
     string? TypePiece  // PRC, PRNC, FEC, FENC
 );
 
@@ -99,7 +113,8 @@ public record ArticleDto(
     string CodeArticle,
     string? Designation,
     string? TypeRobinetCode,
-    string? NatureComposantCode
+    string? NatureComposantCode,
+    List<string>? ValidOperations = null
 );
 public record MachinePosteDto(
     string Code,

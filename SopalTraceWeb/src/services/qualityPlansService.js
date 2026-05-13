@@ -66,13 +66,14 @@ export const qualityPlansService = {
     return apiClient.post('/plans-fabrication/nouvelle-version', payload);
   },
 
-  // Modification de la méthode pour passer l'operationCode
-  verifierEtatPlan(articleCode, modeleId, operationCode = null) {
+  // Modification de la méthode pour passer l'operationCode et le posteCode
+  verifierEtatPlan(articleCode, modeleId, operationCode = null, posteCode = null) {
     return apiClient.get('/plans-fabrication/verifier-etat', {
       params: { 
         articleCode, 
         modeleId: modeleId || '', 
-        operationCode: operationCode || '' 
+        operationCode: operationCode || '',
+        posteCode: posteCode || ''
       }
     });
   },
@@ -108,20 +109,22 @@ export const qualityPlansService = {
     return apiClient.get(`/referentiels/article/${codeArticle}`);
   },
 
-  getModelesByFilters(typeRobinetCode, natureComposantCode, operationCode) {
+  getModelesByFilters(typeRobinetCode, natureComposantCode, operationCode, posteCode = null) {
     const params = new URLSearchParams();
     if (typeRobinetCode) params.append('typeRobinet', typeRobinetCode);
     if (natureComposantCode) params.append('natureComposant', natureComposantCode);
-    if (operationCode) params.append('operation', operationCode); // Ajout décisif
+    if (operationCode) params.append('operation', operationCode); 
+    if (posteCode) params.append('poste', posteCode);
     
     return apiClient.get(`/modeles-fabrication/liste?${params.toString()}`);
   },
 
-  getPlansByFilters(typeRobinetCode, natureComposantCode, operationCode) {
+  getPlansByFilters(typeRobinetCode, natureComposantCode, operationCode, posteCode = null) {
     const params = new URLSearchParams();
     if (typeRobinetCode) params.append('typeRobinet', typeRobinetCode);
     if (natureComposantCode) params.append('natureComposant', natureComposantCode);
     if (operationCode) params.append('operation', operationCode);
+    if (posteCode) params.append('poste', posteCode);
     
     return apiClient.get(`/plans-fabrication/liste?${params.toString()}`);
   },

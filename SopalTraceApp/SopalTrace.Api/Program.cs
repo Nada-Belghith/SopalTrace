@@ -33,6 +33,8 @@ builder.Host.UseSerilog();
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // --- CONFIGURATION SWAGGER AVEC SUPPORT JWT ---
 builder.Services.AddSwaggerGen(opt =>
@@ -101,6 +103,14 @@ builder.Services.AddScoped<IHubService, HubService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
 builder.Services.AddScoped<IPlanPfRepository, PlanPfRepository>();
 builder.Services.AddScoped<IPlanPfService, PlanPfService>();
+builder.Services.AddScoped<IDictionnaireQualiteRepository, DictionnaireQualiteRepository>();
+builder.Services.AddScoped<IPlanArchiverService>(sp =>
+    new PlanArchiverService(
+        sp.GetRequiredService<IPlanFabricationRepository>(),
+        sp.GetRequiredService<IPlanPfRepository>(),
+        sp.GetRequiredService<IPlanAssRepository>(),
+        sp.GetRequiredService<IPlanNcRepository>()
+    ));
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---
 var secretKey = builder.Configuration["Jwt:Secret"] ?? "VotreCleSecreteDePlusDe32Caracteres";

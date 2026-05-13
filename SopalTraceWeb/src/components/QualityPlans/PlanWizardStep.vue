@@ -72,10 +72,21 @@
             <p class="text-base font-semibold text-blue-800">La nature de cet article est pilotée par un plan de contrôle Maître (Générique). Il n'est pas nécessaire d'instancier un plan de fabrication spécifique.</p>
           </div>
         </div>
+
+        <!-- MESSAGE BLOCAGE POUR PISTON / PF -->
+        <div v-if="wizard.isPlanCreationBlocked.value" class="mt-6 p-6 bg-amber-50 border-2 border-amber-300 rounded-xl animate-in fade-in flex gap-4">
+          <div class="shrink-0">
+            <i class="pi pi-exclamation-circle text-3xl text-amber-600"></i>
+          </div>
+          <div>
+            <p class="text-sm font-black text-amber-600 uppercase tracking-widest mb-2">Plan par article non autorisé</p>
+            <p class="text-base font-semibold text-amber-800">Les articles de nature <strong>PISTON</strong> ou <strong>PF</strong> ne disposent pas de plans de contrôle par article. La création est donc bloquée pour ce code.</p>
+          </div>
+        </div>
       </div>
 
-      <!-- 2. CHOIX DE L'OPÉRATION (Affiché si article valide ET NON générique) -->
-      <div v-if="wizard.isArticleValid.value && !wizard.isGenerique.value" class="animate-in fade-in slide-in-from-bottom-4 pt-4 border-t border-slate-100">
+      <!-- 2. CHOIX DE L'OPÉRATION (Affiché si article valide ET NON générique ET NON bloqué) -->
+      <div v-if="wizard.isArticleValid.value && !wizard.isGenerique.value && !wizard.isPlanCreationBlocked.value" class="animate-in fade-in slide-in-from-bottom-4 pt-4 border-t border-slate-100">
         <h3 class="text-sm font-black text-slate-500 uppercase tracking-widest mb-6">
           <i class="pi pi-cog mr-2"></i> 2. Choix de l'opération
         </h3>
@@ -103,33 +114,76 @@
         </div>
       </div>
 
-      <!-- 3. MÉTHODE DE CRÉATION (Bloqué si l'opération n'est pas choisie OU si article générique) -->
-      <div v-if="!wizard.isGenerique.value" :class="wizard.operationCode.value ? 'opacity-100' : 'opacity-40 pointer-events-none'" class="transition-opacity duration-300 pt-4 border-t border-slate-100">
+      <!-- 2b. CHOIX DU POSTE (uniquement pour les articles qui le nécessitent, ex: Auto Soupape PF) -->
+      <div
+        v-if="wizard.isArticleValid.value && !wizard.isGenerique.value && wizard.operationCode.value && wizard.requiertPoste?.value"
+        class="animate-in fade-in slide-in-from-bottom-4 pt-4 border-t border-slate-100"
+      >
+        <h3 class="text-sm font-black text-slate-500 uppercase tracking-widest mb-6">
+          <i class="pi pi-wrench mr-2"></i> 2b. Choix du poste de travail
+        </h3>
+        <p class="text-sm text-slate-500 mb-4">
+          Ce type d'article nécessite de préciser le poste de fabrication, car le plan de contrôle varie selon le poste.
+        </p>
+        <div class="max-w-md">
+          <select
+            v-model="wizard.posteCode.value"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold bg-white text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">-- Choisir un poste --</option>
+            <option v-for="poste in wizard.postesDisponibles.value" :key="poste.code" :value="poste.code">
+              {{ poste.code }} - {{ poste.libelle || poste.code }}
+            </option>
+          </select>
+        </div>
+        <p v-if="!wizard.posteCode.value" class="mt-3 text-xs text-amber-600 font-bold flex items-center gap-1">
+          <i class="pi pi-exclamation-triangle"></i> Veuillez sélectionner un poste pour continuer.
+        </p>
+      </div>
+
+      <!-- 2c. CHOIX DE LA FAMILLE (Uniquement pour PF) -->
+      <div
+        v-if="wizard.isArticleValid.value && !wizard.isGenerique.value && wizard.operationCode.value && wizard.requiertFamille?.value"
+        class="animate-in fade-in slide-in-from-bottom-4 pt-4 border-t border-slate-100"
+      >
+        <h3 class="text-sm font-black text-slate-500 uppercase tracking-widest mb-6">
+          <i class="pi pi-tags mr-2"></i> 2c. Choix de la famille d'article
+        </h3>
+        <p class="text-sm text-slate-500 mb-4">
+          Pour les produits finis (PF), veuillez préciser la famille de produits associée.
+        </p>
+        <div class="max-w-md">
+          <select
+            v-model="wizard.familleCode.value"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold bg-white text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">-- Choisir une famille --</option>
+            <option v-for="famille in wizard.famillesFiltrees.value" :key="famille.code" :value="famille.code">
+              {{ famille.code }}
+            </option>
+          </select>
+        </div>
+        <p v-if="!wizard.familleCode.value" class="mt-3 text-xs text-amber-600 font-bold flex items-center gap-1">
+          <i class="pi pi-exclamation-triangle"></i> Veuillez sélectionner une famille pour continuer.
+        </p>
+      </div>
+
+      <!-- 3. MÉTHODE DE CRÉATION (Bloqué si l'opération n'est pas choisie OU si article générique/bloqué) -->
+      <div v-if="!wizard.isGenerique.value && !wizard.isPlanCreationBlocked.value" :class="(wizard.operationCode.value && (!wizard.requiertPoste?.value || wizard.posteCode?.value) && (!wizard.requiertFamille?.value || wizard.familleCode?.value)) ? 'opacity-100' : 'opacity-40 pointer-events-none'" class="transition-opacity duration-300 pt-4 border-t border-slate-100">
         <h3 class="text-sm font-black text-slate-500 uppercase tracking-widest mb-6">
           <i class="pi pi-sitemap mr-2"></i> 3. Méthode de création
         </h3>
-        
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-          <!-- Option 1: Vierge -->
-          <label 
-            :class="wizard.sourceType.value === 'VIERGE' ? 'border-purple-500 bg-purple-50 ring-4 ring-purple-500/20' : 'border-slate-200 hover:bg-slate-50'" 
-            class="p-6 rounded-2xl border-2 cursor-pointer transition-all flex flex-col items-center text-center gap-3"
-          >
-            <input type="radio" v-model="wizard.sourceType.value" value="VIERGE" class="hidden">
-            <i class="pi pi-file text-3xl" :class="wizard.sourceType.value === 'VIERGE' ? 'text-purple-600' : 'text-slate-400'"></i>
-            <div>
-              <p class="font-bold text-slate-800 text-lg">Plan Vierge</p>
-              <p class="text-xs text-slate-500 mt-2">Partir de zéro (vide)</p>
-            </div>
-          </label>
 
-          <!-- Option 2: From Template (Modèle) -->
-          <label 
-            @click="handleModeleCardClick" 
+        <!-- Méthodes principales: 3 options -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+
+          <!-- Option 1: From Template (Modèle) -->
+          <label
+            @click="handleModeleCardClick"
             :class="[
               wizard.sourceType.value === 'MODELE' ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50',
               (wizard.isGenerating?.value || wizard.isGeneratingPlan?.value) ? 'opacity-60 cursor-not-allowed' : ''
-            ]" 
+            ]"
             class="p-6 rounded-2xl border-2 cursor-pointer transition-all flex flex-col items-center text-center gap-3"
           >
             <input type="radio" v-model="wizard.sourceType.value" value="MODELE" class="hidden">
@@ -140,93 +194,87 @@
             ]"></i>
             <div>
               <p class="font-bold text-slate-800 text-lg">Depuis un Modèle</p>
-              <p class="text-xs text-slate-500 mt-2">Structure vierge à remplir</p>
+              <p class="text-xs text-slate-500 mt-2">Structure prédéfinie à remplir</p>
             </div>
           </label>
 
-          <!-- Option 3: Clone Existing -->
+          <!-- Option 2: Clone Existing -->
           <label :class="wizard.sourceType.value === 'CLONE' ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-500/20' : 'border-slate-200 hover:bg-slate-50'" class="p-6 rounded-2xl border-2 cursor-pointer transition-all flex flex-col items-center text-center gap-3">
             <input type="radio" v-model="wizard.sourceType.value" value="CLONE" class="hidden">
             <i class="pi pi-copy text-3xl" :class="wizard.sourceType.value === 'CLONE' ? 'text-emerald-600' : 'text-slate-400'"></i>
             <div>
-              <p class="font-bold text-slate-800 text-lg">Cloner un Plan Existant</p>
-              <p class="text-xs text-slate-500 mt-2">Récupère aussi les tolérances depuis n'importe quel article</p>
+              <p class="font-bold text-slate-800 text-lg">Cloner un Plan</p>
+              <p class="text-xs text-slate-500 mt-2">Copier tolérances et structure d'un plan existant</p>
+            </div>
+          </label>
+
+          <!-- Option 3: Import Excel -->
+          <input type="file" ref="excelFileInput" @change="$emit('excel-selected', $event)" accept=".xlsx,.csv" class="hidden" />
+          <label
+            @click.prevent="handleExcelCardClick"
+            :class="wizard.sourceType.value === 'EXCEL' ? 'border-orange-500 bg-orange-50 ring-4 ring-orange-500/20' : 'border-slate-200 hover:bg-slate-50'"
+            class="p-6 rounded-2xl border-2 cursor-pointer transition-all flex flex-col items-center text-center gap-3"
+          >
+            <input type="radio" v-model="wizard.sourceType.value" value="EXCEL" class="hidden">
+            <i class="pi pi-file-excel text-3xl" :class="wizard.sourceType.value === 'EXCEL' ? 'text-orange-600' : 'text-slate-400'"></i>
+            <div>
+              <p class="font-bold text-slate-800 text-lg">Importer Excel</p>
+              <p class="text-xs text-slate-500 mt-2">Charger la structure depuis un fichier .xlsx</p>
             </div>
           </label>
         </div>
 
-        <!-- SOURCE SELECTION -->
-        <!-- VIERGE -->
-        <div v-if="wizard.sourceType.value === 'VIERGE'" class="animate-in fade-in">
-          <div class="p-6 bg-purple-50 border border-purple-200 rounded-xl text-purple-800 text-sm mb-4">
-            <i class="pi pi-info-circle text-xl mb-2 block"></i>
-            Vous allez créer un plan de contrôle totalement vide. Vous devrez configurer manuellement l'intégralité de la structure (sections, contrôles).
-          </div>
-          <button 
-            @click="$emit('load-model', { wizard })"
-            :disabled="!wizard.canGeneratePlan()"
-            class="w-full px-6 py-3 bg-purple-600 text-white rounded-lg font-black uppercase tracking-widest hover:bg-purple-700 transition-all shadow-lg flex items-center justify-center gap-3 text-sm"
-          >
-            <i class="pi pi-file-edit"></i>
-            Créer le Plan Vierge
-          </button>
-        </div>
-
+        <!-- Panneaux de détail selon la méthode choisie -->
         <div v-if="wizard.sourceType.value === 'MODELE'" class="animate-in fade-in">
-          <!-- Si un seul modèle disponible, l'afficher et le sélectionner automatiquement -->
-          <label v-if="wizard.availableModeles.value.length === 1" class="block text-xs font-bold text-slate-700 uppercase mb-2">Choisir le Modèle de base *</label>
-          <label v-else class="block text-xs font-bold text-slate-700 uppercase mb-2">Choisir le Modèle de base *</label>
-          
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Choisir le Modèle de base *</label>
+
           <div v-if="wizard.availableModeles.value.length === 0" class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
             <i class="pi pi-info-circle mr-2"></i>
             <span v-if="!wizard.isArticleValid.value">Veuillez d'abord vérifier l'article.</span>
             <span v-else>Aucun modèle disponible pour cette combinaison article.</span>
           </div>
-          
+
           <div v-else-if="wizard.availableModeles.value.length === 1" class="p-4 bg-white border-2 border-slate-300 rounded-xl text-base font-semibold text-slate-700 shadow-sm">
             {{ wizard.availableModeles.value[0].code }} - {{ wizard.availableModeles.value[0].libelle || wizard.availableModeles.value[0].designation }}
           </div>
-          
-          <select 
+
+          <select
             v-else
-            v-model="wizard.selectedSourceId.value" 
+            v-model="wizard.selectedSourceId.value"
             class="w-full p-4 bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-blue-500 text-base font-semibold text-slate-700 shadow-sm cursor-pointer"
           >
-            <option :value="null" disabled>-- Sélectionner le Modèle dans la liste --</option>
+            <option :value="null" disabled>-- Sélectionner le Modèle ({{ wizard.availableModeles.value.length }} trouvés) --</option>
             <option v-for="modele in wizard.availableModeles.value" :key="modele.id" :value="modele.id">
-              {{ modele.code }} - {{ modele.libelle || modele.designation }}
+              {{ modele.libelle || modele.code }} ({{ modele.code }})
             </option>
           </select>
-
         </div>
 
         <div v-if="wizard.sourceType.value === 'CLONE'" class="animate-in fade-in">
           <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Choisir le Plan à dupliquer *</label>
-          
+
           <div v-if="wizard.availablePlans.value.length === 0" class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
             <i class="pi pi-info-circle mr-2"></i>
             <span v-if="!wizard.isArticleValid.value">Veuillez d'abord vérifier l'article.</span>
             <span v-else>Aucun plan disponible pour cette combinaison article.</span>
           </div>
-          
-          <!-- Si un seul plan disponible, l'afficher directement -->
+
           <div v-else-if="wizard.availablePlans.value.length === 1" class="p-4 bg-white border-2 border-slate-300 rounded-xl text-base font-semibold text-slate-700 shadow-sm">
             {{ wizard.availablePlans.value[0].nom || 'Sans Nom' }} - v{{ wizard.availablePlans.value[0].version }} ({{ wizard.availablePlans.value[0].codeArticleSage }} - {{ wizard.availablePlans.value[0].designation }})
           </div>
-          
-          <select 
+
+          <select
             v-else
-            v-model="wizard.selectedSourceId.value" 
+            v-model="wizard.selectedSourceId.value"
             class="w-full p-4 bg-white border-2 border-slate-300 rounded-xl outline-none focus:border-emerald-500 text-base font-semibold text-slate-700 shadow-sm cursor-pointer"
           >
-            <option :value="null" disabled>-- Sélectionner le Plan dans la liste --</option>
+            <option :value="null" disabled>-- Sélectionner le Plan ({{ wizard.availablePlans.value.length }} trouvés) --</option>
             <option v-for="plan in wizard.availablePlans.value" :key="plan.id" :value="plan.id">
-              {{ plan.nom || 'Sans Nom' }} - v{{ plan.version }} ({{ plan.codeArticleSage }} - {{ plan.designation }})
+              {{ plan.nom || plan.codeArticleSage }} - v{{ plan.version }}
             </option>
           </select>
 
-          <!-- Bouton Cloner le Plan -->
-          <button 
+          <button
             v-if="wizard.availablePlans.value.length > 0"
             @click="$emit('load-model', { wizard })"
             :disabled="!wizard.selectedSourceId.value || wizard.isGenerating.value"
@@ -236,13 +284,28 @@
             {{ wizard.isGenerating.value ? 'Clonage en cours...' : 'Cloner le Plan' }}
           </button>
         </div>
+
+        <!-- Panneau Excel supprimé: le clic sur la carte ouvre directement le fichier -->
+
+        <!-- Option secondaire : Plan Vierge -->
+        <div class="mt-8 pt-6 border-t border-dashed border-slate-200 text-center">
+          <p class="text-xs text-slate-400 mb-3 uppercase tracking-widest font-bold">Option avancée</p>
+          <button
+            @click="wizard.sourceType.value = 'VIERGE'; $emit('load-model', { wizard })"
+            :disabled="!wizard.isArticleValid.value || !wizard.operationCode.value"
+            class="inline-flex items-center gap-2 px-5 py-2.5 text-slate-500 bg-white border border-slate-300 rounded-lg font-bold text-sm hover:bg-slate-50 hover:text-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <i class="pi pi-file text-base"></i>
+            Créer un plan complètement vierge
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { nextTick, watch } from 'vue';
+import { nextTick, watch, ref } from 'vue';
 
 const props = defineProps({
   wizard: {
@@ -251,7 +314,8 @@ const props = defineProps({
   }
 });
 const wizard = props.wizard;
-const emit = defineEmits(['load-model']);
+const excelFileInput = ref(null);
+const emit = defineEmits(['load-model', 'excel-selected']);
 
 // Clicking the MODELE card triggers generation only when a modele is selected
 const handleModeleCardClick = async () => {
@@ -263,6 +327,14 @@ const handleModeleCardClick = async () => {
   if (!isGenerate && wizard.selectedSourceId?.value && wizard.operationCode?.value) {
     await nextTick();
     emit('load-model', { wizard });
+  }
+};
+
+// Clicking the EXCEL card directly opens the file picker
+const handleExcelCardClick = () => {
+  wizard.sourceType.value = 'EXCEL';
+  if (excelFileInput.value && wizard.isArticleValid.value && wizard.operationCode.value) {
+    excelFileInput.value.click();
   }
 };
 

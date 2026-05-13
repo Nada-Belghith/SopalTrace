@@ -21,9 +21,10 @@ public class ModeleFabricationController : ControllerBase
     public async Task<IActionResult> GetModelesByFilters(
         [FromQuery] string? typeRobinet, 
         [FromQuery] string? natureComposant, 
-        [FromQuery] string? operation)
+        [FromQuery] string? operation,
+        [FromQuery] string? poste)
     {
-        var data = await _modeleService.GetModelesByFiltersAsync(typeRobinet, natureComposant, operation);
+        var data = await _modeleService.GetModelesByFiltersAsync(typeRobinet, natureComposant, operation, poste);
         return Ok(new { success = true, data });
     }
 

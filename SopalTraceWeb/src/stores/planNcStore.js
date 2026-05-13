@@ -197,9 +197,58 @@ export const usePlanNcStore = defineStore('planNc', () => {
     snapshotOriginal.value = null;
   };
 
+  const importerDepuisExcel = async (file) => {
+    isLoading.value = true;
+    try {
+      const res = await planNcService.importerExcel(file);
+      const data = res.data.data;
+
+      // Mettre à jour le poste si détecté dans le fichier
+      if (data.posteCode && !entete.value.posteCode) {
+        entete.value.posteCode = data.posteCode;
+      }
+      if (data.nomPlan) entete.value.nom = data.nomPlan;
+      if (data.remarques) entete.value.remarques = data.remarques.trim();
+
+      // Mapper les lignes importées
+      const nouvellesLignes = (data.lignes || []).map(l => {
+        // Chercher le défaut par libellé (insensible à la casse)
+        const defautTrouve = risquesDefauts.value.find(rd =>
+          rd.libelle?.trim().toLowerCase() === l.libelleDefaut?.trim().toLowerCase()
+        );
+
+        return {
+          _uid: uuidv4(),
+          id: null,
+          machineCode: l.machineCode || '',
+          risqueDefautId: defautTrouve?.id || null,
+          ordreAffiche: 0,
+          // On conserve le libellé brut si non trouvé, pour affichage
+          _libelleDefautBrut: defautTrouve ? null : l.libelleDefaut
+        };
+      });
+
+      if (nouvellesLignes.length > 0) {
+        lignes.value = nouvellesLignes;
+        planInitialise.value = true;
+      }
+
+      const nbNonResolus = nouvellesLignes.filter(l => !l.risqueDefautId).length;
+      return {
+        success: true,
+        total: nouvellesLignes.length,
+        nbNonResolus
+      };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     postes, machines, risquesDefauts, isDicosLoaded,
     entete, lignes, isLoading, planInitialise, plansExistants,
-    fetchDictionnaires, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc, ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan, resetState
+    fetchDictionnaires, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc,
+    ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan,
+    resetState, importerDepuisExcel
   };
 });

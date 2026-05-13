@@ -15,14 +15,23 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         _context = context;
     }
 
-    public async Task<Periodicite> GetPeriodiciteByLibelleAsync(string libelle)
+    public async Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle)
     {
         return await _context.Periodicites.FirstOrDefaultAsync(p => p.Libelle == libelle);
     }
 
+    public async Task AddPeriodiciteAsync(Periodicite entite)
+    {
+        _context.Periodicites.Add(entite);
+        await Task.CompletedTask;
+    }
+
     public async Task<TypeSection> GetTypeSectionByLibelleAsync(string libelle)
     {
-        return await _context.Set<TypeSection>().FirstOrDefaultAsync(t => t.Libelle == libelle);
+        var normalized = libelle.Trim();
+        // Recherche souple : ignore casse et espaces superflus
+        return await _context.Set<TypeSection>().FirstOrDefaultAsync(t => 
+            t.Libelle.Trim().ToLower() == normalized.ToLower());
     }
 
     public async Task AddTypeSectionAsync(TypeSection entite)
@@ -33,7 +42,8 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
 
     public async Task<TypeCaracteristique> GetTypeCaracteristiqueByLibelleAsync(string libelle)
     {
-        return await _context.Set<TypeCaracteristique>().FirstOrDefaultAsync(t => t.Libelle == libelle);
+        var normalized = libelle.Trim().ToLower();
+        return await _context.Set<TypeCaracteristique>().FirstOrDefaultAsync(t => t.Libelle.Trim().ToLower() == normalized);
     }
 
     public async Task AddTypeCaracteristiqueAsync(TypeCaracteristique entite)
@@ -44,7 +54,8 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
 
     public async Task<TypeControle> GetTypeControleByLibelleAsync(string libelle)
     {
-        return await _context.Set<TypeControle>().FirstOrDefaultAsync(t => t.Libelle == libelle);
+        var normalized = libelle.Trim().ToLower();
+        return await _context.Set<TypeControle>().FirstOrDefaultAsync(t => t.Libelle.Trim().ToLower() == normalized);
     }
 
     public async Task AddTypeControleAsync(TypeControle entite)
@@ -55,12 +66,74 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
 
     public async Task<MoyenControle> GetMoyenControleByLibelleAsync(string libelle)
     {
-        return await _context.Set<MoyenControle>().FirstOrDefaultAsync(t => t.Libelle == libelle);
+        var normalized = libelle.Trim().ToLower();
+        return await _context.Set<MoyenControle>().FirstOrDefaultAsync(t => t.Libelle.Trim().ToLower() == normalized);
     }
 
     public async Task AddMoyenControleAsync(MoyenControle entite)
     {
         _context.Set<MoyenControle>().Add(entite);
+        await Task.CompletedTask;
+    }
+
+    public async Task<Instrument> GetInstrumentByCodeAsync(string codeInstrument)
+    {
+        var normalizedCode = codeInstrument.Trim();
+        return await _context.Set<Instrument>().FirstOrDefaultAsync(t => t.CodeInstrument == normalizedCode);
+    }
+
+    public async Task AddInstrumentAsync(Instrument entite)
+    {
+        _context.Set<Instrument>().Add(entite);
+        await Task.CompletedTask;
+    }
+
+    public async Task<RefRegleEchantillonnage> GetRegleEchantillonnageByLibelleAsync(string libelle)
+    {
+        var normalized = libelle.Trim();
+        return await _context.RefRegleEchantillonnages.FirstOrDefaultAsync(r => 
+            r.Libelle.Trim().ToLower() == normalized.ToLower());
+    }
+
+    public async Task AddRegleEchantillonnageAsync(RefRegleEchantillonnage entite)
+    {
+        _context.RefRegleEchantillonnages.Add(entite);
+        await Task.CompletedTask;
+    }
+
+    public async Task<PieceReference> GetPieceReferenceByCodeAsync(string code)
+    {
+        var normalizedCode = code.Trim().ToUpper();
+        return await _context.PieceReferences.FirstOrDefaultAsync(p => p.Code == normalizedCode);
+    }
+
+    public async Task AddPieceReferenceAsync(PieceReference entite)
+    {
+        _context.PieceReferences.Add(entite);
+        await Task.CompletedTask;
+    }
+    
+    public async Task<RefFamilleCorp> GetFamilleCorpsByCodeAsync(string code)
+    {
+        var normalizedCode = code.Trim().ToUpper();
+        return await _context.RefFamilleCorps.FirstOrDefaultAsync(f => f.Code == normalizedCode);
+    }
+
+    public async Task AddFamilleCorpsAsync(RefFamilleCorp entite)
+    {
+        _context.RefFamilleCorps.Add(entite);
+        await Task.CompletedTask;
+    }
+
+    public async Task<RefMoyenDetection> GetMoyenDetectionByLibelleAsync(string libelle)
+    {
+        var normalized = libelle.Trim();
+        return await _context.RefMoyenDetections.FirstOrDefaultAsync(m => m.Designation == normalized || m.Code == normalized);
+    }
+
+    public async Task AddMoyenDetectionAsync(RefMoyenDetection entite)
+    {
+        _context.RefMoyenDetections.Add(entite);
         await Task.CompletedTask;
     }
 }

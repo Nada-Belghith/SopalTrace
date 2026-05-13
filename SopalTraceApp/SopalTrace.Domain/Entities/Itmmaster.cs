@@ -11,13 +11,19 @@ public partial class Itmmaster
 
     public string? Designation2 { get; set; }
 
-    public string? FamilleProduit { get; set; }
+    public string? FamilleProduitFini { get; set; }
+
+    public string? FamilleCorpsCode { get; set; }
 
     public string? Statut { get; set; }
 
     public string? TypeRobinetCode { get; set; }
 
     public string? NatureComposantCode { get; set; }
+
+    public virtual RefFamilleCorp? FamilleCorpsCodeNavigation { get; set; }
+
+    public virtual FamilleProduitFini? FamilleProduitFiniNavigation { get; set; }
 
     public virtual ICollection<Mfghead> Mfgheads { get; set; } = new List<Mfghead>();
 

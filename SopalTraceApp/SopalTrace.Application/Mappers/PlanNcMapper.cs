@@ -14,10 +14,10 @@ public static class PlanNcMapper
             Id = plan.Id,
             PosteCode = plan.PosteCode,
             Nom = plan.Nom,
-            Version = plan.Version ?? 0,
-            Statut = plan.Statut ?? "",
+            Version = plan.Version,
+            Statut = plan.Statut,
             CreePar = plan.CreePar,
-            CreeLe = plan.CreeLe ?? DateTime.MinValue,
+            CreeLe = plan.CreeLe,
             Remarques = plan.Remarques,
             LegendeMoyens = plan.LegendeMoyens,
             Lignes = plan.PlanNcLignes.Select(l => new LigneNcResponseDto

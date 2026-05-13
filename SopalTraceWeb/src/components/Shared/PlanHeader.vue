@@ -10,7 +10,7 @@
           <i :class="[icon, iconColorClass]"></i>
           <span>
             <template v-if="isReadOnly">Consultation : </template>
-            <template v-else-if="!id">Création : </template>
+            <template v-else-if="!id || statut === 'BROUILLON'">Création : </template>
             <template v-else>Édition : </template>
             {{ title }}
           </span>
@@ -63,4 +63,5 @@ defineProps({
 });
 
 defineEmits(['restaurer']);
+// Composant d'en-tête partagé pour les plans de qualité
 </script>

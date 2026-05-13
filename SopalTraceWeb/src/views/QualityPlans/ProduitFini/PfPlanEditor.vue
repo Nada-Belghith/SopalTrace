@@ -40,11 +40,14 @@
                 <PfHeader :is-read-only="isReadOnly" />
               </div>
 
-              <div v-if="!isReadOnly" class="ml-8 w-64 relative shrink-0">
-                <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx" class="hidden" />
-                <button @click="$refs.fileInput.click()" class="w-full p-3 bg-emerald-50 text-center border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl hover:bg-emerald-100 transition-colors text-emerald-600 font-black uppercase tracking-widest flex flex-col items-center justify-center gap-2 text-[10px] shadow-sm">
-                  <i class="pi pi-file-excel text-2xl mb-1"></i> 
-                  <span>Importer un fichier Excel</span>
+              <div v-if="!isReadOnly" class="ml-8 shrink-0 flex items-center">
+                <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.csv" class="hidden" />
+                <button @click="$refs.fileInput.click()" 
+                  class="h-10 px-5 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
+                  :disabled="isLoadingData">
+                  <i v-if="!isLoadingData" class="ri-file-excel-2-line text-xl"></i>
+                  <i v-else class="ri-loader-4-line animate-spin text-xl"></i>
+                  <span>Importer la structure Excel</span>
                 </button>
               </div>
             </div>
@@ -54,7 +57,8 @@
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           <div class="bg-[#1e293b] text-white px-5 py-4 flex justify-between items-center">
             <div class="flex items-center gap-3 font-bold tracking-wide text-sm">
-              <i class="pi pi-sliders-v text-blue-400"></i> Éditeur de Structure
+              <i :class="isReadOnly ? 'pi pi-eye text-blue-400' : 'pi pi-sliders-v text-blue-400'"></i>
+              {{ isReadOnly ? 'Visualisation du plan' : 'Éditeur de Structure' }}
             </div>
           </div>
 
@@ -70,6 +74,16 @@
               </div>
             </template>
 
+            <!-- Mode LECTURE : tableau clair -->
+            <div v-if="isReadOnly" class="p-4 md:p-6">
+              <PfPlanReadView
+                :sections="sections"
+                :remarques="store.entete.remarques"
+                :legende-moyens="store.entete.legendeMoyens"
+              />
+            </div>
+
+            <!-- Mode EDITION : ancienne vue cartes -->
             <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
               <table class="w-full text-left border-collapse min-w-[1200px]">
                 <FabTableHeader :columns="modeleColumns" />
@@ -102,13 +116,16 @@
               </button>
             </div>
 
-            <RemarquesLegendeBox
-              v-model:remarques="store.entete.remarques"
-              v-model:legendeMoyens="store.entete.legendeMoyens"
-              :show-validation="showLegendValidation"
-              :has-custom-instruments="hasCustomInstrumentsGlobal"
-              :is-read-only="isReadOnly"
-            />
+            <!-- Notes & Légende en mode éditeur seulement -->
+            <div v-if="!isReadOnly" class="px-6 md:px-8 pb-6">
+              <RemarquesLegendeBox
+                v-model:remarques="store.entete.remarques"
+                v-model:legendeMoyens="store.entete.legendeMoyens"
+                :show-validation="showLegendValidation"
+                :has-custom-instruments="hasCustomInstrumentsGlobal"
+                :is-read-only="isReadOnly"
+              />
+            </div>
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end" v-if="!isForcedView">
@@ -141,6 +158,7 @@ import { useEditorValidation } from '@/composables/useEditorValidation';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import PfHeader from '@/components/ProduitFini/PfHeader.vue';
 import PfSectionCard from '@/components/ProduitFini/PfSectionCard.vue';
+import PfPlanReadView from '@/components/ProduitFini/PfPlanReadView.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
@@ -192,34 +210,116 @@ const onFileSelected = async (event) => {
     const response = await pfPlanService.importExcel(formData);
     const parsedData = response.data.data;
     
-    if (parsedData && parsedData.sections) {
-      sections.value = parsedData.sections.map(sec => ({
-        id: sec.id || crypto.randomUUID(),
-        isFromDb: false,
-        libelleSection: sec.nom,
-        typeSectionId: sec.typeSectionId,
-        modeFreq: sec.modeFreq,
-        periodiciteId: sec.periodiciteId,
-        freqNum: sec.freqNum,
-        typeVariable: sec.typeVariable,
-        freqHours: sec.freqHours,
-        lignes: sec.lignes.map(lig => ({
-          id: lig.id || crypto.randomUUID(),
-          isFromDb: false,
-          typeCaracteristiqueId: lig.typeCaracteristiqueId,
-          typeControleId: lig.typeControleId,
-          moyenControleId: lig.moyenControleId,
-          instrumentCode: lig.instrumentCode,
-          valeurNominale: lig.valeurNominale,
-          toleranceSuperieure: lig.toleranceSuperieure,
-          toleranceInferieure: lig.toleranceInferieure,
-          unite: lig.unite || '',
-          limiteSpecTexte: lig.limiteSpecTexte,
-          observations: lig.observations,
-          estCritique: lig.estCritique,
-          libelleAffiche: lig.libelleAffiche
-        }))
-      }));
+    if (parsedData) {
+      if (parsedData.remarques && parsedData.remarques.trim() !== '') {
+        store.entete.remarques = (store.entete.remarques ? store.entete.remarques + '\n' : '') + parsedData.remarques.trim();
+      }
+
+      if (parsedData.sections) {
+        sections.value = parsedData.sections.map(sec => {
+          let modeFreq = sec.modeFreq || 'SANS';
+          let regleEchantillonnageId = sec.regleEchantillonnageId || null;
+          let freqNum = sec.freqNum || 1;
+          let typeVariable = sec.typeVariable || 'HEURE';
+          let freqHours = sec.freqHours || 1;
+
+          // LOGIQUE IDENTIQUE AU PLAN FABRICATION/PISTON
+          if (sec.frequenceLibelle) {
+            const perMatch = (store.reglesEchantillonnage || []).find(p => p.libelle === sec.frequenceLibelle);
+            if (perMatch) {
+              modeFreq = 'FIXE';
+              regleEchantillonnageId = perMatch.id;
+            } else {
+              modeFreq = 'VARIABLE';
+              const libelle = sec.frequenceLibelle.toLowerCase();
+
+              if (libelle.includes('pièce') && libelle.includes('heure')) {
+                typeVariable = 'HEURE';
+                const match = libelle.match(/(\d+)\s*pièce.*\/\s*(\d+)\s*heure/);
+                if (match) {
+                  freqNum = parseInt(match[1]);
+                  freqHours = parseInt(match[2]);
+                } else {
+                  const pieceMatch = libelle.match(/(\d+)\s*pièce/);
+                  if (pieceMatch) {
+                    freqNum = parseInt(pieceMatch[1]);
+                    freqHours = 1;
+                  }
+                }
+              } else if (libelle.includes('échantillon')) {
+                 typeVariable = 'ECHANTILLON';
+                 const match = libelle.match(/(\d+)\s*échantillon/);
+                 if (match) freqNum = parseInt(match[1]);
+              } else if (libelle.includes('série')) {
+                typeVariable = 'SERIE';
+                const serieMatch = libelle.match(/série de (\d+) pièces/);
+                if (serieMatch) {
+                  freqNum = parseInt(serieMatch[1]);
+                }
+              }
+            }
+          }
+
+          let typeSectionId = sec.typeSectionId || '';
+          if (!typeSectionId && sec.nom) {
+            // On nettoie le nom venant d'Excel (on enlève ce qui est entre parenthèses pour mieux matcher)
+            const secLib = sec.nom.trim().toLowerCase();
+            const cleanLib = secLib.split(' (')[0].trim();
+            
+            let bestMatch = null;
+            let maxLength = -1;
+
+            (store.typesSection || []).forEach(t => {
+              const tLib = (t.libelle || '').trim().toLowerCase();
+              if (!tLib || cleanLib === 'section sans nom') return;
+
+              // Match exact ou inclusion du libellé dictionnaire dans le libellé Excel
+              if ((cleanLib === tLib || cleanLib.includes(tLib) || tLib.includes(cleanLib)) && tLib.length > maxLength) {
+                maxLength = tLib.length;
+                bestMatch = t;
+              }
+            });
+
+            if (bestMatch) {
+              typeSectionId = bestMatch.id;
+            } else {
+              // FALLBACK PF : Si on ne trouve rien, on cherche une nature par défaut (Contrôle Produit Fini / Contrôle Final)
+              const fallback = (store.typesSection || []).find(t => {
+                const lib = (t.libelle || '').toLowerCase();
+                return lib.includes('produit fini') || lib.includes('contrôle final');
+              });
+              if (fallback) typeSectionId = fallback.id;
+            }
+          }
+
+          return {
+            id: sec.id || crypto.randomUUID(),
+            isFromDb: false,
+            libelleSection: sec.nom,
+            notes: sec.notes || '',
+            typeSectionId,
+            regleEchantillonnageId,
+            regleEchantillonnageLibelle: sec.frequenceLibelle,
+            modeFreq,
+            freqNum,
+            typeVariable,
+            freqHours,
+            lignes: (sec.lignes || []).map(lig => ({
+              id: lig.id || crypto.randomUUID(),
+              isFromDb: false,
+              typeCaracteristiqueId: lig.typeCaracteristiqueId,
+              typeControleId: lig.typeControleId,
+              moyenControleId: lig.moyenControleId,
+              instrumentCode: lig.instrumentCode,
+              unite: lig.unite || '',
+              limiteSpecTexte: lig.limiteSpecTexte,
+              observations: lig.observations,
+              estCritique: lig.estCritique,
+              libelleAffiche: lig.libelleAffiche
+            }))
+          };
+        });
+      }
       
       // On recharge les dictionnaires pour s'assurer que les nouvelles caractéristiques créées par le backend soient disponibles dans les select.
       await store.fetchDictionnaires();
@@ -259,30 +359,22 @@ const statut = computed(() => {
 const codeAffiche = computed(() => {
   const v = isEditMode.value ? (store.entete.version + 1) : (store.entete?.version || 1);
   
-  if (store.entete?.codeArticleSage) {
-    const baseSage = store.entete.codeArticleSage.replace(/-V\d+$/i, '');
-    return `${baseSage}-V${v}`;
-  }
-  
-  if (store.entete?.typeRobinetCode) {
-    return `${store.entete.typeRobinetCode}-PF-V${v}`;
+  if (store.entete?.familleProduitFiniCode) {
+    return `${store.entete.familleProduitFiniCode}-PF-V${v}`;
   }
   
   return `Nouveau-PF-V${v}`;
 });
 
 const headerTitle = computed(() => {
-  if (isForcedView.value) return 'Consultation du Plan PF';
-  if (!isEditMode.value) return "Création d'un plan Produit Fini";
-  if (isArchived.value) return "Archive Produit Fini";
-  return 'Édition du Plan Produit Fini';
+  return "Plan de contrôle de produit fini";
 });
 
 const headerSubtitle = computed(() => {
   if (isForcedView.value) return 'Mode lecture seule.';
-  if (!isEditMode.value) return "Sélectionnez un type de robinet et configurez les sections de contrôle.";
+  if (!isEditMode.value) return "Sélectionnez une famille de produit et configurez les sections de contrôle.";
   if (isArchived.value) return "Vous consultez une archive.";
-  return "Modifiez la structure. Ce plan est générique par type de robinet.";
+  return "Modifiez la structure. Ce plan est générique par famille de produit fini.";
 });
 
 const editorLabel = computed(() => {
@@ -324,14 +416,23 @@ onMounted(async () => {
   } else {
     // Mode Nouveau
     store.entete = {
-      typeRobinetCode: '',
-      designation: '',
+      familleProduitFiniCode: '',
+      familleProduitFiniLibelle: '',
       commentaireVersion: '',
       version: 1,
       statut: 'ACTIF'
     };
     sections.value = [];
     ajouterSection();
+    
+    // Fallback PF : On pré-sélectionne "Contrôle Produit Fini" pour la première section
+    if (sections.value.length > 0) {
+      const fallback = (store.typesSection || []).find(t => {
+        const lib = (t.libelle || '').toLowerCase();
+        return lib.includes('produit fini') || lib.includes('contrôle final');
+      });
+      if (fallback) sections.value[0].typeSectionId = fallback.id;
+    }
   }
 });
 
@@ -340,8 +441,8 @@ const onCloseEditor = () => {
 };
 
 const sauvegarderDirectement = async () => {
-  if (!store.entete.typeRobinetCode) {
-    toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Le type de robinet est obligatoire.', life: 3000 });
+  if (!store.entete.familleProduitFiniCode) {
+    toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'La famille de produit est obligatoire.', life: 3000 });
     return;
   }
   if (!validerSaisieValeurs()) return;

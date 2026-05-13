@@ -31,8 +31,9 @@ export function usePlanWizard() {
     timestamp: null
   });
 
-  // L'Opération choisie
   const operationCode = ref('');
+  const posteCode = ref('');   // Poste de travail BDD (ex : PAS71, PAS72, PAS78)
+  const familleCode = ref(''); // Famille d'article (uniquement pour PF)
 
   const sourceType = ref('MODELE');
   const selectedSourceId = ref(null);
@@ -42,6 +43,29 @@ export function usePlanWizard() {
   const availableModeles = ref([]);
   const availablePlans = ref([]);
   const isLoadingSources = ref(false);
+
+  // ============================================================================
+  // FAMILLES (Filtrage par Type Robinet)
+  // ============================================================================
+  const famillesFiltrees = computed(() => {
+    const type = String(typeRobinetCode.value || '').trim().toUpperCase();
+    if (!type) return [];
+    
+    return (store.famillesProduit || [])
+      .filter(f => String(f.typeRobinetCode || '').trim().toUpperCase() === type);
+  });
+
+  const requiertFamille = computed(() => {
+    const nat = String(natureComposantCode.value || '').trim().toUpperCase();
+    // Uniquement pour les composants Finis (PF)
+    return nat === 'PF';
+  });
+
+  const isPlanCreationBlocked = computed(() => {
+    const nat = String(natureComposantCode.value || '').trim().toUpperCase();
+    // Bloquer la création pour PISTON et PF (Pas de plan par article)
+    return nat === 'PISTON' || nat === 'PF';
+  });
 
   // ============================================================================
   // ÉTAPE 1: VÉRIFICATION ERP
@@ -79,6 +103,7 @@ export function usePlanWizard() {
       };
 
       operationCode.value = '';
+      posteCode.value = '';
 
       // 🤖 AUTO-SÉLECTION DE L'OPÉRATION (via Gamme Opératoire)
       if (natureComposantCode.value && isGenerique.value === 0) {
@@ -100,6 +125,7 @@ export function usePlanWizard() {
       selectedSourceId.value = null;
       availableModeles.value = [];
       availablePlans.value = [];
+      posteCode.value = '';
 
       toast.add({
         severity: 'success',
@@ -193,7 +219,8 @@ export function usePlanWizard() {
       const response = await qualityPlansService.getModelesByFilters(
         typeRobinetCode.value,
         natureComposantCode.value,
-        operationCode.value
+        operationCode.value,
+        posteCode.value || undefined
       );
       // Exclure les modèles génériques stricto sensu (isGenerique === 1)
       const modeles = response.data?.data || response.data || [];
@@ -221,7 +248,8 @@ export function usePlanWizard() {
       const response = await qualityPlansService.getPlansByFilters(
         typeRobinetCode.value,
         natureComposantCode.value,
-        operationCode.value
+        operationCode.value,
+        posteCode.value || undefined
       );
       const plans = response.data?.data || response.data || [];
       
@@ -240,15 +268,34 @@ export function usePlanWizard() {
   };
 
   // 🔥 LE WATCHER MAGIQUE : Lance l'API *uniquement* quand l'opération est sélectionnée
-  watch([operationCode, sourceType, codeArticleSage], ([newOp, newSource, newCode], [oldOp, oldSource, oldCode]) => {
-    // Si l'opération ou le type de source change, on réinitialise la sélection
-    if (newOp !== oldOp || newSource !== oldSource) {
+  // Poste requis uniquement pour Auto avec Soupape
+  const requiertPoste = computed(() => {
+    const nat = String(natureComposantCode.value || '').trim().toUpperCase();
+    const type = String(typeRobinetCode.value || '').trim().toUpperCase();
+    
+    // "je veux liste apparait que dans auto avec souape"
+    return type === 'AUTO' && nat === 'SOUPAPE';
+  });
+
+  const postesDisponibles = computed(() =>
+    (store.postes || [])
+      .map(p => ({
+        code: p.code || p.Code || p.codePoste || p.CodePoste,
+        libelle: p.libelle || p.Libelle || p.designation || p.Designation
+      }))
+      .filter(p => p.code)
+  );
+
+  watch([operationCode, sourceType, codeArticleSage, posteCode], ([newOp, newSource, newCode, newPoste], [oldOp, oldSource, oldCode, oldPoste]) => {
+    if (newOp !== oldOp || newSource !== oldSource || newPoste !== oldPoste) {
       selectedSourceId.value = null;
     }
     
-    if (newOp && newSource === 'MODELE') {
+    // Si poste requis, attendre qu'il soit saisi
+    const posteOk = !requiertPoste.value || !!posteCode.value;
+    if (newOp && posteOk && newSource === 'MODELE') {
       chargerModelesFiltrés();
-    } else if (newOp && newSource === 'CLONE') {
+    } else if (newOp && posteOk && newSource === 'CLONE') {
       chargerPlansFiltrés();
     }
   });
@@ -288,11 +335,14 @@ export function usePlanWizard() {
 
       if (sourceType.value === 'MODELE' || sourceType.value === 'VIERGE') {
         payload = {
-          modeleSourceId: sourceType.value === 'MODELE' ? selectedSourceId.value : null, // null pour un plan vierge
+          modeleSourceId: sourceType.value === 'MODELE' ? selectedSourceId.value : null,
           codeArticleSage: codeArticleSage.value,
           designation: designationArticle.value,
-          operationCode: operationCode.value, // Requis pour déterminer à quel atelier appartient ce plan vierge
-          nom: `PC-${codeArticleSage.value}`,
+          operationCode: operationCode.value,
+          natureComposantCode: natureComposantCode.value,
+          posteCode: posteCode.value || null,
+          familleCode: familleCode.value || null,
+          nom: `PC-${codeArticleSage.value}${posteCode.value ? '-P' + posteCode.value : ''}`,
           creePar: 'ADMIN_QUALITE'
         };
         return await qualityPlansService.instantiatePlan(payload);
@@ -315,6 +365,9 @@ export function usePlanWizard() {
 
   const canGeneratePlan = () => {
     if (isGenerique.value === 1) return false;
+    if (isPlanCreationBlocked.value) return false;
+    if (requiertPoste.value && !posteCode.value) return false;
+    if (requiertFamille.value && !familleCode.value) return false;
     if (sourceType.value === 'VIERGE') {
       return isArticleValid.value && operationCode.value && !isGenerating.value;
     }
@@ -327,8 +380,10 @@ export function usePlanWizard() {
     typeRobinetCode.value = '';
     natureComposantCode.value = '';
     operationCode.value = '';
+    posteCode.value = '';
+    familleCode.value = '';
     isArticleValid.value = false;
-    isGenerique.value = 0; // Remise à 0
+    isGenerique.value = 0;
     sourceType.value = 'MODELE';
     selectedSourceId.value = null;
     availableModeles.value = [];
@@ -336,9 +391,10 @@ export function usePlanWizard() {
   };
 
   return {
-    codeArticleSage, designationArticle, typeRobinetCode, natureComposantCode, operationCode,
+    codeArticleSage, designationArticle, typeRobinetCode, natureComposantCode, operationCode, posteCode,
     isArticleValid, isCheckingArticle, isGenerique, sourceType, selectedSourceId, isGenerating, isLoadingSources,
     availableModeles, availablePlans, operationsFiltrees, debugInfo,
+    requiertPoste, postesDisponibles, requiertFamille, famillesFiltrees, familleCode, isPlanCreationBlocked,
     verifierArticleERP, genererPlan, canGeneratePlan, reset,
     getLibelleType, getLibelleNature, chargerPlansFiltrés
   };

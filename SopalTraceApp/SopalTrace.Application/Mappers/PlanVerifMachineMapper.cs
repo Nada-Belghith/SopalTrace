@@ -26,11 +26,10 @@ public static class PlanVerifMachineMapper
             ModifiePar = entete.ModifiePar ?? string.Empty,
             ModifieLe = entete.ModifieLe,
 
-            // ✅ CORRECTION ICI : Ajout de "?? false" pour gérer le bool? de la base de données
-            AfficheConformite = entete.AfficheConformite ?? false,
-            AfficheMoyenDetectionRisques = entete.AfficheMoyenDetectionRisques ?? false,
-            AfficheFamilles = entete.AfficheFamilles ?? false,
-            AfficheFuiteEtalon = entete.AfficheFuiteEtalon ?? false,
+            AfficheConformite = GetAfficheConformite(entete.MachineCode),
+            AfficheMoyenDetectionRisques = true,
+            AfficheFamilles = true,
+            AfficheFuiteEtalon = GetAfficheFuiteEtalon(entete.MachineCode),
 
             Remarques = entete.Remarques,
             LegendeMoyens = entete.LegendeMoyens,
@@ -96,16 +95,13 @@ public static class PlanVerifMachineMapper
             Id = planId,
             MachineCode = dto.MachineCode,
             Nom = dto.Nom,
-            Version = 1,
+            Version = 0,
             Statut = StatutsPlan.Actif,
             CreePar = creePar,
             CreeLe = DateTime.UtcNow,
             
-            // Flags
-            AfficheConformite = dto.AfficheConformite,
-            AfficheMoyenDetectionRisques = dto.AfficheMoyenDetectionRisques,
-            AfficheFamilles = dto.AfficheFamilles,
-            AfficheFuiteEtalon = dto.AfficheFuiteEtalon,
+            // Flags (Déduits dynamiquement, plus persistés)
+            // Plus besoin de mapper les colonnes supprimées
 
             Remarques = dto.Remarques,
             LegendeMoyens = dto.LegendeMoyens
@@ -183,10 +179,10 @@ public static class PlanVerifMachineMapper
         {
             Nom = entete.Nom,
             MachineCode = entete.MachineCode,
-            AfficheConformite = entete.AfficheConformite ?? false,
-            AfficheMoyenDetectionRisques = entete.AfficheMoyenDetectionRisques ?? false,
-            AfficheFamilles = entete.AfficheFamilles ?? false,
-            AfficheFuiteEtalon = entete.AfficheFuiteEtalon ?? false,
+            AfficheConformite = GetAfficheConformite(entete.MachineCode),
+            AfficheMoyenDetectionRisques = true,
+            AfficheFamilles = true,
+            AfficheFuiteEtalon = GetAfficheFuiteEtalon(entete.MachineCode),
             Remarques = entete.Remarques,
             LegendeMoyens = entete.LegendeMoyens,
             Familles = entete.PlanVerifMachineFamilles?.Select(f => new VmFamilleDto
@@ -235,7 +231,7 @@ public static class PlanVerifMachineMapper
         var dto = MapperEntiteVersModeleDto(source);
         var nouveauPlan = ConstruireDepuisModeleDto(dto, modifiePar);
         
-        nouveauPlan.Version = (source.Version ?? 1) + 1;
+        nouveauPlan.Version = (source.Version ?? 0) + 1;
         nouveauPlan.Statut = StatutsPlan.Actif;
         return nouveauPlan;
     }
@@ -248,10 +244,28 @@ public static class PlanVerifMachineMapper
             Id = Guid.NewGuid(),
             MachineCode = dto.MachineCode,
             Nom = dto.Nom,
-            Version = 1,
+            Version = 0,
             Statut = StatutsPlan.Brouillon,
             CreePar = creePar,
             CreeLe = DateTime.UtcNow
         };
+    }
+    // =======================================================
+    // 4. LOGIQUE DYNAMIQUE (D�DUCTION DES FLAGS)
+    // =======================================================
+    private static bool GetAfficheConformite(string machineCode)
+    {
+        if (string.IsNullOrEmpty(machineCode)) return true;
+        var code = machineCode.ToUpper().Replace("-", "").Replace(" ", "").Trim();
+        return !(code.Contains("BEE22") || code.Contains("BEE46") || code.Contains("BEE47") || 
+                 code.Contains("MAS19") || code.StartsWith("SER"));
+    }
+
+    private static bool GetAfficheFuiteEtalon(string machineCode)
+    {
+        if (string.IsNullOrEmpty(machineCode) || machineCode.ToUpper().StartsWith("SER")) return false;
+        var code = machineCode.ToUpper().Replace("-", "").Replace(" ", "").Trim();
+        return code.Contains("BEE22") || code.Contains("BEE46") || code.Contains("BEE47") || 
+               code.Contains("MAS22");
     }
 }

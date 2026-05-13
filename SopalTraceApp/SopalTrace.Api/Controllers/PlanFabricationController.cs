@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
+using Microsoft.AspNetCore.Http;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 using System;
@@ -32,9 +33,10 @@ public class PlanFabricationController : ControllerBase
     public async Task<IActionResult> GetPlansByFilters(
         [FromQuery] string? typeRobinet, 
         [FromQuery] string? natureComposant, 
-        [FromQuery] string? operation)
+        [FromQuery] string? operation,
+        [FromQuery] string? poste)
     {
-        var data = await _planService.GetPlansByFiltersAsync(typeRobinet, natureComposant, operation);
+        var data = await _planService.GetPlansByFiltersAsync(typeRobinet, natureComposant, operation, poste);
         return Ok(new { success = true, data });
     }
 
@@ -42,7 +44,18 @@ public class PlanFabricationController : ControllerBase
     public async Task<IActionResult> InstancierPlan([FromBody] CreatePlanRequestDto request)
     {
         var id = await _planService.InstancierPlanDepuisModeleAsync(request);
-        return Ok(new { success = true, planId = id, message = "Plan initialisé avec succès." });
+        var data = await _planService.GetPlanByIdAsync(id);
+        return Ok(new { success = true, planId = id, data, message = "Plan initialisé avec succès." });
+    }
+
+    private bool IsAssemblage(string? operationCode, string? natureComposantCode, string? typeRobinetCode)
+    {
+        if (operationCode == "ASS") return true;
+        var nat = natureComposantCode?.Trim().ToUpper();
+        if (nat == "PISTON" || nat == "PF") return true;
+        var type = typeRobinetCode?.Trim().ToUpper();
+        if (type == "PISTON") return true;
+        return false;
     }
 
     // ⚠️ NOUVELLE ROUTE : Vérifie l'état complet (Brouillon ET Actif)
@@ -52,30 +65,62 @@ public class PlanFabricationController : ControllerBase
         [FromQuery] Guid? modeleId,
         [FromQuery] string? typeRobinetCode,
         [FromQuery] string? natureComposantCode,
-        [FromQuery] string? operationCode = null) // <-- Prise en charge operationCode!
+        [FromQuery] string? operationCode = null,
+        [FromQuery] string? posteCode = null) // <-- Prise en charge posteCode!
     {
-        var planQuery = _context.PlanFabEntetes
-            .Where(p => p.CodeArticleSage == articleCode);
-
+        bool isAss = IsAssemblage(operationCode, natureComposantCode, typeRobinetCode);
+        
         string? opCode = operationCode;
         if (string.IsNullOrEmpty(opCode) && modeleId.HasValue && modeleId.Value != Guid.Empty)
         {
-            opCode = await _context.ModeleFabEntetes
-                .Where(m => m.Id == modeleId.Value)
-                .Select(m => m.OperationCode)
-                .FirstOrDefaultAsync();
+            if (isAss)
+            {
+                opCode = await _context.PlanAssEntetes
+                    .Where(m => m.Id == modeleId.Value)
+                    .Select(m => m.OperationCode)
+                    .FirstOrDefaultAsync();
+            }
+            else
+            {
+                opCode = await _context.ModeleFabEntetes
+                    .Where(m => m.Id == modeleId.Value)
+                    .Select(m => m.OperationCode)
+                    .FirstOrDefaultAsync();
+            }
         }
+
+        if (isAss)
+        {
+            // PlanAssEntete n'a pas de CodeArticleSage : c'est un modèle générique filtré par opération/famille
+            var planQuery = _context.PlanAssEntetes.AsQueryable();
+
+            var brouillonQuery = planQuery.Where(p => p.Statut == "BROUILLON");
+            if (!string.IsNullOrWhiteSpace(typeRobinetCode)) brouillonQuery = brouillonQuery.Where(p => p.FamilleProduitFiniCode == typeRobinetCode);
+            if (!string.IsNullOrWhiteSpace(natureComposantCode)) brouillonQuery = brouillonQuery.Where(p => p.NatureComposantCode == natureComposantCode);
+            if (!string.IsNullOrWhiteSpace(opCode)) brouillonQuery = brouillonQuery.Where(p => p.OperationCode == opCode);
+            if (!string.IsNullOrWhiteSpace(posteCode)) brouillonQuery = brouillonQuery.Where(p => p.PosteCode == posteCode);
+
+            var actifQuery = planQuery.Where(p => p.Statut == "ACTIF");
+            if (!string.IsNullOrWhiteSpace(opCode)) actifQuery = actifQuery.Where(p => p.OperationCode == opCode);
+            if (!string.IsNullOrWhiteSpace(posteCode)) actifQuery = actifQuery.Where(p => p.PosteCode == posteCode);
+
+            var brouillon = await brouillonQuery.OrderByDescending(p => p.Version).Select(p => p.Id).FirstOrDefaultAsync();
+            var actif = await actifQuery.Select(p => (int?)p.Version).FirstOrDefaultAsync();
+
+            return Ok(new { success = true, hasBrouillon = brouillon != Guid.Empty, brouillonId = brouillon, hasActif = actif.HasValue, actifVersion = actif ?? 0 });
+        }
+        else
+        {
+            var planQuery = _context.PlanFabEntetes.Where(p => p.CodeArticleSage == articleCode);
+
+
 
         var brouillonQuery = planQuery
             .Where(p => p.Statut == "BROUILLON")
             .Include(p => p.ModeleSource)
             .AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(typeRobinetCode))
-        {
-            brouillonQuery = brouillonQuery.Where(p =>
-                p.ModeleSourceId == null || p.ModeleSource!.TypeRobinetCode == typeRobinetCode);
-        }
+        // TypeRobinetCode supprimé du modèle de fabrication
 
         if (!string.IsNullOrWhiteSpace(natureComposantCode))
         {
@@ -91,6 +136,8 @@ public class PlanFabricationController : ControllerBase
                 (p.ModeleSourceId != null && p.ModeleSource!.OperationCode == opCode));
         }
 
+        // PosteCode supprimé pour la fabrication
+
         var actifQuery = planQuery
             .Where(p => p.Statut == "ACTIF")
             .Include(p => p.ModeleSource)
@@ -104,23 +151,26 @@ public class PlanFabricationController : ControllerBase
                 (p.ModeleSourceId != null && p.ModeleSource!.OperationCode == opCode));
         }
 
-        var brouillon = await brouillonQuery
-            .OrderByDescending(p => p.Version)
-            .Select(p => p.Id)
-            .FirstOrDefaultAsync();
+        // PosteCode supprimé pour la fabrication
 
-        var actif = await actifQuery
-            .Select(p => (int?)p.Version)
-            .FirstOrDefaultAsync();
+            var brouillon = await brouillonQuery
+                .OrderByDescending(p => p.Version)
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync();
 
-        return Ok(new
-        {
-            success = true,
-            hasBrouillon = brouillon != Guid.Empty,
-            brouillonId = brouillon,
-            hasActif = actif.HasValue,
-            actifVersion = actif ?? 0
-        });
+            var actif = await actifQuery
+                .Select(p => (int?)p.Version)
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                success = true,
+                hasBrouillon = brouillon != Guid.Empty,
+                brouillonId = brouillon,
+                hasActif = actif.HasValue,
+                actifVersion = actif ?? 0
+            });
+        }
     }
 
     [HttpGet("{id}")]
@@ -139,7 +189,7 @@ public class PlanFabricationController : ControllerBase
             request.LegendeMoyens,
             request.Remarques,
             request.Finaliser,
-            request.Nom,
+            request.LibelleSection,
             request.ModifiePar
         );
 
@@ -150,18 +200,19 @@ public class PlanFabricationController : ControllerBase
     }
 
     [HttpPost("import-excel")]
-    public async Task<ActionResult> ImportExcel([FromForm] Microsoft.AspNetCore.Http.IFormFile file, [FromServices] IExcelImportService excelService)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });
 
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Seuls les fichiers Excel (.xlsx) sont supportés." });
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Seuls les fichiers Excel (.xlsx) ou CSV (.csv) sont supportés." });
 
         try
         {
             using var stream = file.OpenReadStream();
-            var parsedData = await excelService.ParsePlanExcelAsync(stream);
+            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName);
             return Ok(new { message = "Import réussi", data = parsedData });
         }
         catch (Exception ex)

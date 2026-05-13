@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
-using SopalTrace.Domain.Constants;
-using SopalTrace.Infrastructure;
 using SopalTrace.Infrastructure.Data;
 using System;
 using System.Collections.Generic;
@@ -20,32 +18,84 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         _context = context;
     }
 
-    public async Task<bool> ExisteModeleActifAsync(string typeRobinetCode, string natureCode, string operationCode)
+    public async Task<bool> ExisteArticleSageAsync(string codeArticleSage)
     {
-        return await _context.ModeleFabEntetes.AnyAsync(m =>
-            m.TypeRobinetCode == typeRobinetCode &&
-            m.NatureComposantCode == natureCode &&
-            m.OperationCode == operationCode &&
-            m.Statut == StatutsPlan.Actif);
+        return await _context.Itmmasters.AnyAsync(a => a.CodeArticle == codeArticleSage);
+    }
+
+    public async Task<string?> GetDesignationArticleSageAsync(string codeArticleSage)
+    {
+        return await _context.Itmmasters
+            .Where(a => a.CodeArticle == codeArticleSage)
+            .Select(a => a.Designation)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<Itmmaster?> GetArticleItmAsync(string codeArticleSage)
+    {
+        return await _context.Itmmasters
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.CodeArticle == codeArticleSage);
+    }
+
+    public async Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode)
+    {
+        return await _context.NatureComposantOperations
+            .AnyAsync(g => g.NatureComposantCode == natureCode && g.OperationCode == operationCode);
+    }
+
+    // Modèles
+    public async Task<bool> ExisteModeleActifAsync(string natureCode, string? operationCode)
+    {
+        return await _context.ModeleFabEntetes
+            .AnyAsync(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
+    }
+
+    public async Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode)
+    {
+        var query = _context.ModeleFabEntetes.AsQueryable();
+        if (!string.IsNullOrEmpty(natureCode)) query = query.Where(m => m.NatureComposantCode == natureCode);
+        if (!string.IsNullOrEmpty(operationCode)) query = query.Where(m => m.OperationCode == operationCode);
+        return await query.ToListAsync();
     }
 
     public async Task<ModeleFabEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId)
     {
         return await _context.ModeleFabEntetes
+            .Include(m => m.NatureComposantCodeNavigation)
+            .Include(m => m.OperationCodeNavigation)
+            .Include(m => m.Formulaire)
+            .Include(m => m.ModeleFabSections)
+                .ThenInclude(s => s.TypeSection)
+            .Include(m => m.ModeleFabSections)
+                .ThenInclude(s => s.RegleEchantillonnage)
             .Include(m => m.ModeleFabSections)
                 .ThenInclude(s => s.ModeleFabLignes)
-            .Include(m => m.NatureComposantCodeNavigation)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == modeleId && m.Statut == StatutsPlan.Actif);
+                    .ThenInclude(l => l.TypeCaracteristique)
+            .Include(m => m.ModeleFabSections)
+                .ThenInclude(s => s.ModeleFabLignes)
+                    .ThenInclude(l => l.TypeControle)
+            .Include(m => m.ModeleFabSections)
+                .ThenInclude(s => s.ModeleFabLignes)
+                    .ThenInclude(l => l.MoyenControle)
+            .FirstOrDefaultAsync(m => m.Id == modeleId && m.Statut == "ACTIF");
     }
 
     public async Task<ModeleFabEntete?> GetModeleAvecRelationsAsync(Guid modeleId)
     {
         return await _context.ModeleFabEntetes
             .Include(m => m.ModeleFabSections)
+                .ThenInclude(s => s.TypeSection)
+            .Include(m => m.ModeleFabSections)
+                .ThenInclude(s => s.RegleEchantillonnage)
+            .Include(m => m.ModeleFabSections)
                 .ThenInclude(s => s.ModeleFabLignes)
-            .AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == modeleId);
+    }
+
+    public async Task<ModeleFabEntete?> GetModelePourArchivageAsync(Guid modeleId)
+    {
+        return await _context.ModeleFabEntetes.FirstOrDefaultAsync(m => m.Id == modeleId);
     }
 
     public async Task AddModeleAsync(ModeleFabEntete modele)
@@ -53,86 +103,79 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         await _context.ModeleFabEntetes.AddAsync(modele);
     }
 
+    public async Task<bool> ExisteModeleParCodeAsync(string code)
+    {
+        return await _context.ModeleFabEntetes.AnyAsync(m => m.Code == code);
+    }
+
+    public async Task<bool> ExisteModeleParCodeEtLibelleAsync(string code, string libelle)
+    {
+        return await _context.ModeleFabEntetes.AnyAsync(m => m.Code == code && m.Libelle == libelle);
+    }
+
     public void DeleteModele(ModeleFabEntete modele)
     {
         _context.ModeleFabEntetes.Remove(modele);
     }
 
+    public async Task<int> GetDerniereVersionModeleAsync(string? natureCode, string? operationCode)
+    {
+        return await _context.ModeleFabEntetes
+            .Where(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode)
+            .MaxAsync(m => (int?)m.Version) ?? -1;
+    }
+
+    public async Task<int> GetDerniereVersionModeleParCodeAsync(string code)
+    {
+        return await _context.ModeleFabEntetes
+            .Where(m => m.Code == code)
+            .MaxAsync(m => (int?)m.Version) ?? -1;
+    }
+
+    public async Task<ModeleFabEntete?> GetBrouillonModeleLePlusRecentAsync(string? natureCode, string? operationCode)
+    {
+        return await _context.ModeleFabEntetes
+            .Where(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode && m.Statut == "BROUILLON")
+            .OrderByDescending(m => m.Version)
+            .FirstOrDefaultAsync();
+    }
+
+    // Plans
     public async Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage)
     {
-        return await _context.PlanFabEntetes.AnyAsync(p => p.CodeArticleSage == codeArticleSage && p.Statut == StatutsPlan.Actif);
+        return await _context.PlanFabEntetes.AnyAsync(p => p.CodeArticleSage == codeArticleSage && p.Statut == "ACTIF");
     }
 
     public async Task<bool> ExistePlanActifPourArticleEtOperationAsync(string codeArticleSage, string? operationCode)
     {
-        return await _context.PlanFabEntetes.AnyAsync(p =>
-            p.CodeArticleSage == codeArticleSage
-            && p.Statut == StatutsPlan.Actif
-            && p.ModeleSource.OperationCode == operationCode);
-    }
-
-    public async Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
-    {
-        var query = _context.ModeleFabEntetes.Where(m => m.Statut == StatutsPlan.Actif);
-
-        if (!string.IsNullOrWhiteSpace(typeRobinetCode))
-            query = query.Where(m => m.TypeRobinetCode == typeRobinetCode);
-
-        if (!string.IsNullOrWhiteSpace(natureCode))
-            query = query.Where(m => m.NatureComposantCode == natureCode);
-
-        if (!string.IsNullOrWhiteSpace(operationCode))
-            query = query.Where(m => m.OperationCode == operationCode);
-
-        return await query
-            .Include(m => m.ModeleFabSections)
-                .ThenInclude(s => s.ModeleFabLignes)
-            .OrderByDescending(m => m.CreeLe)
-            .ToListAsync();
+        return await _context.PlanFabEntetes.AnyAsync(p => p.CodeArticleSage == codeArticleSage && p.OperationCode == operationCode && p.Statut == "ACTIF");
     }
 
     public async Task<PlanFabEntete?> GetPlanActifPourArticleAsync(string codeArticleSage)
     {
-        return await _context.PlanFabEntetes
-            .FirstOrDefaultAsync(p => p.CodeArticleSage == codeArticleSage && p.Statut == StatutsPlan.Actif);
+        return await _context.PlanFabEntetes.FirstOrDefaultAsync(p => p.CodeArticleSage == codeArticleSage && p.Statut == "ACTIF");
     }
 
     public async Task<PlanFabEntete?> GetPlanActifPourArticleEtOperationAsync(string codeArticleSage, string operationCode)
     {
-        return await _context.PlanFabEntetes
-            .FirstOrDefaultAsync(p => p.CodeArticleSage == codeArticleSage 
-                                 && p.OperationCode == operationCode 
-                                 && p.Statut == StatutsPlan.Actif);
+        return await _context.PlanFabEntetes.FirstOrDefaultAsync(p => p.CodeArticleSage == codeArticleSage && p.OperationCode == operationCode && p.Statut == "ACTIF");
     }
 
-    // Méthode publique avec paramètre nullable Guid? — correspond à l'interface
     public async Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid? modeleSourceId, string? operationCode = null)
     {
-        var query = _context.PlanFabEntetes
-            .Where(p => p.CodeArticleSage == codeArticleSage
-                        && p.ModeleSourceId == modeleSourceId
-                        && p.Statut == StatutsPlan.Brouillon);
-
-        if (!string.IsNullOrEmpty(operationCode))
-        {
-            query = query.Where(p => p.OperationCode == operationCode);
-        }
-
-        return await query
-            .OrderByDescending(p => p.Version)
-            .FirstOrDefaultAsync();
+        var query = _context.PlanFabEntetes.Where(p => p.CodeArticleSage == codeArticleSage && p.Statut == "BROUILLON");
+        if (modeleSourceId.HasValue) query = query.Where(p => p.ModeleSourceId == modeleSourceId);
+        if (!string.IsNullOrEmpty(operationCode)) query = query.Where(p => p.OperationCode == operationCode);
+        return await query.OrderByDescending(p => p.CreeLe).FirstOrDefaultAsync();
     }
-
-
 
     public async Task<PlanFabEntete?> GetPlanAvecRelationsAsync(Guid planId)
     {
         return await _context.PlanFabEntetes
-            .Include(p => p.ModeleSource)
             .Include(p => p.PlanFabSections)
                 .ThenInclude(s => s.PlanFabLignes)
-                    .ThenInclude(l => l.TypeCaracteristique)
-            .AsNoTracking()
+            .Include(p => p.PlanFabSections)
+                .ThenInclude(s => s.RegleEchantillonnage)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
@@ -141,62 +184,43 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         return await _context.PlanFabEntetes
             .Include(p => p.PlanFabSections)
                 .ThenInclude(s => s.PlanFabLignes)
-                    .ThenInclude(l => l.TypeControle)
+            .Include(p => p.PlanFabSections)
+                .ThenInclude(s => s.RegleEchantillonnage)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
     public async Task<List<PlanFabLigne>> GetLignesDuPlanAsync(Guid planId)
     {
         return await _context.PlanFabLignes
-            .Include(l => l.Section)
-            .Where(l => l.Section.PlanEnteteId == planId)
+            .Where(l => l.PlanEnteteId == planId)
             .ToListAsync();
     }
 
     public async Task<PlanFabEntete?> GetPlanByIdAsync(Guid planId)
     {
-        return await _context.PlanFabEntetes.FindAsync(planId);
+        return await _context.PlanFabEntetes.FirstOrDefaultAsync(p => p.Id == planId);
     }
 
-    public async Task AddPlanAsync(PlanFabEntete plan)
+    public async Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? natureCode, string? operationCode)
     {
-        await _context.PlanFabEntetes.AddAsync(plan);
-    }
+        var query = _context.PlanFabEntetes.AsQueryable();
 
-    public async Task AddPlanSectionAsync(PlanFabSection section)
-    {
-        await _context.AddAsync(section);
-    }
-
-    public async Task AddPlanLigneAsync(PlanFabLigne ligne)
-    {
-        await _context.AddAsync(ligne);
-    }
-
-    /// <summary>
-    /// Supprime un plan et toutes ses sections et lignes associées
-    /// </summary>
-    public async Task DeletePlanWithChildrenAsync(Guid planId)
-    {
-        var plan = await _context.PlanFabEntetes
-            .Include(p => p.PlanFabSections)
-                .ThenInclude(s => s.PlanFabLignes)
-            .FirstOrDefaultAsync(p => p.Id == planId);
-
-        if (plan != null)
+        if (!string.IsNullOrEmpty(natureCode))
         {
-            // Supprimer toutes les lignes et sections en cascade
-            foreach (var section in plan.PlanFabSections.ToList())
-            {
-                _context.PlanFabLignes.RemoveRange(section.PlanFabLignes);
-                _context.PlanFabSections.Remove(section);
-            }
-
-            _context.PlanFabEntetes.Remove(plan);
+            query = from p in query
+                    join a in _context.Itmmasters on p.CodeArticleSage equals a.CodeArticle
+                    where a.NatureComposantCode == natureCode
+                    select p;
         }
+
+        if (!string.IsNullOrEmpty(operationCode))
+        {
+            query = query.Where(p => p.OperationCode == operationCode);
+        }
+
+        return await query.ToListAsync();
     }
 
-    // Conservez l'ancienne méthode pour compatibilité
     public void Delete(PlanFabEntete plan)
     {
         _context.PlanFabEntetes.Remove(plan);
@@ -212,129 +236,55 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         _context.PlanFabLignes.Remove(ligne);
     }
 
+    public async Task AddPlanAsync(PlanFabEntete plan)
+    {
+        await _context.PlanFabEntetes.AddAsync(plan);
+    }
+
+    public async Task AddPlanSectionAsync(PlanFabSection section)
+    {
+        await _context.PlanFabSections.AddAsync(section);
+    }
+
+    public async Task AddPlanLigneAsync(PlanFabLigne ligne)
+    {
+        await _context.PlanFabLignes.AddAsync(ligne);
+    }
+
     public async Task SaveChangesAsync()
     {
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex)
-        {
-            throw ex.ToDomainExceptionOrSelf("Un enregistrement identique existe déjà pour ce plan/modèle de fabrication.");
-        }
-    }
-
-    public async Task<bool> ExisteArticleSageAsync(string codeArticleSage)
-    {
-        return await _context.Itmmasters.AnyAsync(a => a.CodeArticle == codeArticleSage);
-    }
-
-    public async Task<string?> GetDesignationArticleSageAsync(string codeArticleSage)
-    {
-        var article = await _context.Itmmasters.FirstOrDefaultAsync(a => a.CodeArticle == codeArticleSage);
-        return article?.Designation;
-    }
-
-    public async Task<ModeleFabEntete?> GetModelePourArchivageAsync(Guid modeleId)
-    {
-        return await _context.ModeleFabEntetes.FindAsync(modeleId);
-    }
-
-    public async Task<int> GetDerniereVersionModeleAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
-    {
-        return await _context.ModeleFabEntetes
-            .Where(m => (typeRobinetCode == null || m.TypeRobinetCode == typeRobinetCode)
-                        && (natureCode == null || m.NatureComposantCode == natureCode)
-                        && (operationCode == null || m.OperationCode == operationCode)
-                        && (m.Statut == StatutsPlan.Brouillon || m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive))
-            .Select(m => (int?)m.Version)
-            .MaxAsync() ?? 0;
-    }
-
-    public async Task<ModeleFabEntete?> GetBrouillonModeleLePlusRecentAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
-    {
-        return await _context.ModeleFabEntetes
-            .Where(m => (typeRobinetCode == null || m.TypeRobinetCode == typeRobinetCode)
-                        && (natureCode == null || m.NatureComposantCode == natureCode)
-                        && (operationCode == null || m.OperationCode == operationCode)
-                        && m.Statut == StatutsPlan.Brouillon)
-            .OrderByDescending(m => m.Version)
-            .FirstOrDefaultAsync();
+        await _context.SaveChangesAsync();
     }
 
     public async Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null)
     {
-        var query = _context.PlanFabEntetes
-            .Where(p => p.CodeArticleSage == codeArticleSage
-                && (p.Statut == StatutsPlan.Brouillon || p.Statut == StatutsPlan.Actif || p.Statut == StatutsPlan.Archive));
-        
-        if (!string.IsNullOrEmpty(operationCode))
-        {
-            query = query.Where(p => p.OperationCode == operationCode);
-        }
-
-        return await query
-            .Select(p => (int?)p.Version)
-            .MaxAsync() ?? 0;
+        return await _context.PlanFabEntetes
+            .Where(p => p.CodeArticleSage == codeArticleSage && p.OperationCode == operationCode)
+            .MaxAsync(p => (int?)p.Version) ?? -1;
     }
 
-    public async Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string typeRobinetCode, string natureCode, string operationCode)
-    {
-        return await _context.ModeleFabEntetes.FirstOrDefaultAsync(m =>
-            m.TypeRobinetCode == typeRobinetCode &&
-            m.NatureComposantCode == natureCode &&
-            m.OperationCode == operationCode &&
-            m.Statut == StatutsPlan.Actif);
-    }
-
-    public async Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string? typeRobinetCode, string? natureComposantCode, string? opCode)
+    public async Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string natureCode, string operationCode)
     {
         return await _context.ModeleFabEntetes
-            .FirstOrDefaultAsync(m => (typeRobinetCode == null || m.TypeRobinetCode == typeRobinetCode)
-                               && (natureComposantCode == null || m.NatureComposantCode == natureComposantCode)
-                               && (opCode == null || m.OperationCode == opCode)
-                               && m.Statut == StatutsPlan.Actif);
+            .FirstOrDefaultAsync(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
     }
 
-    public async Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? typeRobinetCode, string? natureCode, string? operationCode)
+    public async Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode)
     {
-        // On part d'une requête de base qui joint le Plan avec les infos Article de SAGE (Itmmasters)
-        // car un plan peut être "Vierge" (sans modèle source) mais il appartient toujours à un article
-        // qui possède lui-même une Nature et un Type de Robinet.
-        var query = _context.PlanFabEntetes
-            .Join(_context.Itmmasters, 
-                p => p.CodeArticleSage, 
-                a => a.CodeArticle, 
-                (p, a) => new { Plan = p, Article = a })
-            .Where(x => x.Plan.Statut == StatutsPlan.Actif);
+        return await _context.ModeleFabEntetes
+            .FirstOrDefaultAsync(m => m.NatureComposantCode == natureComposantCode && m.OperationCode == opCode && m.Statut == "ACTIF");
+    }
 
-        // Filtre par Opération
-        if (!string.IsNullOrWhiteSpace(operationCode))
-        {
-            query = query.Where(x => x.Plan.OperationCode == operationCode);
-        }
-
-        // Filtre par Type de Robinet (Depuis l'article ou le modèle)
-        if (!string.IsNullOrWhiteSpace(typeRobinetCode))
-        {
-            query = query.Where(x => x.Article.TypeRobinetCode == typeRobinetCode);
-        }
-
-        // Filtre par Nature de Composant (Depuis l'article ou le modèle)
-        if (!string.IsNullOrWhiteSpace(natureCode))
-        {
-            query = query.Where(x => x.Article.NatureComposantCode == natureCode);
-        }
-
-        var results = await query
-            .Select(x => x.Plan)
-            .Include(p => p.ModeleSource)
+    public async Task DeletePlanWithChildrenAsync(Guid planId)
+    {
+        var plan = await _context.PlanFabEntetes
             .Include(p => p.PlanFabSections)
                 .ThenInclude(s => s.PlanFabLignes)
-                    .ThenInclude(l => l.TypeCaracteristique)
-            .OrderByDescending(p => p.CreeLe)
-            .ToListAsync();
+            .FirstOrDefaultAsync(p => p.Id == planId);
 
-        return results;
+        if (plan != null)
+        {
+            _context.PlanFabEntetes.Remove(plan);
+        }
     }
 }

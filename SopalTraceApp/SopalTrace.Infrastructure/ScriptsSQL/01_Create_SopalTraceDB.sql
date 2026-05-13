@@ -1,6 +1,9 @@
 -- =================================================================================
--- SCRIPT MASTER RESET : SOPALTRACE V6.6 (Plan Echantillonnage Global Unique)
+-- SCRIPT MASTER RESET : SOPALTRACE V6.9.9
 -- Cible : Microsoft SQL Server (T-SQL)
+-- Inclus : Data Seed complet
+-- Modification : FK explicites pour RegleEchantillonnageId dans les sections
+--                Correction erreur de syntaxe (virgule finale Plan_PF_Section)
 -- =================================================================================
 
 USE master;
@@ -86,7 +89,8 @@ CREATE TABLE dbo.ITMMASTER (
     CodeArticle VARCHAR(30) PRIMARY KEY,
     Designation VARCHAR(100),
     Designation2 VARCHAR(100),
-    FamilleProduit VARCHAR(30),
+    FamilleProduitFini VARCHAR(30) NULL,
+    FamilleCorpsCode VARCHAR(50) NULL,
     Statut VARCHAR(10)
 );
 GO
@@ -162,6 +166,13 @@ GO
 -- =================================================================================
 CREATE TABLE dbo.TypeRobinet ( Code VARCHAR(10) PRIMARY KEY, Libelle VARCHAR(60) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
 
+CREATE TABLE dbo.FamilleProduitFini (
+    Code VARCHAR(30) PRIMARY KEY,
+    Designation VARCHAR(250) NOT NULL,
+    TypeRobinetCode VARCHAR(10) NULL REFERENCES dbo.TypeRobinet(Code),
+    Actif BIT NOT NULL DEFAULT 1
+);
+
 CREATE TABLE dbo.NatureComposant ( 
     Code VARCHAR(20) PRIMARY KEY, 
     Libelle VARCHAR(60) NOT NULL, 
@@ -195,6 +206,17 @@ CREATE TABLE dbo.Machine (
 );
 GO
 
+CREATE TABLE dbo.Ref_FamilleCorps ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(50) NOT NULL UNIQUE, Designation VARCHAR(150) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
+GO
+
+-- NOUVELLE TABLE : LIAISON MACHINE <-> FAMILLES DE CORPS
+CREATE TABLE dbo.Machine_FamilleCorps (
+    MachineCode VARCHAR(30) NOT NULL REFERENCES dbo.Machine(CodeMachine) ON DELETE CASCADE,
+    RefFamilleCorpsId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Ref_FamilleCorps(Id) ON DELETE CASCADE,
+    PRIMARY KEY (MachineCode, RefFamilleCorpsId)
+);
+GO
+
 CREATE TABLE dbo.PosteTravail_Machine (
     CodePoste VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste),
     CodeMachine VARCHAR(30) NOT NULL REFERENCES dbo.Machine(CodeMachine),
@@ -209,26 +231,34 @@ CREATE TABLE dbo.Ref_Formulaire (
     OperationCode VARCHAR(20) REFERENCES dbo.Operation(Code),
     PosteCode VARCHAR(30) REFERENCES dbo.PosteTravail(CodePoste),
     MachineCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
-    Version INT NOT NULL DEFAULT 1,
+    Version INT NOT NULL DEFAULT 0,
     Actif BIT NOT NULL DEFAULT 1,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE()
 );
 GO
 
-CREATE TABLE dbo.TypeCaracteristique ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, Libelle VARCHAR(80) NOT NULL, UniteDefaut VARCHAR(10), EstNumerique BIT NOT NULL DEFAULT 1, Actif BIT NOT NULL DEFAULT 1 );
+CREATE TABLE dbo.TypeCaracteristique ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, Libelle VARCHAR(80) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
 CREATE TABLE dbo.TypeControle ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, Libelle VARCHAR(80) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
 CREATE TABLE dbo.MoyenControle ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(40) NOT NULL UNIQUE, Libelle VARCHAR(100) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
 CREATE TABLE dbo.Periodicite ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, Libelle VARCHAR(200) NOT NULL, FrequenceNum INT, FrequenceUnite VARCHAR(100), OrdreAffichage INT NOT NULL DEFAULT 0, Actif BIT NOT NULL DEFAULT 1 );
-CREATE TABLE dbo.TypeSection ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, Libelle VARCHAR(100) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
+CREATE TABLE dbo.Ref_RegleEchantillonnage ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, Libelle VARCHAR(250) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
+CREATE TABLE dbo.TypeSection ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(300) NOT NULL UNIQUE, Libelle VARCHAR(100) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
 CREATE TABLE dbo.Defautheque ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, Description VARCHAR(200), Actif BIT NOT NULL DEFAULT 1 );
-CREATE TABLE dbo.PieceReference ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(30) NOT NULL UNIQUE, TypePiece VARCHAR(10) NOT NULL CHECK (TypePiece IN ('PRC','PRNC','FEC','FENC')), Designation VARCHAR(150), FamilleDesc VARCHAR(60), MachineCode VARCHAR(30) NULL REFERENCES dbo.Machine(CodeMachine), Actif BIT NOT NULL DEFAULT 1 );
 CREATE TABLE dbo.RisqueDefaut ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), CodeDefaut VARCHAR(30) NOT NULL UNIQUE, LibelleDefaut VARCHAR(100) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
 CREATE TABLE dbo.NQA ( Id INT IDENTITY(1,1) PRIMARY KEY, ValeurNQA FLOAT NOT NULL UNIQUE );
 GO
 
--- NOUVEAUX DICTIONNAIRES (POUR LA MATRICE DE VERIFICATION 3D)
-CREATE TABLE dbo.Ref_FamilleCorps ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(50) NOT NULL UNIQUE, Designation VARCHAR(150) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
 CREATE TABLE dbo.Ref_MoyenDetection ( Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), Code VARCHAR(50) NOT NULL UNIQUE, Designation VARCHAR(100) NOT NULL, Actif BIT NOT NULL DEFAULT 1 );
+GO
+
+CREATE TABLE dbo.PieceReference ( 
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(), 
+    Code VARCHAR(30) NOT NULL UNIQUE, 
+    TypePiece VARCHAR(10) NOT NULL CHECK (TypePiece IN ('PRC','PRNC','FEC','FENC')), 
+    Designation VARCHAR(150), 
+    FamilleDesc VARCHAR(60), 
+    Actif BIT NOT NULL DEFAULT 1 
+);
 GO
 
 CREATE TABLE dbo.OutilControle (
@@ -246,11 +276,19 @@ CREATE TABLE dbo.OutilControle (
 GO
 
 -- =================================================================================
--- PARTIE 4.1 : LIAISON ERP <-> QUALITÉ
+-- PARTIE 4.1 : 
 -- =================================================================================
 ALTER TABLE dbo.ITMMASTER ADD 
     TypeRobinetCode VARCHAR(10) NULL REFERENCES dbo.TypeRobinet(Code),
     NatureComposantCode VARCHAR(20) NULL REFERENCES dbo.NatureComposant(Code);
+GO
+
+ALTER TABLE dbo.ITMMASTER ADD CONSTRAINT FK_ITMMASTER_FamilleProduitFini 
+    FOREIGN KEY (FamilleProduitFini) REFERENCES dbo.FamilleProduitFini(Code);
+GO
+
+ALTER TABLE dbo.ITMMASTER ADD CONSTRAINT FK_ITMMASTER_FamilleCorps 
+    FOREIGN KEY (FamilleCorpsCode) REFERENCES dbo.Ref_FamilleCorps(Code);
 GO
 
 -- =================================================================================
@@ -265,6 +303,8 @@ END;
 GO
 
 CREATE TRIGGER trg_no_del_TypeRobinet ON dbo.TypeRobinet INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'TypeRobinet'; END;
+GO
+CREATE TRIGGER trg_no_del_FamilleProduitFini ON dbo.FamilleProduitFini INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'FamilleProduitFini'; END;
 GO
 CREATE TRIGGER trg_no_del_NatureComposant ON dbo.NatureComposant INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'NatureComposant'; END;
 GO
@@ -298,27 +338,24 @@ CREATE TRIGGER trg_no_del_RefFam ON dbo.Ref_FamilleCorps INSTEAD OF DELETE AS BE
 GO
 CREATE TRIGGER trg_no_del_RefMoy ON dbo.Ref_MoyenDetection INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Ref_MoyenDetection'; END;
 GO
+CREATE TRIGGER trg_no_del_RefRegleEchan ON dbo.Ref_RegleEchantillonnage INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Ref_RegleEchantillonnage'; END;
+GO
 
 -- =================================================================================
--- PARTIE 5 : PLAN D'ÉCHANTILLONNAGE (GLOBAL UNIQUE - V6.6)
+-- PARTIE 5 : PLAN D'ÉCHANTILLONNAGE
 -- =================================================================================
 CREATE TABLE dbo.Plan_Echantillonnage_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    
-    -- AUCUNE clé étrangère de contexte (Totalement Global)
-    
     NiveauControle VARCHAR(5) NOT NULL CHECK (NiveauControle IN ('I','II','III')),
     TypePlan VARCHAR(10) NOT NULL CHECK (TypePlan IN ('SIMPLE','DOUBLE')),
     ModeControle VARCHAR(15) NOT NULL CHECK (ModeControle IN ('NORMAL','REDUIT','RENFORCE')),
     NqaId INT NOT NULL REFERENCES dbo.NQA(Id),
-    Version INT NOT NULL DEFAULT 1,
+    Version INT NOT NULL DEFAULT 0,
     Statut VARCHAR(20) NOT NULL DEFAULT 'ACTIF' CHECK (Statut IN ('ACTIF','ARCHIVE')), 
-    
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20) NULL,
     ModifieLe DATETIME NULL,
-    
     CommentaireVersion NVARCHAR(MAX),
     Remarques NVARCHAR(MAX) NULL,
     LegendeMoyens NVARCHAR(MAX) NULL
@@ -350,26 +387,24 @@ CREATE TABLE dbo.Plan_Echantillonnage_Regle (
 GO
 
 -- =================================================================================
--- PARTIE 6 : PLANS DE FABRICATION (USINAGE)
+-- PARTIE 6 : PLANS DE FABRICATION (USINAGE) - SANS FAMILLE
 -- =================================================================================
 CREATE TABLE dbo.Modele_Fab_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     Code VARCHAR(60) NOT NULL,
     Libelle VARCHAR(150) NOT NULL,
-    TypeRobinetCode VARCHAR(10) NULL REFERENCES dbo.TypeRobinet(Code),
     NatureComposantCode VARCHAR(20) NOT NULL REFERENCES dbo.NatureComposant(Code),
     OperationCode VARCHAR(20) NULL REFERENCES dbo.Operation(Code),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id), 
-    Version INT NOT NULL DEFAULT 1,
+    Version INT NOT NULL DEFAULT 0,
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     Notes NVARCHAR(MAX),
+    FamilleProduitFiniCode VARCHAR(30) NULL REFERENCES dbo.FamilleProduitFini(Code),
     LegendeMoyens NVARCHAR(MAX) NULL, 
-    
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20) NULL,
     ModifieLe DATETIME NULL,
-    
     ArchiveLe DATETIME,
     ArchivePar VARCHAR(20)
 );
@@ -389,7 +424,10 @@ CREATE TABLE dbo.Modele_Fab_Section (
     ModeleEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Modele_Fab_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
     LibelleSection VARCHAR(200) NOT NULL,
-    FrequenceLibelle VARCHAR(80)
+    FrequenceLibelle VARCHAR(80),
+    TypeSectionId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeSection(Id),
+    PeriodiciteId UNIQUEIDENTIFIER NULL REFERENCES dbo.Periodicite(Id),
+    RegleEchantillonnageId UNIQUEIDENTIFIER NULL CONSTRAINT FK_ModeleFabSection_Regle REFERENCES dbo.Ref_RegleEchantillonnage(Id)
 );
 GO
 
@@ -400,11 +438,7 @@ CREATE TABLE dbo.Modele_Fab_Ligne (
     OrdreAffiche INT NOT NULL DEFAULT 0,
     TypeCaracteristiqueId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeCaracteristique(Id),
     LibelleAffiche VARCHAR(200) NULL,
-    ValeurNominale FLOAT NULL,
-    ToleranceSuperieure FLOAT NULL,
-    ToleranceInferieure FLOAT NULL,
-    LimiteSpecTexte VARCHAR(100) NULL,
-    Unite VARCHAR(10) NULL,
+    LimiteSpecTexte VARCHAR(100) NULL, 
     TypeControleId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeControle(Id),
     MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
     MoyenTexteLibre VARCHAR(100) NULL, 
@@ -418,22 +452,21 @@ GO
 CREATE TABLE dbo.Plan_Fab_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     ModeleSourceId UNIQUEIDENTIFIER  REFERENCES dbo.Modele_Fab_Entete(Id),
-    CodeArticleSage VARCHAR(30) NOT NULL,
+    CodeArticleSage VARCHAR(30) NOT NULL, 
     Designation VARCHAR(200),
     Nom VARCHAR(150) NOT NULL,
-    Version INT NOT NULL DEFAULT 1,
+    Version INT NOT NULL DEFAULT 0,
     OperationCode VARCHAR(30),
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     DateApplication DATE,
     MachineDefautCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
+    FamilleProduitFiniCode VARCHAR(30) NULL REFERENCES dbo.FamilleProduitFini(Code),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id), 
     LegendeMoyens NVARCHAR(MAX) NULL, 
-    
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20),
     ModifieLe DATETIME,
-    
     CommentaireVersion NVARCHAR(MAX),
     Remarques NVARCHAR(MAX) NULL
 );
@@ -453,8 +486,11 @@ CREATE TABLE dbo.Plan_Fab_Section (
     PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fab_Entete(Id) ON DELETE CASCADE,
     ModeleSectionId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fab_Section(Id),
     OrdreAffiche INT NOT NULL DEFAULT 0,
-    LibelleSection VARCHAR(200) NOT NULL,
-    FrequenceLibelle VARCHAR(80)
+    LibelleSection VARCHAR(300) NOT NULL,
+    FrequenceLibelle VARCHAR(80),
+    TypeSectionId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeSection(Id),
+    PeriodiciteId UNIQUEIDENTIFIER NULL REFERENCES dbo.Periodicite(Id),
+    RegleEchantillonnageId UNIQUEIDENTIFIER NULL CONSTRAINT FK_PlanFabSection_Regle REFERENCES dbo.Ref_RegleEchantillonnage(Id)
 );
 GO
 
@@ -471,11 +507,7 @@ CREATE TABLE dbo.Plan_Fab_Ligne (
     MoyenTexteLibre VARCHAR(100) NULL, 
     InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id),
-    ValeurNominale FLOAT,
-    ToleranceSuperieure FLOAT,
-    ToleranceInferieure FLOAT,
-    Unite VARCHAR(10),
-    LimiteSpecTexte VARCHAR(100),
+    LimiteSpecTexte VARCHAR(100), 
     Observations NVARCHAR(MAX),
     Instruction NVARCHAR(MAX),
     EstCritique BIT NOT NULL DEFAULT 0
@@ -483,32 +515,26 @@ CREATE TABLE dbo.Plan_Fab_Ligne (
 GO
 
 -- =================================================================================
--- PARTIE 7 : PLANS D'ASSEMBLAGE (Unifiés)
+-- PARTIE 7 : PLANS D'ASSEMBLAGE (AVEC FAMILLE_PRODUIT)
 -- =================================================================================
 CREATE TABLE dbo.Plan_Ass_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     OperationCode VARCHAR(20) NOT NULL REFERENCES dbo.Operation(Code), 
-    TypeRobinetCode VARCHAR(10) NULL REFERENCES dbo.TypeRobinet(Code),
-    EstModele BIT NOT NULL DEFAULT 1,
-    CodeArticleSage VARCHAR(30) NULL,
-    Nom VARCHAR(150) NOT NULL,        
+    FamilleProduitFiniCode VARCHAR(30) NULL REFERENCES dbo.FamilleProduitFini(Code),
+    NatureComposantCode VARCHAR(20) NULL REFERENCES dbo.NatureComposant(Code),
+    PosteCode VARCHAR(30) NULL REFERENCES dbo.PosteTravail(CodePoste),         
     Designation VARCHAR(200),
-    Version INT NOT NULL DEFAULT 1,
+    Version INT NOT NULL DEFAULT 0,
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
-    NbPiecesReglage INT NOT NULL DEFAULT 5,
-    FicheEchantillonnageId UNIQUEIDENTIFIER, 
-    DateApplication DATE,
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id), 
     LegendeMoyens NVARCHAR(MAX) NULL, 
-    
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20),
     ModifieLe DATETIME,
-    
-    CommentaireVersion NVARCHAR(MAX),
-    Remarques NVARCHAR(MAX) NULL,
-    CONSTRAINT CHK_PlanAss_Modele CHECK ((EstModele = 1 AND CodeArticleSage IS NULL) OR (EstModele = 0 AND CodeArticleSage IS NOT NULL))
+    ArchiveLe DATETIME NULL,                                                   
+    ArchivePar VARCHAR(20) NULL,                                               
+    Remarques NVARCHAR(MAX) NULL
 );
 GO
 
@@ -527,10 +553,11 @@ CREATE TABLE dbo.Plan_Ass_Section (
     OrdreAffiche INT NOT NULL DEFAULT 0,
     TypeSectionId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeSection(Id),
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id), 
-    LibelleSection VARCHAR(250) NOT NULL,
+    LibelleSection VARCHAR(300) NOT NULL,
     NormeReference VARCHAR(40), 
     NqaId INT REFERENCES dbo.NQA(Id),
-    Notes NVARCHAR(MAX)
+    Notes NVARCHAR(MAX),
+    RegleEchantillonnageId UNIQUEIDENTIFIER NULL CONSTRAINT FK_PlanAssSection_Regle REFERENCES dbo.Ref_RegleEchantillonnage(Id)
 );
 GO
 
@@ -547,11 +574,7 @@ CREATE TABLE dbo.Plan_Ass_Ligne (
     MachineCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine), 
     InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument), 
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id),
-    ValeurNominale FLOAT,
-    ToleranceSuperieure FLOAT,
-    ToleranceInferieure FLOAT,
-    Unite VARCHAR(10),
-    LimiteSpecTexte VARCHAR(100),
+    LimiteSpecTexte VARCHAR(100), 
     EstVerifPresence BIT NOT NULL DEFAULT 0,
     DefauthequeId UNIQUEIDENTIFIER REFERENCES dbo.Defautheque(Id),
     RefPlanProduit VARCHAR(60),
@@ -562,23 +585,17 @@ CREATE TABLE dbo.Plan_Ass_Ligne (
 GO
 
 -- =================================================================================
--- PARTIE 8 : PLAN PRODUIT FINI (Normatif)
+-- PARTIE 8 : PLAN PRODUIT FINI (SANS FAMILLE)
 -- =================================================================================
 CREATE TABLE dbo.Plan_PF_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    TypeRobinetCode VARCHAR(10) NOT NULL REFERENCES dbo.TypeRobinet(Code),
-    CodeArticleSage VARCHAR(30) NULL,
-    Designation VARCHAR(200),
-    Version INT NOT NULL DEFAULT 1,
+    FamilleProduitFiniCode VARCHAR(30) NULL REFERENCES dbo.FamilleProduitFini(Code),
+    Version INT NOT NULL DEFAULT 0,
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
-    VisibleOperateur BIT NOT NULL DEFAULT 0 CHECK (VisibleOperateur = 0),
-    DateApplication DATE,
-    
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20),
     ModifieLe DATETIME,
-    
     CommentaireVersion NVARCHAR(MAX),
     Remarques NVARCHAR(MAX) NULL,
     LegendeMoyens NVARCHAR(MAX) NULL
@@ -598,11 +615,10 @@ CREATE TABLE dbo.Plan_PF_Section (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_PF_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
-    TypeSectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeSection(Id),
-    LibelleSection VARCHAR(250) NOT NULL,
-    NormeReference VARCHAR(40),
-    NqaId INT REFERENCES dbo.NQA(Id),
-    NbEchantillons INT,
+    TypeSectionId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeSection(Id),
+    LibelleSection VARCHAR(300) NOT NULL,
+    PeriodiciteId UNIQUEIDENTIFIER NULL REFERENCES dbo.Periodicite(Id),
+    RegleEchantillonnageId UNIQUEIDENTIFIER NULL CONSTRAINT FK_PlanPFSection_Regle REFERENCES dbo.Ref_RegleEchantillonnage(Id),
     Notes NVARCHAR(MAX)
 );
 GO
@@ -618,11 +634,7 @@ CREATE TABLE dbo.Plan_PF_Ligne (
     MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
     InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
     MoyenTexteLibre VARCHAR(100) NULL, 
-    ValeurNominale FLOAT,
-    ToleranceSuperieure FLOAT,
-    ToleranceInferieure FLOAT,
-    Unite VARCHAR(10),
-    LimiteSpecTexte VARCHAR(100),
+    LimiteSpecTexte VARCHAR(100), 
     DefauthequeId UNIQUEIDENTIFIER REFERENCES dbo.Defautheque(Id),
     Instruction NVARCHAR(MAX),
     Observations NVARCHAR(MAX),
@@ -637,14 +649,12 @@ CREATE TABLE dbo.Plan_NC_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     PosteCode VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste),
     Nom VARCHAR(150) NOT NULL,
-    Version INT DEFAULT 1,
-    Statut VARCHAR(20) DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
-    
+    Version INT NOT NULL DEFAULT 0,
+    Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     CreePar VARCHAR(20) NOT NULL,
-    CreeLe DATETIME DEFAULT GETDATE(),
+    CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20) NULL,
     ModifieLe DATETIME NULL,
-    
     Remarques NVARCHAR(MAX) NULL,
     LegendeMoyens NVARCHAR(MAX) NULL
 );
@@ -667,18 +677,12 @@ CREATE TABLE dbo.Plan_VerifMachine_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     MachineCode VARCHAR(30) NOT NULL REFERENCES dbo.Machine(CodeMachine),
     Nom VARCHAR(150) NOT NULL,
-    Version INT DEFAULT 1,
+    Version INT DEFAULT 0,
     Statut VARCHAR(20) DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE')),
-    AfficheConformite BIT DEFAULT 1,
-    AfficheMoyenDetectionRisques BIT DEFAULT 1,
-    AfficheFamilles BIT DEFAULT 0,    
-    AfficheFuiteEtalon BIT DEFAULT 0, 
-    
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME DEFAULT GETDATE(),
     ModifiePar VARCHAR(20) NULL,
     ModifieLe DATETIME NULL,
-    
     Remarques NVARCHAR(MAX) NULL,
     LegendeMoyens NVARCHAR(MAX) NULL
 );
@@ -708,8 +712,7 @@ CREATE TABLE dbo.Plan_VerifMachine_Echeance (
     PlanLigneId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_VerifMachine_Ligne(Id) ON DELETE CASCADE,
     PeriodiciteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Periodicite(Id),
     RefMoyenDetectionId UNIQUEIDENTIFIER NULL REFERENCES dbo.Ref_MoyenDetection(Id), 
-    OrdreAffiche INT NOT NULL DEFAULT 0, 
-    UNIQUE (PlanLigneId, PeriodiciteId, RefMoyenDetectionId)
+    OrdreAffiche INT NOT NULL DEFAULT 0
 );
 GO
 
@@ -724,68 +727,75 @@ CREATE TABLE dbo.Plan_VerifMachine_MatricePiece (
 GO
 
 -- =================================================================================
--- PARTIE 11 : CONTRAINTES DE CLÉS ÉTRANGÈRES RETARDÉES
--- =================================================================================
-ALTER TABLE dbo.Plan_Ass_Entete
-    ADD CONSTRAINT fk_planass_echan
-    FOREIGN KEY (FicheEchantillonnageId) REFERENCES dbo.Plan_Echantillonnage_Entete(Id);
-GO
-
--- =================================================================================
 -- PARTIE 12 : INDEX DE CONTRAINTES AVANCÉS (VERSIONING & UNICITÉ)
 -- =================================================================================
-CREATE UNIQUE NONCLUSTERED INDEX UQ_ModeleFab_Version ON dbo.Modele_Fab_Entete(TypeRobinetCode, NatureComposantCode, OperationCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanFab_Version ON dbo.Plan_Fab_Entete(CodeArticleSage, OperationCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanAss_Modele_Version ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode, Version) WHERE EstModele = 1 AND Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanAss_Instance_Version ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode, CodeArticleSage, Version) WHERE EstModele = 0 AND Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanPF_Version ON dbo.Plan_PF_Entete(TypeRobinetCode, CodeArticleSage, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
 
--- ✅ NOUVEAUX INDEX POUR LE PLAN D'ÉCHANTILLONNAGE GLOBAL (V6.6)
+-- 🟢 1. PLAN ASSEMBLAGE (ASS) -> AVEC FAMILLE
+CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanAss_Modele_Version ON dbo.Plan_Ass_Entete(OperationCode, FamilleProduitFiniCode, NatureComposantCode, PosteCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
+CREATE UNIQUE NONCLUSTERED INDEX UX_PlanAss_Maitre_Actif ON dbo.Plan_Ass_Entete(OperationCode, FamilleProduitFiniCode, NatureComposantCode, PosteCode) WHERE Statut = 'ACTIF';
+
+-- 🟢 2. MODÈLE FABRICATION (USINAGE) -> SANS FAMILLE
+CREATE UNIQUE NONCLUSTERED INDEX UQ_ModeleFab_Version ON dbo.Modele_Fab_Entete(Code, Libelle, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
+CREATE UNIQUE NONCLUSTERED INDEX UX_ModeleFab_Actif ON dbo.Modele_Fab_Entete(Code, Libelle) WHERE Statut = 'ACTIF';
+
+-- 🟢 3. PLAN FABRICATION (EN COURS) -> SANS FAMILLE (Lié à un article)
+CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanFab_Version ON dbo.Plan_Fab_Entete(CodeArticleSage, OperationCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
+CREATE UNIQUE NONCLUSTERED INDEX UX_PlanFab_Actif ON dbo.Plan_Fab_Entete(CodeArticleSage, OperationCode) WHERE Statut = 'ACTIF';
+
+-- 🟢 4. PLAN PRODUIT FINI (PF) -> AVEC FAMILLE
+CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanPF_Version ON dbo.Plan_PF_Entete(FamilleProduitFiniCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
+CREATE UNIQUE NONCLUSTERED INDEX UX_PlanPF_Actif ON dbo.Plan_PF_Entete(FamilleProduitFiniCode) WHERE Statut = 'ACTIF';
+
+-- (Autres index non modifiés)
 CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanEchan_Global_Version ON dbo.Plan_Echantillonnage_Entete(Version);
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanEchan_Global_Actif ON dbo.Plan_Echantillonnage_Entete(Statut) WHERE Statut = 'ACTIF';
-
 CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanNC_Version ON dbo.Plan_NC_Entete(PosteCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanVerif_Version ON dbo.Plan_VerifMachine_Entete(MachineCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
-
-CREATE UNIQUE NONCLUSTERED INDEX UX_ModeleFab_Actif ON dbo.Modele_Fab_Entete(TypeRobinetCode, NatureComposantCode, OperationCode) WHERE Statut = 'ACTIF';
-CREATE UNIQUE NONCLUSTERED INDEX UX_PlanFab_Actif ON dbo.Plan_Fab_Entete(CodeArticleSage, OperationCode) WHERE Statut = 'ACTIF';
-CREATE UNIQUE NONCLUSTERED INDEX UX_PlanAss_Maitre_Actif ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode) WHERE EstModele = 1 AND Statut = 'ACTIF';
-CREATE UNIQUE NONCLUSTERED INDEX UX_PlanAss_Exception_Actif ON dbo.Plan_Ass_Entete(OperationCode, TypeRobinetCode, CodeArticleSage) WHERE EstModele = 0 AND Statut = 'ACTIF';
-CREATE UNIQUE NONCLUSTERED INDEX UX_PlanPF_Actif ON dbo.Plan_PF_Entete(TypeRobinetCode, CodeArticleSage) WHERE Statut = 'ACTIF';
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanNC_Actif ON dbo.Plan_NC_Entete(PosteCode) WHERE Statut = 'ACTIF';
+CREATE UNIQUE NONCLUSTERED INDEX UQ_PlanVerif_Version ON dbo.Plan_VerifMachine_Entete(MachineCode, Version) WHERE Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE');
 CREATE UNIQUE NONCLUSTERED INDEX UX_PlanVerif_Actif ON dbo.Plan_VerifMachine_Entete(MachineCode) WHERE Statut = 'ACTIF';
 GO
 
 -- =================================================================================
--- PARTIE 13 : SEED DATA (LES VRAIES DONNÉES SOPAL COMPLETES)
+-- PARTIE 13 : SEED DATA 
 -- =================================================================================
 
 -- 1. RÉFÉRENTIELS DE BASE
 INSERT INTO dbo.Operation (Code, Libelle) VALUES 
-('ASS', 'Assemblage'), 
-('TRONC', 'Tronçonnage'), 
-('ESTOMP', 'Estompage'), 
-('USINAG', 'Usinage');
+('ASS', 'Assemblage'), ('TRONC', 'Tronçonnage'), ('ESTOMP', 'Estompage'), ('USINAG', 'Usinage');
 
 INSERT INTO dbo.TypeRobinet (Code, Libelle) VALUES 
-('MAN', 'Manuelle'), 
-('AUTO', 'Automatique'), 
-('SOP', 'Automatique avec soupape');
+('MAN', 'Manuelle'), ('AUTO', 'Automatique'), ('SOUP', 'Automatique avec soupape');
+
+-- 2. FAMILLES D'ARTICLES
+INSERT INTO dbo.FamilleProduitFini (Code, Designation, TypeRobinetCode) VALUES 
+('RBGFA-BAC-01', 'Robinet bouteille de gaz à fermeture automatique type boite à clapet à filetage droit', 'AUTO'),
+('RBGFA-BAC-02', 'Robinet bouteille de gaz à fermeture automatique type boite à clapet à filetage conique', 'AUTO'),
+('RBGFA', 'Robinet bouteille de gaz à fermeture automatique', 'AUTO'),
+('RBGFM', 'Robinet bouteille de gaz à fermeture manuelle', 'MAN'),
+('RBGFA_SOUPAPE', 'Robinet bouteille de gaz à fermeture automatique avec soupape', 'SOUP');
 
 INSERT INTO dbo.NatureComposant (Code, Libelle) VALUES 
-('CORPS', 'Corps'), 
-('VOLANT', 'Volant'), 
-('PISTON', 'Piston'), 
-('PF', 'Produit Fini');
+('CORPS', 'Corps'), ('VOLANT', 'Volant'), ('PISTON', 'Piston'), ('PF', 'Produit Fini');
 
+-- 3. LIAISON GAMMES
+INSERT INTO dbo.NatureComposant_Operation (NatureComposantCode, OperationCode, OrdreGamme, EstObligatoire) VALUES 
+('CORPS', 'USINAG', 3, 1),
+('CORPS', 'TRONC', 1, 1),
+('CORPS', 'ESTOMP', 2, 1),
+('VOLANT', 'TRONC', 1, 1),
+('VOLANT', 'ESTOMP', 2, 1),
+('VOLANT', 'USINAG', 3, 1),
+('PF', 'ASS', 1, 1),
+('PISTON', 'ASS', 1, 1);
+
+-- 4. POSTES DE TRAVAIL
 INSERT INTO dbo.PosteTravail (CodePoste, Libelle) VALUES 
-('PAS71', 'Poste 71'), 
-('PAS72', 'Poste 72'), 
-('PAS78', 'Poste 78');
+('PAS71', 'Poste 71'), ('PAS72', 'Poste 72'), ('PAS78', 'Poste 78');
 
--- 2. MACHINES ET POSTES
+-- 5. MACHINES
 INSERT INTO dbo.Machine (CodeMachine, Libelle, OperationCode, RoleMachine) VALUES 
 ('MAS19', 'Machine 19', 'ASS', 'MAS_ASS'), 
+('MAS20', 'Machine 20', 'ASS', 'MAS_ASS'), 
 ('MAS22', 'Machine 22', 'ASS', 'MAS_ASS'), 
 ('MAS26', 'Machine 26', 'ASS', 'MAS_ASS'),
 ('BEE22', 'Banc 22', 'ASS', 'BEE'), 
@@ -793,75 +803,131 @@ INSERT INTO dbo.Machine (CodeMachine, Libelle, OperationCode, RoleMachine) VALUE
 ('BEE47', 'Banc 47', 'ASS', 'BEE'),
 ('SER05', 'Marquage 05', 'ASS', 'MARQUAGE');
 
+-- 6. LIAISON : POSTES <-> MACHINES
 INSERT INTO dbo.PosteTravail_Machine (CodePoste, CodeMachine) VALUES 
 ('PAS72', 'MAS26'), ('PAS72', 'BEE46'),
 ('PAS71', 'MAS22'), ('PAS71', 'MAS19'), ('PAS71', 'BEE47'),
 ('PAS78', 'SER05');
 
--- 3. ARTICLES SAGE (ITMMASTER)
-INSERT INTO dbo.ITMMASTER (CodeArticle, Designation, FamilleProduit, Statut) VALUES 
-('25A8B01-1', 'Boite à clapet', 'ROB', 'ACTIF'),
-('25AKA01-1', 'R. de GAZ Boite GAZ', 'ROB', 'ACTIF'),
-('25B0A01-1', 'R de gaz avec soupape', 'ROB', 'ACTIF'),
-('25S2A01-1', 'R. de gaz Asil', 'ROB', 'ACTIF'),
-('25S5A01-1', 'R de gaz H cuisiniere', 'ROB', 'ACTIF');
-
--- 4. DICTIONNAIRE DES RISQUES (Pour Plan NC)
+-- 7. DICTIONNAIRE DES RISQUES
 INSERT INTO dbo.RisqueDefaut (CodeDefaut, LibelleDefaut) VALUES 
 ('R_30B_F', 'ESSAI DE 30 BAR (ROBINET FERME)'), ('R_01B_F', 'ESSAI DE 0,1 BAR (ROBINET FERME)'),
 ('R_30B_O', 'ESSAI DE 30 BAR (ROBINET OUVERT)'), ('R_01B_O', 'ESSAI DE 0,1 BAR (ROBINET OUVERT)'),
 ('R_GOUP', 'ABSENCE / MAUVAIS MONTAGE DE LA GOUPILLE'), ('R_PTDUR', 'PRESENCE DU POINT DURE'),
 ('R_J_AUTO', 'ABSENCE DU JOINT AUTOSERREUR'), ('R_J_ANTI', 'ABSENCE/ MAUVAIS MONTAGE JOINT ANTI-FUITE');
 
--- 5. DICTIONNAIRE DES FAMILLES (Pour Matrice)
+-- 8. MATRICE 3D - FAMILLES & MOYENS
 INSERT INTO dbo.Ref_FamilleCorps (Code, Designation) VALUES 
 ('F_30_35', 'Famille Corps (30, 35)'), ('F_23', 'Famille Corps (23)'), 
 ('FAM_40_43_44', 'Famille Corps (40, 43, 44)'), ('FAM_49', 'Famille Corps (49)'),
-('C_25B0A01', 'Corps (25B0A01)'), ('C_25AXA01', 'Corps (25AXA01)'),
-('C_25AWA01', 'Corps (25AWA01)'), ('C_25UA01', 'Corps (25UA01)'),
-('C_25A8A01', 'Corps (25A8A01)'), ('C_2588A01', 'Corps (2588A01)'),
-('C_2576A01', 'Corps (2576A01)'), ('C_2519A01', 'Corps (2519A01)'),
-('C_56', 'Corps (56)'), ('FAM_54_53', 'Famille Corps (54,53)'), 
-('FAM_28_52', 'Famille Corps (28,52)'), ('C_25AUA01', 'Corps (25AUA01)');
+('C_25B0A01', 'Corps (25B0A01)'), ('C_25AXA01', 'Corps (25AXA01)'), 
+('C_25AWA01', 'Corps (25AWA01)'), ('C_25UA01', 'Corps (25UA01)');
 
--- 6. DICTIONNAIRE DES MOYENS DE DÉTECTION
 INSERT INTO dbo.Ref_MoyenDetection (Code, Designation) VALUES 
 ('PRC', 'PRC'), ('PRNC', 'PRNC'), 
 ('PRC_FEC', 'PRC + FEC'), ('PRC_FENC', 'PRC + FENC'), 
-('PRC_LS', 'PRC LS'), ('PRC_LI', 'PRC LI'), 
-('PRNC_LS', 'PRNC LS'), ('PRNC_LI', 'PRNC LI');
+('PRC_LS', 'PRC LS'), ('PRC_LI', 'PRC LI');
 
--- 7. PIÈCES DE RÉFÉRENCE (Globale)
-INSERT INTO dbo.PieceReference (Code, TypePiece, Designation, MachineCode) VALUES 
-('RCF01', 'PRC', 'Conforme F30', 'MAS22'), ('RCF02', 'PRC', 'Conforme F23', 'MAS22'), 
-('RCF03', 'PRC', 'Conforme F40', 'MAS22'), ('RCF04', 'PRC', 'Conforme F49', 'MAS22'),
-('RCF05', 'PRC', 'Pièce conforme SER05', 'SER05'), ('RCF06', 'PRC', 'Pièce conforme SER05', 'SER05'), ('RCF07', 'PRC', 'Pièce conforme SER05', 'SER05'),
-('RCN04', 'PRNC', 'Pièce bouchée SER05', 'SER05'), ('RCN05', 'PRNC', 'Pièce bouchée SER05', 'SER05'), ('RCN06', 'PRNC', 'Pièce bouchée SER05', 'SER05'),
-('BCF01', 'PRC', 'Conforme BEE46 (1)', 'BEE46'), ('BCF02', 'PRC', 'Conforme BEE46 (2)', 'BEE46'),
-('BCF03', 'PRC', 'Conforme BEE46 (3)', 'BEE46'), ('BCF04', 'PRC', 'Conforme BEE46 (4)', 'BEE46'),
-('RBG01', 'PRC', 'Conforme BEE22', 'BEE22'),
-('RBG03', 'PRC', 'Pièce référence RBG03', NULL), ('RBG04', 'PRC', 'Pièce référence RBG04', NULL),
-('RBG07', 'PRNC', 'PRNC Limite Supérieur', 'MAS19'), ('RBG08', 'PRC', 'PRC Limite Inférieur', 'MAS19'), 
-('RBG09', 'PRC', 'PRC Limite Supérieur', 'MAS19'), ('RBG10', 'PRNC', 'PRNC Limite Inférieur', 'MAS19'),
-('BSJ01', 'PRNC', 'Sans joint siège', 'MAS26'), ('BSB01', 'PRNC', 'Sans bille', 'MAS26'),
-('BSF01', 'PRNC', 'Sans joint antifuite', 'MAS26'), ('BJR01', 'PRNC', 'Joint antifuite NC', 'MAS26'),
-('BCL01', 'PRNC', 'Défaut sertissage 1', 'MAS26'), ('BCC01', 'PRNC', 'Défaut sertissage 2', 'MAS26'),
-('BCN01', 'PRNC', 'Passage gaz 1', 'MAS26'), ('BCO01', 'PRNC', 'Passage gaz 2', 'MAS26'),
-('TMI01', 'PRNC', 'Nb tours < 2,8', 'MAS22'), ('TMX01', 'PRNC', 'Nb tours > 3,8', 'MAS22'),
-('RSG01', 'PRNC', 'Sans goupille', 'MAS22'), ('RSJ01', 'PRNC', 'Manque joint auto-serreur', 'MAS22'),
-('FUI24', 'FEC', 'Fuite Etalon C', NULL), ('FUI25', 'FENC', 'Fuite Etalon NC', NULL);
+-- 9. MOYENS DE CONTRÔLE
+INSERT INTO dbo.MoyenControle (Code, Libelle) VALUES 
+('VISUEL', 'Visuel'), ('BANC_ESSAI', 'Banc d''essai'), ('PAC', 'P à C (Pied à coulisse)'),
+('JAP', 'J à P (Jauge de profondeur)'), ('COMP', 'Comparateur'), ('CLD', 'Clé dynamométrique'),
+('BAGUE_F', 'Bague filetée P-NP'), ('TAMPON_F', 'Tampon fileté P-NP'), ('DEFAUTHEQUE', 'Défauthèque');
 
--- 8. PÉRIODICITÉS
-INSERT INTO dbo.Periodicite (Code, Libelle) VALUES ('DEM', 'Au démarrage de la machine'), ('PAU', 'Après la pause'), ('FIN', 'A la fin du poste');
+-- 10. INSTRUMENTS DE CONTRÔLE
+INSERT INTO dbo.Instrument (CodeInstrument, Designation, Categorie, Statut) VALUES 
+('BAN59', 'BEE LAB : (BAN59)', 'BANC ESSAI', 'ACTIF'),
+('BEE32', 'BEE LAB : (BEE32)', 'BANC ESSAI', 'ACTIF'),
+('BAN47', 'BEE LAB : (BAN47)', 'BANC ESSAI', 'ACTIF'),
+('PAC', 'PAC (Pied à coulisse)', 'DIMENSIONNEL', 'ACTIF'),
+('JPC', 'JPC (Jauge de Profondeur)', 'DIMENSIONNEL', 'ACTIF'),
+('CAN', 'CAN (Comparateur / Alésomètre)', 'DIMENSIONNEL', 'ACTIF'),
+('CLD', 'CLD (Clé Dynamométrique)', 'MECANIQUE', 'ACTIF');
 
--- 9. NQA ET TYPES
+-- 11. TYPES DE SECTION
+INSERT INTO dbo.TypeSection (Code, Libelle) VALUES 
+('REGLAGE', 'aux réglages'),('REGLAGE_PROD', 'au réglage et en cours de production'), ('EN_COURS', 'par échantillonnage en cours de production'), ('ECHANT_NQA', 'par échantillonnage '),('OF', ' au niveau du lot (OF) ');
+
+-- 12. NQA & PÉRIODICITÉS
 INSERT INTO dbo.NQA (ValeurNQA) VALUES (0.65),(1.0),(1.5),(2.5),(4.0),(6.5);
-INSERT INTO dbo.TypeCaracteristique (Code, Libelle, EstNumerique) VALUES ('VISUEL', 'Contrôle visuel', 0), ('DIAMETRE', 'Diamètre', 1), ('COUPLE', 'Couple serrage', 1);
-INSERT INTO dbo.TypeControle (Code, Libelle) VALUES ('VISUEL', 'Visuel'), ('MESURE', 'Mesure'), ('ATTRIBUT', 'Attribut');
-INSERT INTO dbo.MoyenControle (Code, Libelle) VALUES ('DEFAUTHEQUE', 'Défauthèque'), ('PAC', 'Pied à coulisse'), ('BANC_ESSAI', 'Banc d''essai'), ('CLE_DYN', 'Clé dynamométrique');
-INSERT INTO dbo.TypeSection (Code, Libelle) VALUES ('REGLAGE', 'Aux réglages'), ('EN_COURS', 'En cours de production'), ('ECHANTILLONNAGE', 'par échantillonnage');
+
+INSERT INTO dbo.Periodicite (Code, Libelle, FrequenceNum, FrequenceUnite, OrdreAffichage) VALUES 
+('DEM', 'Au démarrage', NULL, NULL, 0), 
+('PAU', 'Après la pause', NULL, NULL, 0), 
+('FIN', 'A la fin du poste', NULL, NULL, 0),
+('SERIE_5P', 'une série de 5 pièces', 5, 'SERIE', 5),
+('4P_1H', '4 pièces / heure', 4, '1_HEURE', 5),
+('1P_1H', '1 pièce / heure', 1, '1_HEURE', 5),
+('100PCT_1H', '100% des pièces/h', 100, 'PCT_HEURE', 5),
+('1P_4H', '1 pièce / 4 heures', 1, '4_HEURE', 5);
+
+INSERT INTO dbo.Ref_RegleEchantillonnage (Code, Libelle) VALUES 
+('REG-9F43B', 'selon ISO 2859-1 : Tableau 2-A, avec un NQA de 0,65'),
+('REG-43BD2', 'Selon FE0591 : Effectif de l’échantillon /poste (A/B) (p/h)'),
+('REG-7A57N', 'la première et la dernière pièce et 0,01% du lot'),
+('REG-7A57C', 'selon ISO 3951-1 : Tableau 2, avec un NQA de 0,65');
+
+
+
+-- 13. TYPES CARACTÉRISTIQUES ET CONTRÔLE
+INSERT INTO dbo.TypeCaracteristique (Code, Libelle) VALUES 
+('VISUEL', 'Contrôle visuel'), ('DIM', 'Diamètre / Dimension'), ('ETANCH', 'Étanchéité'), ('Serrage', 'Couple de serrage');
+
+INSERT INTO dbo.TypeControle (Code, Libelle) VALUES ('VISUEL', 'Visuel'), ('MESURE', 'Mesure'),('MANUEL', 'Manuel'), ('ATTRIBUT', 'Attribut');
+
+-- 14. ARTICLES SAGE (ITMMASTER) 
+INSERT INTO dbo.ITMMASTER (CodeArticle, Designation, FamilleProduitFini, FamilleCorpsCode, Statut, TypeRobinetCode, NatureComposantCode) VALUES 
+('25A8B01-1', 'Boite à clapet', 'RBGFA-BAC-01', NULL, 'ACTIF', 'AUTO', 'PF'),
+('25AKA01-1', 'R. de GAZ Boite GAZ', 'RBGFM', NULL, 'ACTIF', 'MAN', 'PF'),
+('25B0A01-1', 'R de gaz avec soupape', 'RBGFA_SOUPAPE', NULL, 'ACTIF', 'SOUP', 'PF'),
+('2588A01-1-A', 'R de gaz auto', 'RBGFA-BAC-01', NULL, 'ACTIF', 'AUTO', 'PF'),
+('2582A01-1-D', 'R de gaz auto', 'RBGFA-BAC-02', NULL, 'ACTIF', 'AUTO', 'PF'),
+('C-25B0A01', 'Corps laiton brut (Soupape)', 'RBGFA_SOUPAPE', 'FAM_49', 'ACTIF', 'SOUP', 'CORPS'),
+('P-25B0A01', 'Piston laiton Asil', NULL, NULL, 'ACTIF', 'AUTO', 'PISTON'),
+('m-25B0A01', 'Corps laiton brut (Soupape)', 'RBGFA_SOUPAPE', NULL, 'ACTIF', 'SOUP', 'CORPS'),
+('n-25B0A01', 'Corps laiton brut (Soupape)', 'RBGFA_SOUPAPE', NULL, 'ACTIF', 'SOUP', 'CORPS'),
+('b-25B0A01', 'Corps laiton brut (Soupape)', 'RBGFA_SOUPAPE', NULL, 'ACTIF', 'SOUP', 'CORPS'),
+('V-25A8B01', 'Volant plastique noir', 'RBGFM', NULL, 'ACTIF', 'MAN', 'VOLANT');
+GO
+-- =================================================================================
+-- PARTIE 14 : SEED DATA - UTILISATEURS (CACHE ERP SAGE X3 ET APPLICATION)
+-- =================================================================================
+
+-- 1. Ajout dans la table AUTILIS (Cache des utilisateurs de l'ERP Sage X3)
+INSERT INTO dbo.AUTILIS (USR_0, INTUSR_0, ENAFLG_0, CODMET_0, ADDEML_0) VALUES 
+('12345', 'Nada Belghith', 2, 'ADMIN', 'nada.belghith@enis.tn'),
+('OP001', 'Operateur Test', 2, 'OPERATEUR', 'operateur@sopal.com'),
+('QA001', 'Qualite Test', 2, 'QUALITE', 'qualite@sopal.com');
+GO
+
+-- 2. Ajout dans la table ATEXTRA (Traductions Sage X3 pour les noms d'utilisateurs)
+INSERT INTO dbo.ATEXTRA (CODFIC_0, ZONE_0, IDENT1_0, LANGUE_0, TEXTE_0) VALUES 
+('AUTILIS', 'INTUSR', '12345', 'FRA', 'Nada Belghith'),
+('AUTILIS', 'INTUSR', 'OP001', 'FRA', 'Operateur Test'),
+('AUTILIS', 'INTUSR', 'QA001', 'FRA', 'Qualite Test');
+GO
+
+-- =================================================================================
+-- PARTIE 15 : LIAISON MACHINES <-> FAMILLES DE CORPS
+-- =================================================================================
+
+-- Pour SER05
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'SER05', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('F_30_35', 'F_23', 'FAM_40_43_44', 'FAM_49');
+
+-- Pour MAS22
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'MAS22', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('F_30_35', 'F_23', 'FAM_40_43_44', 'FAM_49');
+
+-- Pour BEE46
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'BEE46', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
+
+-- Pour BEE22
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'BEE22', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
 GO
 
 PRINT '=======================================================';
-PRINT ' LA BASE SOPALTRACE V6.6 A ÉTÉ GÉNÉRÉE AVEC SUCCÈS !';
+PRINT ' LA BASE SOPALTRACE V6.9.9 A ÉTÉ GÉNÉRÉE AVEC SUCCÈS ! ';
 PRINT '=======================================================';

@@ -1,8 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Infrastructure.Data;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -23,60 +25,97 @@ public class PlanAssRepository : IPlanAssRepository
         return article?.Designation;
     }
 
-    public async Task<int> GetDerniereVersionAsync(string operationCode, string typeRobinetCode, string? codeArticleSage)
+    public async Task<int> GetDerniereVersionAsync(string operationCode, string? familleCode, string? codeArticleSage)
     {
-        var query = _context.PlanAssEntetes
-            .Where(p => p.OperationCode == operationCode && p.TypeRobinetCode == typeRobinetCode);
-
-        query = string.IsNullOrEmpty(codeArticleSage)
-            ? query.Where(p => p.EstModele)
-            : query.Where(p => !p.EstModele && p.CodeArticleSage == codeArticleSage);
-
-        return await query.Select(p => (int?)p.Version).MaxAsync() ?? 0;
+        // On ignore codeArticleSage car non présent en base pour l'assemblage
+        return await _context.PlanAssEntetes
+            .Where(p => p.OperationCode == operationCode && p.FamilleProduitFiniCode == familleCode)
+            .Select(p => (int?)p.Version)
+            .MaxAsync() ?? -1;
     }
 
-    public async Task<bool> ExistePlanMaitreActifAsync(string operationCode, string typeRobinetCode)
-    {
-        return await _context.PlanAssEntetes.AnyAsync(p =>
-            p.OperationCode == operationCode &&
-            p.TypeRobinetCode == typeRobinetCode &&
-            p.EstModele == true &&
-            p.Statut == "ACTIF");
-    }
+    public async Task<int> GetDerniereVersionParCodeAsync(string code)
+        => await _context.PlanAssEntetes
+            .Where(p => p.Designation == code)
+            .Select(p => (int?)p.Version)
+            .MaxAsync() ?? 0;
 
-    public async Task<bool> ExisteExceptionActiveAsync(string operationCode, string typeRobinetCode, string codeArticleSage)
+    public async Task<bool> ExistePlanMaitreActifAsync(string operationCode, string? familleCode)
     {
         return await _context.PlanAssEntetes.AnyAsync(p =>
             p.OperationCode == operationCode &&
-            p.TypeRobinetCode == typeRobinetCode &&
-            p.CodeArticleSage == codeArticleSage &&
-            p.EstModele == false &&
-            p.Statut == "ACTIF");
+            p.FamilleProduitFiniCode == familleCode &&
+            p.Statut == StatutsPlan.Actif);
     }
+
+    public async Task<bool> ExisteExceptionActiveAsync(string operationCode, string? familleCode, string codeArticleSage)
+    {
+        // Pour l'instant, on traite les exceptions comme des plans maîtres car pas de colonne Article
+        return await ExistePlanMaitreActifAsync(operationCode, familleCode);
+    }
+
+    public async Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode)
+    {
+        return await _context.NatureComposantOperations
+            .AnyAsync(g => g.NatureComposantCode == natureCode && g.OperationCode == operationCode);
+    }
+
+    public async Task<bool> ExisteParCodeAsync(string code)
+        => await _context.PlanAssEntetes.AnyAsync(p => p.Designation == code);
+
+    public async Task<bool> ExisteParCodeEtLibelleAsync(string code, string libelle)
+        => await _context.PlanAssEntetes.AnyAsync(p => p.Designation == libelle && p.Statut == StatutsPlan.Actif);
 
     public async Task<PlanAssEntete?> GetPlanAvecRelationsAsync(Guid planId)
     {
         return await _context.PlanAssEntetes
             .Include(p => p.PlanAssSections)
                 .ThenInclude(s => s.PlanAssLignes)
+            .Include(p => p.PlanAssSections)
+                .ThenInclude(s => s.RegleEchantillonnage)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
-    public async Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string typeRobinetCode)
+    public async Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode)
     {
         return await _context.PlanAssEntetes
-            .FirstOrDefaultAsync(p => p.OperationCode == operationCode && p.TypeRobinetCode == typeRobinetCode && p.EstModele == true && p.Statut == "ACTIF");
+            .FirstOrDefaultAsync(p => p.OperationCode == operationCode && p.FamilleProduitFiniCode == familleCode && p.Statut == StatutsPlan.Actif);
     }
 
-    public async Task<PlanAssEntete?> GetPlanActifExceptionAsync(string operationCode, string typeRobinetCode, string codeArticleSage)
+    public async Task<PlanAssEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage)
     {
-        return await _context.PlanAssEntetes
-            .FirstOrDefaultAsync(p => p.OperationCode == operationCode && p.TypeRobinetCode == typeRobinetCode && p.CodeArticleSage == codeArticleSage && p.EstModele == false && p.Statut == "ACTIF");
+        return await GetPlanActifMaitreAsync(operationCode, familleCode);
     }
 
     public async Task<PlanAssEntete?> GetPlanByIdAsync(Guid planId)
     {
         return await _context.PlanAssEntetes.FindAsync(planId);
+    }
+
+    public async Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string? familleCode, string? codeArticleSage)
+    {
+        return await _context.PlanAssEntetes
+            .Where(p => p.OperationCode == operationCode && p.FamilleProduitFiniCode == familleCode && p.Statut == StatutsPlan.Actif)
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<PlanAssEntete>> GetModelesParFiltresAsync(string? natureComposantCode, string? operationCode, string? posteCode = null, string? familleProduitCode = null)
+    {
+        var query = _context.PlanAssEntetes.Where(p => p.Statut == StatutsPlan.Actif);
+
+        if (!string.IsNullOrEmpty(natureComposantCode))
+            query = query.Where(p => p.NatureComposantCode == natureComposantCode);
+
+        if (!string.IsNullOrEmpty(operationCode))
+            query = query.Where(p => p.OperationCode == operationCode);
+
+        if (!string.IsNullOrEmpty(posteCode))
+            query = query.Where(p => p.PosteCode == posteCode);
+
+        if (!string.IsNullOrEmpty(familleProduitCode))
+            query = query.Where(p => p.FamilleProduitFiniCode == familleProduitCode);
+
+        return await query.ToListAsync();
     }
 
     public async Task AddPlanAsync(PlanAssEntete plan)
@@ -94,19 +133,5 @@ public class PlanAssRepository : IPlanAssRepository
         {
             throw ex.ToDomainExceptionOrSelf("Le plan d'assemblage a été modifié/créé en parallèle.");
         }
-    }
-
-    public async Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string typeRobinetCode, string? codeArticleSage)
-    {
-        var query = _context.PlanAssEntetes.Where(p =>
-            p.OperationCode == operationCode &&
-            p.TypeRobinetCode == typeRobinetCode &&
-            p.Statut == "ACTIF");
-
-        query = string.IsNullOrEmpty(codeArticleSage)
-            ? query.Where(p => p.EstModele)
-            : query.Where(p => !p.EstModele && p.CodeArticleSage == codeArticleSage);
-
-        return await query.ToListAsync();
     }
 }

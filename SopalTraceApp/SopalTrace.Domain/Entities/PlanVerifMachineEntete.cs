@@ -15,14 +15,6 @@ public partial class PlanVerifMachineEntete
 
     public string? Statut { get; set; }
 
-    public bool? AfficheConformite { get; set; }
-
-    public bool? AfficheMoyenDetectionRisques { get; set; }
-
-    public bool? AfficheFamilles { get; set; }
-
-    public bool? AfficheFuiteEtalon { get; set; }
-
     public string CreePar { get; set; } = null!;
 
     public DateTime? CreeLe { get; set; }

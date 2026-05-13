@@ -1,7 +1,9 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
+using SopalTrace.Application.Utilities;
 using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Domain.Exceptions;
@@ -16,171 +18,457 @@ namespace SopalTrace.Application.Services;
 /// Service de gestion des Modèles de Fabrication.
 /// Plus de logique de BROUILLON ici (directement ACTIF ou ARCHIVE).
 /// </summary>
-public class ModeleFabricationService
-    : BasePlanLifecycleService<ModeleFabEntete, CreateModeleRequestDto, NouvelleVersionModeleRequestDto>,
-      IModeleFabricationService
+public class ModeleFabricationService : IModeleFabricationService
 {
-    private readonly IPlanFabricationRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPlanFabricationRepository _fabRepository;
+    private readonly IPlanAssRepository _assRepository;
     private readonly IValidator<CreateModeleRequestDto> _modeleValidator;
+    private readonly ICurrentUserService _currentUserService;
+    private readonly ILogger<ModeleFabricationService> _logger;
 
     public ModeleFabricationService(
         IUnitOfWork unitOfWork,
-        IPlanFabricationRepository repository,
-        IValidator<CreateModeleRequestDto> modeleValidator)
-        : base(unitOfWork)
+        IPlanFabricationRepository fabRepository,
+        IPlanAssRepository assRepository,
+        IValidator<CreateModeleRequestDto> modeleValidator,
+        ICurrentUserService currentUserService,
+        ILogger<ModeleFabricationService> logger)
     {
-        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-        _modeleValidator = modeleValidator ?? throw new ArgumentNullException(nameof(modeleValidator));
+        _unitOfWork = unitOfWork;
+        _fabRepository = fabRepository;
+        _assRepository = assRepository;
+        _modeleValidator = modeleValidator;
+        _currentUserService = currentUserService;
+        _logger = logger;
     }
 
-    // ==================== ABSTRACT IMPLEMENTATIONS (Requis par la base) ====================
-
-    protected override async Task<ModeleFabEntete?> ObtenirEntiteAsync(Guid id)
-        => await _repository.GetModeleAvecRelationsAsync(id);
-
-    protected override async Task<ModeleFabEntete> CreerEntiteAsync(CreateModeleRequestDto dto, string user)
+    private bool IsAssemblage(string? operationCode, string? natureComposantCode, string? typeRobinetCode)
     {
-        var modele = ModeleFabricationMapper.ConstruireEntiteModeleAPartirDeDto(dto);
-        modele.CreePar = user;
-        modele.CreeLe = DateTime.UtcNow;
-        return await Task.FromResult(modele);
+        if (operationCode == "ASS") return true;
+        
+        var nat = natureComposantCode?.Trim().ToUpper();
+        if (nat == "PISTON" || nat == "PF") return true;
+
+        var type = typeRobinetCode?.Trim().ToUpper();
+        if (type == "PISTON") return true;
+
+        return false;
     }
-
-    protected override Task ApplierMiseAJourDraftAsync(ModeleFabEntete modele, NouvelleVersionModeleRequestDto dto, string user)
-        => throw new NotSupportedException("Les modèles n'utilisent plus la logique de brouillon.");
-
-    protected override async Task PersisterEntiteAsync(ModeleFabEntete modele)
-        => await _repository.AddModeleAsync(modele);
-
-    protected override async Task<int> CalculerNouvelleVersionAsync(ModeleFabEntete modele)
-    {
-        var derniere = await _repository.GetDerniereVersionModeleAsync(
-            modele.TypeRobinetCode, modele.NatureComposantCode, modele.OperationCode);
-        return derniere + 1;
-    }
-
-    protected override async Task<ModeleFabEntete> CreerNouvelleVersionEntiteAsync(
-        ModeleFabEntete ancienModele,
-        NouvelleVersionModeleRequestDto dto,
-        int nouvelleVersion,
-        string user)
-    {
-        return await Task.FromResult(ModeleFabricationMapper.ConstruireNouvelleVersionModele(ancienModele, dto, user, nouvelleVersion));
-    }
-
-    protected override Task<ModeleFabEntete?> ObtenirBrouillonExistantAsync(CreateModeleRequestDto dto)
-        => Task.FromResult<ModeleFabEntete?>(null); // Plus de brouillon
-
-    // ==================== PUBLIC API (LOGIQUE DIRECTE) ====================
 
     public async Task<Guid> CreerModeleAsync(CreateModeleRequestDto request)
     {
         var validationResult = await _modeleValidator.ValidateAsync(request);
         if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
 
-        var user = "SYSTEM";
+        var user = _currentUserService.UserInfo;
 
-        // 1. Archiver l'ancien actif
-        var modeleActif = await _repository.GetModeleActifPourFamilleAsync(
-            request.TypeRobinetCode, request.NatureComposantCode, request.OperationCode);
-        if (modeleActif != null)
+        if (IsAssemblage(request.OperationCode, request.NatureComposantCode, request.TypeRobinetCode))
         {
-            modeleActif.Statut = StatutsPlan.Archive;
-            modeleActif.ArchiveLe = DateTime.UtcNow;
-            modeleActif.ArchivePar = user;
+            // --- LOGIQUE ASSEMBLAGE ---
+            // Vérification par Code + Libellé
+            if (await _assRepository.ExisteParCodeEtLibelleAsync(request.Code, request.Libelle))
+            {
+                throw new DoublonCodeModeleException($"{request.Code} avec le libellé '{request.Libelle}'");
+            }
+
+            var modele = PlanAssMapper.MapperModeleVersEntite(request, user);
+            modele.Statut = StatutsPlan.Actif;
+            modele.Version = 0; // Commencer par Version 0
+
+            await SmartDictionaryPassAssAsync(modele);
+
+            // Nettoyage final des GUIDs vides pour éviter les erreurs de clés étrangères
+            foreach (var s in modele.PlanAssSections)
+            {
+                foreach (var l in s.PlanAssLignes)
+                {
+                    LineCleanupHelper.CleanupPlanAssLine(l);
+                }
+            }
+
+            await _assRepository.AddPlanAsync(modele);
+            await _unitOfWork.CommitAsync();
+            return modele.Id;
         }
+        else
+        {
+            // --- LOGIQUE FABRICATION ---
+            // Validation de la Gamme Opératoire
+            if (!await _fabRepository.IsOperationValidePourNatureAsync(request.NatureComposantCode, request.OperationCode))
+            {
+                throw new ValidationException($"L'opération '{request.OperationCode}' n'est pas autorisée pour un article de nature '{request.NatureComposantCode}'.");
+            }
 
-        // 2. Créer le nouveau en ACTIF
-        var modele = await CreerEntiteAsync(request, user);
-        modele.Statut = StatutsPlan.Actif;
-        modele.Version = await CalculerNouvelleVersionAsync(modele);
+            // Vérification par Code + Libellé
+            if (await _fabRepository.ExisteModeleParCodeEtLibelleAsync(request.Code, request.Libelle))
+            {
+                throw new DoublonCodeModeleException($"{request.Code} avec le libellé '{request.Libelle}'");
+            }
 
-        await PersisterEntiteAsync(modele);
-        await _unitOfWork.CommitAsync();
+            var modele = ModeleFabricationMapper.ConstruireEntiteModeleAPartirDeDto(request);
+            modele.CreePar = user; // Forcer l'utilisateur connecté
+            modele.Statut = StatutsPlan.Actif;
+            modele.Version = 0; // Commencer par Version 0
 
-        return modele.Id;
+            await SmartDictionaryPassAsync(modele);
+
+            // Nettoyage final des GUIDs vides pour éviter les erreurs de clés étrangères
+            foreach (var s in modele.ModeleFabSections)
+            {
+                foreach (var l in s.ModeleFabLignes)
+                {
+                    LineCleanupHelper.CleanupModeleFabLine(l);
+                }
+            }
+
+            await _fabRepository.AddModeleAsync(modele);
+            await _unitOfWork.CommitAsync();
+            return modele.Id;
+        }
     }
 
-    public Task UpdateModeleBrouillonAsync(Guid id, CreateModeleRequestDto request)
-        => throw new InvalidOperationException("La mise à jour de brouillon n'est pas supportée pour les modèles.");
-
-    public Task ActiverModeleAsync(Guid id, string user)
-        => Task.CompletedTask; // Déjà actif à la création
-
-    public async Task<bool> SupprimerBrouillonAsync(Guid id)
+    private async Task SmartDictionaryPassAsync(ModeleFabEntete modele)
     {
-        var modele = await _repository.GetModeleAvecRelationsAsync(id);
-        if (modele == null) return false;
-        if (modele.Statut != StatutsPlan.Brouillon) return false;
+        var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        _repository.DeleteModele(modele);
-        await _unitOfWork.CommitAsync();
-        return true;
+        foreach (var sec in modele.ModeleFabSections)
+        {
+            foreach (var ligne in sec.ModeleFabLignes)
+            {
+                // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
+                if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
+                if (ligne.TypeControleId == Guid.Empty) ligne.TypeControleId = null;
+                if (ligne.MoyenControleId == Guid.Empty) ligne.MoyenControleId = null;
+                if (ligne.PeriodiciteId == Guid.Empty) ligne.PeriodiciteId = null;
+
+                if (string.IsNullOrWhiteSpace(ligne.InstrumentCode)) ligne.InstrumentCode = null;
+                if (string.IsNullOrWhiteSpace(ligne.LibelleAffiche)) ligne.LibelleAffiche = null;
+                if (string.IsNullOrWhiteSpace(ligne.MoyenTexteLibre)) ligne.MoyenTexteLibre = null;
+
+                // Caractéristique
+                if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && (ligne.TypeCaracteristiqueId == null || ligne.TypeCaracteristiqueId == Guid.Empty))
+                {
+                    var typeCarac = await _unitOfWork.DictionnaireQualiteRepository.GetTypeCaracteristiqueByLibelleAsync(ligne.LibelleAffiche);
+                    if (typeCarac == null && !addedCaracs.Contains(ligne.LibelleAffiche))
+                    {
+                        typeCarac = new TypeCaracteristique
+                        {
+                            Id = Guid.NewGuid(),
+                            Libelle = ligne.LibelleAffiche.Length > 80 ? ligne.LibelleAffiche.Substring(0, 80) : ligne.LibelleAffiche,
+                            Code = $"CAR-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}",
+                            Actif = true
+                        };
+                        await _unitOfWork.DictionnaireQualiteRepository.AddTypeCaracteristiqueAsync(typeCarac);
+                        addedCaracs.Add(ligne.LibelleAffiche);
+                        ligne.TypeCaracteristiqueId = typeCarac.Id;
+                    }
+                    else if (typeCarac != null)
+                    {
+                        ligne.TypeCaracteristiqueId = typeCarac.Id;
+                    }
+                }
+
+                // Moyen de contrôle
+                if (!string.IsNullOrWhiteSpace(ligne.MoyenTexteLibre) && (ligne.MoyenControleId == null || ligne.MoyenControleId == Guid.Empty))
+                {
+                    var moyen = await _unitOfWork.DictionnaireQualiteRepository.GetMoyenControleByLibelleAsync(ligne.MoyenTexteLibre);
+                    if (moyen == null && !addedMoyens.Contains(ligne.MoyenTexteLibre))
+                    {
+                        moyen = new MoyenControle
+                        {
+                            Id = Guid.NewGuid(),
+                            Libelle = ligne.MoyenTexteLibre.Length > 80 ? ligne.MoyenTexteLibre.Substring(0, 80) : ligne.MoyenTexteLibre,
+                            Code = $"MC-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}",
+                            Actif = true
+                        };
+                        await _unitOfWork.DictionnaireQualiteRepository.AddMoyenControleAsync(moyen);
+                        addedMoyens.Add(ligne.MoyenTexteLibre);
+                        ligne.MoyenControleId = moyen.Id;
+                    }
+                    else if (moyen != null)
+                    {
+                        ligne.MoyenControleId = moyen.Id;
+                    }
+                }
+
+                // Instrument
+                if (!string.IsNullOrWhiteSpace(ligne.InstrumentCode))
+                {
+                    var instrument = await _unitOfWork.DictionnaireQualiteRepository.GetInstrumentByCodeAsync(ligne.InstrumentCode);
+                    if (instrument == null && !addedInstruments.Contains(ligne.InstrumentCode))
+                    {
+                        instrument = new Instrument
+                        {
+                            CodeInstrument = ligne.InstrumentCode.Length > 50 ? ligne.InstrumentCode.Substring(0, 50) : ligne.InstrumentCode,
+                            Designation = ligne.InstrumentCode,
+                            Statut = "ACTIF",
+                            Actif = true
+                        };
+                        await _unitOfWork.DictionnaireQualiteRepository.AddInstrumentAsync(instrument);
+                        addedInstruments.Add(ligne.InstrumentCode);
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task SmartDictionaryPassAssAsync(PlanAssEntete modele)
+    {
+        var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sec in modele.PlanAssSections)
+        {
+            foreach (var ligne in sec.PlanAssLignes)
+            {
+                // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
+                if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
+                if (ligne.TypeControleId == Guid.Empty) ligne.TypeControleId = null;
+                if (ligne.MoyenControleId == Guid.Empty) ligne.MoyenControleId = null;
+                if (ligne.PeriodiciteId == Guid.Empty) ligne.PeriodiciteId = null;
+
+                if (string.IsNullOrWhiteSpace(ligne.InstrumentCode)) ligne.InstrumentCode = null;
+                if (string.IsNullOrWhiteSpace(ligne.LibelleAffiche)) ligne.LibelleAffiche = null;
+                if (string.IsNullOrWhiteSpace(ligne.MoyenTexteLibre)) ligne.MoyenTexteLibre = null;
+
+                // Caractéristique
+                if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && (ligne.TypeCaracteristiqueId == null || ligne.TypeCaracteristiqueId == Guid.Empty))
+                {
+                    var typeCarac = await _unitOfWork.DictionnaireQualiteRepository.GetTypeCaracteristiqueByLibelleAsync(ligne.LibelleAffiche);
+                    if (typeCarac == null && !addedCaracs.Contains(ligne.LibelleAffiche))
+                    {
+                        typeCarac = new TypeCaracteristique
+                        {
+                            Id = Guid.NewGuid(),
+                            Libelle = ligne.LibelleAffiche.Length > 80 ? ligne.LibelleAffiche.Substring(0, 80) : ligne.LibelleAffiche,
+                            Code = $"CAR-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}",
+                            Actif = true
+                        };
+                        await _unitOfWork.DictionnaireQualiteRepository.AddTypeCaracteristiqueAsync(typeCarac);
+                        addedCaracs.Add(ligne.LibelleAffiche);
+                        ligne.TypeCaracteristiqueId = typeCarac.Id;
+                    }
+                    else if (typeCarac != null)
+                    {
+                        ligne.TypeCaracteristiqueId = typeCarac.Id;
+                    }
+                }
+
+                // Moyen de contrôle
+                if (!string.IsNullOrWhiteSpace(ligne.MoyenTexteLibre) && (ligne.MoyenControleId == null || ligne.MoyenControleId == Guid.Empty))
+                {
+                    var moyen = await _unitOfWork.DictionnaireQualiteRepository.GetMoyenControleByLibelleAsync(ligne.MoyenTexteLibre);
+                    if (moyen == null && !addedMoyens.Contains(ligne.MoyenTexteLibre))
+                    {
+                        moyen = new MoyenControle
+                        {
+                            Id = Guid.NewGuid(),
+                            Libelle = ligne.MoyenTexteLibre.Length > 80 ? ligne.MoyenTexteLibre.Substring(0, 80) : ligne.MoyenTexteLibre,
+                            Code = $"MC-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}",
+                            Actif = true
+                        };
+                        await _unitOfWork.DictionnaireQualiteRepository.AddMoyenControleAsync(moyen);
+                        addedMoyens.Add(ligne.MoyenTexteLibre);
+                        ligne.MoyenControleId = moyen.Id;
+                    }
+                    else if (moyen != null)
+                    {
+                        ligne.MoyenControleId = moyen.Id;
+                    }
+                }
+
+                // Instrument
+                if (!string.IsNullOrWhiteSpace(ligne.InstrumentCode))
+                {
+                    var instrument = await _unitOfWork.DictionnaireQualiteRepository.GetInstrumentByCodeAsync(ligne.InstrumentCode);
+                    if (instrument == null && !addedInstruments.Contains(ligne.InstrumentCode))
+                    {
+                        instrument = new Instrument
+                        {
+                            CodeInstrument = ligne.InstrumentCode.Length > 50 ? ligne.InstrumentCode.Substring(0, 50) : ligne.InstrumentCode,
+                            Designation = ligne.InstrumentCode,
+                            Statut = "ACTIF",
+                            Actif = true
+                        };
+                        await _unitOfWork.DictionnaireQualiteRepository.AddInstrumentAsync(instrument);
+                        addedInstruments.Add(ligne.InstrumentCode);
+                    }
+                }
+            }
+        }
     }
 
     public async Task<ModeleResponseDto> GetModeleByIdAsync(Guid modeleId)
     {
-        var modele = await _repository.GetModeleAvecRelationsAsync(modeleId);
-        if (modele is null) throw new ModeleIntrouvableException(modeleId);
-        return ModeleFabricationMapper.MapperEntiteModeleVersDto(modele);
+        // On essaie d'abord en Assemblage
+        var assModele = await _assRepository.GetPlanAvecRelationsAsync(modeleId);
+        if (assModele != null)
+        {
+            return PlanAssMapper.MapperEntiteVersModeleDto(assModele);
+        }
+
+        // Sinon en Fabrication
+        var fabModele = await _fabRepository.GetModeleAvecRelationsAsync(modeleId);
+        if (fabModele != null)
+        {
+            return ModeleFabricationMapper.MapperEntiteModeleVersDto(fabModele);
+        }
+
+        throw new ModeleIntrouvableException(modeleId);
     }
 
-    public async Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode)
+    public async Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode, string? posteCode = null)
     {
-        var modeles = await _repository.GetModelesParFiltresAsync(typeRobinetCode, natureComposantCode, operationCode);
-        return modeles.Select(ModeleFabricationMapper.MapperEntiteModeleVersDto).ToList();
+        var result = new List<ModeleResponseDto>();
+
+        bool isAss = IsAssemblage(operationCode, natureComposantCode, typeRobinetCode);
+
+        // Si l'opération est ASS, PISTON, PF ou non spécifiée, on cherche dans l'assemblage
+        if (string.IsNullOrEmpty(operationCode) || isAss)
+        {
+            var assModeles = await _assRepository.GetModelesParFiltresAsync(natureComposantCode, operationCode, posteCode, null);
+            result.AddRange(assModeles.Select(PlanAssMapper.MapperEntiteVersModeleDto));
+        }
+
+        // Si ce n'est pas de l'assemblage (ou non spécifié), on cherche dans la fabrication
+        if (string.IsNullOrEmpty(operationCode) || !isAss)
+        {
+            var fabModeles = await _fabRepository.GetModelesParFiltresAsync(natureComposantCode, operationCode);
+            result.AddRange(fabModeles.Select(ModeleFabricationMapper.MapperEntiteModeleVersDto));
+        }
+
+        return result;
     }
 
     public async Task<Guid> CreerNouvelleVersionModeleAsync(NouvelleVersionModeleRequestDto request)
     {
-        var ancienModele = await _repository.GetModeleAvecRelationsAsync(request.AncienId);
-        if (ancienModele == null) throw new ModeleIntrouvableException(request.AncienId);
-
-        var user = SecuriserNomAuteur(request.ModifiePar ?? "SYSTEM");
-
-        // Archiver l'ancien
-        if (ancienModele.Statut == StatutsPlan.Actif)
+        // On doit savoir si c'est un modèle d'assemblage ou de fabrication
+        var assModele = await _assRepository.GetPlanAvecRelationsAsync(request.AncienId);
+        if (assModele != null)
         {
-            ancienModele.Statut = StatutsPlan.Archive;
-            ancienModele.ArchiveLe = DateTime.UtcNow;
-            ancienModele.ArchivePar = user;
+            var user = _currentUserService.UserInfo;
+            if (assModele.Statut == StatutsPlan.Actif)
+            {
+                assModele.Statut = StatutsPlan.Archive;
+                assModele.ArchiveLe = DateTime.UtcNow;
+                assModele.ArchivePar = user;
+            }
+
+            var nouvelleVersion = await _assRepository.GetDerniereVersionParCodeAsync(assModele.Designation ?? string.Empty) + 1;
+
+            var nouveauPlan = PlanAssMapper.ConstruireNouvelleVersionModele(assModele, request, user, nouvelleVersion);
+            nouveauPlan.Statut = StatutsPlan.Actif;
+            
+            await SmartDictionaryPassAssAsync(nouveauPlan);
+
+            await _assRepository.AddPlanAsync(nouveauPlan);
+            await _unitOfWork.CommitAsync();
+            return nouveauPlan.Id;
         }
 
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienModele);
-        var nouveauModele = await CreerNouvelleVersionEntiteAsync(ancienModele, request, nouvelleVersion, user);
-        nouveauModele.Statut = StatutsPlan.Actif;
+        var fabModele = await _fabRepository.GetModeleAvecRelationsAsync(request.AncienId);
+        if (fabModele != null)
+        {
+            var user = _currentUserService.UserInfo;
+            if (fabModele.Statut == StatutsPlan.Actif)
+            {
+                fabModele.Statut = StatutsPlan.Archive;
+                fabModele.ArchiveLe = DateTime.UtcNow;
+                fabModele.ArchivePar = user;
+            }
 
-        await PersisterEntiteAsync(nouveauModele);
-        await _unitOfWork.CommitAsync();
+            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleParCodeAsync(fabModele.Code) + 1;
+            var nouveauModele = ModeleFabricationMapper.ConstruireNouvelleVersionModele(fabModele, request, user, nouvelleVersion);
+            nouveauModele.Statut = StatutsPlan.Actif;
 
-        return nouveauModele.Id;
+            await SmartDictionaryPassAsync(nouveauModele);
+
+            await _fabRepository.AddModeleAsync(nouveauModele);
+            await _unitOfWork.CommitAsync();
+            return nouveauModele.Id;
+        }
+
+        throw new ModeleIntrouvableException(request.AncienId);
     }
 
     public async Task<Guid> RestaurerModeleArchiveAsync(RestaurerModeleRequestDto request)
     {
-        var modeleArchive = await _repository.GetModeleAvecRelationsAsync(request.ModeleArchiveId);
-        if (modeleArchive == null) throw new ModeleIntrouvableException(request.ModeleArchiveId);
-
-        var user = SecuriserNomAuteur(request.RestaurePar);
-
-        // Archiver l'actif actuel
-        var modeleActif = await _repository.GetModeleActifPourFamilleAsync(
-            modeleArchive.TypeRobinetCode, modeleArchive.NatureComposantCode, modeleArchive.OperationCode);
-        if (modeleActif != null)
+        var assModele = await _assRepository.GetPlanAvecRelationsAsync(request.ModeleArchiveId);
+        if (assModele != null)
         {
-            modeleActif.Statut = StatutsPlan.Archive;
-            modeleActif.ArchiveLe = DateTime.UtcNow;
-            modeleActif.ArchivePar = user;
+            var user = _currentUserService.UserInfo;
+            var actif = await _assRepository.GetPlanActifMaitreAsync(assModele.OperationCode, assModele.FamilleProduitFiniCode ?? "");
+            if (actif != null)
+            {
+                actif.Statut = StatutsPlan.Archive;
+                actif.ArchiveLe = DateTime.UtcNow;
+                actif.ArchivePar = user;
+            }
+
+            var nouveauPlan = PlanAssMapper.DupliquerEntitePlan(assModele, true, null, null, user, $"[Restauré] {request.MotifRestoration}");
+            nouveauPlan.Statut = StatutsPlan.Actif;
+            
+            nouveauPlan.Version = await _assRepository.GetDerniereVersionParCodeAsync(assModele.Designation ?? string.Empty) + 1;
+
+            await SmartDictionaryPassAssAsync(nouveauPlan);
+
+            await _assRepository.AddPlanAsync(nouveauPlan);
+            await _unitOfWork.CommitAsync();
+            return nouveauPlan.Id;
         }
 
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(modeleArchive);
-        var dto = new NouvelleVersionModeleRequestDto { AncienId = modeleArchive.Id, MotifModification = $"[Restauré] {request.MotifRestoration}" };
-        var nouveauModele = await CreerNouvelleVersionEntiteAsync(modeleArchive, dto, nouvelleVersion, user);
-        nouveauModele.Statut = StatutsPlan.Actif;
+        var fabModele = await _fabRepository.GetModeleAvecRelationsAsync(request.ModeleArchiveId);
+        if (fabModele != null)
+        {
+            var user = _currentUserService.UserInfo;
+            var actif = await _fabRepository.GetModeleActifPourFamilleAsync(fabModele.NatureComposantCode, fabModele.OperationCode);
+            if (actif != null)
+            {
+                actif.Statut = StatutsPlan.Archive;
+                actif.ArchiveLe = DateTime.UtcNow;
+                actif.ArchivePar = user;
+            }
 
-        await PersisterEntiteAsync(nouveauModele);
-        await _unitOfWork.CommitAsync();
+            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleParCodeAsync(fabModele.Code) + 1;
+            var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(fabModele, user, request.MotifRestoration, nouvelleVersion);
+            
+            await SmartDictionaryPassAsync(nouveauModele);
 
-        return nouveauModele.Id;
+            await _fabRepository.AddModeleAsync(nouveauModele);
+            await _unitOfWork.CommitAsync();
+            return nouveauModele.Id;
+        }
+
+        throw new ModeleIntrouvableException(request.ModeleArchiveId);
+    }
+
+    public Task UpdateModeleBrouillonAsync(Guid id, CreateModeleRequestDto request)
+        => throw new NotSupportedException("Les modèles sont gérés en direct (pas de brouillon).");
+
+    public Task ActiverModeleAsync(Guid id, string user)
+        => Task.CompletedTask;
+
+    public async Task<bool> SupprimerBrouillonAsync(Guid id)
+    {
+        var assModele = await _assRepository.GetPlanAvecRelationsAsync(id);
+        if (assModele != null && assModele.Statut == StatutsPlan.Brouillon)
+        {
+            // Note: En ASS on ne supprime pas forcément via repo mais via UnitOfWork si besoin
+            return false; 
+        }
+
+        var fabModele = await _fabRepository.GetModeleAvecRelationsAsync(id);
+        if (fabModele != null && fabModele.Statut == StatutsPlan.Brouillon)
+        {
+            _fabRepository.DeleteModele(fabModele);
+            await _unitOfWork.CommitAsync();
+            return true;
+        }
+
+        return false;
     }
 }

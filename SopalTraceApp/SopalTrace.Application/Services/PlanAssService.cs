@@ -1,9 +1,10 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Application.Specifications;
+using SopalTrace.Application.Utilities;
 using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Domain.Exceptions;
@@ -21,17 +22,137 @@ namespace SopalTrace.Application.Services;
 public class PlanAssService : IPlanAssService
 {
     private readonly IPlanAssRepository _repository;
-    private readonly IValidator<CreatePlanAssRequestDto> _createValidator;
+    private readonly IDictionnaireQualiteRepository _dicoRepository;
+    private readonly IValidator<CreatePlanAssDto> _createValidator;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<PlanAssService> _logger;
+    private readonly IPlanArchiverService _planArchiverService;
 
     public PlanAssService(
         IPlanAssRepository repository,
-        IValidator<CreatePlanAssRequestDto> createValidator,
-        ILogger<PlanAssService> logger)
+        IDictionnaireQualiteRepository dicoRepository,
+        IValidator<CreatePlanAssDto> createValidator,
+        ICurrentUserService currentUserService,
+        ILogger<PlanAssService> logger,
+        IPlanArchiverService planArchiverService)
     {
         _repository = repository;
+        _dicoRepository = dicoRepository;
         _createValidator = createValidator;
+        _currentUserService = currentUserService;
         _logger = logger;
+        _planArchiverService = planArchiverService;
+    }
+
+    private async Task<int> CalculerNouvelleVersionAsync(string operationCode, string familleCode, string? codeArticle = null)
+    {
+        return (await _repository.GetDerniereVersionAsync(operationCode, familleCode, codeArticle)) + 1;
+    }
+
+    public async Task<Guid> CreerPlanAssemblageAsync(CreatePlanAssDto request)
+    {
+        _logger.LogInformation(
+            "Creation plan assemblage. Type: {TypePlan}, Operation: {OperationCode}, Nature: {NatureComposantCode}, Poste: {PosteCode}",
+            request.EstModele ? "MODELE" : "EXCEPTION",
+            request.OperationCode,
+            request.NatureComposantCode,
+            request.PosteCode);
+
+        await ValidationHelper.ValidateAndThrowAsync(_createValidator, request, "CreatePlanAssemblageRequest");
+
+        var estModele = request.EstModele;
+
+        // Validation de la Gamme Opératoire
+        if (!await _repository.IsOperationValidePourNatureAsync(request.NatureComposantCode, request.OperationCode))
+        {
+            throw new ValidationException($"L'opération '{request.OperationCode}' n'est pas autorisée pour un article de nature '{request.NatureComposantCode}'.");
+        }
+        var codeArticle = estModele ? null : request.CodeArticleSage;
+        string? designationSage = null;
+
+        if (estModele)
+        {
+            var planMaitreExists = await _repository.ExistePlanMaitreActifAsync(
+                request.OperationCode,
+                MapperHelper.NullIfEmpty(request.FamilleCode));
+
+            PlanAssSpecification.ValidatePlanMaitreCreation(
+                planMaitreExists,
+                request.OperationCode,
+                request.TypeRobinetCode ?? request.NatureComposantCode);
+        }
+        else
+        {
+            PlanAssSpecification.ValidateArticleCodeForException(codeArticle);
+
+            var planExceptionExists = await _repository.ExisteExceptionActiveAsync(
+                request.OperationCode,
+                MapperHelper.NullIfEmpty(request.FamilleCode),
+                codeArticle!);
+
+            PlanAssSpecification.ValidatePlanExceptionCreation(
+                planExceptionExists,
+                request.OperationCode,
+                request.TypeRobinetCode ?? request.NatureComposantCode,
+                codeArticle!);
+
+            designationSage = await _repository.GetDesignationArticleSageAsync(codeArticle!);
+            PlanAssSpecification.ValidateArticleExistsInErp(designationSage, codeArticle!);
+        }
+
+        var nextVersion = await CalculerNouvelleVersionAsync(
+            request.OperationCode,
+            MapperHelper.NullIfEmpty(request.FamilleCode),
+            codeArticle);
+
+        var planId = Guid.NewGuid();
+        var nouveauPlan = new PlanAssEntete
+        {
+            Id = planId,
+            OperationCode = request.OperationCode,
+            FamilleProduitFiniCode = MapperHelper.NullIfEmpty(request.FamilleCode),
+            Designation = designationSage ?? request.Nom, // On utilise le Nom du DTO comme designation par defaut si non article
+            Version = nextVersion,
+            Statut = StatutsPlan.Brouillon,
+            CreePar = _currentUserService.UserInfo,
+            CreeLe = DateTime.UtcNow,
+            LegendeMoyens = request.LegendeMoyens,
+            Remarques = request.Remarques,
+            PlanAssSections = new List<PlanAssSection>()
+        };
+
+        foreach (var sectionDto in request.Sections ?? new List<SectionAssEditDto>())
+        {
+            var section = PlanAssMapper.ConstruireNouvelleSection(planId, sectionDto);
+            section.Id = sectionDto.Id.GetValueOrDefault(Guid.NewGuid());
+
+            foreach (var ligneDto in sectionDto.Lignes ?? new List<LigneAssEditDto>())
+            {
+                var ligne = PlanAssMapper.ConstruireNouvelleLigne(planId, section.Id, ligneDto);
+                ligne.Id = ligneDto.Id.GetValueOrDefault(Guid.NewGuid());
+                section.PlanAssLignes.Add(ligne);
+            }
+
+            // Résolution intelligente de la règle d'échantillonnage
+            if (section.RegleEchantillonnageId == null && !string.IsNullOrWhiteSpace(section.RegleEchantillonnageLibelle))
+            {
+                section.RegleEchantillonnageId = await SamplingRuleHelper.ResolveOrCreateSamplingRuleByLibelleAsync(
+                    _dicoRepository,
+                    section.RegleEchantillonnageLibelle);
+            }
+
+            nouveauPlan.PlanAssSections.Add(section);
+        }
+
+        await _repository.AddPlanAsync(nouveauPlan);
+        await _repository.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Plan assemblage cree dans Plan_Ass_Entete. ID: {PlanId}, Version: {Version}",
+            nouveauPlan.Id,
+            nouveauPlan.Version);
+
+        return nouveauPlan.Id;
     }
 
     /// <summary>
@@ -39,92 +160,8 @@ public class PlanAssService : IPlanAssService
     /// </summary>
     public async Task<Guid> CreerPlanAsync(CreatePlanAssRequestDto request, string creePar)
     {
-        _logger.LogInformation(
-            "Début de création d'un plan d'assemblage. Type: {TypePlan}, OpCode: {OperationCode}, TRobinet: {TypeRobinet}",
-            request.EstModele ? "MAÎTRE" : "EXCEPTION",
-            request.OperationCode,
-            request.TypeRobinetCode);
-
-        try
-        {
-            var validationResult = await _createValidator.ValidateAsync(request);
-            if (!validationResult.IsValid)
-            {
-                _logger.LogWarning("Validation échouée pour la création du plan. Erreurs: {Erreurs}",
-                    string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage)));
-                throw new ValidationException(validationResult.Errors);
-            }
-
-            var estModele = request.EstModele;
-            var codeArticle = estModele ? null : request.CodeArticleSage;
-            string? designationSage = null;
-
-            if (estModele)
-            {
-                var planMaitreExists = await _repository.ExistePlanMaitreActifAsync(
-                    request.OperationCode, request.TypeRobinetCode);
-                PlanAssSpecification.ValidatePlanMaitreCreation(
-                    planMaitreExists, request.OperationCode, request.TypeRobinetCode);
-
-                _logger.LogInformation("Création d'un Plan Maître pour l'opération {OperationCode}",
-                    request.OperationCode);
-            }
-            else
-            {
-                PlanAssSpecification.ValidateArticleCodeForException(codeArticle);
-
-                var planExceptionExists = await _repository.ExisteExceptionActiveAsync(
-                    request.OperationCode, request.TypeRobinetCode, codeArticle!);
-                PlanAssSpecification.ValidatePlanExceptionCreation(
-                    planExceptionExists, request.OperationCode, request.TypeRobinetCode, codeArticle!);
-
-                designationSage = await _repository.GetDesignationArticleSageAsync(codeArticle!);
-                PlanAssSpecification.ValidateArticleExistsInErp(designationSage, codeArticle!);
-
-                _logger.LogInformation(
-                    "Création d'une Exception de Plan pour l'article {CodeArticle} (Désignation: {Designation})",
-                    codeArticle, designationSage);
-            }
-
-            var nextVersion = await _repository.GetDerniereVersionAsync(
-                request.OperationCode, request.TypeRobinetCode, codeArticle) + 1;
-
-            var nouveauPlan = new PlanAssEntete
-            {
-                Id = Guid.NewGuid(),
-                OperationCode = request.OperationCode,
-                TypeRobinetCode = request.TypeRobinetCode,
-                EstModele = estModele,
-                CodeArticleSage = codeArticle,
-                Nom = request.Nom,
-                Designation = designationSage,
-                Version = nextVersion,
-                Statut = StatutsPlan.Brouillon,
-                CreePar = Truncate20(creePar),
-                CreeLe = DateTime.UtcNow,
-                CommentaireVersion = request.CommentaireVersion ?? "Création initiale",
-                PlanAssSections = new List<PlanAssSection>()
-            };
-
-            await _repository.AddPlanAsync(nouveauPlan);
-            await _repository.SaveChangesAsync();
-
-            _logger.LogInformation(
-                "Plan d'assemblage créé avec succès. ID: {PlanId}, Version: {Version}, Créé par: {CreePar}",
-                nouveauPlan.Id, nouveauPlan.Version, creePar);
-
-            return nouveauPlan.Id;
-        }
-        catch (DomainException ex)
-        {
-            _logger.LogWarning("Erreur métier lors de la création du plan: {Message}", ex.Message);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erreur non prévue lors de la création du plan");
-            throw;
-        }
+        if (request is null) throw new ArgumentNullException(nameof(request));
+        return await CreerPlanAssemblageAsync(request with { CreePar = creePar });
     }
 
     /// <summary>
@@ -173,62 +210,51 @@ public class PlanAssService : IPlanAssService
                 return false;
             }
 
-            // 1. SUPPRESSION des sections retirées par le front
-            var dtoSectionIds = sectionsModifiees.Where(s => s.Id.HasValue).Select(s => s.Id.Value).ToList();
-            var sectionsToRemove = plan.PlanAssSections.Where(s => !dtoSectionIds.Contains(s.Id)).ToList();
-            foreach (var sToRemove in sectionsToRemove)
+            SectionUpdateHelper.UpdateSections(
+                plan.PlanAssSections,
+                sectionsModifiees,
+                deleteSection: section => { /* Deletion is handled by collection removal */ },
+                deleteLine: line => { /* Deletion is handled by collection removal */ },
+                getSectionDtoId: dto => dto.Id,
+                getLineDtoId: dto => dto.Id,
+                getSectionId: section => section.Id,
+                getLineId: line => line.Id,
+                createSection: dto => PlanAssMapper.ConstruireNouvelleSection(planId, dto),
+                updateSection: (section, dto) =>
+                {
+                    section.TypeSectionId = dto.TypeSectionId;
+                    section.PeriodiciteId = dto.PeriodiciteId;
+                    section.OrdreAffiche = dto.OrdreAffiche;
+                    section.LibelleSection = dto.LibelleSection ?? section.LibelleSection;
+                    section.NormeReference = dto.NormeReference;
+                    section.NqaId = dto.NqaId;
+                    section.Notes = dto.Notes;
+                    section.RegleEchantillonnageId = dto.RegleEchantillonnageId;
+                    section.RegleEchantillonnageLibelle = dto.RegleEchantillonnageLibelle;
+                },
+                getLines: section => section.PlanAssLignes,
+                getLineDtos: dto => dto.Lignes,
+                createLine: (dto, section) => PlanAssMapper.ConstruireNouvelleLigne(planId, section.Id, dto),
+                updateLine: (line, dto) => PlanAssMapper.MettreAJourEntiteLigne(line, dto)
+            );
+
+            // Post-processing specific to PlanAssService
+            foreach (var section in plan.PlanAssSections)
             {
-                plan.PlanAssSections.Remove(sToRemove);
-            }
-
-            // 2. MISE À JOUR ET AJOUT
-            foreach (var secDto in sectionsModifiees ?? new List<SectionAssEditDto>())
-            {
-                // On recherche TOUJOURS par Id pour éviter les collisions avec Entity Framework
-                var isNewSection = !secDto.Id.HasValue || secDto.Id.Value == Guid.Empty;
-                var section = isNewSection ? null : plan.PlanAssSections.FirstOrDefault(s => s.Id == secDto.Id.Value);
-
-                if (section is null)
+                if (section.RegleEchantillonnageId == null && !string.IsNullOrWhiteSpace(section.RegleEchantillonnageLibelle))
                 {
-                    section = PlanAssMapper.ConstruireNouvelleSection(planId, secDto);
-                    plan.PlanAssSections.Add(section);
-                    _logger.LogInformation("Nouvelle section ajoutée au plan {PlanId}", planId);
-                }
-                else
-                {
-                    section.TypeSectionId = secDto.TypeSectionId;
-                    section.PeriodiciteId = secDto.PeriodiciteId;
-                    section.OrdreAffiche = secDto.OrdreAffiche;
-                    section.LibelleSection = secDto.LibelleSection ?? section.LibelleSection;
-                    section.NormeReference = secDto.NormeReference;
-                    section.NqaId = secDto.NqaId;
-                    section.Notes = secDto.Notes;
+                    section.RegleEchantillonnageId = await SamplingRuleHelper.ResolveOrCreateSamplingRuleByLibelleAsync(
+                        _dicoRepository,
+                        section.RegleEchantillonnageLibelle);
                 }
 
-                // 3. SUPPRESSION des lignes retirées par le front
-                var dtoLigneIds = secDto.Lignes.Where(l => l.Id.HasValue).Select(l => l.Id.Value).ToList();
-                var lignesToRemove = section.PlanAssLignes.Where(l => !dtoLigneIds.Contains(l.Id)).ToList();
-                foreach (var lToRemove in lignesToRemove)
+                foreach (var ligne in section.PlanAssLignes)
                 {
-                    section.PlanAssLignes.Remove(lToRemove);
-                }
-
-                // 4. MISE À JOUR ET AJOUT des lignes
-                foreach (var ligneDto in secDto.Lignes ?? new List<LigneAssEditDto>())
-                {
-                    var isNewLigne = !ligneDto.Id.HasValue || ligneDto.Id.Value == Guid.Empty;
-                    var ligne = isNewLigne ? null : section.PlanAssLignes.FirstOrDefault(l => l.Id == ligneDto.Id.Value);
-
-                    if (ligne is null)
+                    if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && (ligne.TypeCaracteristiqueId == null || ligne.TypeCaracteristiqueId == Guid.Empty))
                     {
-                        ligne = PlanAssMapper.ConstruireNouvelleLigne(planId, section.Id, ligneDto);
-                        section.PlanAssLignes.Add(ligne);
-                        _logger.LogInformation("Nouvelle ligne ajoutée à la section {SectionId}", section.Id);
-                    }
-                    else
-                    {
-                        PlanAssMapper.MettreAJourEntiteLigne(ligne, ligneDto);
-                        _logger.LogInformation("Ligne mise à jour: {LigneId}", ligne.Id);
+                        ligne.TypeCaracteristiqueId = await TypeCaracteristiqueHelper.ResolveOrCreateTypeCaracteristiqueByLibelleAsync(
+                            _dicoRepository,
+                            ligne.LibelleAffiche);
                     }
                 }
             }
@@ -237,26 +263,18 @@ public class PlanAssService : IPlanAssService
             if (plan.Statut == StatutsPlan.Brouillon)
             {
                 plan.Statut = StatutsPlan.Actif;
-                plan.DateApplication = DateOnly.FromDateTime(DateTime.UtcNow);
 
-                // On utilise les bonnes méthodes du repository
-                var ancienPlanActif = plan.EstModele
-                    ? await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.TypeRobinetCode)
-                    : await _repository.GetPlanActifExceptionAsync(plan.OperationCode, plan.TypeRobinetCode, plan.CodeArticleSage!);
+                var ancienPlanActif = await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.FamilleProduitFiniCode!);
 
                 if (ancienPlanActif is not null && ancienPlanActif.Id != plan.Id)
                 {
                     ancienPlanActif.Statut = StatutsPlan.Archive;
-                    ancienPlanActif.ModifiePar = Truncate20(plan.ModifiePar ?? "SYSTEM");
+                    ancienPlanActif.ModifiePar = PlanMetadataHelper.NormalizeAuthorNameWithTruncation(plan.ModifiePar);
                     ancienPlanActif.ModifieLe = DateTime.UtcNow;
-                    ancienPlanActif.CommentaireVersion = $"Archivé automatiquement suite à l'activation V{plan.Version}";
                 }
             }
 
             await _repository.SaveChangesAsync();
-
-            _logger.LogInformation("Mise à jour du plan {PlanId} terminée avec succès. Nouveau statut: {Statut}",
-                planId, plan.Statut);
             return true;
         }
         catch (Exception ex)
@@ -268,31 +286,17 @@ public class PlanAssService : IPlanAssService
 
     public async Task<bool> ChangerStatutPlanAsync(Guid planId, ChangePlanAssStatusRequestDto request, string modifiePar)
     {
-        _logger.LogInformation("Changement de statut du plan {PlanId} vers {NouveauStatut}", planId, request.NouveauStatut);
-
         try
         {
             var plan = await _repository.GetPlanAvecRelationsAsync(planId);
             PlanAssSpecification.ValidatePlanExists(plan, planId);
 
-            var ancienStatut = plan!.Statut;
-            plan.Statut = request.NouveauStatut;
-            plan.ModifiePar = Truncate20(modifiePar);
+            plan!.Statut = request.NouveauStatut;
+            plan.ModifiePar = PlanMetadataHelper.NormalizeAuthorNameWithTruncation(modifiePar);
             plan.ModifieLe = DateTime.UtcNow;
 
-            if (!string.IsNullOrWhiteSpace(request.Motif))
-                plan.CommentaireVersion = request.Motif;
-
             await _repository.SaveChangesAsync();
-
-            _logger.LogInformation("Statut du plan {PlanId} changé: {AncienStatut} → {NouveauStatut}",
-                planId, ancienStatut, request.NouveauStatut);
             return true;
-        }
-        catch (PlanNotFoundException ex)
-        {
-            _logger.LogWarning(ex.Message);
-            throw;
         }
         catch (Exception ex)
         {
@@ -303,10 +307,6 @@ public class PlanAssService : IPlanAssService
 
     public async Task<Guid> ClonerExceptionDepuisMaitreAsync(CloneExceptionAssRequestDto request)
     {
-        _logger.LogInformation(
-            "Clonage d'exception depuis le plan maître. CodeArticle: {CodeArticle}",
-            request.NouveauCodeArticleSage);
-
         try
         {
             var planMaitre = await _repository.GetPlanAvecRelationsAsync(request.PlanMaitreId);
@@ -326,10 +326,6 @@ public class PlanAssService : IPlanAssService
             await _repository.AddPlanAsync(planDuplique);
             await _repository.SaveChangesAsync();
 
-            _logger.LogInformation(
-                "Exception clonée depuis le plan maître. Nouvel ID: {PlanId}, Article: {CodeArticle}",
-                planDuplique.Id, request.NouveauCodeArticleSage);
-
             return planDuplique.Id;
         }
         catch (Exception ex)
@@ -341,10 +337,6 @@ public class PlanAssService : IPlanAssService
 
     public async Task<Guid> CreerNouvelleVersionPlanAsync(NouvelleVersionAssRequestDto request)
     {
-        _logger.LogInformation(
-            "Création d'une nouvelle version du plan {PlanId}. Motif: {Motif}",
-            request.AncienId, request.MotifModification);
-
         try
         {
             var planSource = await _repository.GetPlanAvecRelationsAsync(request.AncienId);
@@ -352,18 +344,14 @@ public class PlanAssService : IPlanAssService
 
             var planDuplique = PlanAssMapper.DupliquerEntitePlan(
                 planSource!,
-                estModele: planSource!.EstModele,
-                nouveauCodeArticle: planSource!.CodeArticleSage,
+                estModele: true,
+                nouveauCodeArticle: null,
                 nouvelleDesig: planSource!.Designation,
                 creePar: request.CreePar,
                 motif: request.MotifModification);
 
             await _repository.AddPlanAsync(planDuplique);
             await _repository.SaveChangesAsync();
-
-            _logger.LogInformation(
-                "Nouvelle version du plan créée. ID Original: {PlanSourceId}, Nouvel ID: {PlanId}, Version: {Version}",
-                request.AncienId, planDuplique.Id, planDuplique.Version);
 
             return planDuplique.Id;
         }
@@ -372,10 +360,5 @@ public class PlanAssService : IPlanAssService
             _logger.LogError(ex, "Erreur lors de la création d'une nouvelle version du plan");
             throw;
         }
-    }
-
-    private static string Truncate20(string input)
-    {
-        return input?.Length > 20 ? input.Substring(0, 20) : input ?? string.Empty;
     }
 }

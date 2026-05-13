@@ -31,19 +31,21 @@
             </div>
             <div v-if="isEditMode" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-2 hidden md:flex">
               <span class="text-[10px] font-black text-slate-400 uppercase">Opération:</span>
-              <span class="font-bold text-sm text-slate-700">{{ plan?.operationCode || 'NON DÉFINIE' }}</span>
+              <span class="font-bold text-sm text-slate-700">{{ plan?.operationCode || wizard.operationCode.value || 'NON DÉFINIE' }}</span>
             </div>
           </template>
         </PlanHeader>
 
         <PlanWizardStep v-if="!isEditMode"
                         :wizard="wizard"
-                        @load-model="onWizardGenerate" />
+                        @load-model="onWizardGenerate"
+                        @excel-selected="onExcelSelected" />
 
         <div v-else class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           <div class="bg-[#1e293b] text-white px-5 py-4 flex justify-between items-center">
             <div class="flex items-center gap-3 font-bold tracking-wide text-sm">
-              <i class="pi pi-sliders-v text-blue-400"></i> Éditeur de Structure du Plan
+              <i :class="isReadOnly ? 'pi pi-eye text-blue-400' : 'pi pi-sliders-v text-blue-400'"></i>
+              {{ isReadOnly ? 'Visualisation du plan' : 'Éditeur de Structure du Plan' }}
             </div>
           </div>
 
@@ -63,7 +65,22 @@
               </div>
             </template>
 
-            <FabPlanSectionCard v-for="(section, index) in sections"
+            <!-- Mode LECTURE -->
+            <div v-if="isReadOnly" class="p-4 md:p-6">
+              <PlanReadView
+                :sections="sections"
+                :remarques="remarques"
+                :legende-moyens="legendeMoyens"
+                :types-section="store.typesSection || []"
+                :types-caracteristique="store.typesCaracteristique || []"
+                :types-controle="store.typesControle || []"
+                :moyens-controle="store.moyensControle || []"
+                :periodicites="store.periodicites || []"
+              />
+            </div>
+
+            <!-- Mode EDITION -->
+            <FabPlanSectionCard v-else v-for="(section, index) in sections"
                     :key="section.id"
                     :section="section"
                     :index="index"
@@ -81,13 +98,15 @@
               </button>
             </div>
 
-            <RemarquesLegendeBox 
-              v-model:remarques="remarques"
-              v-model:legendeMoyens="legendeMoyens"
-              :show-validation="showLegendValidation"
-              :has-custom-instruments="hasCustomInstrumentsGlobal"
-              :is-read-only="isReadOnly"
-            />
+            <div v-if="!isReadOnly">
+              <RemarquesLegendeBox 
+                v-model:remarques="remarques"
+                v-model:legendeMoyens="legendeMoyens"
+                :show-validation="showLegendValidation"
+                :has-custom-instruments="hasCustomInstrumentsGlobal"
+                :is-read-only="isReadOnly"
+              />
+            </div>
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
@@ -144,6 +163,7 @@
   import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
   import FabPlanSectionCard from '@/components/Fabrication/FabPlanSectionCard.vue';
+  import PlanReadView from '@/components/Shared/PlanReadView.vue';
   import EditorActions from '@/components/Shared/EditorActions.vue';
   import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
   import ConfirmDialog from 'primevue/confirmdialog';
@@ -151,6 +171,7 @@
 
   import { useEditorSections } from '@/composables/useEditorSections';
   import { useEditorValidation } from '@/composables/useEditorValidation';
+  import { usePlanAutosave } from '@/composables/usePlanAutosave';
   const route = useRoute();
   const router = useRouter();
   const toast = useToast();
@@ -191,14 +212,9 @@
   const isReadOnly = computed(() => isForcedView.value || isArchived.value);
 
   const headerTitle = computed(() => {
-    if (isForcedView.value) return 'Consultation du Plan';
-    if (isFromWizard.value) return "Création d'un plan de Fabrication";
-    if (plan.value && plan.value.statut === 'BROUILLON' && (plan.value.version || 0) <= 1) {
-      return "Création d'un plan de Fabrication";
-    }
-    if (!isEditMode.value) return "Création d'un plan de Fabrication";
+    if (isForcedView.value) return 'Visualisation';
     if (isArchived.value) return "Restauration d'Archive";
-    return 'Édition du Plan de Fabrication';
+    return 'Plan de Fabrication';
   });
 
   const headerSubtitle = computed(() => {
@@ -212,7 +228,7 @@
     return "Modifiez la structure. L'ancienne version sera archivée automatiquement.";
   });
 
-  const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage || '');
+  const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
 
   const editorLabel = computed(() => {
     if (!isEditMode.value) return 'Générer le Plan';
@@ -250,33 +266,57 @@
     }
 
     confirm.require({
-      message: 'Êtes-vous sûr de vouloir abandonner ce travail ? Toutes vos modifications non enregistrées seront perdues.',
-      header: 'Quitter l\'éditeur',
-      icon: 'pi pi-exclamation-triangle text-amber-500',
-      acceptLabel: 'Oui, Quitter',
+      message: 'Êtes-vous sûr de vouloir abandonner ce travail ? Ce brouillon et toutes ses données seront DÉFINITIVEMENT supprimés.',
+      header: 'Supprimer le Brouillon',
+      icon: 'pi pi-trash text-red-500',
+      acceptLabel: 'Oui, Supprimer',
       rejectLabel: 'Annuler',
-      acceptClass: 'p-button-warning',
+      acceptClass: 'p-button-danger',
       accept: async () => {
         isCanceling.value = true;
         isExitingEditor.value = true;
-        router.push('/dev/hub-plans');
+
+        try {
+          if (planId.value && planId.value !== 'nouveau') {
+            await qualityPlansService.deletePlan(planId.value);
+            toast.add({ severity: 'success', summary: 'Brouillon effacé', detail: 'La base de données a été nettoyée avec succès.', life: 4000 });
+          }
+        } catch (error) {
+          console.error("Erreur lors de la suppression du brouillon", error);
+          toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer le brouillon.', life: 4000 });
+        } finally {
+          router.push('/dev/hub-plans');
+        }
       }
     });
   };
+
+  onBeforeRouteLeave(async () => {
+    if (isCanceling.value || isExitingEditor.value) {
+      return true;
+    }
+    await sauvegarderBrouillonSilencieux(true);
+    return true;
+  });
 
   const showVersioningDialog = ref(false);
   const versioningMode = ref('new-version');
   // Assure la cohérence des flags de chargement entre l'éditeur et la boîte de versioning
 
-  const isSaving = ref(false);
+  const { isSaving, startAutoSave, stopAutoSave } = usePlanAutosave(async () => {
+    if (plan.value?.statut === 'BROUILLON' || planCreationPayload.value) {
+      await sauvegarderBrouillonSilencieux(false);
+    }
+  }, 30000);
 
   onMounted(async () => {
     if (!store.isDicosLoaded) await store.fetchDictionnaires();
     if (planId.value && planId.value !== 'nouveau') await chargerPlan(planId.value);
+    startAutoSave();
   });
 
   onUnmounted(() => {
-    // Nettoyage si nécessaire
+    stopAutoSave();
   });
 
 
@@ -288,13 +328,15 @@
       codeArticleSage: codeArticle,
       designation: wizard.designationArticle.value,
       version: 1,
-      operationCode: data.operationCode
+      operationCode: data.operationCode,
+      posteCode: wizard.posteCode.value || null
     };
     planCreationPayload.value = {
       modeleSourceId: modeleId,
       codeArticleSage: codeArticle,
+      operationCode: data.operationCode,
+      posteCode: wizard.posteCode.value || null,
       designation: wizard.designationArticle.value,
-      nom: '',
       creePar: 'ADMIN_QUALITE'
     };
     sections.value = mapModeleDataToSections(data);
@@ -314,7 +356,7 @@
       const operationCode = wizard.operationCode.value;
 
       // Unifié: on vérifie l'état peu importe qu'on clone ou utilise un modèle
-      const resVal = await qualityPlansService.verifierEtatPlan(codeArticle, modeleId, operationCode);
+      const resVal = await qualityPlansService.verifierEtatPlan(codeArticle, modeleId, operationCode, wizard.posteCode.value);
       const etat = resVal.data;
 
       if (etat.hasBrouillon) {
@@ -352,37 +394,293 @@
   };
 
   const executerGenerationWizard = async (modeleId, codeArticle) => {
+    const sourceType = wizard.sourceType.value;
+    const sourceId = (sourceType === 'CLONE') ? wizard.selectedSourceId.value : modeleId;
+
+    console.log(`[WIZARD] Génération - Type: ${sourceType}, SourceID: ${sourceId}`);
+
     try {
-      if (wizard.sourceType.value === 'MODELE') {
-        await preparerNouveauBrouillon(modeleId, codeArticle);
+      if (sourceType === 'CLONE') {
+        if (!sourceId) {
+          toast.add({ severity: 'warn', summary: 'Attention', detail: 'Veuillez sélectionner un plan à cloner.', life: 4000 });
+          isGeneratingPlan.value = false;
+          return;
+        }
+
+        // Clonage en MÉMOIRE
+        const res = await qualityPlansService.getPlanById(sourceId);
+        const data = res.data.data;
+        
+        if (!data) throw new Error("Plan source introuvable.");
+
+        plan.value = {
+          statut: 'BROUILLON',
+          codeArticleSage: codeArticle || data.codeArticleSage,
+          designation: wizard.designationArticle.value || data.designation,
+          version: 1,
+          operationCode: data.operationCode,
+          posteCode: wizard.posteCode.value || data.posteCode
+        };
+
+        // On charge les sections en mode "Clonage" (nettoyage des IDs)
+        await chargerPlan(data);
+        
+        planId.value = 'nouveau';
+        isFromWizard.value = true;
+        
+        // Préparer le payload pour la future création lors du clic Enregistrer
+        planCreationPayload.value = {
+            codeArticleSage: plan.value.codeArticleSage,
+            designation: plan.value.designation,
+            operationCode: plan.value.operationCode,
+            posteCode: plan.value.posteCode,
+            creePar: 'ADMIN_QUALITE',
+            sections: sections.value.map((s, idx) => ({
+              ordreAffiche: idx + 1,
+              libelleSection: s.nom || s.libelleSection || '',
+              frequenceLibelle: s.frequenceLibelle || '',
+              typeSectionId: (s.typeSectionId && s.typeSectionId !== "") ? s.typeSectionId : null,
+              periodiciteId: (s.periodiciteId && s.periodiciteId !== "") ? s.periodiciteId : null,
+              regleEchantillonnageId: (s.regleEchantillonnageId && s.regleEchantillonnageId !== "") ? s.regleEchantillonnageId : null,
+              lignes: (s.lignes || []).map((l, lIdx) => ({
+                ordreAffiche: lIdx + 1,
+                typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
+                typeControleId: (l.typeControleId && l.typeControleId !== "") ? l.typeControleId : null,
+                moyenControleId: (l.moyenControleId && l.moyenControleId !== "") ? l.moyenControleId : null,
+                instrumentCode: l.instrumentCode || '',
+                moyenTexteLibre: l.moyenTexteLibre || '',
+                valeurNominale: l.valeurNominale,
+                toleranceSuperieure: l.toleranceSuperieure,
+                toleranceInferieure: l.toleranceInferieure,
+                unite: l.unite || '',
+                limiteSpecTexte: l.limiteSpecTexte || '',
+                instruction: l.instruction || '',
+                observations: l.observations || '',
+                estCritique: l.estCritique || false,
+                libelleAffiche: l.libelleAffiche || ''
+              }))
+            }))
+        };
+
+        toast.add({ severity: 'success', summary: 'Succès', detail: 'Structure clonée chargée en mémoire.', life: 3000 });
       } else {
-        const res = await wizard.genererPlan();
-        const newPlanId = res.data.planId;
-        toast.add({ severity: 'success', summary: 'Succès', detail: wizard.sourceType.value === 'CLONE' ? 'Plan cloné.' : 'Plan créé.', life: 3000 });
-        planId.value = newPlanId;
-        router.replace(`/dev/fab/plans/editer/${newPlanId}`);
-        await chargerPlan(newPlanId);
-        isGeneratingPlan.value = false;
+        // Nouveau depuis Modèle
+        if (!sourceId) {
+          toast.add({ severity: 'warn', summary: 'Attention', detail: 'Veuillez sélectionner un modèle.', life: 4000 });
+          isGeneratingPlan.value = false;
+          return;
+        }
+        await preparerNouveauBrouillon(sourceId, codeArticle);
       }
     } catch(err) {
+      console.error("[WIZARD ERROR]", err);
+      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de générer la structure : ' + (err.message || 'ID invalide'), life: 4000 });
+    } finally {
       isGeneratingPlan.value = false;
-      throw err;
+    }
+  };
+
+  const onExcelSelected = async (event) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      wizard.isGenerating.value = true;
+      const response = await qualityPlansService.importExcel(formData);
+      const parsedData = response.data.data;
+
+      if (parsedData) {
+        if (parsedData.remarques && parsedData.remarques.trim() !== '') {
+          remarques.value = (remarques.value ? remarques.value + '\n' : '') + parsedData.remarques.trim();
+        }
+
+        // ✅ Recharger les dictionnaires AVANT le mapping pour que les nouvelles
+        // periodicites/règles créées par le backend soient disponibles localement
+        await store.fetchDictionnaires();
+
+        if (parsedData.sections) {
+          const mappedSections = parsedData.sections.map((sec, idx) => {
+            // --- RÉSOLUTION INTELLIGENTE DE LA FRÉQUENCE (même logique que mapModeleDataToSections) ---
+            let modeFreq = 'SANS';
+            let regleEchantillonnageId = null;
+            let periodiciteId = null;
+            let freqNum = sec.freqNum || 1;
+            let typeVariable = sec.typeVariable || 'HEURE';
+            let freqHours = sec.freqHours || 1;
+
+            if (sec.frequenceLibelle) {
+              // Priorité 1 : Si le backend a déjà résolu le regleEchantillonnageId, on l'utilise
+              if (sec.regleEchantillonnageId) {
+                modeFreq = 'FIXE';
+                regleEchantillonnageId = sec.regleEchantillonnageId;
+              } else {
+                // Priorité 2 : Chercher par libellé exact dans la liste locale des RÈGLES
+                const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === sec.frequenceLibelle);
+                if (regMatch) {
+                  modeFreq = 'FIXE';
+                  regleEchantillonnageId = regMatch.id;
+                } else {
+                  // Priorité 3 : Parser la fréquence variable
+                  modeFreq = 'VARIABLE';
+                  const libelle = sec.frequenceLibelle.toLowerCase();
+
+                  if (/100\s*%/.test(libelle) && libelle.includes('pièce')) {
+                    // ✅ Cas spécial "100% des pièces/h" = toutes les pièces/heure
+                    // L'UI représente cela par freqNum=1, freqHours=1 (convention interne)
+                    typeVariable = 'HEURE';
+                    freqNum = 1;
+                    freqHours = 1;
+                  } else if (libelle.includes('pièce') && (libelle.includes('heure') || libelle.includes('/h'))) {
+                    typeVariable = 'HEURE';
+                    // ✅ .*? permet de gérer "100% des pièces/h" (texte entre nombre et "pièce")
+                    const match = libelle.match(/(\d+)(?:%)?.*?(?:pièce|piece).*?\/\s*(?:(\d+)\s*)?(?:heure|h\b)/);
+                    if (match) {
+                      freqNum = parseInt(match[1]);
+                      freqHours = match[2] ? parseInt(match[2]) : 1;
+                    } else {
+                      const pieceMatch = libelle.match(/(\d+)(?:%)?.*?(?:pièce|piece)/);
+                      if (pieceMatch) {
+                        freqNum = parseInt(pieceMatch[1]);
+                        freqHours = 1;
+                      }
+                    }
+                  } else if (libelle.includes('échantillon')) {
+                    typeVariable = 'ECHANTILLON';
+                    const match = libelle.match(/(\d+)\s*échantillon/);
+                    if (match) freqNum = parseInt(match[1]);
+                  } else if (libelle.includes('série')) {
+                    typeVariable = 'SERIE';
+                    const serieMatch = libelle.match(/série de (\d+) pièces?/);
+                    if (serieMatch) freqNum = parseInt(serieMatch[1]);
+                  } else if (libelle.includes('lot') || libelle.includes('of')) {
+                    typeVariable = 'SERIE';
+                    const lotMatch = libelle.match(/(\d+)/);
+                    if (lotMatch) freqNum = parseInt(lotMatch[1]);
+                  }
+
+                  // ✅ Si aucun chiffre trouvé (règle complexe comme "première et dernière pièce"),
+                  // on remet freqNum à 0 pour indiquer que c'est un libellé texte libre
+                  if (!freqNum || freqNum === 1 && !sec.freqNum) {
+                    // Vérifier si backend a renvoyé freqNum=0 explicitement
+                    if (sec.freqNum === 0 || sec.freqNum === undefined) {
+                      freqNum = 0;
+                    }
+                  }
+                }
+              }
+            } else if (sec.modeFreq) {
+              modeFreq = sec.modeFreq;
+            }
+
+            // --- RÉSOLUTION INTELLIGENTE DE LA NATURE DE SECTION ---
+            let typeSectionId = sec.typeSectionId || '';
+            if (!typeSectionId && (sec.nom || sec.libelleSection)) {
+              let secLib = (sec.nom || sec.libelleSection || '').trim().toLowerCase();
+              const cleanLib = secLib.split(' (')[0].replace("caractéristiques à contrôler ", "").trim();
+              
+              const match = store.typesSection.find(t => {
+                const tLib = (t.libelle || '').trim().toLowerCase();
+                return tLib === cleanLib;
+              });
+
+              if (match) typeSectionId = match.id;
+            }
+
+            return {
+              id: sec.id || crypto.randomUUID(),
+              isFromDb: false,
+              ordreAffiche: idx + 1,
+              typeSectionId: typeSectionId || null,
+              libelleSection: sec.nom || sec.libelleSection || '',
+              nom: sec.nom || sec.libelleSection || '',
+              notes: sec.notes || '',
+              modeFreq,
+              frequenceLibelle: sec.frequenceLibelle || '',
+              periodiciteId: periodiciteId || null,
+              regleEchantillonnageId: regleEchantillonnageId || null,
+              freqNum,
+              typeVariable,
+              freqHours,
+              isNewFreq: false,
+              lignes: (sec.lignes || []).map((lig, lIdx) => ({
+                id: lig.id || crypto.randomUUID(),
+                isFromDb: false,
+                modeleLigneSourceId: lig.modeleLigneSourceId || null,
+                ordreAffiche: lig.ordreAffiche || lIdx + 1,
+                typeCaracteristiqueId: lig.typeCaracteristiqueId || null,
+                typeControleId: lig.typeControleId || null,
+                moyenControleId: lig.moyenControleId || null,
+                moyenTexteLibre: lig.moyenTexteLibre || '',
+                instrumentCode: lig.instrumentCode || '',
+                unite: lig.unite || '',
+                limiteSpecTexte: lig.limiteSpecTexte || '',
+                instruction: lig.instruction || '',
+                observations: lig.observations || '',
+                estCritique: lig.estCritique || false,
+                libelleAffiche: lig.libelleAffiche || ''
+              }))
+            };
+          });
+
+          sections.value = mappedSections;
+
+          // Mise à jour du wizard pour que le header affiche les bonnes infos
+          if (parsedData.codeArticleSage) wizard.codeArticleSage.value = parsedData.codeArticleSage;
+          if (parsedData.designation) wizard.designationArticle.value = parsedData.designation;
+          if (parsedData.operationCode) wizard.operationCode.value = parsedData.operationCode;
+
+          // Bascule dans l'éditeur comme brouillon en mémoire
+          planCreationPayload.value = {
+            codeArticleSage: parsedData.codeArticleSage || wizard.codeArticleSage.value,
+            designation: parsedData.designation || wizard.designationArticle.value,
+            operationCode: parsedData.operationCode || wizard.operationCode.value,
+            posteCode: wizard.posteCode.value || null,
+            nom: '',
+            creePar: 'ADMIN_QUALITE',
+            sections: mappedSections.map(s => ({
+              ...s,
+              typeSectionId: (s.typeSectionId && s.typeSectionId !== "") ? s.typeSectionId : null,
+              periodiciteId: (s.periodiciteId && s.periodiciteId !== "") ? s.periodiciteId : null,
+              regleEchantillonnageId: (s.regleEchantillonnageId && s.regleEchantillonnageId !== "") ? s.regleEchantillonnageId : null,
+              lignes: (s.lignes || []).map(l => ({
+                ...l,
+                typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
+                typeControleId: (l.typeControleId && l.typeControleId !== "") ? l.typeControleId : null,
+                moyenControleId: (l.moyenControleId && l.moyenControleId !== "") ? l.moyenControleId : null,
+              }))
+            }))
+          };
+
+          isFromWizard.value = true;
+          planId.value = 'nouveau';
+          toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Fichier Excel chargé en mémoire.', life: 3000 });
+        }
+      }
+    } catch (error) {
+      console.error('Erreur import Excel:', error);
+      toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la lecture du fichier.', life: 5000 });
+    } finally {
+      wizard.isGenerating.value = false;
+      event.target.value = ''; // Reset file input
     }
   };
 
   const mapModeleDataToSections = (modeleModel) => {
     return (modeleModel.sections || []).map(sec => {
       let modeFreq = 'SANS';
-      let periodiciteId = null;
+      let regleEchantillonnageId = null;
       let freqNum = 1;
       let typeVariable = 'HEURE';
       let freqHours = 1;
 
       if (sec.frequenceLibelle) {
-        const perMatch = store.periodicites.find(p => p.libelle === sec.frequenceLibelle);
-        if (perMatch) {
+        const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === sec.frequenceLibelle);
+        if (regMatch) {
           modeFreq = 'FIXE';
-          periodiciteId = perMatch.id;
+          regleEchantillonnageId = regMatch.id;
         } else {
           modeFreq = 'VARIABLE';
           const libelle = sec.frequenceLibelle.toLowerCase();
@@ -439,11 +737,12 @@
         modeleSectionId: sec.id,
         typeSectionId,
         modeFreq,
-        periodiciteId,
+        regleEchantillonnageId,
         freqNum,
         typeVariable,
         freqHours,
         isNewFreq: false,
+        frequenceLibelle: sec.frequenceLibelle || '', // Indispensable pour la visualisation
         nom: sec.libelleSection,
         // ⚠️ BOURCLIER ANTI-CRASH: Filtre les lignes nulles
         lignes: (sec.lignes || []).filter(lig => lig != null).map(lig => ({
@@ -469,101 +768,117 @@
     });
   };
 
-  const chargerPlan = async (id) => {
+  const chargerPlan = async (idOrData) => {
     isLoadingData.value = true;
     try {
-      const res = await qualityPlansService.getPlanById(id);
-      const data = res.data.data;
-      plan.value = data;
-      legendeMoyens.value = data.legendeMoyens || '';
-      remarques.value = data.remarques || '';
+      let data;
+      const isClone = typeof idOrData === 'object';
+      
+      if (isClone) {
+        data = idOrData;
+      } else {
+        const res = await qualityPlansService.getPlanById(idOrData);
+        data = res.data.data;
+      }
+
+      if (!isClone) {
+        plan.value = data;
+        legendeMoyens.value = data.legendeMoyens || '';
+        remarques.value = data.remarques || '';
+      }
 
       const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
         (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
       );
 
       sections.value = sectionsTriees.map(sec => {
-
         let modeFreq = 'SANS';
-        let periodiciteId = null;
-        let freqNum = 1;
-        let typeVariable = 'HEURE';
-        let freqHours = 1;
+        let regleEchantillonnageId = sec.regleEchantillonnageId || null;
+        let freqNum = sec.freqNum || 1;
+        let typeVariable = sec.typeVariable || 'HEURE';
+        let freqHours = sec.freqHours || 1;
 
-        if (sec.frequenceLibelle) {
-          const perMatch = store.periodicites.find(p => p.libelle === sec.frequenceLibelle);
-          if (perMatch) {
+        if (sec.regleEchantillonnageId) {
+          modeFreq = 'FIXE';
+        } else if (sec.frequenceLibelle) {
+          const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === sec.frequenceLibelle);
+          if (regMatch) {
             modeFreq = 'FIXE';
-            periodiciteId = perMatch.id;
+            regleEchantillonnageId = regMatch.id;
           } else {
             modeFreq = 'VARIABLE';
             const libelle = sec.frequenceLibelle.toLowerCase();
 
-            if (libelle.includes('pièce') && libelle.includes('heure')) {
+            if ((libelle.includes('pièce') || libelle.includes('p/h')) && (libelle.includes('heure') || libelle.includes(' h'))) {
               typeVariable = 'HEURE';
-              const match = libelle.match(/(\d+)\s*pièce.*\/\s*(\d+)\s*heure/);
+              const match = libelle.match(/(\d+)\s*(?:pièce|p).*?\/\s*(?:(\d+)\s*)?(?:heure|h\b)/i);
               if (match) {
                 freqNum = parseInt(match[1]);
-                freqHours = parseInt(match[2]);
+                freqHours = match[2] ? parseInt(match[2]) : 1;
               } else {
-                const pieceMatch = libelle.match(/(\d+)\s*pièce/);
-                if (pieceMatch) {
-                  freqNum = parseInt(pieceMatch[1]);
-                  freqHours = 1;
-                }
+                const simpleMatch = libelle.match(/(\d+)\s*pièce/i);
+                if (simpleMatch) freqNum = parseInt(simpleMatch[1]);
               }
-            } else if (libelle.includes('série')) {
+            } else if (libelle.includes('série') || libelle.includes('serie')) {
               typeVariable = 'SERIE';
-              const serieMatch = libelle.match(/série de (\d+) pièces/);
-              if (serieMatch) {
-                freqNum = parseInt(serieMatch[1]);
-              }
+              const serieMatch = libelle.match(/(?:série|serie).*?(\d+)/i) || libelle.match(/(\d+)\s*pièce/i);
+              if (serieMatch) freqNum = parseInt(serieMatch[1]);
+            } else if (libelle.includes('échantillon')) {
+              typeVariable = 'ECHANTILLON';
+              const echMatch = libelle.match(/(\d+)\s*échantillon/i);
+              if (echMatch) freqNum = parseInt(echMatch[1]);
             }
           }
         }
 
         let typeSectionId = sec.typeSectionId || '';
-        if (!typeSectionId && sec.libelleSection) {
-          const secLib = sec.libelleSection.trim().toLowerCase();
-          let bestMatch = null;
-          let maxLength = -1;
+        let extractedNature = "";
+        let originalNom = (sec.nom || sec.libelleSection || '').trim();
 
-          store.typesSection.forEach(t => {
-            const tLib = (t.libelle || '').trim().toLowerCase();
-            if (!tLib || secLib === 'section sans nom') return;
+        let finalNom = sec.libelleSection || '';
 
-            if (secLib.includes(tLib)) {
-              if (tLib.length > maxLength) {
-                maxLength = tLib.length;
-                bestMatch = t;
-              }
-            }
-          });
+        // 2. Nettoyer le préfixe pour trouver la "Nature"
+        let candidateNature = originalNom.replace(/caractéristiques à contrôler/gi, "").trim();
 
-          if (bestMatch) {
-            typeSectionId = bestMatch.id;
+        // 3. Chercher si cette nature existe dans le dictionnaire
+        if (!typeSectionId && candidateNature) {
+          const secLibLower = candidateNature.toLowerCase();
+          const match = (store.typesSection || []).find(t => (t.libelle || '').toLowerCase() === secLibLower);
+          if (match) {
+            typeSectionId = match.id;
+            extractedNature = match.libelle;
+          } else {
+            // Nature personnalisée (ex: test test)
+            extractedNature = candidateNature;
           }
+        } else if (typeSectionId) {
+          const match = (store.typesSection || []).find(t => t.id === typeSectionId);
+          if (match) extractedNature = match.libelle;
         }
 
-        // ⚠️ BOURCLIER ANTI-CRASH: Filtre les lignes nulles
+        // 4. Titre final (Source de vérité = libelleSection original)
+        finalNom = finalNom || (extractedNature ? `Caractéristiques à contrôler ${extractedNature}` : "Section sans nom");
+
         const lignesTriees = [...(sec.lignes || [])]
           .filter(lig => lig != null)
           .sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
 
         return {
-          id: sec.id,
-          isFromDb: true,
+          id: isClone ? crypto.randomUUID() : sec.id,
+          isFromDb: !isClone,
           typeSectionId,
+          libelleSection: sec.libelleSection || finalNom, // On garde le libellé complet
           modeFreq,
-          periodiciteId,
+          regleEchantillonnageId,
           freqNum,
           typeVariable,
           freqHours,
           isNewFreq: false,
-          nom: sec.libelleSection,
+          frequenceLibelle: sec.frequenceLibelle || '',
+          nom: finalNom,
           lignes: lignesTriees.map(lig => ({
-            id: lig.id,
-            isFromDb: true,
+            id: isClone ? crypto.randomUUID() : lig.id,
+            isFromDb: !isClone,
             typeCaracteristiqueId: lig.typeCaracteristiqueId,
             typeControleId: lig.typeControleId,
             moyenControleId: lig.moyenControleId,
@@ -582,7 +897,8 @@
         };
       });
 
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les données.', life: 4000 });
     } finally {
       isLoadingData.value = false;
@@ -723,7 +1039,15 @@
 
         let finalFrequenceLibelle = '';
         if (originalSection.modeFreq === 'VARIABLE') {
-          if (originalSection.typeVariable === 'HEURE') {
+          // ✅ CAS SPÉCIAL 100% : Si c'est 1 pce/h ou 100 pce/h, on utilise le libellé officiel
+          const is100 = originalSection.freqNum === 100 && 
+                       originalSection.typeVariable === 'HEURE' && 
+                       (originalSection.freqHours === 1 || !originalSection.freqHours);
+          
+          if (is100) {
+            const p100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
+            finalFrequenceLibelle = p100 ? p100.libelle : "100% des pièces/h";
+          } else if (originalSection.typeVariable === 'HEURE') {
             finalFrequenceLibelle = `${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''} / ${originalSection.freqHours} heure${originalSection.freqHours > 1 ? 's' : ''}`;
           } else {
             finalFrequenceLibelle = `série de ${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''}`;
@@ -732,14 +1056,18 @@
           finalFrequenceLibelle = store.periodicites.find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
         }
 
+        const typeSectionId = s.typeSectionId || originalSection.typeSectionId;
+        const regleEchId = s.regleEchantillonnageId || originalSection.regleEchantillonnageId;
+
         return {
           id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
           modeleSectionId: originalSection.modeleSectionId,
           ordreAffiche: idx + 1,
-          typeSectionId: s.typeSectionId || originalSection.typeSectionId || null,
-          libelleSection: tsMatch ? tsMatch.libelle : (s.libelleSection || originalSection.nom || 'SECTION SANS NOM'),
+          typeSectionId: (typeSectionId && typeSectionId !== "") ? typeSectionId : null,
+          libelleSection: s.libelleSection || originalSection.libelleSection || 'SECTION SANS NOM',
           frequenceLibelle: finalFrequenceLibelle,
-          periodiciteId: s.periodiciteId || originalSection.periodiciteId,
+          periodiciteId: (s.periodiciteId && s.periodiciteId !== "") ? s.periodiciteId : (originalSection.periodiciteId && originalSection.periodiciteId !== "" ? originalSection.periodiciteId : null),
+          regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
           lignes: lignesMappees
         };
       });
@@ -792,27 +1120,38 @@
       const payload = sectionsPreparees.map((s, idx) => {
         const originalSection = sections.value[idx];
         const tsMatch = store.typesSection.find(t => t.id === (s.typeSectionId || originalSection.typeSectionId));
-        const generatedLibelle = tsMatch ? tsMatch.libelle : (s.libelleSection || originalSection.nom || 'SECTION SANS NOM');
+        
+        const typeSectionId = s.typeSectionId || originalSection.typeSectionId;
+        const regleEchId = s.regleEchantillonnageId || originalSection.regleEchantillonnageId;
 
+        // Récupération des libellés simples pour le payload (sans reconstruction du libelleSection)
         let finalFrequenceLibelle = '';
         if (originalSection.modeFreq === 'VARIABLE') {
-          if (originalSection.typeVariable === 'HEURE') {
-            finalFrequenceLibelle = `${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''} / ${originalSection.freqHours} heure${originalSection.freqHours > 1 ? 's' : ''}`;
+          const is100 = originalSection.freqNum === 100 && originalSection.typeVariable === 'HEURE';
+          if (is100) {
+            const p100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
+            finalFrequenceLibelle = p100 ? p100.libelle : "100% des pièces/h";
           } else {
-            finalFrequenceLibelle = `série de ${originalSection.freqNum} pièce${originalSection.freqNum > 1 ? 's' : ''}`;
+             finalFrequenceLibelle = originalSection.frequenceLibelle || '';
           }
         } else if (s.periodiciteId || originalSection.periodiciteId) {
-          finalFrequenceLibelle = store.periodicites.find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
+          finalFrequenceLibelle = (store.periodicites || []).find(p => p.id === (s.periodiciteId || originalSection.periodiciteId))?.libelle || '';
+        }
+
+        let regleEchLibelle = '';
+        if (regleEchId) {
+          regleEchLibelle = (store.reglesEchantillonnage || []).find(r => r.id === regleEchId)?.libelle || '';
         }
 
         return {
           id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
           modeleSectionId: originalSection.modeleSectionId,
           ordreAffiche: idx + 1,
-          typeSectionId: s.typeSectionId || originalSection.typeSectionId || null,
-          libelleSection: generatedLibelle,
+          typeSectionId: (typeSectionId && typeSectionId !== "") ? typeSectionId : null,
+          libelleSection: s.libelleSection || originalSection.libelleSection || 'SECTION SANS NOM',
           frequenceLibelle: finalFrequenceLibelle,
-          periodiciteId: s.periodiciteId || originalSection.periodiciteId,
+          regleEchantillonnageLibelle: regleEchLibelle,
+          regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
           lignes: (s.lignes || []).map((l, lIdx) => {
             const originalLigne = originalSection.lignes[lIdx];
             const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
@@ -835,9 +1174,9 @@
               id: originalLigne.isFromDb ? normalizeId(originalLigne.id) : null,
               modeleLigneSourceId: l.modeleLigneSourceId,
               ordreAffiche: lIdx + 1,
-              typeCaracteristiqueId: l.typeCaracteristiqueId,
-              typeControleId: l.typeControleId,
-              moyenControleId: l.moyenControleId,
+              typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
+              typeControleId: (l.typeControleId && l.typeControleId !== "") ? l.typeControleId : null,
+              moyenControleId: (l.moyenControleId && l.moyenControleId !== "") ? l.moyenControleId : null,
               moyenTexteLibre: l.moyenTexteLibre,
               instrumentCode: l.instrumentCode,
               valeurNominale: valeurNominale,
@@ -878,8 +1217,10 @@
     try {
       // Forcer la sauvegarde manuelle (bypass le flag isSaving interne)
       await sauvegarderBrouillonSilencieux(true, true);
+      toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Votre brouillon est visible dans l\'onglet "Brouillons" du hub.', life: 4000 });
       isExitingEditor.value = true;
-      router.push('/dev/hub-plans');
+      // Redirection avec filtre Brouillon pour que le hub l'affiche immédiatement
+      router.push({ path: '/dev/hub-plans', query: { statut: 'BROUILLON' } });
     } catch (error) {
       console.error(error);
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible d\'enregistrer le brouillon.', life: 4000 });

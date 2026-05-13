@@ -18,4 +18,16 @@ export const verifMachineService = {
   archiverPlanVerif: (id) => apiClient.put(`/plans-verif-machine/${id}/statut?statut=ARCHIVE`),
 
   restaurerPlanVerif: (payload) => apiClient.post('/plans-verif-machine/restaurer', payload),
+  
+  importExcel: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/plans-verif-machine/import-excel', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  // Familles de corps configurées pour une machine (Machine_FamilleCorps)
+  getFamillesParMachine: (machineCode) =>
+    apiClient.get(`/plans-verif-machine/machine/${machineCode}/familles`),
 };
