@@ -1217,10 +1217,8 @@
     try {
       // Forcer la sauvegarde manuelle (bypass le flag isSaving interne)
       await sauvegarderBrouillonSilencieux(true, true);
-      toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Votre brouillon est visible dans l\'onglet "Brouillons" du hub.', life: 4000 });
       isExitingEditor.value = true;
-      // Redirection avec filtre Brouillon pour que le hub l'affiche immédiatement
-      router.push({ path: '/dev/hub-plans', query: { statut: 'BROUILLON' } });
+      router.push('/dev/hub-plans');
     } catch (error) {
       console.error(error);
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible d\'enregistrer le brouillon.', life: 4000 });

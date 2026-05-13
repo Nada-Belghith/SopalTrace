@@ -44,8 +44,7 @@ public class PlanFabricationController : ControllerBase
     public async Task<IActionResult> InstancierPlan([FromBody] CreatePlanRequestDto request)
     {
         var id = await _planService.InstancierPlanDepuisModeleAsync(request);
-        var data = await _planService.GetPlanByIdAsync(id);
-        return Ok(new { success = true, planId = id, data, message = "Plan initialisé avec succès." });
+        return Ok(new { success = true, planId = id, message = "Plan initialisé avec succès." });
     }
 
     private bool IsAssemblage(string? operationCode, string? natureComposantCode, string? typeRobinetCode)

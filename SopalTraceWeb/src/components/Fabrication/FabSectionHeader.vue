@@ -149,7 +149,7 @@ const verifierVariables = () => {
   // Sinon, reconstruire le libellé à partir des composants
   // ✅ On récupère le titre (Nature)
   const typeSec = (store.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
-  let titre = "";
+  let titre;
   
   if (typeSec) {
     titre = typeSec.libelle;
@@ -267,7 +267,7 @@ const apercu = computed(() => {
   const typeSec = (store.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
   
   // ✅ Titre de base : soit la nature officielle, soit le nom personnalisé
-  let txt = "";
+  let txt;
   if (typeSec) {
     txt = `Caractéristiques à contrôler ${typeSec.libelle}`;
   } else {

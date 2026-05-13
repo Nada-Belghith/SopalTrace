@@ -74,13 +74,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { usePfPlanStore } from '@/stores/pfPlanStore';
-import { qualityPlansService } from '@/services/qualityPlansService';
-import { useToast } from 'primevue/usetoast';
-
-const toast = useToast();
 
 const props = defineProps({
   ligne: { type: Object, required: true },

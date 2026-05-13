@@ -76,7 +76,7 @@ watch(() => props.section, (newVal) => {
 // recursive update loops. Updates are emitted explicitly from handlers below when
 // const store = useFabModeleStore(); // Removed because it was unused
 
-const isAssTrn = computed(() => ['ASS', 'TRN'].includes((props.operationCode || '').toUpperCase()));
+
 
 const planColumns = computed(() => [
   { label: 'Caractéristique contrôlée', width: 'w-[22%]' },

@@ -119,9 +119,7 @@ const updateGroupe = (key, value) => {
   emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
 };
 
-const periodesFixes = computed(() => (store.periodicites || []).filter(p => 
-  (p.frequenceNum === null || p.frequenceNum === undefined) && p.frequenceUnite !== 'MACHINE'
-));
+
 
 const apercu = computed(() => {
   // ✅ Si la section vient de l'import (libelleSection présent mais pas de typeSectionId)

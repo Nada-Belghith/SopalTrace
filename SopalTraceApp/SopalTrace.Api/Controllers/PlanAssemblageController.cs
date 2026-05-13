@@ -37,8 +37,7 @@ public class PlanAssemblageController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreatePlanAssRequestDto req)
     {
         var id = await _service.CreerPlanAssemblageAsync(req with { CreePar = req.CreePar ?? "ADMIN" });
-        var data = await _service.GetPlanByIdAsync(id);
-        return Ok(new { success = true, id, data });
+        return Ok(new { success = true, id });
     }
 
     /// <summary>
@@ -92,7 +91,6 @@ public class PlanAssemblageController : ControllerBase
     public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionAssRequestDto request)
     {
         var id = await _service.CreerNouvelleVersionPlanAsync(request);
-        var data = await _service.GetPlanByIdAsync(id);
-        return Ok(new { success = true, planId = id, data, message = "Nouvelle version créée en BROUILLON." });
+        return Ok(new { success = true, planId = id, message = "Nouvelle version créée en BROUILLON." });
     }
 }

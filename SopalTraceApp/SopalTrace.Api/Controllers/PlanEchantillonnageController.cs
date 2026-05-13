@@ -31,6 +31,13 @@ public class PlanEchantillonnageController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    [HttpGet("actif")]
+    public async Task<IActionResult> GetActif()
+    {
+        var data = await _service.GetPlanActifAsync();
+        return Ok(new { success = true, data });
+    }
+
     // NOUVEAU : Endpoint pour modifier la V2 et l'activer
     [HttpPut("{id}")]
     public async Task<IActionResult> MettreAJourPlan(Guid id, [FromBody] UpdatePlanEchanRequestDto request)

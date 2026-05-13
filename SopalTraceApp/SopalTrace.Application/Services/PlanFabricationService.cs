@@ -329,10 +329,57 @@ public class PlanFabricationService : IPlanFabricationService
     public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionEditDto> sectionsModifiees, string? legendeMoyens = null, string? remarques = null, bool finaliser = true, string? nom = null, string? modifiePar = null)
     {
         var plan = await _repository.GetPlanCompletPourMiseAJourAsync(planId);
-        if (plan == null) return false;
+        if (plan == null) 
+        {
+            // Routing vers l'Assemblage (Piston / PF)
+            var assPlan = await _assRepository.GetPlanAvecRelationsAsync(planId);
+            if (assPlan == null) return false;
+
+            assPlan.ModifiePar = _currentUserService.UserInfo;
+            assPlan.ModifieLe = DateTime.UtcNow;
+            
+            // Si on ne finalise pas, on s'assure qu'il reste en brouillon
+            if (!finaliser) assPlan.Statut = StatutsPlan.Brouillon;
+
+            if (!string.IsNullOrWhiteSpace(nom)) assPlan.Designation = nom;
+            if (legendeMoyens is not null) assPlan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
+            if (remarques is not null) assPlan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
+
+            // Mapping vers DTOs Assemblage avec fallbacks pour les propriétés 'required'
+            var assSections = sectionsModifiees.Select(s => new SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage.SectionAssEditDto {
+                Id = s.Id,
+                TypeSectionId = s.TypeSectionId ?? Guid.Empty,
+                PeriodiciteId = s.PeriodiciteId,
+                OrdreAffiche = s.OrdreAffiche,
+                LibelleSection = s.LibelleSection ?? "",
+                RegleEchantillonnageId = s.RegleEchantillonnageId,
+                RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
+                Lignes = s.Lignes.Select(l => new SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage.LigneAssEditDto {
+                    Id = l.Id,
+                    OrdreAffiche = l.OrdreAffiche,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                    LibelleAffiche = l.LibelleAffiche ?? "",
+                    TypeControleId = l.TypeControleId ?? Guid.Empty,
+                    MoyenControleId = l.MoyenControleId,
+                    InstrumentCode = l.InstrumentCode,
+                    LimiteSpecTexte = l.LimiteSpecTexte,
+                    Observations = l.Observations,
+                    Instruction = l.Instruction,
+                    EstCritique = l.EstCritique
+                }).ToList()
+            }).ToList();
+
+            // Appel au service d'assemblage (qui gère l'activation si finaliser=true)
+            await _assService.MettreAJourValeursPlanAsync(planId, assSections, finaliser);
+            await _unitOfWork.CommitAsync();
+            return true;
+        }
 
         plan.ModifiePar = _currentUserService.UserInfo;
         plan.ModifieLe = DateTime.UtcNow;
+        
+        // Gestion du statut pour les plans de fabrication
+        plan.Statut = finaliser ? StatutsPlan.Actif : StatutsPlan.Brouillon;
 
         if (!string.IsNullOrWhiteSpace(nom)) plan.Nom = nom;
         if (legendeMoyens is not null) plan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;

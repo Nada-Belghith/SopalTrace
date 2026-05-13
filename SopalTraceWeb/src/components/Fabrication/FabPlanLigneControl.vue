@@ -74,11 +74,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
-import { qualityPlansService } from '@/services/qualityPlansService';
-import { useToast } from 'primevue/usetoast';
-
 
 
 const props = defineProps({
@@ -90,8 +87,6 @@ const props = defineProps({
 const emit = defineEmits(['remove', 'update']);
 
 const store = useFabModeleStore();
-const toast = useToast();
-
 // Local reactive copy to avoid mutating prop directly
 const localLigne = ref({ ...props.ligne });
 const isSyncingFromParent = ref(false);

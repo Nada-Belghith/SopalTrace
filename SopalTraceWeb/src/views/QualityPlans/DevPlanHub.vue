@@ -207,7 +207,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
@@ -216,15 +216,13 @@ import Paginator from 'primevue/paginator';
 import apiClient from '@/services/apiClient';
 
 const router = useRouter();
-const route = useRoute();
 const toast = useToast();
 const confirm = useConfirm();
 
 const activeTab = ref('ALL');
 const searchQuery = ref('');
 const selectedOperation = ref('');
-// Lire le filtre statut depuis l'URL (ex: ?statut=BROUILLON apres sauvegarde brouillon depuis FabPlanEditor)
-const vueActuelle = ref(route.query.statut || 'ACTIF');
+const vueActuelle = ref('ACTIF');
 const isLoading = ref(true);
 const plans = ref([]);
 
