@@ -1146,7 +1146,7 @@
 
   const enregistrerValeurs = async (currentPlanId, redirectToHub = true) => {
     try {
-      const sectionsPreparees = await prepareModeleDataAndFrequencies(
+      await prepareModeleDataAndFrequencies(
         sections.value,
         store.periodicites || [],
         async (payloadFreq) => {
