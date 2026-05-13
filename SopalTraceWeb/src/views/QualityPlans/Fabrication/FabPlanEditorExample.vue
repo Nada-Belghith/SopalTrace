@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 
@@ -215,7 +215,7 @@ import ConfirmDialog from 'primevue/confirmdialog';
 // ==================== SETUP ====================
 
 const route = useRoute();
-const toast = useToast();
+
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
 const isForcedView = ref(route.query.view === 'true');
 
