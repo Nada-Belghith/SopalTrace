@@ -166,21 +166,17 @@ const est100Pourcent = computed(() => {
 });
 
 const titreCalcule = computed(() => {
-  let baseTitre = '';
-
   if (localSection.value.nom) {
-    baseTitre = localSection.value.nom;
     // Remove any trailing parentheses from the nom to prevent duplicating the frequency
-    baseTitre = baseTitre.replace(/\s*\([^)]*\)\s*$/, '').trim();
-  } else {
-    const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
-    if (typeSec) {
-      baseTitre = `${props.defaultTitle} ${typeSec.libelle}`;
-    } else {
-      baseTitre = localSection.value.libelleSection || props.defaultTitle;
-    }
-  }
-  return baseTitre;
+    return localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  } 
+
+  const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
+  if (typeSec) {
+    return `${props.defaultTitle} ${typeSec.libelle}`;
+  } 
+
+  return localSection.value.libelleSection || props.defaultTitle;
 });
 
 const frequenceCalculee = computed(() => {
