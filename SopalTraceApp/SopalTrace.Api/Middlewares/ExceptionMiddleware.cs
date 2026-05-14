@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.Json;
 using FluentValidation; // <-- AJOUT POUR FLUENTVALIDATION
 using SopalTrace.Domain.Exceptions;

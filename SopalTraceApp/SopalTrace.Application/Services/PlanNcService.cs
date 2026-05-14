@@ -154,57 +154,61 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         plan.ModifiePar = user;
         plan.ModifieLe = DateTime.UtcNow;
 
-        // Mettre à jour les lignes
-        var dtoIds = dto.Lignes
-            .Select(l => l.Id)
-            .OfType<Guid>()
-            .ToList();
-
-        // Supprimer les lignes supprimées
-        var lignesASupprimer = plan.PlanNcLignes.Where(l => !dtoIds.Contains(l.Id)).ToList();
-        foreach (var ligne in lignesASupprimer)
+        // 1. RÉSOLUTION DES DÉFAUTS (Pass 1 - Pré-résolution pour éviter les conflits FK)
+        var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        var resolvedLines = new List<(LigneNcEditDto Dto, Guid ResolvedId)>();
+        foreach (var l in dto.Lignes)
         {
-            _repository.RemoveLigne(ligne);
+            var key = l.LibelleDefaut?.Trim();
+            Guid resolvedId;
+            if (!string.IsNullOrWhiteSpace(key) && cacheDefauts.TryGetValue(key, out var cid))
+            {
+                resolvedId = cid;
+            }
+            else
+            {
+                resolvedId = await ResolveOrCreateRisqueDefautAsync(l);
+                if (!string.IsNullOrWhiteSpace(key) && resolvedId != Guid.Empty)
+                    cacheDefauts[key] = resolvedId;
+            }
+            resolvedLines.Add((l, resolvedId));
         }
 
-        // Cache local pour éviter les doublons de défauts dans le même traitement
-        var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        // 2. NETTOYAGE (Suppression des lignes absentes)
+        var dtoIds = dto.Lignes.Select(l => l.Id).OfType<Guid>().ToList();
+        var lignesASupprimer = plan.PlanNcLignes.Where(l => !dtoIds.Contains(l.Id)).ToList();
+        foreach (var l in lignesASupprimer) _repository.RemoveLigne(l);
 
-        // Ajouter ou mettre à jour les lignes
-        foreach (var ligneDto in dto.Lignes)
+        // 3. SHUFFLE (Pass 2 - Éviter les conflits d'index UNIQUE sur OrdreAffiche)
+        // On assigne des valeurs temporaires très hautes aux lignes existantes
+        int tempBase = 5000;
+        foreach (var item in resolvedLines)
         {
-            Guid resolvedId;
-            var key = ligneDto.LibelleDefaut?.Trim();
-
-            if (!string.IsNullOrWhiteSpace(key) && cacheDefauts.TryGetValue(key, out var cachedId))
+            var existing = item.Dto.Id.HasValue ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == item.Dto.Id.Value) : null;
+            if (existing != null)
             {
-                resolvedId = cachedId;
+                existing.OrdreAffiche = tempBase + item.Dto.OrdreAffiche;
+            }
+        }
+        await _repository.SaveChangesAsync(); // Commit pass 2
+
+        // 4. FINALISATION (Pass 3 - Assignation des ordres réels et ajout des nouvelles lignes)
+        foreach (var item in resolvedLines)
+        {
+            var existing = item.Dto.Id.HasValue ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == item.Dto.Id.Value) : null;
+            if (existing != null)
+            {
+                PlanNcMapper.MettreAJourLigne(existing, item.Dto, item.ResolvedId);
             }
             else
             {
-                resolvedId = await ResolveOrCreateRisqueDefautAsync(ligneDto);
-                if (!string.IsNullOrWhiteSpace(key) && resolvedId != Guid.Empty)
-                {
-                    cacheDefauts[key] = resolvedId;
-                }
-            }
-            
-            var ligneEnBase = ligneDto.Id.HasValue && ligneDto.Id.Value != Guid.Empty
-                ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == ligneDto.Id.Value)
-                : null;
-
-            if (ligneEnBase != null)
-            {
-                PlanNcMapper.MettreAJourLigne(ligneEnBase, ligneDto, resolvedId);
-            }
-            else
-            {
-                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(plan.Id, ligneDto, resolvedId);
-                // Important: On l'ajoute à la collection du parent pour EF
+                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(plan.Id, item.Dto, item.ResolvedId);
                 plan.PlanNcLignes.Add(nouvelleLigne);
                 _repository.AddLigne(nouvelleLigne);
             }
         }
+        // Le commit final sera fait par le service de base (BasePlanLifecycleService)
+
     }
 
     /// <summary>
@@ -358,35 +362,41 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         var plan = await _repository.GetPlanAvecRelationsAsync(planId);
         if (plan == null) return false;
 
-        var dtoIds = lignesModifiees
-            .Select(l => l.Id)
-            .OfType<Guid>()
-            .ToList();
-
-        // Supprimer les lignes supprimées
+        // 1. RÉSOLUTION ET NETTOYAGE
+        var dtoIds = lignesModifiees.Select(l => l.Id).OfType<Guid>().ToList();
         var lignesASupprimer = plan.PlanNcLignes.Where(l => !dtoIds.Contains(l.Id)).ToList();
-        foreach (var ligne in lignesASupprimer)
+        foreach (var l in lignesASupprimer) _repository.RemoveLigne(l);
+
+        var resolvedItems = new List<(LigneNcEditDto Dto, Guid ResolvedId)>();
+        foreach (var l in lignesModifiees)
         {
-            _repository.RemoveLigne(ligne);
+            var rid = await ResolveOrCreateRisqueDefautAsync(l);
+            resolvedItems.Add((l, rid));
         }
 
-        // Ajouter ou mettre à jour les lignes
-        foreach (var ligneDto in lignesModifiees)
+        // 2. SHUFFLE (Pass 1 - Décalage des index pour éviter les collisions UNIQUE)
+        int tempBase = 9000;
+        foreach (var item in resolvedItems)
         {
-            var resolvedId = await ResolveOrCreateRisqueDefautAsync(ligneDto);
-            
-            var isNew = !ligneDto.Id.HasValue || ligneDto.Id.Value == Guid.Empty;
-            var ligneEnBase = !isNew && ligneDto.Id is Guid ligneId
-                ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == ligneId)
-                : null;
-
-            if (ligneEnBase != null)
+            if (item.Dto.Id.HasValue)
             {
-                PlanNcMapper.MettreAJourLigne(ligneEnBase, ligneDto, resolvedId);
+                var existing = plan.PlanNcLignes.FirstOrDefault(x => x.Id == item.Dto.Id.Value);
+                if (existing != null) existing.OrdreAffiche = tempBase + item.Dto.OrdreAffiche;
+            }
+        }
+        await _repository.SaveChangesAsync();
+
+        // 3. FINALISATION (Pass 2 - Assignation réelle et ajouts)
+        foreach (var item in resolvedItems)
+        {
+            var existing = item.Dto.Id.HasValue ? plan.PlanNcLignes.FirstOrDefault(x => x.Id == item.Dto.Id.Value) : null;
+            if (existing != null)
+            {
+                PlanNcMapper.MettreAJourLigne(existing, item.Dto, item.ResolvedId);
             }
             else
             {
-                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(planId, ligneDto, resolvedId);
+                var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(planId, item.Dto, item.ResolvedId);
                 _repository.AddLigne(nouvelleLigne);
             }
         }

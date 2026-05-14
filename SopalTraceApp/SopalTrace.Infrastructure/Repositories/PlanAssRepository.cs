@@ -40,18 +40,20 @@ public class PlanAssRepository : IPlanAssRepository
             .Select(p => (int?)p.Version)
             .MaxAsync() ?? 0;
 
-    public async Task<bool> ExistePlanMaitreActifAsync(string operationCode, string? familleCode)
+    public async Task<bool> ExistePlanMaitreActifAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode)
     {
         return await _context.PlanAssEntetes.AnyAsync(p =>
             p.OperationCode == operationCode &&
             p.FamilleProduitFiniCode == familleCode &&
+            p.NatureComposantCode == natureComposantCode &&
+            p.PosteCode == posteCode &&
             p.Statut == StatutsPlan.Actif);
     }
 
-    public async Task<bool> ExisteExceptionActiveAsync(string operationCode, string? familleCode, string codeArticleSage)
+    public async Task<bool> ExisteExceptionActiveAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode, string articleCode)
     {
-        // Pour l'instant, on traite les exceptions comme des plans maîtres car pas de colonne Article
-        return await ExistePlanMaitreActifAsync(operationCode, familleCode);
+        // Pour l'instant, on traite les exceptions comme des plans maîtres car pas de colonne Article spécifique en base pour l'instant (Plan_Ass)
+        return await ExistePlanMaitreActifAsync(operationCode, familleCode, natureComposantCode, posteCode);
     }
 
     public async Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode)
@@ -76,15 +78,20 @@ public class PlanAssRepository : IPlanAssRepository
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
-    public async Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode)
+    public async Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode)
     {
         return await _context.PlanAssEntetes
-            .FirstOrDefaultAsync(p => p.OperationCode == operationCode && p.FamilleProduitFiniCode == familleCode && p.Statut == StatutsPlan.Actif);
+            .FirstOrDefaultAsync(p => 
+                p.OperationCode == operationCode && 
+                p.FamilleProduitFiniCode == familleCode && 
+                p.NatureComposantCode == natureComposantCode &&
+                p.PosteCode == posteCode &&
+                p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanAssEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage)
     {
-        return await GetPlanActifMaitreAsync(operationCode, familleCode);
+        return await GetPlanActifMaitreAsync(operationCode, familleCode, null, null);
     }
 
     public async Task<PlanAssEntete?> GetPlanByIdAsync(Guid planId)

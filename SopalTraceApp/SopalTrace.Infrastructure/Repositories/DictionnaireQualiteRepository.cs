@@ -17,7 +17,10 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
 
     public async Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle)
     {
-        return await _context.Periodicites.FirstOrDefaultAsync(p => p.Libelle == libelle);
+        if (string.IsNullOrEmpty(libelle)) return null;
+        var normalized = libelle.Trim().ToLower();
+        return await _context.Periodicites
+            .FirstOrDefaultAsync(p => p.Libelle.Trim().ToLower() == normalized);
     }
 
     public async Task AddPeriodiciteAsync(Periodicite entite)
@@ -38,6 +41,11 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
     {
         _context.Set<TypeSection>().Add(entite);
         await Task.CompletedTask;
+    }
+
+    public async Task<System.Collections.Generic.List<TypeSection>> GetAllTypeSectionsAsync()
+    {
+        return await _context.Set<TypeSection>().ToListAsync();
     }
 
     public async Task<TypeCaracteristique> GetTypeCaracteristiqueByLibelleAsync(string libelle)

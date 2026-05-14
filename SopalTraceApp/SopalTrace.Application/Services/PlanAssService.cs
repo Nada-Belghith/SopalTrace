@@ -74,7 +74,9 @@ public class PlanAssService : IPlanAssService
         {
             var planMaitreExists = await _repository.ExistePlanMaitreActifAsync(
                 request.OperationCode,
-                MapperHelper.NullIfEmpty(request.FamilleCode));
+                MapperHelper.NullIfEmpty(request.FamilleCode),
+                request.NatureComposantCode,
+                request.PosteCode);
 
             PlanAssSpecification.ValidatePlanMaitreCreation(
                 planMaitreExists,
@@ -88,6 +90,8 @@ public class PlanAssService : IPlanAssService
             var planExceptionExists = await _repository.ExisteExceptionActiveAsync(
                 request.OperationCode,
                 MapperHelper.NullIfEmpty(request.FamilleCode),
+                request.NatureComposantCode,
+                request.PosteCode,
                 codeArticle!);
 
             PlanAssSpecification.ValidatePlanExceptionCreation(
@@ -264,7 +268,7 @@ public class PlanAssService : IPlanAssService
             {
                 plan.Statut = StatutsPlan.Actif;
 
-                var ancienPlanActif = await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.FamilleProduitFiniCode!);
+                var ancienPlanActif = await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.FamilleProduitFiniCode, plan.NatureComposantCode, plan.PosteCode);
 
                 if (ancienPlanActif is not null && ancienPlanActif.Id != plan.Id)
                 {
@@ -342,13 +346,29 @@ public class PlanAssService : IPlanAssService
             var planSource = await _repository.GetPlanAvecRelationsAsync(request.AncienId);
             PlanAssSpecification.ValidatePlanExists(planSource, request.AncienId);
 
+            // ✅ Normaliser le nom si c'est un nom technique hérité ("Modèle PLAN-ASS-...", "PC-...")
+            var designation = planSource!.Designation;
+            if (!string.IsNullOrWhiteSpace(designation) &&
+                (designation.StartsWith("Modèle ") || System.Text.RegularExpressions.Regex.IsMatch(designation, @"^PC-[A-Z0-9]")))
+            {
+                designation = planSource.NatureComposantCode switch
+                {
+                    "PISTON" => "Plan de contrôle en cours de fabrication piston",
+                    "PF"     => "Plan en cours de fabrication produit fini",
+                    _        => designation
+                };
+            }
+
             var planDuplique = PlanAssMapper.DupliquerEntitePlan(
                 planSource!,
                 estModele: true,
                 nouveauCodeArticle: null,
-                nouvelleDesig: planSource!.Designation,
+                nouvelleDesig: designation,
                 creePar: request.CreePar,
                 motif: request.MotifModification);
+
+            // ✅ Forcer la préservation de NatureComposantCode depuis la source (évite les NULL en DB)
+            planDuplique.NatureComposantCode = planSource.NatureComposantCode;
 
             await _repository.AddPlanAsync(planDuplique);
             await _repository.SaveChangesAsync();

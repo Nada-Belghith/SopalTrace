@@ -34,7 +34,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   const validerSaisieValeurs = () => {
     const hasSections = sectionsRef.value.length > 0;
     if (!hasSections) {
-      toast.add({ severity: 'warn', summary: 'Saisie requise', detail: 'La structure doit contenir au moins une section.', life: 5000 });
+      toast.warn('La structure doit contenir au moins une section.', 'Saisie requise');
       return false;
     }
 
@@ -54,7 +54,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
     });
 
     if (hasIncompleteLines) {
-      toast.add({ severity: 'error', summary: 'Ligne incomplète', detail: 'Les lignes de contrôle ajoutées doivent obligatoirement avoir une "Caractéristique" et un "Type de contrôle".', life: 6000 });
+      toast.error('Les lignes de contrôle ajoutées doivent obligatoirement avoir une "Caractéristique" et un "Type de contrôle".', 'Ligne incomplète');
       return false;
     }
 
@@ -64,7 +64,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   const validerSaisiePlan = () => {
     const hasLignes = sectionsRef.value.some(section => (section.lignes || []).length > 0);
     if (!hasLignes) {
-      toast.add({ severity: 'warn', summary: 'Saisie requise', detail: 'Veuillez ajouter au moins une ligne de contrôle.', life: 5000 });
+      toast.warn('Veuillez ajouter au moins une ligne de contrôle.', 'Saisie requise');
       return false;
     }
 
@@ -80,12 +80,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
     });
 
     if (hasMissingTypeControle) {
-      toast.add({
-        severity: 'error',
-        summary: 'Ligne incomplète',
-        detail: 'Veuillez définir le "Type de contrôle" pour toutes vos lignes, ou supprimez les lignes vides avant d\'activer le plan.',
-        life: 6000
-      });
+      toast.error('Veuillez définir le "Type de contrôle" pour toutes vos lignes, ou supprimez les lignes vides avant d\'activer le plan.', 'Ligne incomplète');
       return false;
     }
 

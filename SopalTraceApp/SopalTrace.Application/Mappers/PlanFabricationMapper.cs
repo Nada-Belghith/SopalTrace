@@ -66,7 +66,7 @@ public static class PlanFabricationMapper
         var plan = new PlanFabEntete
         {
             Id = Guid.NewGuid(), ModeleSourceId = source.ModeleSourceId, CodeArticleSage = nouveauCode,
-            Designation = nouvelleDesig, Nom = comm == null ? $"PC-{nouveauCode}" : ModeleFabricationMapper.IncrementerSuffixeVersion(source.Nom, nouvelleVersion),
+            Designation = nouvelleDesig, Nom = !string.IsNullOrWhiteSpace(source.Nom) ? source.Nom : $"Plan de contrôle {nouvelleDesig}",
             Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, MachineDefautCode = source.MachineDefautCode,
             OperationCode = source.OperationCode,
             LegendeMoyens = source.LegendeMoyens,

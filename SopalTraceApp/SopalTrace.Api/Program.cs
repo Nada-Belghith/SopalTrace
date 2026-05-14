@@ -18,6 +18,9 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Enregistrement du fournisseur d'encodage pour supporter Windows-1252 (utile pour l'import Excel/CSV)
+System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
 // Configuration de Serilog avec enrichissement de contexte
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -97,6 +100,7 @@ builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateModeleRequestValidator>();
 builder.Services.AddScoped<IPlanEchanRepository, PlanEchanRepository>();
 builder.Services.AddScoped<IPlanEchanService, PlanEchanService>();
+builder.Services.AddScoped<IFrequencyParserService, FrequencyParserService>();
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IReferentielService, ReferentielService>();
 builder.Services.AddScoped<IHubService, HubService>();

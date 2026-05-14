@@ -10,6 +10,7 @@ public interface IDictionnaireQualiteRepository
     Task AddPeriodiciteAsync(Periodicite entite);
     Task<TypeSection> GetTypeSectionByLibelleAsync(string libelle);
     Task AddTypeSectionAsync(TypeSection entite);
+    Task<System.Collections.Generic.List<TypeSection>> GetAllTypeSectionsAsync();
     
     Task<TypeCaracteristique> GetTypeCaracteristiqueByLibelleAsync(string libelle);
     Task AddTypeCaracteristiqueAsync(TypeCaracteristique entite);

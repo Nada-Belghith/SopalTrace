@@ -209,16 +209,16 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
+import { useAppToast } from '@/composables/useAppToast';
+import { useAppConfirm } from '@/composables/useAppConfirm';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Paginator from 'primevue/paginator';
 import apiClient from '@/services/apiClient';
 
 const router = useRouter();
-const toast = useToast();
-const confirm = useConfirm();
+const toast = useAppToast();
+const confirm = useAppConfirm();
 
 const activeTab = ref('ALL');
 const searchQuery = ref('');
@@ -259,7 +259,7 @@ const chargerPlans = async () => {
     plans.value = response.data.data || response.data || [];
   } catch (error) {
     console.error(error);
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les plans', life: 3000 });
+    toast.error('Impossible de charger les plans');
   } finally {
     isLoading.value = false;
   }
@@ -322,18 +322,11 @@ watch([activeTab, searchQuery, selectedOperation, vueActuelle], () => {
 
 // === ACTIONS ===
 const confirmSuppressionBrouillon = (plan) => {
-  confirm.require({
-    message: `Retirer définitivement le brouillon "${plan.libelle || plan.codeArticle}" ?`,
-    header: 'Suppression du Brouillon',
-    icon: 'pi pi-exclamation-triangle',
-    rejectLabel: 'Annuler',
-    acceptLabel: 'Supprimer',
-    rejectClass: 'p-button-secondary p-button-outlined',
-    acceptClass: 'p-button-danger',
-    accept: async () => {
-      await supprimerBrouillon(plan);
-    }
-  });
+  confirm.confirmDelete(
+    () => supprimerBrouillon(plan),
+    `Retirer définitivement le brouillon "${plan.libelle || plan.codeArticle}" ?`,
+    'Suppression du Brouillon'
+  );
 };
 
 const supprimerBrouillon = async (plan) => {
@@ -341,26 +334,22 @@ const supprimerBrouillon = async (plan) => {
     isLoading.value = true;
     await apiClient.delete(`/hub/plans/${plan.category}/${plan.id}`);
     plans.value = plans.value.filter(p => p.id !== plan.id);
-    toast.add({ severity: 'success', summary: 'Supprimé', detail: 'Le brouillon a été retiré.', life: 3000 });
+    toast.success('Le brouillon a été retiré.', 'Supprimé');
   } catch {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'La suppression a échoué.', life: 3000 });
+    toast.error('La suppression a échoué.');
   } finally {
     isLoading.value = false;
   }
 };
 
 const confirmArchivage = (plan) => {
-  confirm.require({
+  confirm.ask({
     message: `Voulez-vous archiver le plan "${plan.libelle || plan.codeArticle}" ?`,
     header: 'Confirmation d\'archivage',
-    icon: 'pi pi-exclamation-triangle',
-    rejectLabel: 'Annuler',
+    icon: 'pi pi-exclamation-triangle text-amber-500',
     acceptLabel: 'Archiver',
-    rejectClass: 'p-button-secondary p-button-outlined',
     acceptClass: 'p-button-danger',
-    accept: async () => {
-      await archiver(plan);
-    }
+    accept: () => archiver(plan)
   });
 };
 
@@ -369,9 +358,9 @@ const archiver = async (plan) => {
     isLoading.value = true;
     await apiClient.put(`/hub/plans/${plan.category}/${plan.id}/statut?statut=ARCHIVE`);
     plan.statut = 'ARCHIVE';
-    toast.add({ severity: 'success', summary: 'Archivé', detail: 'Le plan a été archivé.', life: 3000 });
+    toast.success('Le plan a été archivé.', 'Archivé');
   } catch {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: "L'archivage a échoué.", life: 3000 });
+    toast.error("L'archivage a échoué.");
   } finally {
     isLoading.value = false;
   }
@@ -386,7 +375,7 @@ const editer = (category, id) => {
     ECH: `/dev/echantillonnage/editer/${id}`
   };
   if (routes[category]) router.push(routes[category]);
-  else toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Redirection non disponible.', life: 3000 });
+  else toast.warn('Redirection non disponible.', 'Catégorie inconnue');
 };
 
 const consulter = (category, id) => {
@@ -396,6 +385,6 @@ const consulter = (category, id) => {
     ECH: { path: `/dev/echantillonnage/editer/${id}`, query: { view: 'true' } }
   };
   if (routes[category]) router.push(routes[category]);
-  else toast.add({ severity: 'warn', summary: 'Catégorie inconnue', detail: 'Consultation non disponible.', life: 3000 });
+  else toast.warn('Consultation non disponible.', 'Catégorie inconnue');
 };
 </script>

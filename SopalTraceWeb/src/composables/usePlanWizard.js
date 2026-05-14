@@ -50,7 +50,7 @@ export function usePlanWizard() {
   const famillesFiltrees = computed(() => {
     const type = String(typeRobinetCode.value || '').trim().toUpperCase();
     if (!type) return [];
-    
+
     return (store.famillesProduit || [])
       .filter(f => String(f.typeRobinetCode || '').trim().toUpperCase() === type);
   });
@@ -114,7 +114,7 @@ export function usePlanWizard() {
             return code && String(code).trim().toUpperCase() === targetNature;
           })
           .map(g => g.operationCode || g.OperationCode);
-        
+
         if (opsPossibles.length === 1) {
           operationCode.value = opsPossibles[0];
           console.log(`Auto-sélection de l'opération unique : ${operationCode.value}`);
@@ -130,7 +130,7 @@ export function usePlanWizard() {
       toast.add({
         severity: 'success',
         summary: 'Article identifié',
-        detail: operationCode.value 
+        detail: operationCode.value
           ? `${articleData.designation || 'Article trouvé'} - Opération "${operationCode.value}" sélectionnée.`
           : `${articleData.designation || 'Article trouvé'} - Veuillez choisir l'opération.`,
         life: 3000
@@ -252,11 +252,11 @@ export function usePlanWizard() {
         posteCode.value || undefined
       );
       const plans = response.data?.data || response.data || [];
-      
+
       // Exclure le plan de l'article actuel s'il existe déjà (on ne clone pas sur soi-même)
       // Et ne garder que les plans ACTIFS
-      availablePlans.value = plans.filter(p => 
-        p.statut === 'ACTIF' && 
+      availablePlans.value = plans.filter(p =>
+        p.statut === 'ACTIF' &&
         p.codeArticleSage !== codeArticleSage.value
       );
     } catch (error) {
@@ -272,7 +272,7 @@ export function usePlanWizard() {
   const requiertPoste = computed(() => {
     const nat = String(natureComposantCode.value || '').trim().toUpperCase();
     const type = String(typeRobinetCode.value || '').trim().toUpperCase();
-    
+
     // "je veux liste apparait que dans auto avec souape"
     return type === 'AUTO' && nat === 'SOUPAPE';
   });
@@ -290,7 +290,7 @@ export function usePlanWizard() {
     if (newOp !== oldOp || newSource !== oldSource || newPoste !== oldPoste) {
       selectedSourceId.value = null;
     }
-    
+
     // Si poste requis, attendre qu'il soit saisi
     const posteOk = !requiertPoste.value || !!posteCode.value;
     if (newOp && posteOk && newSource === 'MODELE') {

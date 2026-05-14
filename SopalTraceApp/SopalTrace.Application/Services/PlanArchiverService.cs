@@ -46,9 +46,9 @@ namespace SopalTrace.Application.Services
             }
         }
 
-        public async Task ArchivePlanAssActifAsync(string operationCode, string familleProduitFiniCode, string user, Guid currentPlanId)
+        public async Task ArchivePlanAssActifAsync(string operationCode, string? familleProduitFiniCode, string? natureComposantCode, string? posteCode, string user, Guid currentPlanId)
         {
-            var ancienPlanActif = await _planAssRepository.GetPlanActifMaitreAsync(operationCode, familleProduitFiniCode);
+            var ancienPlanActif = await _planAssRepository.GetPlanActifMaitreAsync(operationCode, familleProduitFiniCode, natureComposantCode, posteCode);
 
             if (ancienPlanActif is not null && ancienPlanActif.Id != currentPlanId)
             {

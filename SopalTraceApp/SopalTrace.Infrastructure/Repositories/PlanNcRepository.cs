@@ -41,6 +41,7 @@ public class PlanNcRepository : IPlanNcRepository
     {
         return await _context.PlanNcEntetes
             .Include(p => p.PlanNcLignes)
+                .ThenInclude(l => l.RisqueDefaut)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
