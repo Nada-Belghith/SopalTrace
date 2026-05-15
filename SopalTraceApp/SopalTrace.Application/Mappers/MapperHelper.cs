@@ -14,6 +14,7 @@ public static class MapperHelper
         if (string.IsNullOrWhiteSpace(value)) return null;
         var trimmed = value.Trim();
         if (trimmed.Equals("N/A", StringComparison.OrdinalIgnoreCase)) return null;
+        if (trimmed.Equals("TOUS", StringComparison.OrdinalIgnoreCase)) return null;
         return trimmed;
     }
 

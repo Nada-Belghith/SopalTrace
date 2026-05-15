@@ -154,6 +154,7 @@ import { qualityPlansService } from '@/services/qualityPlansService';
 import { useModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
+import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
@@ -192,6 +193,7 @@ const statut = ref('BROUILLON');
 const version = ref(1);
 const showVersioningDialog = ref(false);
 const versioningMode = ref('FAB');
+const isAutoVersioning = ref(false);
 
 const { 
   showLegendValidation, 
@@ -210,7 +212,7 @@ watch(
   [() => store.entete, () => groupes.value],
   ([newEntete, newGroupes]) => {
     // Ne pas tracer la dirty checking si on est juste en mode vue
-    if (modeleEditionId.value && !isForcedView.value) {
+    if (!isForcedView.value) {
       const enteteClone = JSON.parse(JSON.stringify(newEntete));
       const groupesClone = JSON.parse(JSON.stringify(newGroupes));
       updateCurrentSnapshot(createModeleSnapshot(enteteClone, groupesClone));
@@ -347,11 +349,13 @@ const onFileSelected = async (event) => {
           .filter(sec => sec && sec.nom) // Sections valides uniquement
           .map(sec => {
             const hasLines = sec.lignes && sec.lignes.length > 0;
+
             return {
               id: sec.id || crypto.randomUUID(),
               isFromDb: false,
-              libelleSection: sec.nom,  // ✅ Aperçu : stocker le nom de la section
-              typeSectionId: sec.typeSectionId || null,  // ✅ NULL si pas trouvé (pas auto-create)
+              nom: sec.nom || '',  // Texte brut Excel (nature personnalisée si typeSectionId est null)
+              libelleSection: sec.nom,
+              typeSectionId: sec.typeSectionId || null,  // null si non trouvé en base
               notes: sec.notes || '',
               modeFreq: sec.modeFreq || 'SANS',
               periodiciteId: sec.periodiciteId || null,
@@ -419,6 +423,9 @@ const onFileSelected = async (event) => {
   } finally {
     store.isLoading = false;
     if (fileInput.value) fileInput.value.value = '';
+    
+    // Réinitialiser le snapshot après l'import pour que isDirty passe à true
+    updateCurrentSnapshot(createModeleSnapshot(store.entete, groupes.value));
   }
 };
 
@@ -463,16 +470,19 @@ const chargerModelePourEdition = async (id) => {
     );
 
     groupes.value = sectionsTriees.map(sec => {
-      let modeFreq = 'SANS';
-      let periodiciteId = null;
+      let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
+      
       if (sec.frequenceLibelle) {
-        const perMatch = store.periodicites.find(p => p.libelle === sec.frequenceLibelle);
-        if (perMatch) {
-          modeFreq = 'FIXE';
-          periodiciteId = perMatch.id;
-        } else {
-          modeFreq = 'VARIABLE';
+        freqData = parseFrequenceLibelle(sec.frequenceLibelle, store.periodicites);
+        // FIX: Toujours forcer FIXE si on a une règle d'échantillonnage
+        if (sec.regleEchantillonnageId) {
+          freqData.modeFreq = 'FIXE';
+          freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
         }
+      } else if (sec.periodiciteId || sec.regleEchantillonnageId) {
+        freqData.modeFreq = 'FIXE';
+        if (sec.periodiciteId) freqData.periodiciteId = sec.periodiciteId;
+        if (sec.regleEchantillonnageId) freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
       }
 
       let typeSectionId = '';
@@ -506,11 +516,7 @@ const chargerModelePourEdition = async (id) => {
         id: sec.id,
         isFromDb: true,
         typeSectionId,
-        modeFreq,
-        periodiciteId,
-        freqNum: 1,
-        typeVariable: 'HEURE',
-        freqHours: 1,
+        ...freqData,
         isNewFreq: false,
         libelleSection: sec.libelleSection,
         lignes: lignesTriees.map(lig => ({ 
@@ -568,13 +574,35 @@ const sauvegarderDirectement = async () => {
 
   store.isLoading = true;
   try {
+    // Vérifier si un modèle actif existe déjà pour ces critères (Nature, Opération, Poste)
+    const resExist = await qualityPlansService.getModelesByFilters(
+      null, // typeRobinet (optionnel)
+      store.entete.natureComposantCode,
+      store.entete.operationCode,
+      store.entete.posteCode
+    );
+
+    const activeModel = (resExist.data?.data || []).find(m => m.statut === 'ACTIF');
+
+    if (activeModel) {
+      // Un modèle actif existe déjà -> On propose d'archiver et créer une nouvelle version
+      modeleEditionId.value = activeModel.id;
+      version.value = activeModel.version;
+      versioningMode.value = 'new-version';
+      isAutoVersioning.value = true; // Flag pour bypasser isDirty car c'est un nouveau plan
+      showVersioningDialog.value = true;
+      store.isLoading = false;
+      return;
+    }
+
     store.sections = await preparerDonneesEtFrequences();
     await store.saveModele(store.entete.legendeMoyens);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle créé et activé !', life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: error.message, life: 6000 });
+    const errorMsg = error.response?.data?.message || error.message;
+    toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 6000 });
   } finally {
     store.isLoading = false;
   }
@@ -615,16 +643,16 @@ const sauvegarderV2 = async (motif) => {
       ancienId: modeleEditionId.value,
       modifiePar: 'ADMIN_QUALITE',
       motifModification: motif || 'Création d\'une nouvelle version',
-      libelle: store.entete.libelle,
+      libelle: store.entete.libelle || `Modèle ${store.codeModeleAuto} V${version.value + 1}`,
       notes: store.entete.notes || '',
       legendeMoyens: store.entete.legendeMoyens || '',
 
       natureComposantCode: store.entete.natureComposantCode || null,
       typeRobinetCode: store.entete.typeRobinetCode || null,
       operationCode: store.entete.operationCode || null,
-      code: store.entete.code,
+      code: store.entete.code || store.codeModeleAuto,
       posteCode: store.entete.posteCode || null,
-      familleProduitCode: store.entete.familleProduitCode || null,
+      familleProduitCode: (store.entete.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (store.entete.familleProduitCode || null),
       sections: sectionsForPayload
     };
 
@@ -632,7 +660,8 @@ const sauvegarderV2 = async (motif) => {
     toast.add({ severity: 'success', summary: `V${version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: error.message, life: 6000 });
+    const errorMsg = error.response?.data?.message || error.message;
+    toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 6000 });
   } finally {
     store.isLoading = false;
   }
@@ -676,14 +705,19 @@ const onVersioningConfirm = async (motif) => {
   if (versioningMode.value === 'new-version') {
     if (!validerSaisieValeurs()) return;
     if (!validerLegendeMoyens()) return;
-    if (!isDirty.value) {
+    
+    // Si c'est un auto-versioning (venant d'une nouvelle création), on bypass le check isDirty
+    if (!isAutoVersioning.value && !isDirty.value) {
       toast.add({ severity: 'info', summary: 'Aucune modification', detail: 'Vous n\'avez effectué aucun changement sur la structure du modèle.', life: 4000 });
       return;
     }
+    
     await sauvegarderV2(motif);
   } else if (versioningMode.value === 'restore') {
     await restaurerArchive(motif);
   }
+  
+  isAutoVersioning.value = false; // Reset flag
 };
 
 const resetForNewModele = () => {
@@ -702,5 +736,10 @@ const resetForNewModele = () => {
     familleProduitCode: '' 
   };
   groupes.value = [];
+  
+  // Initialiser le snapshot pour un nouveau modèle (état vide)
+  setTimeout(() => {
+    initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
+  }, 100);
 };
 </script>

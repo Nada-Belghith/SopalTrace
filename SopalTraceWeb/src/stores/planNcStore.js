@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { planNcService } from '@/services/planNcService';
+import { genererUid } from '@/utils/uuidUtils';
 
 export const usePlanNcStore = defineStore('planNc', () => {
   // --- DICTIONNAIRES ---
@@ -36,6 +37,15 @@ export const usePlanNcStore = defineStore('planNc', () => {
     return snapshotOriginal.value !== JSON.stringify(buildPayload());
   };
 
+  const resoudreLibelleDefaut = (ligne) => {
+    let finalLibelle = ligne._libelleDefautBrut || '';
+    if (!finalLibelle && ligne.risqueDefautId) {
+      const matched = risquesDefauts.value.find(r => r.id === ligne.risqueDefautId);
+      finalLibelle = matched?.libelle || matched?.Libelle || 'Défaut sélectionné';
+    }
+    return finalLibelle;
+  };
+
   const buildPayload = () => {
     return {
       PosteCode: entete.value.posteCode,
@@ -46,13 +56,11 @@ export const usePlanNcStore = defineStore('planNc', () => {
         Id: l.id,
         MachineCode: l.machineCode,
         RisqueDefautId: l.risqueDefautId,
-        LibelleDefaut: l._libelleDefautBrut || (risquesDefauts.value.find(r => r.id === l.risqueDefautId)?.libelle) || '',
+        LibelleDefaut: resoudreLibelleDefaut(l),
         OrdreAffiche: idx + 1
       }))
     };
   };
-
-  const uuidv4 = () => "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
 
   const fetchDictionnaires = async () => {
     if (isDicosLoaded.value) return;
@@ -78,6 +86,15 @@ export const usePlanNcStore = defineStore('planNc', () => {
     }
   };
 
+  const mapperLigneDepuisServeur = (l) => ({
+    _uid: genererUid(),
+    id: l.id,
+    machineCode: l.machineCode,
+    risqueDefautId: l.risqueDefautId,
+    _libelleDefautBrut: l.libelleDefaut,
+    ordreAffiche: l.ordreAffiche
+  });
+
   const chargerPlanNc = async (id) => {
     isLoading.value = true;
     try {
@@ -92,13 +109,7 @@ export const usePlanNcStore = defineStore('planNc', () => {
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
       };
-      lignes.value = (data.lignes || []).map(l => ({
-        _uid: uuidv4(),
-        id: l.id,
-        machineCode: l.machineCode,
-        risqueDefautId: l.risqueDefautId,
-        ordreAffiche: l.ordreAffiche
-      }));
+      lignes.value = (data.lignes || []).map(mapperLigneDepuisServeur);
       planInitialise.value = true;
       prendreSnapshot();
     } finally {
@@ -122,7 +133,7 @@ export const usePlanNcStore = defineStore('planNc', () => {
 
   const ajouterLigne = () => {
     lignes.value.push({
-      _uid: uuidv4(),
+      _uid: genererUid(),
       id: null,
       machineCode: '', // Ne pas pré-remplir
       risqueDefautId: null,
@@ -195,36 +206,37 @@ export const usePlanNcStore = defineStore('planNc', () => {
     snapshotOriginal.value = null;
   };
 
+  const trouverDefautParLibelle = (libelle) => {
+    if (!libelle) return null;
+    const libellePropre = libelle.trim().toLowerCase();
+    return risquesDefauts.value.find(rd => rd.libelle?.trim().toLowerCase() === libellePropre);
+  };
+
+  const mapperLigneDepuisExcel = (l) => {
+    const defautTrouve = trouverDefautParLibelle(l.libelleDefaut);
+    return {
+      _uid: genererUid(),
+      id: null,
+      machineCode: l.machineCode || '',
+      risqueDefautId: defautTrouve?.id || null,
+      ordreAffiche: 0,
+      _libelleDefautBrut: defautTrouve ? null : l.libelleDefaut
+    };
+  };
+
   const importerDepuisExcel = async (file) => {
     isLoading.value = true;
     try {
       const res = await planNcService.importerExcel(file);
       const data = res.data.data;
 
-      // Mettre à jour le poste si détecté dans le fichier
       if (data.posteCode && !entete.value.posteCode) {
         entete.value.posteCode = data.posteCode;
       }
       if (data.nomPlan) entete.value.nom = data.nomPlan;
       if (data.remarques) entete.value.remarques = data.remarques.trim();
 
-      // Mapper les lignes importées
-      const nouvellesLignes = (data.lignes || []).map(l => {
-        // Chercher le défaut par libellé (insensible à la casse)
-        const defautTrouve = risquesDefauts.value.find(rd =>
-          rd.libelle?.trim().toLowerCase() === l.libelleDefaut?.trim().toLowerCase()
-        );
-
-        return {
-          _uid: uuidv4(),
-          id: null,
-          machineCode: l.machineCode || '',
-          risqueDefautId: defautTrouve?.id || null,
-          ordreAffiche: 0,
-          // On conserve le libellé brut si non trouvé, pour affichage
-          _libelleDefautBrut: defautTrouve ? null : l.libelleDefaut
-        };
-      });
+      const nouvellesLignes = (data.lignes || []).map(mapperLigneDepuisExcel);
 
       if (nouvellesLignes.length > 0) {
         lignes.value = nouvellesLignes;

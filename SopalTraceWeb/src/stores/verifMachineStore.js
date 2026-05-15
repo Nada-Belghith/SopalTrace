@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { verifMachineService } from '@/services/verifMachineService';
+import { genererUid } from '@/utils/uuidUtils';
 
 /**
  * Store Pinia pour la gestion des Plans de Vérification Machine.
@@ -54,25 +55,20 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   // --- HELPERS ---
-  const uuidv4 = () =>
-    "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
-      (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-    );
-
   const creerRowVide = () => ({
-    _uid: uuidv4(),
+    _uid: genererUid(),
     refMoyenDetectionId: '',
     matricePieces: [],
   });
 
   const creerGroupVide = () => ({
-    _uid: uuidv4(),
+    _uid: genererUid(),
     periodiciteId: '',
     rows: [creerRowVide()],
   });
 
   const creerLigneVide = () => ({
-    _uid: uuidv4(),
+    _uid: genererUid(),
     libelleRisque: '',
     libelleMethode: '',
     groups: [creerGroupVide()],
@@ -184,7 +180,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       
       if (dataArray && dataArray.length > 0) {
         familles.value = dataArray.map(f => ({
-          id: uuidv4(),
+          id: genererUid(),
           refFamilleCorpsId: f.id,
           libelle: f.designation || f.code
         }));
@@ -234,7 +230,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     if (familles.value.some(f => f.refFamilleCorpsId === refFamilleCorpsId)) return;
 
     familles.value.push({
-      id: uuidv4(),
+      id: genererUid(),
       refFamilleCorpsId: itemRef.id,
       libelle: itemRef.libelle
     });
@@ -350,7 +346,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       familles.value = (data.familles || []).map(f => {
         const dicoFam = famillesCorps.value.find(fc => fc.id === f.refFamilleCorpsId);
         return {
-          id: f.id || uuidv4(),
+          id: f.id || genererUid(),
           refFamilleCorpsId: f.refFamilleCorpsId,
           libelle: dicoFam ? dicoFam.libelle : 'Inconnue',
         };
@@ -375,14 +371,14 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       const pId = ech.periodiciteId || 'none';
       if (!groupedByPerio[pId]) {
         groupedByPerio[pId] = {
-          _uid: uuidv4(),
+          _uid: genererUid(),
           periodiciteId: ech.periodiciteId || '',
           rows: []
         };
         groups.push(groupedByPerio[pId]);
       }
       groupedByPerio[pId].rows.push({
-        _uid: uuidv4(),
+        _uid: genererUid(),
         refMoyenDetectionId: ech.refMoyenDetectionId || '',
         matricePieces: (ech.piecesRef || []).map(mp => ({
           familleId: mp.familleId || null,
@@ -393,7 +389,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     });
 
     return {
-      _uid: uuidv4(),
+      _uid: genererUid(),
       libelleRisque: ligne.libelleRisque || '',
       libelleMethode: ligne.libelleMethode || '',
       groups: groups.length > 0 ? groups : [creerGroupVide()],
@@ -487,15 +483,15 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       // Mapping des lignes
       const mapLignes = (lignesImportees) => {
         return lignesImportees.map(li => ({
-          _uid: uuidv4(),
+          _uid: genererUid(),
           libelleRisque: li.libelleRisque,
           libelleMethode: li.libelleMethode,
           groups: li.echeances.map(ech => ({
-            _uid: uuidv4(),
+            _uid: genererUid(),
             periodiciteId: ech.periodiciteId || '',
             // 🟢 NOUVEAU : Mapper chaque Row (moyen) sous la périodicité
             rows: (ech.rows || []).map(rowItem => ({
-              _uid: uuidv4(),
+              _uid: genererUid(),
               refMoyenDetectionId: moyensDetection.value.find(m => 
                 m.libelle?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase() ||
                 m.code?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase()
@@ -558,7 +554,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     machines, periodicites, famillesCorps, moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded,
     entete, familles, lignesConformite, lignesRisques,
     isLoading, planInitialise, plansExistants,
-    uuidv4, creerGroupVide, creerLigneVide,
+    genererUid, creerGroupVide, creerLigneVide,
     initialiserPlan, resetPlan,
     ajouterFamille, supprimerFamille,
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,

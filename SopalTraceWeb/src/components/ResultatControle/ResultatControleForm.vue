@@ -82,9 +82,9 @@
 
                               <!-- Sélection Défaut -->
                               <td class="p-2 border-r align-middle">
-                                  <div v-if="isReadOnly" class="px-3 py-2 text-xs font-semibold text-slate-800 uppercase">
-                                      {{ store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || 'Aucun défaut sélectionné' }}
-                                  </div>
+                                   <div v-if="isReadOnly" class="px-3 py-2 text-xs font-semibold text-slate-800 uppercase">
+                                       {{ store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || 'Aucun défaut sélectionné' }}
+                                   </div>
                                   <input v-else 
                                           :value="store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || ''"
                                           @input="(e) => onDefautInput(defaut, e.target.value)"

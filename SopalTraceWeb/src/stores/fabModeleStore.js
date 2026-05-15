@@ -131,7 +131,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     natureComposantCode: entete.value.natureComposantCode || '',
     operationCode: entete.value.operationCode || '',
     posteCode: entete.value.posteCode || null,
-    familleProduitCode: (entete.value.natureComposantCode === 'PISTON') ? null : (entete.value.familleProduitCode || null),
+    familleProduitCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
     notes: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
     sections: sections.value.map(s => ({
@@ -139,7 +139,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       typeSectionId: s.typeSectionId,
       periodiciteId: s.periodiciteId,
       regleEchantillonnageId: s.regleEchantillonnageId, // Ajouté ici
-      libelleSection: s.libelleSection,
+      libelleSection: s.libelleSection || 'SECTION SANS NOM',
       frequenceLibelle: s.frequenceLibelle,
       notes: s.notes,
       lignes: s.lignes.map(l => ({

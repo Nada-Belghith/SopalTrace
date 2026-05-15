@@ -143,9 +143,11 @@ public class HubService : IHubService
             .Select(p => new HubPlanDto(
                 p.Id,
                 "FAB",
+                // ✅ Priorité au Nom stocké, SAUF si c'est un nom technique hérité
+                !string.IsNullOrWhiteSpace(p.Nom) && !p.Nom.StartsWith("Modèle ") && !p.Nom.StartsWith("PC-") ? p.Nom :
                 (p.ModeleSource != null && p.ModeleSource.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
                 (p.ModeleSource != null && p.ModeleSource.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
-                (p.Nom ?? $"Plan {p.CodeArticleSage}"),
+                $"Plan {p.CodeArticleSage}",
                 p.ModeleSource != null ? p.ModeleSource.NatureComposantCode : "N/A",
                 p.FamilleProduitFiniCode ?? (p.ModeleSource != null ? (p.ModeleSource.FamilleProduitFiniCode ?? "N/A") : "N/A"),
                 p.ModeleSource != null ? (p.ModeleSource.OperationCode ?? "N/A") : (p.OperationCode ?? "N/A"),
@@ -158,13 +160,37 @@ public class HubService : IHubService
             .ToListAsync();
         result.AddRange(fabPlans);
 
-        // NOTE: Plans Produit Fini (PlanPfEntetes) ne sont PAS inclus ici car :
-        // - Les plans PF sont organisés par FAMILLE (FamilleProduitFiniCode), pas par ARTICLE
-        // - Cette vue "Plans par Article" affiche uniquement les plans articles (FAB/ASS)
-        // - Les plans PF sont accessibles via leur propre interface/hub
+        // 2. PLANS D'ASSEMBLAGE (PISTON / PF : plans article, non modèles)
+        // Plans ASS : PISTON, PF, ou ceux avec nature NULL (créés via un bug de routing)
+        var assPlans = await _context.PlanAssEntetes
+            .AsNoTracking()
+            .Where(p => p.NatureComposantCode == "PISTON" || p.NatureComposantCode == "PF" || p.NatureComposantCode == null)
+            .Where(p => p.OperationCode == "ASS") // Exclure les modèles génériques
+            .Select(p => new HubPlanDto(
+                p.Id,
+                "ASS",
+                // ✅ Nom : ignorer les noms techniques ("Modèle ...", "PC-..."), inférer depuis la nature
+                (!string.IsNullOrWhiteSpace(p.Designation) && !p.Designation.StartsWith("Modèle ") && !p.Designation.StartsWith("PC-")) ? p.Designation :
+                (p.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (p.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                // Nature NULL : essayer de deviner depuis la Designation
+                (!string.IsNullOrWhiteSpace(p.Designation) && p.Designation.ToLower().Contains("piston")) ? "Plan de contrôle en cours de fabrication piston" :
+                "Plan Assemblage",
+                p.NatureComposantCode ?? "N/A",
+                p.FamilleProduitFiniCode ?? "N/A",
+                p.OperationCode ?? "N/A",
+                p.PosteCode ?? "N/A",
+                p.Version,
+                p.Statut ?? "BROUILLON",
+                $"Plan assemblage {p.NatureComposantCode ?? "ASS"}",
+                null,
+                p.Designation))
+            .ToListAsync();
+        result.AddRange(assPlans);
 
         return result;
     }
+
 
     public async Task<bool> ChangerStatutModeleAsync(string category, Guid id, string statut)
     {

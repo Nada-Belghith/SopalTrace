@@ -53,6 +53,8 @@ public record SectionModeleEditDto
     public Guid? TypeSectionId { get; init; }
     public Guid? PeriodiciteId { get; init; }
     public string? FrequenceLibelle { get; init; } = null;
+    public Guid? RegleEchantillonnageId { get; init; }
+    public string? RegleEchantillonnageLibelle { get; init; }
     public string? Notes { get; init; } = null;
     public List<LigneModeleEditDto> Lignes { get; init; } = new();
 }
@@ -132,6 +134,8 @@ public record ModeleSectionResponseDto
     public Guid? TypeSectionId { get; init; }
     public Guid? PeriodiciteId { get; init; }
     public string? FrequenceLibelle { get; init; }
+    public Guid? RegleEchantillonnageId { get; init; }
+    public string? RegleEchantillonnageLibelle { get; init; }
     public List<ModeleLigneResponseDto> Lignes { get; init; } = new();
 }
 

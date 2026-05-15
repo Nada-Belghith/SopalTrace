@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import apiClient from '@/services/apiClient';
+import { genererUid } from '@/utils/uuidUtils';
 
 export const usePlanEchanStore = defineStore('planEchan', {
   state: () => ({
@@ -49,7 +50,7 @@ export const usePlanEchanStore = defineStore('planEchan', {
         const res = await apiClient.get(`/plans-echantillonnage/${id}`);
         const data = res.data.data;
         this.entete = { ...data };
-        this.regles = data.regles.map(r => ({ ...r, _uid: Math.random().toString(36).substr(2, 9) }));
+        this.regles = data.regles.map(r => ({ ...r, _uid: genererUid() }));
       } finally {
         this.isLoading = false;
       }
@@ -67,7 +68,7 @@ export const usePlanEchanStore = defineStore('planEchan', {
 
     ajouterRegle() {
       this.regles.push({
-        _uid: Math.random().toString(36).substr(2, 9),
+        _uid: genererUid(),
         tailleMinLot: null,
         tailleMaxLot: null,
         lettreCode: '',

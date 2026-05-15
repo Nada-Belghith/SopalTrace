@@ -341,7 +341,21 @@ public class PlanFabricationService : IPlanFabricationService
             // Si on ne finalise pas, on s'assure qu'il reste en brouillon
             if (!finaliser) assPlan.Statut = StatutsPlan.Brouillon;
 
-            if (!string.IsNullOrWhiteSpace(nom)) assPlan.Designation = nom;
+            if (!string.IsNullOrWhiteSpace(nom))
+            {
+                // ✅ Auto-correction des noms techniques hérités ("Modèle PLAN-ASS-...", "PC-...")
+                var nomNormalise = nom;
+                if (nom.StartsWith("Modèle ") || System.Text.RegularExpressions.Regex.IsMatch(nom, @"^PC-[A-Z0-9]"))
+                {
+                    nomNormalise = assPlan.NatureComposantCode switch
+                    {
+                        "PISTON" => "Plan de contrôle en cours de fabrication piston",
+                        "PF"     => "Plan en cours de fabrication produit fini",
+                        _        => assPlan.Designation ?? nom
+                    };
+                }
+                assPlan.Designation = nomNormalise;
+            }
             if (legendeMoyens is not null) assPlan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
             if (remarques is not null) assPlan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
 

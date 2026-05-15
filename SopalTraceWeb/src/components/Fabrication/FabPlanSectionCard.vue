@@ -8,13 +8,17 @@
      <tbody class="divide-y divide-slate-200">
   
   <!-- RÉUTILISATION DU HEADER -->
-  <FabSectionHeader
+  <!-- RÉUTILISATION DU HEADER UNIFIÉ -->
+  <PlanSectionHeader
     :section="localSection"
     :index="index"
     :colspan="currentColspan"
-    label="GROUPE"
-    :periodicites="periodicites"
-    :is-archived="isArchived"
+    label="SEC"
+    defaultTitle="Caractéristiques à contrôler"
+    :typesSection="store.typesSection"
+    :periodicites="store.periodicites"
+    :reglesEchantillonnage="store.reglesEchantillonnage"
+    :isReadOnly="isArchived"
     @add-ligne="addLigneLocal"
     @remove="() => emit('remove')"
     @update:section="(hdr) => { Object.assign(localSection, hdr); emit('update:section', { ...localSection }); }"
@@ -44,7 +48,7 @@
 <script setup>
 import { defineProps, defineEmits, ref, watch, nextTick, computed } from 'vue';
 import FabTableHeader from './FabTableHeader.vue';
-import FabSectionHeader from './FabSectionHeader.vue';
+import PlanSectionHeader from '@/components/Shared/PlanSectionHeader.vue';
 import FabPlanLigneControl from './FabPlanLigneControl.vue';
 
 const props = defineProps({
@@ -73,11 +77,10 @@ watch(() => props.section, (newVal) => {
 }, { deep: true });
 
 // NOTE: We intentionally do NOT emit on every deep change of localSection to avoid
-// recursive update loops. Updates are emitted explicitly from handlers below when
-// const store = useFabModeleStore(); // Removed because it was unused
+import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { genererUid } from '@/utils/uuidUtils';
 
-
-
+const store = useFabModeleStore();
 const planColumns = computed(() => [
   { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
   { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
@@ -91,11 +94,8 @@ const planColumns = computed(() => [
 const currentColspan = computed(() => 7);
 
 // Helper to generate an id that works in all environments
-
 const generateId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  // fallback: simple guid-like
-  return 'id-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+  return genererUid();
 };
 
 const addLigneLocal = () => {

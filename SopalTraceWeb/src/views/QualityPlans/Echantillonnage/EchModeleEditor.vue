@@ -115,7 +115,7 @@
             <table class="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr class="bg-slate-100 border-b-2 border-slate-200">
-                  <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-16">N°</th>
+                  <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-16">NÂ°</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-48">Effectif du lot (Tranche)</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-24">Lettre Code</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 bg-emerald-50/30">Échantillon Global (A)</th>
@@ -282,11 +282,11 @@ onMounted(async () => {
 
 const onSave = async () => {
   if (isArchived.value) {
-    // Si on restaure une archive, on vérifie d'abord s'il y a déjà un plan actif
+    // Si on restaure une archive, on vérifie d'abord s'il y a déjÃ  un plan actif
     const planActif = await store.getPlanActif();
     if (planActif) {
       confirm.require({
-        message: `Un plan d'échantillonnage est déjà ACTIF (V${planActif.version}). Voulez-vous l'archiver pour restaurer cette version en tant que V${planActif.version + 1} ?`,
+        message: `Un plan d'échantillonnage est déjÃ  ACTIF (V${planActif.version}). Voulez-vous l'archiver pour restaurer cette version en tant que V${planActif.version + 1} ?`,
         header: 'Confirmation de Restauration',
         icon: 'pi pi-exclamation-triangle',
         acceptLabel: 'Restaurer et Archiver',
@@ -308,13 +308,13 @@ const onSave = async () => {
     if (isEditMode.value) {
       await store.creerNouvelleVersion('Modification via UI');
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version créée et activée.', life: 3000 });
-      router.push('/dev/hub-plans');
+      router.push('/dev/hub');
     } else {
-      // Vérifier s'il y a déjà un plan actif avant de créer le tout premier ou un nouveau "NQA global"
+      // Vérifier s'il y a déjÃ  un plan actif avant de créer le tout premier ou un nouveau "NQA global"
       const planActif = await store.getPlanActif();
       if (planActif) {
         confirm.require({
-          message: `Un plan d'échantillonnage est déjà ACTIF (V${planActif.version}). Si vous continuez, il sera archivé et remplacé par ce nouveau plan (V${planActif.version + 1}). Continuer ?`,
+          message: `Un plan d'échantillonnage est déjÃ  ACTIF (V${planActif.version}). Si vous continuez, il sera archivé et remplacé par ce nouveau plan (V${planActif.version + 1}). Continuer ?`,
           header: 'Confirmation de Création',
           icon: 'pi pi-exclamation-triangle',
           acceptLabel: 'Créer et Archiver',
@@ -322,13 +322,13 @@ const onSave = async () => {
           accept: async () => {
             await store.sauvegarderPlan();
             toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
-            router.push('/dev/hub-plans');
+            router.push('/dev/hub');
           }
         });
       } else {
         await store.sauvegarderPlan();
         toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
-        router.push('/dev/hub-plans');
+        router.push('/dev/hub');
       }
     }
   } catch (err) {
@@ -349,7 +349,7 @@ const onVersioningConfirm = async (motif) => {
       await store.creerNouvelleVersion(motif);
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version générée en brouillon.', life: 3000 });
     }
-    router.push('/dev/hub-plans');
+    router.push('/dev/hub');
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors du traitement.', life: 3000 });
   } finally {

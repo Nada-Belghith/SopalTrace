@@ -95,7 +95,7 @@
                   :is-read-only="isReadOnly"
                   @remove="supprimerSection(section.id)"
                   @update-groupe="(updatedSection) => mettreAJourSection(index, updatedSection)"
-                  @section-type-required="() => toast.add({ severity: 'warn', summary: 'Nature requise', detail: 'Veuillez définir la nature de la section.', life: 4000 })"
+                  @section-type-required="() => toast.warn('Veuillez définir la nature de la section.', 'Nature requise')"
                 >
                   <FabLigneControl 
                     v-for="ligne in section.lignes" 
@@ -148,7 +148,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'primevue/usetoast';
+import { useAppToast } from '@/composables/useAppToast';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 import { usePfPlanStore } from '@/stores/pfPlanStore';
@@ -169,7 +169,7 @@ import { pfPlanService } from '@/services/pfPlanService';
 
 const route = useRoute();
 const router = useRouter();
-const toast = useToast();
+const toast = useAppToast();
 const store = usePfPlanStore();
 
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
@@ -261,43 +261,14 @@ const onFileSelected = async (event) => {
           }
 
           let typeSectionId = sec.typeSectionId || '';
-          if (!typeSectionId && sec.nom) {
-            // On nettoie le nom venant d'Excel (on enlève ce qui est entre parenthèses pour mieux matcher)
-            const secLib = sec.nom.trim().toLowerCase();
-            const cleanLib = secLib.split(' (')[0].trim();
-            
-            let bestMatch = null;
-            let maxLength = -1;
-
-            (store.typesSection || []).forEach(t => {
-              const tLib = (t.libelle || '').trim().toLowerCase();
-              if (!tLib || cleanLib === 'section sans nom') return;
-
-              // Match exact ou inclusion du libellé dictionnaire dans le libellé Excel
-              if ((cleanLib === tLib || cleanLib.includes(tLib) || tLib.includes(cleanLib)) && tLib.length > maxLength) {
-                maxLength = tLib.length;
-                bestMatch = t;
-              }
-            });
-
-            if (bestMatch) {
-              typeSectionId = bestMatch.id;
-            } else {
-              // FALLBACK PF : Si on ne trouve rien, on cherche une nature par défaut (Contrôle Produit Fini / Contrôle Final)
-              const fallback = (store.typesSection || []).find(t => {
-                const lib = (t.libelle || '').toLowerCase();
-                return lib.includes('produit fini') || lib.includes('contrôle final');
-              });
-              if (fallback) typeSectionId = fallback.id;
-            }
-          }
 
           return {
             id: sec.id || crypto.randomUUID(),
             isFromDb: false,
+            nom: sec.nom || '',  // Texte brut Excel (nature personnalisée si typeSectionId est null)
             libelleSection: sec.nom,
+            typeSectionId,  // null/vide si non trouvé en base
             notes: sec.notes || '',
-            typeSectionId,
             regleEchantillonnageId,
             regleEchantillonnageLibelle: sec.frequenceLibelle,
             modeFreq,
@@ -324,10 +295,10 @@ const onFileSelected = async (event) => {
       // On recharge les dictionnaires pour s'assurer que les nouvelles caractéristiques créées par le backend soient disponibles dans les select.
       await store.fetchDictionnaires();
 
-      toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Les données ont été chargées depuis le fichier Excel.', life: 4000 });
+      toast.success('Les données ont été chargées depuis le fichier Excel.', 'Import réussi');
     }
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: error.response?.data?.message || 'Impossible de lire le fichier.', life: 4000 });
+    toast.error(error.response?.data?.message || 'Impossible de lire le fichier.', 'Erreur d\'import');
   } finally {
     isLoadingData.value = false;
     if (fileInput.value) fileInput.value.value = '';
@@ -408,7 +379,7 @@ onMounted(async () => {
       sections.value = JSON.parse(JSON.stringify(store.sections));
     } catch (error) {
       console.error("Erreur chargement plan PF :", error);
-      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger le plan PF', life: 3000 });
+      toast.error('Impossible de charger le plan PF');
       router.push('/dev/hub');
     } finally {
       isLoadingData.value = false;
@@ -442,7 +413,7 @@ const onCloseEditor = () => {
 
 const sauvegarderDirectement = async () => {
   if (!store.entete.familleProduitFiniCode) {
-    toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'La famille de produit est obligatoire.', life: 3000 });
+    toast.warn('La famille de produit est obligatoire.', 'Champs requis');
     return;
   }
   if (!validerSaisieValeurs()) return;
@@ -451,10 +422,10 @@ const sauvegarderDirectement = async () => {
   try {
     store.sections = sections.value;
     await store.createPlan();
-    toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
+    toast.success('Plan créé et activé.');
     router.push('/dev/hub');
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la sauvegarde.', life: 3000 });
+    toast.error(error.response?.data?.message || 'Erreur lors de la sauvegarde.');
   } finally {
     isSaving.value = false;
   }
@@ -494,18 +465,18 @@ const onVersioningConfirm = async (motif) => {
     if (isArchived.value) {
       // Cas Restauration : on appelle l'endpoint dédié
       await store.restaurerPlan(motif);
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Version restaurée et activée.', life: 3000 });
+      toast.success('Version restaurée et activée.');
     } else {
       // Cas Nouvelle Version (depuis un plan Actif)
       await store.creerNouvelleVersion(motif);
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version activée.', life: 3000 });
+      toast.success('Nouvelle version activée.');
     }
     
     router.push(`/dev/hub`);
 
   } catch (error) {
     const action = isArchived.value ? 'la restauration' : 'le versioning';
-    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || `Erreur lors de ${action}.`, life: 3000 });
+    toast.error(error.response?.data?.message || `Erreur lors de ${action}.`);
   } finally {
     isVersioningSaving.value = false;
   }

@@ -37,6 +37,11 @@ public record SectionAssEditDto
     public string? Notes { get; init; } = null;
     public Guid? RegleEchantillonnageId { get; init; }
     public string? RegleEchantillonnageLibelle { get; init; }
+    public string? FrequenceLibelle { get; init; }
+    public string? ModeFreq { get; init; }
+    public int? FreqNum { get; init; }
+    public string? TypeVariable { get; init; }
+    public int? FreqHours { get; init; }
     public List<LigneAssEditDto> Lignes { get; init; } = new();
 }
 
@@ -124,6 +129,11 @@ public record SectionAssResponseDto
     public string? Notes { get; init; }
     public Guid? RegleEchantillonnageId { get; init; }
     public string? RegleEchantillonnageLibelle { get; init; }
+    public string? FrequenceLibelle { get; init; }
+    public string? ModeFreq { get; init; }
+    public int? FreqNum { get; init; }
+    public string? TypeVariable { get; init; }
+    public int? FreqHours { get; init; }
     public List<LigneAssResponseDto> Lignes { get; init; } = new();
 }
 

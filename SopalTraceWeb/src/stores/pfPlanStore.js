@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { pfPlanService } from '@/services/pfPlanService';
+import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
 export const usePfPlanStore = defineStore('pfPlan', () => {
   // --- DICTIONNAIRES ---
@@ -111,38 +112,12 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
           const libelle = regle ? regle.libelle : (s.regleEchantillonnageLibelle || '');
           
           // Détection du mode
-          if (libelle.toLowerCase().includes('pièce') || libelle.toLowerCase().includes('serie') || libelle.toLowerCase().includes('échantillon')) {
-            hydrated.modeFreq = 'VARIABLE';
-            
-            // Parsing simple des libellés connus
-            const mH = libelle.match(/(\d+)\s*pièce.*?(\d+)\s*heure/i);
-            if (mH) {
-              hydrated.freqNum = parseInt(mH[1]);
-              hydrated.freqHours = parseInt(mH[2]);
-              hydrated.typeVariable = 'HEURE';
-            } else {
-              const mH1 = libelle.match(/(\d+)\s*pièce.*?heure/i);
-              if (mH1) {
-                hydrated.freqNum = parseInt(mH1[1]);
-                hydrated.freqHours = 1;
-                hydrated.typeVariable = 'HEURE';
-              }
-            }
-
-            const mS = libelle.match(/série de (\d+)/i);
-            if (mS) {
-              hydrated.freqNum = parseInt(mS[1]);
-              hydrated.typeVariable = 'SERIE';
-            }
-
-            const mE = libelle.match(/(\d+)\s*échantillon/i);
-            if (mE) {
-              hydrated.freqNum = parseInt(mE[1]);
-              hydrated.typeVariable = 'ECHANTILLON';
-            }
-          } else {
-            hydrated.modeFreq = 'FIXE';
-          }
+          const parsingResult = parseFrequenceLibelle(libelle, periodicites.value);
+          Object.assign(hydrated, parsingResult);
+          
+          // FIX: Si on a un ID de règle d'échantillonnage, on FORCE le mode FIXE
+          // même si le libellé contient des mots clés comme "pièce" (ex: "1 pièce / heure")
+          hydrated.modeFreq = 'FIXE';
         } else if (s.libelleSection && s.libelleSection.includes('(')) {
            hydrated.modeFreq = 'VARIABLE';
         } else {

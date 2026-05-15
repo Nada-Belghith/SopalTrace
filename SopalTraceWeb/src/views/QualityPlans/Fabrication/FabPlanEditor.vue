@@ -452,6 +452,7 @@
 
         plan.value = {
           statut: 'BROUILLON',
+          nom: `Plan de contrôle en cours de fabrication ${wizard.designationArticle.value || data.designation}${wizard.posteCode.value ? ' (' + wizard.posteCode.value + ')' : ''}`,
           codeArticleSage: codeArticle || data.codeArticleSage,
           designation: wizard.designationArticle.value || data.designation,
           version: 1,
@@ -697,6 +698,7 @@
           // Initialisation du statut pour l'UI
           plan.value = {
             statut: 'BROUILLON',
+            nom: `Plan de contrôle en cours de fabrication ${parsedData.designation || wizard.designationArticle.value}${wizard.posteCode.value ? ' (' + wizard.posteCode.value + ')' : ''}`,
             codeArticleSage: parsedData.codeArticleSage || wizard.codeArticleSage.value,
             designation: parsedData.designation || wizard.designationArticle.value,
             operationCode: parsedData.operationCode || wizard.operationCode.value,
@@ -956,7 +958,12 @@
   const normalizeId = (id) => (typeof id === 'string' && id.length <= 36 ? id : null);
 
   const syncIdsFromDb = (dbPlanData) => {
-    if (!dbPlanData || !dbPlanData.sections) return;
+    if (!dbPlanData) return;
+
+    // Synchroniser l'objet plan principal pour avoir les bonnes métadonnées (nom, version, etc.)
+    plan.value = dbPlanData;
+
+    if (!dbPlanData.sections) return;
 
     sections.value.forEach((sec, sIdx) => {
       const dbSec = dbPlanData.sections.find(ds => ds.ordreAffiche === (sIdx + 1));
@@ -1111,7 +1118,9 @@
 
       const payload = construirePayloadService(true);
 
-      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, plan.value?.nom, 'Admin');
+      const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
+
+      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, finalNom, 'Admin');
 
       if (afficherToast) {
         toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
@@ -1158,7 +1167,9 @@
 
       const payload = construirePayloadService(false);
 
-      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, plan.value?.nom, 'Admin');
+      const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
+
+      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, finalNom, 'Admin');
 
       toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
 

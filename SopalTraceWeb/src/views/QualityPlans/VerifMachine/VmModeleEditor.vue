@@ -30,7 +30,7 @@
 import { useRouter, useRoute } from 'vue-router';
 import { onMounted, computed, ref } from 'vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
-import { useToast } from 'primevue/usetoast';
+import { useAppToast } from '@/composables/useAppToast';
 import Toast from 'primevue/toast';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import VerifMachineForm from '@/components/VerifMachine/VerifMachineForm.vue';
@@ -38,7 +38,7 @@ import { useVerifMachineStore } from '@/stores/verifMachineStore';
 
 const router = useRouter();
 const route = useRoute();
-const toast = useToast();
+const toast = useAppToast();
 const store = useVerifMachineStore();
 
 const isReadOnly = computed(() => route.query.view === 'true' || store.entete.statut === 'ARCHIVE');
@@ -51,7 +51,7 @@ onMounted(async () => {
     try {
       await store.chargerPlanVerif(id);
     } catch {
-      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger le plan.', life: 3000 });
+      toast.error('Impossible de charger le plan.');
     }
   } else {
     store.resetPlan();
@@ -60,23 +60,14 @@ onMounted(async () => {
 
 const onSaved = (result) => {
   if (result.noChanges) {
-    toast.add({
-      severity: 'info',
-      summary: 'Aucun changement',
-      detail: 'Le plan est identique à la version actuelle. Aucune nouvelle version n\'a été créée.',
-      life: 3000
-    });
+    toast.info('Le plan est identique à la version actuelle. Aucune nouvelle version n\'a été créée.', 'Aucun changement');
     return;
   }
 
-  toast.add({
-    severity: 'success',
-    summary: 'Plan Enregistré',
-    detail: result.isNew 
-      ? 'Le plan de vérification a été créé avec succès.'
-      : `Nouvelle version (V${store.entete.version}) créée et activée.`,
-    life: 4000
-  });
+  toast.success(result.isNew 
+    ? 'Le plan de vérification a été créé avec succès.'
+    : `Nouvelle version (V${store.entete.version}) créée et activée.`, 
+    'Plan Enregistré');
   
   if (result.id && result.id !== route.params.id) {
     router.replace(`/dev/verif-machine/editer/${result.id}`);
@@ -93,11 +84,11 @@ const onVersioningConfirm = async (motif) => {
   try {
     const res = await store.restaurerPlanVerif(store.entete.id, motif);
     if (res.success) {
-      toast.add({ severity: 'success', summary: 'Restauré', detail: 'Le plan a été restauré avec succès.', life: 3000 });
+      toast.success('Le plan a été restauré avec succès.', 'Restauré');
       router.replace(`/dev/verif-machine/editer/${res.planId}`);
     }
   } catch {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de la restauration.', life: 3000 });
+    toast.error('Échec de la restauration.');
   } finally {
     isRestoring.value = false;
   }

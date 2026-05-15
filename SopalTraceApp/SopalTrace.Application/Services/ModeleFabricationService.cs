@@ -351,11 +351,19 @@ public class ModeleFabricationService : IModeleFabricationService
         if (assModele != null)
         {
             var user = _currentUserService.UserInfo;
-            if (assModele.Statut == StatutsPlan.Actif)
+            
+            // ✅ Trouver l'actuel plan actif pour cette combinaison (indépendamment du fait qu'on versionne l'actif ou un archivé)
+            var planActifActuel = await _assRepository.GetPlanActifMaitreAsync(
+                assModele.OperationCode, 
+                assModele.FamilleProduitFiniCode, 
+                assModele.NatureComposantCode, 
+                assModele.PosteCode);
+
+            if (planActifActuel != null)
             {
-                assModele.Statut = StatutsPlan.Archive;
-                assModele.ArchiveLe = DateTime.UtcNow;
-                assModele.ArchivePar = user;
+                planActifActuel.Statut = StatutsPlan.Archive;
+                planActifActuel.ArchiveLe = DateTime.UtcNow;
+                planActifActuel.ArchivePar = user;
             }
 
             var nouvelleVersion = await _assRepository.GetDerniereVersionParCodeAsync(assModele.Designation ?? string.Empty) + 1;
@@ -401,7 +409,7 @@ public class ModeleFabricationService : IModeleFabricationService
         if (assModele != null)
         {
             var user = _currentUserService.UserInfo;
-            var actif = await _assRepository.GetPlanActifMaitreAsync(assModele.OperationCode, assModele.FamilleProduitFiniCode ?? "");
+            var actif = await _assRepository.GetPlanActifMaitreAsync(assModele.OperationCode, assModele.FamilleProduitFiniCode, assModele.NatureComposantCode, assModele.PosteCode);
             if (actif != null)
             {
                 actif.Statut = StatutsPlan.Archive;

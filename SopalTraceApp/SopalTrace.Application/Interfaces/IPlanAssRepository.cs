@@ -14,15 +14,15 @@ public interface IPlanAssRepository
     Task<int> GetDerniereVersionParCodeAsync(string code);
 
     // Existence
-    Task<bool> ExistePlanMaitreActifAsync(string operationCode, string? familleCode);
-    Task<bool> ExisteExceptionActiveAsync(string opCode, string? familleCode, string articleCode);
+    Task<bool> ExistePlanMaitreActifAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode);
+    Task<bool> ExisteExceptionActiveAsync(string opCode, string? familleCode, string? natureComposantCode, string? posteCode, string articleCode);
     Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode);
     Task<bool> ExisteParCodeAsync(string code);
     Task<bool> ExisteParCodeEtLibelleAsync(string code, string libelle);
 
     // Récupération
     Task<PlanAssEntete?> GetPlanAvecRelationsAsync(Guid planId);
-    Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode);
+    Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode);
     Task<PlanAssEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage);
     Task<PlanAssEntete?> GetPlanByIdAsync(Guid planId);
     Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string? familleCode, string? codeArticleSage);
