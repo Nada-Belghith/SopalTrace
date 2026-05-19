@@ -13,7 +13,7 @@ public partial class RefFamilleCorp
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<Itmmaster> Itmmasters { get; set; } = new List<Itmmaster>();
+    public virtual ICollection<PieceReference> PieceReferences { get; set; } = new List<PieceReference>();
 
     public virtual ICollection<PlanVerifMachineFamille> PlanVerifMachineFamilles { get; set; } = new List<PlanVerifMachineFamille>();
 

@@ -1,13 +1,11 @@
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:9091/api';
+import apiClient from './apiClient';
 
 export const authService = {
   /**
    * Connexion avec matricule et mot de passe
    */
   async login(matricule, motDePasse) {
-    const response = await axios.post(`${API_URL}/auth/login`, {
+    const response = await apiClient.post('/auth/login', {
       matricule,
       motDePasse
     });
@@ -18,7 +16,7 @@ export const authService = {
    * Inscription d'un nouvel utilisateur
    */
   async register(matricule, email, motDePasse) {
-    const response = await axios.post(`${API_URL}/auth/register`, {
+    const response = await apiClient.post('/auth/register', {
       matricule,
       email,
       motDePasse
@@ -30,8 +28,7 @@ export const authService = {
    * Déconnexion
    */
   async logout() {
-    // L'intercepteur ajoutera le token automatiquement
-    const response = await axios.post(`${API_URL}/auth/logout`);
+    const response = await apiClient.post('/auth/logout');
     return response.data;
   },
 
@@ -39,7 +36,7 @@ export const authService = {
    * Rafraîchissement du token
    */
   async refreshToken(token) {
-    const response = await axios.post(`${API_URL}/auth/refresh`, { token });
+    const response = await apiClient.post('/auth/refresh', { token });
     return response.data;
   },
 
@@ -47,7 +44,7 @@ export const authService = {
    * Demande de réinitialisation de mot de passe (envoi code)
    */
   async forgotPassword(email) {
-    const response = await axios.post(`${API_URL}/auth/forgot-password`, { email });
+    const response = await apiClient.post('/auth/forgot-password', { email });
     return response.data;
   },
 
@@ -55,7 +52,7 @@ export const authService = {
    * Réinitialisation effective du mot de passe avec le code reçu
    */
   async resetPassword(email, code, nouveauMotDePasse) {
-    const response = await axios.post(`${API_URL}/auth/reset-password`, {
+    const response = await apiClient.post('/auth/reset-password', {
       email,
       code,
       nouveauMotDePasse

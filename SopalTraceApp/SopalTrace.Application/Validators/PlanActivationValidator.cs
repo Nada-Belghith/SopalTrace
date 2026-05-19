@@ -28,13 +28,13 @@ public class PlanActivationValidator : AbstractValidator<PlanFabEntete>
                         // TypeControleId est le seul champ toujours obligatoire
                         ligne.RuleFor(l => l.TypeControleId)
                             .NotEmpty().WithMessage("Chaque ligne doit avoir un type de contrôle.")
-                            .Must(id => id.HasValue && id.Value != Guid.Empty).WithMessage("Le type de contrôle ne peut pas être vide.");
+                            .Must(id => id != Guid.Empty).WithMessage("Le type de contrôle ne peut pas être vide.");
 
                         // Chaque ligne doit fournir au moins une information utile à l'opérateur :
                         // soit une caractéristique, soit une limite textuelle.
                         ligne.RuleFor(l => l)
                             .Must(l =>
-                                (l.TypeCaracteristiqueId.HasValue && l.TypeCaracteristiqueId.Value != Guid.Empty)
+                                (l.TypeCaracteristiqueId != Guid.Empty)
                                 || (!string.IsNullOrWhiteSpace(l.LimiteSpecTexte))
                             )
                             .WithMessage("Chaque ligne doit avoir soit une caractéristique, soit une limite spécifique.");

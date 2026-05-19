@@ -16,7 +16,7 @@ public static class PlanAssMapper
         {
             Id = plan.Id,
             OperationCode = plan.OperationCode ?? string.Empty,
-            NatureComposantCode = plan.NatureComposantCode ?? string.Empty,
+            NatureComposantCode = plan.NatureArticleCode ?? string.Empty,
             FamilleCode = plan.FamilleProduitFiniCode ?? string.Empty,
             Code = $"ASS-{plan.OperationCode}-{plan.FamilleProduitFiniCode}-{plan.Version}", // Fallback
             EstModele = true,
@@ -30,12 +30,13 @@ public static class PlanAssMapper
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
-            Remarques = plan.Remarques,
+            Remarques = string.Empty,
             Sections = plan.PlanAssSections?.Select(s => new SectionAssResponseDto
             {
                 Id = s.Id,
-                TypeSectionId = s.TypeSectionId ?? Guid.Empty,
-                PeriodiciteId = s.PeriodiciteId ?? Guid.Empty,
+                TypeSectionId = s.TypeSectionId,
+                PeriodiciteId = s.PeriodiciteId,
+
                 LibelleSection = s.LibelleSection ?? string.Empty,
                 OrdreAffiche = s.OrdreAffiche,
                 NormeReference = s.NormeReference,
@@ -52,9 +53,9 @@ public static class PlanAssMapper
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ,
                     LibelleAffiche = l.LibelleAffiche ?? string.Empty,
-                    TypeControleId = l.TypeControleId ?? Guid.Empty,
+                    TypeControleId = l.TypeControleId ,
                     MoyenControleId = l.MoyenControleId,
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
@@ -75,7 +76,7 @@ public static class PlanAssMapper
             Code = plan.Designation ?? "ASS",
             Libelle = plan.Designation ?? "Plan Assemblage",
             TypeRobinetCode = plan.FamilleProduitFiniCode ?? string.Empty,
-            NatureComposantCode = plan.NatureComposantCode ?? "PF",
+            NatureComposantCode = plan.NatureArticleCode ?? "PF",
             PosteCode = plan.PosteCode,
             FamilleProduitCode = plan.FamilleProduitFiniCode,
             Version = plan.Version,
@@ -85,23 +86,24 @@ public static class PlanAssMapper
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
-            Notes = plan.Remarques,
+            Notes = string.Empty,
             Sections = plan.PlanAssSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id,
                 OrdreAffiche = s.OrdreAffiche,
                 LibelleSection = s.LibelleSection ?? "Section",
-                TypeSectionId = s.TypeSectionId ?? Guid.Empty,
+                TypeSectionId = s.TypeSectionId,
                 PeriodiciteId = s.PeriodiciteId,
+
                 RegleEchantillonnageId = s.RegleEchantillonnageId,
                 RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
                 Lignes = s.PlanAssLignes?.Select(l => new ModeleLigneResponseDto
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ,
                     LibelleAffiche = l.LibelleAffiche,
-                    TypeControleId = l.TypeControleId ?? Guid.Empty,
+                    TypeControleId = l.TypeControleId ,
                     MoyenControleId = l.MoyenControleId,
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
@@ -122,14 +124,14 @@ public static class PlanAssMapper
             Id = planId,
             OperationCode = request.OperationCode,
             FamilleProduitFiniCode = MapperHelper.NullIfEmpty(request.FamilleProduitCode),
-            NatureComposantCode = MapperHelper.NullIfEmpty(request.NatureComposantCode),
+            NatureArticleCode = MapperHelper.NullIfEmpty(request.NatureComposantCode),
             PosteCode = MapperHelper.NullIfEmpty(request.PosteCode),
             // Nom = request.Code, // On peut utiliser Nom pour stocker le Code si c'est l'intention
             Designation = request.Libelle,
             Statut = StatutsPlan.Actif,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
-            Remarques = request.Notes,
+            //Remarques = request.Notes,
             LegendeMoyens = request.LegendeMoyens,
             PlanAssSections = new List<PlanAssSection>()
         };
@@ -141,8 +143,9 @@ public static class PlanAssMapper
             {
                 Id = sectionId,
                 PlanEnteteId = planId,
-                TypeSectionId = s.TypeSectionId,
+                TypeSectionId = (s.TypeSectionId == null || s.TypeSectionId == Guid.Empty) ? null : s.TypeSectionId,
                 PeriodiciteId = s.PeriodiciteId,
+
                 LibelleSection = s.LibelleSection,
                 RegleEchantillonnageId = s.RegleEchantillonnageId,
                 RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
@@ -159,9 +162,9 @@ public static class PlanAssMapper
                     PlanEnteteId = planId,
                     SectionId = sectionId,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
                     LibelleAffiche = l.LibelleAffiche,
-                    TypeControleId = l.TypeControleId,
+                    TypeControleId = l.TypeControleId ?? Guid.Empty,
                     MoyenControleId = l.MoyenControleId,
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
@@ -182,7 +185,7 @@ public static class PlanAssMapper
         return new PlanAssSection
         {
             PlanEnteteId = planId,
-            TypeSectionId = dto.TypeSectionId,
+            TypeSectionId = (dto.TypeSectionId == null || dto.TypeSectionId == Guid.Empty) ? null : dto.TypeSectionId,
             PeriodiciteId = dto.PeriodiciteId,
             OrdreAffiche = dto.OrdreAffiche,
             LibelleSection = string.IsNullOrWhiteSpace(dto.LibelleSection) ? "NOUVELLE SECTION" : dto.LibelleSection,
@@ -236,7 +239,7 @@ public static class PlanAssMapper
             Id = planId,
             OperationCode = source.OperationCode,
             FamilleProduitFiniCode = source.FamilleProduitFiniCode,
-            NatureComposantCode = source.NatureComposantCode,
+            NatureArticleCode = source.NatureArticleCode,
             PosteCode = source.PosteCode,
             Designation = !string.IsNullOrWhiteSpace(nouvelleDesig) ? nouvelleDesig : source.Designation,
             Version = estModele ? source.Version + 1 : 0,
@@ -244,7 +247,7 @@ public static class PlanAssMapper
             CreePar = creePar,
             CreeLe = DateTime.UtcNow,
             LegendeMoyens = source.LegendeMoyens,
-            Remarques = source.Remarques,
+            //Remarques = source.Remarques,
             PlanAssSections = new List<PlanAssSection>()
         };
 
@@ -313,14 +316,14 @@ public static class PlanAssMapper
             Id = planId,
             OperationCode = request.OperationCode ?? ancienModele.OperationCode,
             FamilleProduitFiniCode = request.FamilleProduitCode ?? ancienModele.FamilleProduitFiniCode,
-            NatureComposantCode = request.NatureComposantCode ?? ancienModele.NatureComposantCode,
+            NatureArticleCode = request.NatureComposantCode ?? ancienModele.NatureArticleCode,
             PosteCode = request.PosteCode ?? ancienModele.PosteCode,
             Designation = IncrementerSuffixeVersion(request.Libelle ?? ancienModele.Designation ?? "Plan Assemblage", nouvelleVersion),
             Version = nouvelleVersion,
             Statut = StatutsPlan.Actif,
             CreePar = auteur,
             CreeLe = DateTime.UtcNow,
-            Remarques = request.Notes ?? ancienModele.Remarques,
+            //Remarques = request.Notes ?? ancienModele.Remarques,
             LegendeMoyens = request.LegendeMoyens ?? ancienModele.LegendeMoyens,
             PlanAssSections = new List<PlanAssSection>()
         };
@@ -334,8 +337,9 @@ public static class PlanAssMapper
                 {
                     Id = sectionId,
                     PlanEnteteId = planId,
-                    TypeSectionId = s.TypeSectionId,
+                    TypeSectionId = (s.TypeSectionId == null || s.TypeSectionId == Guid.Empty) ? null : s.TypeSectionId,
                     PeriodiciteId = s.PeriodiciteId,
+
                     LibelleSection = s.LibelleSection,
                     RegleEchantillonnageId = s.RegleEchantillonnageId,
                     RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
@@ -352,9 +356,9 @@ public static class PlanAssMapper
                         PlanEnteteId = planId,
                         SectionId = sectionId,
                         OrdreAffiche = l.OrdreAffiche,
-                        TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                        TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
                         LibelleAffiche = l.LibelleAffiche,
-                        TypeControleId = l.TypeControleId,
+                        TypeControleId = l.TypeControleId ?? Guid.Empty,
                         MoyenControleId = l.MoyenControleId,
                         InstrumentCode = l.InstrumentCode,
                         LimiteSpecTexte = l.LimiteSpecTexte,

@@ -28,7 +28,7 @@ public static class SectionDtoExtensions
             Id = null, // Force new IDs on recreation
             ModeleSectionId = section.ModeleSectionId,
             LibelleSection = section.LibelleSection ?? string.Empty,
-            FrequenceLibelle = section.FrequenceLibelle ?? string.Empty,
+            //FrequenceLibelle = section.FrequenceLibelle ?? string.Empty,
             OrdreAffiche = section.OrdreAffiche,
             RegleEchantillonnageId = section.RegleEchantillonnageId,
             RegleEchantillonnageLibelle = section.RegleEchantillonnageLibelle ?? string.Empty,

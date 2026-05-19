@@ -29,7 +29,7 @@ public record SectionAssEditDto
 {
     public Guid? Id { get; set; }
     public required int OrdreAffiche { get; init; }
-    public required Guid TypeSectionId { get; init; }
+    public Guid? TypeSectionId { get; init; }
     public Guid? PeriodiciteId { get; init; }
     public required string LibelleSection { get; init; }
     public string? NormeReference { get; init; } = null;
@@ -120,7 +120,7 @@ public record PlanAssResponseDto
 public record SectionAssResponseDto
 {
     public required Guid Id { get; init; }
-    public required Guid TypeSectionId { get; init; }
+    public Guid? TypeSectionId { get; init; }
     public Guid? PeriodiciteId { get; init; }
     public required string LibelleSection { get; init; }
     public required int OrdreAffiche { get; init; }

@@ -13,15 +13,11 @@ public partial class FamilleProduitFini
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<Itmmaster> Itmmasters { get; set; } = new List<Itmmaster>();
-
-    public virtual ICollection<ModeleFabEntete> ModeleFabEntetes { get; set; } = new List<ModeleFabEntete>();
-
     public virtual ICollection<PlanAssEntete> PlanAssEntetes { get; set; } = new List<PlanAssEntete>();
 
-    public virtual ICollection<PlanFabEntete> PlanFabEntetes { get; set; } = new List<PlanFabEntete>();
+    public virtual ICollection<PlanPfEntete> PlanPfEntetes { get; set; } = new List<PlanPfEntete>();
 
-    public virtual PlanPfEntete? PlanPfEntete { get; set; }
+    public virtual ICollection<ProduitFini> ProduitFinis { get; set; } = new List<ProduitFini>();
 
     public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 }

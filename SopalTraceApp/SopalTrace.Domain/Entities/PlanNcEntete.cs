@@ -19,14 +19,6 @@ public partial class PlanNcEntete
 
     public DateTime CreeLe { get; set; }
 
-    public string? ModifiePar { get; set; }
-
-    public DateTime? ModifieLe { get; set; }
-
-    public string? Remarques { get; set; }
-
-    public string? LegendeMoyens { get; set; }
-
     public virtual ICollection<PlanNcLigne> PlanNcLignes { get; set; } = new List<PlanNcLigne>();
 
     public virtual PosteTravail PosteCodeNavigation { get; set; } = null!;

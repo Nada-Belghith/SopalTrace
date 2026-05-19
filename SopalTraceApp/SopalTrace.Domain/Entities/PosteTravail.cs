@@ -13,9 +13,7 @@ public partial class PosteTravail
 
     public virtual ICollection<PlanAssEntete> PlanAssEntetes { get; set; } = new List<PlanAssEntete>();
 
-    public virtual PlanNcEntete? PlanNcEntete { get; set; }
-
-    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
+    public virtual ICollection<PlanNcEntete> PlanNcEntetes { get; set; } = new List<PlanNcEntete>();
 
     public virtual ICollection<Machine> CodeMachines { get; set; } = new List<Machine>();
 }

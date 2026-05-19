@@ -135,8 +135,8 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             Statut = StatutsPlan.Actif,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
-            Remarques = dto.Remarques,
-            LegendeMoyens = dto.LegendeMoyens,
+            //Remarques = dto.Remarques,
+            //LegendeMoyens = dto.LegendeMoyens,
             PlanNcLignes = lines
         };
     }
@@ -149,10 +149,10 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     protected override async Task ApplierMiseAJourDraftAsync(PlanNcEntete plan, SavePlanNcDto dto, string user)
     {
         plan.Nom = dto.Nom;
-        plan.Remarques = dto.Remarques;
-        plan.LegendeMoyens = dto.LegendeMoyens;
-        plan.ModifiePar = user;
-        plan.ModifieLe = DateTime.UtcNow;
+        //plan.Remarques = dto.Remarques;
+        //plan.LegendeMoyens = dto.LegendeMoyens;
+        //plan.ModifiePar = user;
+        //plan.ModifieLe = DateTime.UtcNow;
 
         // 1. RÉSOLUTION DES DÉFAUTS (Pass 1 - Pré-résolution pour éviter les conflits FK)
         var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
@@ -284,8 +284,8 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             Statut = StatutsPlan.Actif,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
-            Remarques = dto.Remarques,
-            LegendeMoyens = dto.LegendeMoyens,
+            //Remarques = dto.Remarques,
+            //LegendeMoyens = dto.LegendeMoyens,
             PlanNcLignes = lines
         };
     }
@@ -460,8 +460,8 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         if (planActuel != null && planActuel.Id != planArchive.Id)
         {
             planActuel.Statut = StatutsPlan.Archive;
-            planActuel.ModifiePar = restaurePar;
-            planActuel.ModifieLe = DateTime.UtcNow;
+            //planActuel.ModifiePar = restaurePar;
+            //planActuel.ModifieLe = DateTime.UtcNow;
         }
 
         // Calculer la nouvelle version

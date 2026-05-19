@@ -296,8 +296,8 @@ public abstract class BasePlanLifecycleService<TEntete, TCreateDto, TUpdateDto>
         // Mettre à jour la version et le statut
         plan.Version = nouvelleVersion;
         plan.Statut = StatutsPlan.Actif;
-        plan.ModifiePar = userSecure;
-        plan.ModifieLe = DateTime.UtcNow;
+        //plan.ModifiePar = userSecure;
+        //plan.ModifieLe = DateTime.UtcNow;
 
         // Persister
         await _unitOfWork.CommitAsync();
@@ -323,8 +323,8 @@ public abstract class BasePlanLifecycleService<TEntete, TCreateDto, TUpdateDto>
             throw new InvalidOperationException("Le plan est déjà archivé.");
 
         plan.Statut = StatutsPlan.Archive;
-        plan.ModifiePar = SecuriserNomAuteur(user);
-        plan.ModifieLe = DateTime.UtcNow;
+        //plan.ModifiePar = SecuriserNomAuteur(user);
+        //plan.ModifieLe = DateTime.UtcNow;
 
         await _unitOfWork.CommitAsync();
     }

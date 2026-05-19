@@ -518,6 +518,40 @@
     }
   };
 
+  const nettoyerNomSection = (libelleSection, typeSectionId, freqLib = '', regleLib = '') => {
+    if (!libelleSection) return '';
+    const normalizeApostrophes = (s) => s.replace(/’/g, "'");
+    let clean = normalizeApostrophes(libelleSection).replace(/caractéristiques à contrôler/gi, '').trim();
+    
+    const escapeRegExp = (str) => str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    
+    if (typeSectionId) {
+      const typeSec = (store.typesSection || []).find(t => t.id === typeSectionId);
+      if (typeSec && typeSec.libelle) {
+        clean = clean.replace(new RegExp(escapeRegExp(normalizeApostrophes(typeSec.libelle)), 'gi'), '').trim();
+      }
+    }
+    
+    if (freqLib) {
+      const freqNorm = normalizeApostrophes(freqLib);
+      const freqPattern = '\\(?\\s*' + escapeRegExp(freqNorm) + '\\s*\\)?';
+      clean = clean.replace(new RegExp(freqPattern, 'gi'), '').trim();
+    }
+    
+    if (regleLib) {
+      const regleNorm = normalizeApostrophes(regleLib);
+      const reglePattern = '\\(?\\s*' + escapeRegExp(regleNorm) + '\\s*\\)?';
+      clean = clean.replace(new RegExp(reglePattern, 'gi'), '').trim();
+    }
+
+    // Double clean to remove any redundant/empty parentheses like "()" or "( )" that might have been left
+    clean = clean.replace(/\(\s*\)/g, '').trim();
+
+    // Remove leading/trailing punctuation like dashes, slashes, parens (both open and close)
+    clean = clean.replace(/^[\s\-_:/( )]+|[\s\-_:/( )]+$/g, '').trim();
+    return clean;
+  };
+
   const onExcelSelected = async (event) => {
     const file = event.target?.files?.[0];
     if (!file) return;
@@ -544,7 +578,7 @@
             // --- RÉSOLUTION INTELLIGENTE DE LA FRÉQUENCE (même logique que mapModeleDataToSections) ---
             let modeFreq = 'SANS';
             let regleEchantillonnageId = null;
-            let periodiciteId = null;
+            let periodiciteId = sec.periodiciteId || null;
             let freqNum = sec.freqNum || 1;
             let typeVariable = sec.typeVariable || 'HEURE';
             let freqHours = sec.freqHours || 1;
@@ -567,9 +601,9 @@
 
                   if (/100\s*%/.test(libelle) && libelle.includes('pièce')) {
                     // ✅ Cas spécial "100% des pièces/h" = toutes les pièces/heure
-                    // L'UI représente cela par freqNum=1, freqHours=1 (convention interne)
+                    // L'UI représente cela par freqNum=100, freqHours=1 (convention interne)
                     typeVariable = 'HEURE';
-                    freqNum = 1;
+                    freqNum = 100;
                     freqHours = 1;
                   } else if (libelle.includes('pièce') && (libelle.includes('heure') || libelle.includes('/h'))) {
                     typeVariable = 'HEURE';
@@ -633,7 +667,7 @@
               ordreAffiche: idx + 1,
               typeSectionId: typeSectionId || null,
               libelleSection: sec.nom || sec.libelleSection || '',
-              nom: sec.nom || sec.libelleSection || '',
+              nom: nettoyerNomSection(sec.nom || sec.libelleSection || '', typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
               notes: sec.notes || '',
               modeFreq,
               frequenceLibelle: sec.frequenceLibelle || '',
@@ -793,7 +827,7 @@
         freqHours,
         isNewFreq: false,
         frequenceLibelle: sec.frequenceLibelle || '', // Indispensable pour la visualisation
-        nom: sec.libelleSection,
+        nom: nettoyerNomSection(sec.libelleSection, typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
         // ⚠️ BOURCLIER ANTI-CRASH: Filtre les lignes nulles
         lignes: (sec.lignes || []).filter(lig => lig != null).map(lig => ({
           id: crypto.randomUUID(),
@@ -925,7 +959,7 @@
           freqHours,
           isNewFreq: false,
           frequenceLibelle: sec.frequenceLibelle || '',
-          nom: finalNom,
+          nom: nettoyerNomSection(finalNom, typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
           lignes: lignesTriees.map(lig => ({
             id: isClone ? crypto.randomUUID() : lig.id,
             isFromDb: !isClone,

@@ -14,4 +14,6 @@ public partial class MagExpeditionBlScanOf
     public DateTime? DateScan { get; set; }
 
     public virtual MagExpeditionBl ExpeditionBl { get; set; } = null!;
+
+    public virtual MfgheadOrdreFabrication NumeroOfscanneNavigation { get; set; } = null!;
 }

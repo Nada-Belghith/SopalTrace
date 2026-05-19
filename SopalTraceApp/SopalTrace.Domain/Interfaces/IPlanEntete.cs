@@ -23,15 +23,6 @@ public interface IPlanEntete
     /// </summary>
     int Version { get; set; }
 
-    /// <summary>
-    /// Utilisateur ayant effectué la dernière modification.
-    /// </summary>
-    string? ModifiePar { get; set; }
-
-    /// <summary>
-    /// Date et heure de la dernière modification.
-    /// </summary>
-    DateTime? ModifieLe { get; set; }
 
     /// <summary>
     /// Utilisateur ayant créé le plan.

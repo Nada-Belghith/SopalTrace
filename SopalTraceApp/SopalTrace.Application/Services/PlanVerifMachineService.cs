@@ -72,8 +72,8 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         if (planActif != null)
         {
             planActif.Statut = "ARCHIVE";
-            planActif.ModifieLe = DateTime.UtcNow;
-            planActif.ModifiePar = creePar;
+            //planActif.ModifieLe = DateTime.UtcNow;
+            //planActif.ModifiePar = creePar;
             
             // On sauvegarde l'archivage en premier pour éviter tout conflit d'index unique sur (MachineCode, Statut)
             await _unitOfWork.CommitAsync();
@@ -124,8 +124,8 @@ public class PlanVerifMachineService : IPlanVerifMachineService
 
         // 2. Archiver l'ancien plan
         planActuel.Statut = "ARCHIVE";
-        planActuel.ModifiePar = modifiePar;
-        planActuel.ModifieLe = DateTime.UtcNow;
+        //planActuel.ModifiePar = modifiePar;
+        //planActuel.ModifieLe = DateTime.UtcNow;
 
         // 3. Créer le NOUVEAU plan basé sur les modifs du frontend
         var nouveauPlan = PlanVerifMachineMapper.ConstruireDepuisModeleDto(request, modifiePar);
@@ -157,8 +157,8 @@ public class PlanVerifMachineService : IPlanVerifMachineService
 
         // 1. Archiver l'ancien
         ancienPlan.Statut = "ARCHIVE";
-        ancienPlan.ModifieLe = DateTime.UtcNow;
-        ancienPlan.ModifiePar = request.ModifiePar;
+        //ancienPlan.ModifieLe = DateTime.UtcNow;
+        //ancien//////plan.ModifiePar = request.ModifiePar;
 
         // 2. Dupliquer via le Mapper
         var nouveauPlan = PlanVerifMachineMapper.DupliquerEntitePlan(ancienPlan, request.ModifiePar, request.MotifModification);
@@ -187,8 +187,8 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         if (plan == null) throw new Exception("Plan introuvable.");
 
         plan.Statut = "ARCHIVE";
-        plan.ModifiePar = modifiePar;
-        plan.ModifieLe = DateTime.UtcNow;
+        ////////plan.ModifiePar = modifiePar;
+        ////plan.ModifieLe = DateTime.UtcNow;
 
         await _unitOfWork.CommitAsync();
     }
@@ -203,8 +203,8 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         if (planActuel != null)
         {
             planActuel.Statut = StatutsPlan.Archive;
-            planActuel.ModifiePar = restaurePar;
-            planActuel.ModifieLe = DateTime.UtcNow;
+            ////planActuel.ModifiePar = restaurePar;
+            //planActuel.ModifieLe = DateTime.UtcNow;
             // On ne commit pas tout de suite pour l'atomicité
         }
 

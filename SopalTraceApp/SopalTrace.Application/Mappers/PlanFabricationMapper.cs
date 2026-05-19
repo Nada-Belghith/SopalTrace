@@ -19,9 +19,9 @@ public static class PlanFabricationMapper
             Designation = designationSage, Nom = dto.Nom ?? $"PC-{dto.CodeArticleSage}",
             Version = 0, Statut = StatutsPlan.Brouillon, CreePar = "Admin", CreeLe = DateTime.UtcNow,
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? modele.OperationCode : dto.OperationCode,
-            LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
-            Remarques = string.IsNullOrWhiteSpace(dto.Remarques) ? modele.Notes : dto.Remarques,
-            FamilleProduitFiniCode = modele.FamilleProduitFiniCode,
+            //LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
+            //Remarques = string.IsNullOrWhiteSpace(dto.Remarques) ? modele.Notes : dto.Remarques,
+            //FamilleProduitFiniCode = modele.FamilleProduitFiniCode,
             PlanFabSections = new List<PlanFabSection>()
         };
 
@@ -34,8 +34,8 @@ public static class PlanFabricationMapper
                 TypeSectionId = modeleSection.TypeSectionId,
                 PeriodiciteId = modeleSection.PeriodiciteId,
                 RegleEchantillonnageId = modeleSection.RegleEchantillonnageId,
-                LibelleSection = ReconstruireLibelleComplet(modeleSection.LibelleSection, modeleSection.TypeSection?.Libelle, modeleSection.FrequenceLibelle, modeleSection.RegleEchantillonnage?.Libelle),
-                FrequenceLibelle = modeleSection.FrequenceLibelle, 
+                LibelleSection = ReconstruireLibelleComplet(modeleSection.LibelleSection, modeleSection.TypeSection?.Libelle, modeleSection.Periodicite?.Libelle, modeleSection.RegleEchantillonnage?.Libelle),
+                //FrequenceLibelle = modeleSection.FrequenceLibelle, 
                 PlanFabLignes = new List<PlanFabLigne>()
             };
 
@@ -69,9 +69,9 @@ public static class PlanFabricationMapper
             Designation = nouvelleDesig, Nom = !string.IsNullOrWhiteSpace(source.Nom) ? source.Nom : $"Plan de contrôle {nouvelleDesig}",
             Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, MachineDefautCode = source.MachineDefautCode,
             OperationCode = source.OperationCode,
-            LegendeMoyens = source.LegendeMoyens,
-            Remarques = source.Remarques,
-            CommentaireVersion = comm,
+            //LegendeMoyens = source.LegendeMoyens,
+            //Remarques = source.Remarques,
+            //CommentaireVersion = comm,
             CreePar = creePar ?? "SYSTEM", CreeLe = DateTime.UtcNow,
             PlanFabSections = new List<PlanFabSection>()
         };
@@ -82,7 +82,8 @@ public static class PlanFabricationMapper
             {
                 Id = Guid.NewGuid(), PlanEnteteId = plan.Id, ModeleSectionId = sourceSection.ModeleSectionId,
                 OrdreAffiche = sourceSection.OrdreAffiche, LibelleSection = sourceSection.LibelleSection,
-                FrequenceLibelle = sourceSection.FrequenceLibelle, RegleEchantillonnageId = sourceSection.RegleEchantillonnageId, 
+                //FrequenceLibelle = sourceSection.FrequenceLibelle, 
+                RegleEchantillonnageId = sourceSection.RegleEchantillonnageId, 
                 RegleEchantillonnageLibelle = sourceSection.RegleEchantillonnageLibelle,
                 PlanFabLignes = new List<PlanFabLigne>()
             };
@@ -122,7 +123,7 @@ public static class PlanFabricationMapper
             PeriodiciteId = dto.PeriodiciteId,
             RegleEchantillonnageId = MapperHelper.NullIfEmpty(dto.RegleEchantillonnageId),
             LibelleSection = ReconstruireLibelleComplet(dto.LibelleSection, null, dto.FrequenceLibelle, dto.RegleEchantillonnageLibelle),
-            FrequenceLibelle = string.IsNullOrWhiteSpace(dto.FrequenceLibelle) ? null : dto.FrequenceLibelle,
+            //FrequenceLibelle = string.IsNullOrWhiteSpace(dto.FrequenceLibelle) ? null : dto.FrequenceLibelle,
             PlanFabLignes = new List<PlanFabLigne>()
         };
     }
@@ -170,8 +171,8 @@ public static class PlanFabricationMapper
         {
             PlanEnteteId = planId, SectionId = sectionId, ModeleLigneSourceId = MapperHelper.NullIfEmpty(dto.ModeleLigneSourceId),
             OrdreAffiche = dto.OrdreAffiche, 
-            TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId), 
-            TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId),
+            TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId) ?? Guid.Empty, 
+            TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId) ?? Guid.Empty,
             LibelleAffiche = string.IsNullOrWhiteSpace(dto.LibelleAffiche) ? null : dto.LibelleAffiche, EstCritique = dto.EstCritique,
             MoyenControleId = MapperHelper.NullIfEmpty(dto.MoyenControleId), PeriodiciteId = MapperHelper.NullIfEmpty(dto.PeriodiciteId),
             InstrumentCode = instrumentData.InstrumentCode, MoyenTexteLibre = instrumentData.MoyenTexteLibre,
@@ -185,8 +186,8 @@ public static class PlanFabricationMapper
         var instrumentData = MapperHelper.NormalizeInstrumentCode(dto.InstrumentCode);
 
         ligne.OrdreAffiche = dto.OrdreAffiche; 
-        ligne.TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId); 
-        ligne.TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId);
+        ligne.TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId) ?? Guid.Empty; 
+        ligne.TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId) ?? Guid.Empty;
         ligne.LibelleAffiche = string.IsNullOrWhiteSpace(dto.LibelleAffiche) ? null : dto.LibelleAffiche; ligne.EstCritique = dto.EstCritique;
         ligne.MoyenControleId = MapperHelper.NullIfEmpty(dto.MoyenControleId); ligne.PeriodiciteId = MapperHelper.NullIfEmpty(dto.PeriodiciteId);
         ligne.InstrumentCode = instrumentData.InstrumentCode; ligne.MoyenTexteLibre = instrumentData.MoyenTexteLibre; 
@@ -206,19 +207,19 @@ public static class PlanFabricationMapper
             Version = plan.Version,
             Statut = plan.Statut,
             MachineDefautCode = plan.MachineDefautCode,
-            LegendeMoyens = plan.LegendeMoyens ?? string.Empty,
-            Remarques = plan.Remarques ?? string.Empty,
+            //LegendeMoyens = plan.LegendeMoyens ?? string.Empty,
+            //Remarques = plan.Remarques ?? string.Empty,
             CreePar = plan.CreePar,
             CreeLe = plan.CreeLe,
-            ModifiePar = plan.ModifiePar ?? string.Empty,
-            ModifieLe = plan.ModifieLe,
+            //ModifiePar = plan.ModifiePar ?? string.Empty,
+            //ModifieLe = plan.ModifieLe,
             Sections = plan.PlanFabSections?.Select(s => new PlanSectionResponseDto
             {
                 Id = s.Id,
                 ModeleSectionId = s.ModeleSectionId,
                 OrdreAffiche = s.OrdreAffiche,
                 LibelleSection = s.LibelleSection,
-                FrequenceLibelle = s.FrequenceLibelle ?? string.Empty,
+                //FrequenceLibelle = s.FrequenceLibelle ?? string.Empty,
                 TypeSectionId = s.TypeSectionId,
                 PeriodiciteId = s.PeriodiciteId,
                 RegleEchantillonnageId = s.RegleEchantillonnageId,
@@ -228,10 +229,10 @@ public static class PlanFabricationMapper
                     Id = l.Id,
                     ModeleLigneSourceId = l.ModeleLigneSourceId,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                     LibelleAffiche = l.LibelleAffiche ?? string.Empty,
                     NomCategorie = l.TypeCaracteristique?.Libelle ?? string.Empty,
-                    TypeControleId = l.TypeControleId ?? Guid.Empty,
+                    TypeControleId = l.TypeControleId,
                     MoyenControleId = l.MoyenControleId,
                     PeriodiciteId = l.PeriodiciteId,
                     InstrumentCode = l.InstrumentCode ?? l.MoyenTexteLibre ?? string.Empty,
@@ -258,8 +259,8 @@ public static class PlanFabricationMapper
             Statut = StatutsPlan.Brouillon,
             CreePar = "Admin",
             CreeLe = DateTime.UtcNow,
-            LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
-            Remarques = dto.Remarques,
+            //LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
+            //Remarques = dto.Remarques,
             PlanFabSections = new List<PlanFabSection>()
         };
     }

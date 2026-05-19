@@ -15,7 +15,7 @@ public partial class NatureComposant
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<Itmmaster> Itmmasters { get; set; } = new List<Itmmaster>();
+    public virtual ICollection<Composant> Composants { get; set; } = new List<Composant>();
 
     public virtual ICollection<ModeleFabEntete> ModeleFabEntetes { get; set; } = new List<ModeleFabEntete>();
 

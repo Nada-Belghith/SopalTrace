@@ -12,4 +12,6 @@ public partial class Sdelivery
     public DateOnly DateExpedition { get; set; }
 
     public string StatutBl { get; set; } = null!;
+
+    public virtual ICollection<MagExpeditionBl> MagExpeditionBls { get; set; } = new List<MagExpeditionBl>();
 }

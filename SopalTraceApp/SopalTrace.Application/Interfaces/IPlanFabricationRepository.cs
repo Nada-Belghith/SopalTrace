@@ -11,6 +11,7 @@ public interface IPlanFabricationRepository
     Task<string?> GetDesignationArticleSageAsync(string codeArticleSage);
     Task<Itmmaster?> GetArticleItmAsync(string codeArticleSage);
     Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode);
+    Task<bool> IsNatureGeneriqueAsync(string natureCode);
 
     // Modèles
     Task<bool> ExisteModeleActifAsync(string natureCode, string? operationCode);

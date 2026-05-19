@@ -20,12 +20,12 @@ public class PlanFabricationRepository : IPlanFabricationRepository
 
     public async Task<bool> ExisteArticleSageAsync(string codeArticleSage)
     {
-        return await _context.Itmmasters.AnyAsync(a => a.CodeArticle == codeArticleSage);
+        return await _context.ProduitFinis.AnyAsync(a => a.CodeArticle == codeArticleSage);
     }
 
     public async Task<string?> GetDesignationArticleSageAsync(string codeArticleSage)
     {
-        return await _context.Itmmasters
+        return await _context.Articles
             .Where(a => a.CodeArticle == codeArticleSage)
             .Select(a => a.Designation)
             .FirstOrDefaultAsync();
@@ -33,28 +33,47 @@ public class PlanFabricationRepository : IPlanFabricationRepository
 
     public async Task<Itmmaster?> GetArticleItmAsync(string codeArticleSage)
     {
-        return await _context.Itmmasters
+        var data = await _context.Articles
             .AsNoTracking()
+            .Include(a => a.ProduitFini)
             .FirstOrDefaultAsync(a => a.CodeArticle == codeArticleSage);
+
+        if (data == null) return null;
+
+        return new Itmmaster
+        {
+            CodeArticle = data.CodeArticle,
+            Designation = data.Designation,
+            NatureComposantCode = data.NatureArticleCode,
+            TypeRobinetCode = data.ProduitFini?.TypeRobinetCode,
+            FamilleProduitFini = data.ProduitFini?.FamilleProduitFiniCode
+        };
     }
 
     public async Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode)
     {
-        return await _context.NatureComposantOperations
-            .AnyAsync(g => g.NatureComposantCode == natureCode && g.OperationCode == operationCode);
+        // ✅ Vérification dans la table de gamme opératoire (NatureArticle_Operation)
+        // et NON dans les modèles existants, pour permettre la création du premier modèle.
+        return await _context.NatureArticleOperations
+            .AnyAsync(g => g.NatureArticleCode == natureCode && g.OperationCode == operationCode);
+    }
+
+    public Task<bool> IsNatureGeneriqueAsync(string natureCode)
+    {
+        return Task.FromResult(natureCode == "MATIERE" || natureCode == "SEMI_FINI");
     }
 
     // Modèles
     public async Task<bool> ExisteModeleActifAsync(string natureCode, string? operationCode)
     {
         return await _context.ModeleFabEntetes
-            .AnyAsync(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
+            .AnyAsync(m => m.NatureArticleCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
     }
 
     public async Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode)
     {
         var query = _context.ModeleFabEntetes.AsQueryable();
-        if (!string.IsNullOrEmpty(natureCode)) query = query.Where(m => m.NatureComposantCode == natureCode);
+        if (!string.IsNullOrEmpty(natureCode)) query = query.Where(m => m.NatureArticleCode == natureCode);
         if (!string.IsNullOrEmpty(operationCode)) query = query.Where(m => m.OperationCode == operationCode);
         return await query.ToListAsync();
     }
@@ -62,7 +81,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     public async Task<ModeleFabEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId)
     {
         return await _context.ModeleFabEntetes
-            .Include(m => m.NatureComposantCodeNavigation)
+            .Include(m => m.NatureArticleCodeNavigation)
             .Include(m => m.OperationCodeNavigation)
             .Include(m => m.Formulaire)
             .Include(m => m.ModeleFabSections)
@@ -121,7 +140,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     public async Task<int> GetDerniereVersionModeleAsync(string? natureCode, string? operationCode)
     {
         return await _context.ModeleFabEntetes
-            .Where(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode)
+            .Where(m => m.NatureArticleCode == natureCode && m.OperationCode == operationCode)
             .MaxAsync(m => (int?)m.Version) ?? -1;
     }
 
@@ -135,7 +154,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     public async Task<ModeleFabEntete?> GetBrouillonModeleLePlusRecentAsync(string? natureCode, string? operationCode)
     {
         return await _context.ModeleFabEntetes
-            .Where(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode && m.Statut == "BROUILLON")
+            .Where(m => m.NatureArticleCode == natureCode && m.OperationCode == operationCode && m.Statut == "BROUILLON")
             .OrderByDescending(m => m.Version)
             .FirstOrDefaultAsync();
     }
@@ -208,8 +227,8 @@ public class PlanFabricationRepository : IPlanFabricationRepository
         if (!string.IsNullOrEmpty(natureCode))
         {
             query = from p in query
-                    join a in _context.Itmmasters on p.CodeArticleSage equals a.CodeArticle
-                    where a.NatureComposantCode == natureCode
+                    join a in _context.Articles on p.CodeArticleSage equals a.CodeArticle
+                    where a.NatureArticleCode == natureCode
                     select p;
         }
 
@@ -266,13 +285,13 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     public async Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string natureCode, string operationCode)
     {
         return await _context.ModeleFabEntetes
-            .FirstOrDefaultAsync(m => m.NatureComposantCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
+            .FirstOrDefaultAsync(m => m.NatureArticleCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
     }
 
     public async Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode)
     {
         return await _context.ModeleFabEntetes
-            .FirstOrDefaultAsync(m => m.NatureComposantCode == natureComposantCode && m.OperationCode == opCode && m.Statut == "ACTIF");
+            .FirstOrDefaultAsync(m => m.NatureArticleCode == natureComposantCode && m.OperationCode == opCode && m.Statut == "ACTIF");
     }
 
     public async Task DeletePlanWithChildrenAsync(Guid planId)

@@ -19,13 +19,9 @@ public partial class PlanPfLigne
 
     public Guid TypeControleId { get; set; }
 
-    public Guid? MoyenControleId { get; set; }
-
     public string? InstrumentCode { get; set; }
 
-    public string? MoyenTexteLibre { get; set; }
-
-    public string? LimiteSpecTexte { get; set; }
+    public string LimiteSpecTexte { get; set; } = null!;
 
     public Guid? DefauthequeId { get; set; }
 
@@ -33,7 +29,9 @@ public partial class PlanPfLigne
 
     public string? Observations { get; set; }
 
-    public bool EstCritique { get; set; }
+    public Guid? MoyenControleId { get; set; }
+
+    public string? MoyenTexteLibre { get; set; }
 
     public virtual Defautheque? Defautheque { get; set; }
 

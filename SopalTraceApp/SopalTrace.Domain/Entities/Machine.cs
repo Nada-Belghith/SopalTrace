@@ -9,8 +9,6 @@ public partial class Machine
 
     public string Libelle { get; set; } = null!;
 
-    public string? TypeRobinetCode { get; set; }
-
     public string OperationCode { get; set; } = null!;
 
     public string TypeAffectation { get; set; } = null!;
@@ -27,11 +25,7 @@ public partial class Machine
 
     public virtual ICollection<PlanNcLigne> PlanNcLignes { get; set; } = new List<PlanNcLigne>();
 
-    public virtual PlanVerifMachineEntete? PlanVerifMachineEntete { get; set; }
-
-    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
-
-    public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
+    public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
 
     public virtual ICollection<PosteTravail> CodePostes { get; set; } = new List<PosteTravail>();
 
