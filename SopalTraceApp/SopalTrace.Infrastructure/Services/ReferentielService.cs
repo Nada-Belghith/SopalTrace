@@ -24,24 +24,24 @@ public class ReferentielService : IReferentielService
             .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, null))
             .ToList();
 
-        var natureQuery = _context.NatureComposants.Where(x => x.Actif);
+        var natureQuery = _context.NatureArticles.Where(x => x.Actif && x.Origine == "FABRIQUE");
         if (!string.IsNullOrEmpty(operationCode))
         {
-            natureQuery = natureQuery.Where(n => _context.NatureComposantOperations
-                .Any(g => g.OperationCode == operationCode && g.NatureComposantCode == n.Code));
+            natureQuery = natureQuery.Where(n => _context.NatureArticleOperations
+                .Any(nao => nao.NatureArticleCode == n.Code && nao.OperationCode == operationCode));
         }
 
         var naturesComposant = (await natureQuery
-            .Select(x => new { x.Code, x.Libelle, x.EstGenerique })
+            .Select(x => new { x.Code, x.Libelle })
             .ToListAsync())
-            .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, x.EstGenerique))
+            .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, x.Code == "MATIERE" || x.Code == "SEMI_FINI"))
             .ToList();
 
         var opQuery = _context.Operations.Where(x => x.Actif);
         if (!string.IsNullOrEmpty(natureComposantCode))
         {
-            opQuery = opQuery.Where(o => _context.NatureComposantOperations
-                .Any(g => g.NatureComposantCode == natureComposantCode && g.OperationCode == o.Code));
+            opQuery = opQuery.Where(o => _context.NatureArticleOperations
+                .Any(nao => nao.NatureArticleCode == natureComposantCode && nao.OperationCode == o.Code));
         }
 
         var operations = (await opQuery
@@ -121,8 +121,8 @@ public class ReferentielService : IReferentielService
 
             Postes: postes,
 
-            Gammes: await _context.NatureComposantOperations
-                .Select(g => new GammeDto(g.NatureComposantCode, g.OperationCode))
+            Gammes: await _context.NatureArticleOperations
+                .Select(nao => new GammeDto(nao.NatureArticleCode, nao.OperationCode))
                 .ToListAsync(),
 
             Nqa: (await _context.Nqas
@@ -221,24 +221,43 @@ public class ReferentielService : IReferentielService
 
     public async Task<ArticleDto?> GetArticleInfosAsync(string codeArticle)
     {
-        var article = await _context.Itmmasters
+        var article = await _context.Articles
             .AsNoTracking()
+            .Include(a => a.NatureArticleCodeNavigation)
+            .Include(a => a.ProduitFini)
             .Where(a => a.CodeArticle == codeArticle)
             .FirstOrDefaultAsync();
 
         if (article == null) return null;
 
-        var validOps = await _context.NatureComposantOperations
+        // Security check: Only allow fabricated articles
+        if (article.NatureArticleCodeNavigation.Origine != "FABRIQUE") return null;
+
+        var validOps = await _context.ModeleFabEntetes
             .AsNoTracking()
-            .Where(g => g.NatureComposantCode == article.NatureComposantCode)
-            .Select(g => g.OperationCode)
+            .Where(m => m.NatureArticleCode == article.NatureArticleCode && m.Statut == "ACTIF")
+            .Select(m => m.OperationCode)
+            .Distinct()
             .ToListAsync();
+
+        var typeRobinetCode = article.ProduitFini?.TypeRobinetCode;
+
+        // Si le type de robinet (famille) n'est pas renseigné (cas fréquent des semi-finis SF comme Corps/Volant),
+        // on cherche le produit fini (PF) parent dans la nomenclature pour hériter de sa famille.
+        if (string.IsNullOrEmpty(typeRobinetCode))
+        {
+            typeRobinetCode = await _context.BomdNomenclatures
+                .AsNoTracking()
+                .Where(b => b.CodeComposant == codeArticle)
+                .Select(b => b.ArticleParentNavigation.ProduitFini != null ? b.ArticleParentNavigation.ProduitFini.TypeRobinetCode : null)
+                .FirstOrDefaultAsync(x => x != null);
+        }
 
         return new ArticleDto(
             article.CodeArticle,
             article.Designation,
-            article.TypeRobinetCode,
-            article.NatureComposantCode,
+            typeRobinetCode,
+            article.NatureArticleCode,
             validOps
         );
     }

@@ -20,4 +20,6 @@ public partial class MagPreparationOf
     public virtual ICollection<MagPreparationOfLot> MagPreparationOfLots { get; set; } = new List<MagPreparationOfLot>();
 
     public virtual UtilisateursApp MatriculeMagasinierNavigation { get; set; } = null!;
+
+    public virtual MfgheadOrdreFabrication NumeroOfNavigation { get; set; } = null!;
 }

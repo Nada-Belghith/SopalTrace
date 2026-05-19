@@ -61,8 +61,8 @@ public class PlanPfService : IPlanPfService
             FamilleProduitFiniCode = dto.FamilleProduitFiniCode,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
-            Remarques = dto.Remarques,
-            LegendeMoyens = dto.LegendeMoyens,
+            //Remarques = dto.Remarques,
+            //LegendeMoyens = dto.LegendeMoyens,
             Statut = StatutsPlan.Actif,
             PlanPfSections = new List<PlanPfSection>()
         };
@@ -92,8 +92,8 @@ public class PlanPfService : IPlanPfService
         if (ancienPlan.Statut == StatutsPlan.Actif)
         {
             ancienPlan.Statut = StatutsPlan.Archive;
-            ancienPlan.ModifieLe = DateTime.UtcNow;
-            ancienPlan.ModifiePar = user;
+            //ancienPlan.ModifieLe = DateTime.UtcNow;
+            //ancienPlan.ModifiePar = user;
         }
 
         var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan.FamilleProduitFiniCode ?? "");
@@ -124,8 +124,8 @@ public class PlanPfService : IPlanPfService
         if (plan == null) return;
 
         plan.Statut = StatutsPlan.Archive;
-        plan.ModifieLe = DateTime.UtcNow;
-        plan.ModifiePar = PlanMetadataHelper.NormalizeAuthorNameWithTruncation(modifiePar);
+        //plan.ModifieLe = DateTime.UtcNow;
+        //plan.ModifiePar = PlanMetadataHelper.NormalizeAuthorNameWithTruncation(modifiePar);
 
         await _unitOfWork.CommitAsync();
     }
@@ -148,8 +148,8 @@ public class PlanPfService : IPlanPfService
             FamilleProduitFiniCode = planArchive.FamilleProduitFiniCode,
             ModifiePar = user,
             MotifModification = $"[Restauré] {request.MotifRestoration}",
-            Remarques = planArchive.Remarques ?? string.Empty,
-            LegendeMoyens = planArchive.LegendeMoyens ?? string.Empty
+            //Remarques = planArchive.Remarques ?? string.Empty,
+            //LegendeMoyens = planArchive.LegendeMoyens ?? string.Empty
         };
         
         var nouveauPlan = PlanPfMapper.CreerNouvelleVersionEntite(planArchive, requestVersion, user, nouvelleVersion);
@@ -228,6 +228,12 @@ public class PlanPfService : IPlanPfService
                 addedMoyens,
                 addedInstruments
             );
+
+            // Final cleanup to enforce XOR constraint on means of control
+            foreach (var l in sec.PlanPfLignes)
+            {
+                LineCleanupHelper.CleanupPlanPfLine(l);
+            }
         }
     }
 }

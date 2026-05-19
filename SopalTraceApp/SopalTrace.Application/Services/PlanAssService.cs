@@ -121,7 +121,7 @@ public class PlanAssService : IPlanAssService
             CreePar = _currentUserService.UserInfo,
             CreeLe = DateTime.UtcNow,
             LegendeMoyens = request.LegendeMoyens,
-            Remarques = request.Remarques,
+            //Remarques = request.Remarques,
             PlanAssSections = new List<PlanAssSection>()
         };
 
@@ -146,6 +146,15 @@ public class PlanAssService : IPlanAssService
             }
 
             nouveauPlan.PlanAssSections.Add(section);
+        }
+
+        // Final cleanup to enforce XOR constraint on means of control
+        foreach (var sec in nouveauPlan.PlanAssSections)
+        {
+            foreach (var l in sec.PlanAssLignes)
+            {
+                LineCleanupHelper.CleanupPlanAssLine(l);
+            }
         }
 
         await _repository.AddPlanAsync(nouveauPlan);
@@ -227,7 +236,7 @@ public class PlanAssService : IPlanAssService
                 updateSection: (section, dto) =>
                 {
                     section.TypeSectionId = dto.TypeSectionId;
-                    section.PeriodiciteId = dto.PeriodiciteId;
+                    section.PeriodiciteId = dto.PeriodiciteId ?? Guid.Empty;
                     section.OrdreAffiche = dto.OrdreAffiche;
                     section.LibelleSection = dto.LibelleSection ?? section.LibelleSection;
                     section.NormeReference = dto.NormeReference;
@@ -254,12 +263,14 @@ public class PlanAssService : IPlanAssService
 
                 foreach (var ligne in section.PlanAssLignes)
                 {
-                    if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && (ligne.TypeCaracteristiqueId == null || ligne.TypeCaracteristiqueId == Guid.Empty))
+                    if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && ligne.TypeCaracteristiqueId == Guid.Empty)
                     {
-                        ligne.TypeCaracteristiqueId = await TypeCaracteristiqueHelper.ResolveOrCreateTypeCaracteristiqueByLibelleAsync(
+                        ligne.TypeCaracteristiqueId = (await TypeCaracteristiqueHelper.ResolveOrCreateTypeCaracteristiqueByLibelleAsync(
                             _dicoRepository,
-                            ligne.LibelleAffiche);
+                            ligne.LibelleAffiche)) ?? Guid.Empty;
                     }
+
+                    LineCleanupHelper.CleanupPlanAssLine(ligne);
                 }
             }
 
@@ -268,7 +279,7 @@ public class PlanAssService : IPlanAssService
             {
                 plan.Statut = StatutsPlan.Actif;
 
-                var ancienPlanActif = await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.FamilleProduitFiniCode, plan.NatureComposantCode, plan.PosteCode);
+                var ancienPlanActif = await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.FamilleProduitFiniCode, plan.NatureArticleCode, plan.PosteCode);
 
                 if (ancienPlanActif is not null && ancienPlanActif.Id != plan.Id)
                 {
@@ -351,7 +362,7 @@ public class PlanAssService : IPlanAssService
             if (!string.IsNullOrWhiteSpace(designation) &&
                 (designation.StartsWith("Modèle ") || System.Text.RegularExpressions.Regex.IsMatch(designation, @"^PC-[A-Z0-9]")))
             {
-                designation = planSource.NatureComposantCode switch
+                designation = planSource.NatureArticleCode switch
                 {
                     "PISTON" => "Plan de contrôle en cours de fabrication piston",
                     "PF"     => "Plan en cours de fabrication produit fini",
@@ -367,8 +378,8 @@ public class PlanAssService : IPlanAssService
                 creePar: request.CreePar,
                 motif: request.MotifModification);
 
-            // ✅ Forcer la préservation de NatureComposantCode depuis la source (évite les NULL en DB)
-            planDuplique.NatureComposantCode = planSource.NatureComposantCode;
+            // ✅ Forcer la préservation de NatureArticleCode depuis la source (évite les NULL en DB)
+            planDuplique.NatureArticleCode = planSource.NatureArticleCode;
 
             await _repository.AddPlanAsync(planDuplique);
             await _repository.SaveChangesAsync();

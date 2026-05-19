@@ -72,9 +72,11 @@
 
 <script setup>
 import { computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 
 const store = useFabModeleStore();
+const route = useRoute();
 const props = defineProps({
   isEditMode: {
     type: Boolean,
@@ -109,7 +111,21 @@ const isPiston = computed(() => {
 // =========================================================================
 
 const composantsFiltres = computed(() => {
-  const toutesLesNatures = store.naturesComposant || [];
+  let toutesLesNatures = store.naturesComposant || [];
+  
+  const mode = route.query.mode;
+  if (mode === 'assembly') {
+    toutesLesNatures = toutesLesNatures.filter(n => {
+      const code = (n.code || '').trim().toUpperCase();
+      return code === 'PISTON' || code === 'PF';
+    });
+  } else if (mode === 'fabrication') {
+    toutesLesNatures = toutesLesNatures.filter(n => {
+      const code = (n.code || '').trim().toUpperCase();
+      return code === 'CORPS' || code === 'VOLANT';
+    });
+  }
+
   const selectedOp = (store.entete.operationCode || '').trim().toUpperCase();
   const gammes = store.gammesOperatoires || [];
 
@@ -139,17 +155,31 @@ const operationsFiltrees = computed(() => {
 
   if (!gammes.length) return toutesLesOperations;
 
+  let gammesFiltrees = gammes;
+  const mode = route.query.mode;
+  if (mode === 'assembly') {
+    gammesFiltrees = gammes.filter(g => {
+      const nat = (g.natureComposantCode || '').trim().toUpperCase();
+      return nat === 'PISTON' || nat === 'PF';
+    });
+  } else if (mode === 'fabrication') {
+    gammesFiltrees = gammes.filter(g => {
+      const nat = (g.natureComposantCode || '').trim().toUpperCase();
+      return nat === 'CORPS' || nat === 'VOLANT';
+    });
+  }
+
   // Si une nature est sélectionnée, on filtre les opérations liées à cette nature
   if (selectedNature) {
-    const opsPermises = gammes
+    const opsPermises = gammesFiltrees
       .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === selectedNature)
       .map(g => (g.operationCode || '').trim().toUpperCase());
     
     return toutesLesOperations.filter(op => opsPermises.includes((op.code || '').trim().toUpperCase()));
   }
 
-  // Sinon, on montre toutes les opérations qui existent dans les gammes (pour éviter les erreurs)
-  const toutesOpsDansGammes = [...new Set(gammes.map(g => (g.operationCode || '').trim().toUpperCase()))];
+  // Sinon, on montre toutes les opérations qui existent dans les gammes filtrées
+  const toutesOpsDansGammes = [...new Set(gammesFiltrees.map(g => (g.operationCode || '').trim().toUpperCase()))];
   return toutesLesOperations.filter(op => toutesOpsDansGammes.includes((op.code || '').trim().toUpperCase()));
 });
 

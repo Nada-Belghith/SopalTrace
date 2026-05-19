@@ -9,13 +9,15 @@ public partial class MagPreparationOfLot
 
     public Guid PreparationOfid { get; set; }
 
-    public string CodeComposant { get; set; } = null!;
+    public string CodeArticle { get; set; } = null!;
 
     public string NumeroLotScanne { get; set; } = null!;
 
     public double Quantite { get; set; }
 
     public DateTime? DateScan { get; set; }
+
+    public virtual Article CodeArticleNavigation { get; set; } = null!;
 
     public virtual MagPreparationOf PreparationOf { get; set; } = null!;
 }

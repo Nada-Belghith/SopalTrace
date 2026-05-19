@@ -139,17 +139,17 @@ public class ModeleFabricationService : IModeleFabricationService
             foreach (var ligne in sec.ModeleFabLignes)
             {
                 // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
-                if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
-                if (ligne.TypeControleId == Guid.Empty) ligne.TypeControleId = null;
+                //if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
+                //if (ligne.TypeControleId == Guid.Empty) ligne.TypeControleId = null;
                 if (ligne.MoyenControleId == Guid.Empty) ligne.MoyenControleId = null;
-                if (ligne.PeriodiciteId == Guid.Empty) ligne.PeriodiciteId = null;
+                //if (ligne.PeriodiciteId == Guid.Empty) ligne.PeriodiciteId = null;
 
                 if (string.IsNullOrWhiteSpace(ligne.InstrumentCode)) ligne.InstrumentCode = null;
                 if (string.IsNullOrWhiteSpace(ligne.LibelleAffiche)) ligne.LibelleAffiche = null;
                 if (string.IsNullOrWhiteSpace(ligne.MoyenTexteLibre)) ligne.MoyenTexteLibre = null;
 
                 // Caractéristique
-                if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && (ligne.TypeCaracteristiqueId == null || ligne.TypeCaracteristiqueId == Guid.Empty))
+                if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && ligne.TypeCaracteristiqueId == Guid.Empty)
                 {
                     var typeCarac = await _unitOfWork.DictionnaireQualiteRepository.GetTypeCaracteristiqueByLibelleAsync(ligne.LibelleAffiche);
                     if (typeCarac == null && !addedCaracs.Contains(ligne.LibelleAffiche))
@@ -211,6 +211,9 @@ public class ModeleFabricationService : IModeleFabricationService
                         addedInstruments.Add(ligne.InstrumentCode);
                     }
                 }
+
+                // ✅ Garantir la contrainte XOR (MoyenControleId XOR MoyenTexteLibre)
+                LineCleanupHelper.CleanupModeleFabLine(ligne);
             }
         }
     }
@@ -226,17 +229,17 @@ public class ModeleFabricationService : IModeleFabricationService
             foreach (var ligne in sec.PlanAssLignes)
             {
                 // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
-                if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
-                if (ligne.TypeControleId == Guid.Empty) ligne.TypeControleId = null;
+                //if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
+                //if (ligne.TypeControleId == Guid.Empty) ligne.TypeControleId = null;
                 if (ligne.MoyenControleId == Guid.Empty) ligne.MoyenControleId = null;
-                if (ligne.PeriodiciteId == Guid.Empty) ligne.PeriodiciteId = null;
+                //if (ligne.PeriodiciteId == Guid.Empty) ligne.PeriodiciteId = null;
 
                 if (string.IsNullOrWhiteSpace(ligne.InstrumentCode)) ligne.InstrumentCode = null;
                 if (string.IsNullOrWhiteSpace(ligne.LibelleAffiche)) ligne.LibelleAffiche = null;
                 if (string.IsNullOrWhiteSpace(ligne.MoyenTexteLibre)) ligne.MoyenTexteLibre = null;
 
                 // Caractéristique
-                if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && (ligne.TypeCaracteristiqueId == null || ligne.TypeCaracteristiqueId == Guid.Empty))
+                if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && ligne.TypeCaracteristiqueId == Guid.Empty)
                 {
                     var typeCarac = await _unitOfWork.DictionnaireQualiteRepository.GetTypeCaracteristiqueByLibelleAsync(ligne.LibelleAffiche);
                     if (typeCarac == null && !addedCaracs.Contains(ligne.LibelleAffiche))
@@ -298,6 +301,9 @@ public class ModeleFabricationService : IModeleFabricationService
                         addedInstruments.Add(ligne.InstrumentCode);
                     }
                 }
+
+                // ✅ Garantir la contrainte XOR (MoyenControleId XOR MoyenTexteLibre)
+                LineCleanupHelper.CleanupPlanAssLine(ligne);
             }
         }
     }
@@ -356,14 +362,14 @@ public class ModeleFabricationService : IModeleFabricationService
             var planActifActuel = await _assRepository.GetPlanActifMaitreAsync(
                 assModele.OperationCode, 
                 assModele.FamilleProduitFiniCode, 
-                assModele.NatureComposantCode, 
+                assModele.NatureArticleCode, 
                 assModele.PosteCode);
 
             if (planActifActuel != null)
             {
                 planActifActuel.Statut = StatutsPlan.Archive;
-                planActifActuel.ArchiveLe = DateTime.UtcNow;
-                planActifActuel.ArchivePar = user;
+                //planActifActuel.ArchiveLe = DateTime.UtcNow;
+                //planActifActuel.ArchivePar = user;
             }
 
             var nouvelleVersion = await _assRepository.GetDerniereVersionParCodeAsync(assModele.Designation ?? string.Empty) + 1;
@@ -385,8 +391,8 @@ public class ModeleFabricationService : IModeleFabricationService
             if (fabModele.Statut == StatutsPlan.Actif)
             {
                 fabModele.Statut = StatutsPlan.Archive;
-                fabModele.ArchiveLe = DateTime.UtcNow;
-                fabModele.ArchivePar = user;
+                //fabModele.ArchiveLe = DateTime.UtcNow;
+                //fabModele.ArchivePar = user;
             }
 
             var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleParCodeAsync(fabModele.Code) + 1;
@@ -409,12 +415,12 @@ public class ModeleFabricationService : IModeleFabricationService
         if (assModele != null)
         {
             var user = _currentUserService.UserInfo;
-            var actif = await _assRepository.GetPlanActifMaitreAsync(assModele.OperationCode, assModele.FamilleProduitFiniCode, assModele.NatureComposantCode, assModele.PosteCode);
+            var actif = await _assRepository.GetPlanActifMaitreAsync(assModele.OperationCode, assModele.FamilleProduitFiniCode, assModele.NatureArticleCode, assModele.PosteCode);
             if (actif != null)
             {
                 actif.Statut = StatutsPlan.Archive;
-                actif.ArchiveLe = DateTime.UtcNow;
-                actif.ArchivePar = user;
+                //actif.ArchiveLe = DateTime.UtcNow;
+                //actif.ArchivePar = user;
             }
 
             var nouveauPlan = PlanAssMapper.DupliquerEntitePlan(assModele, true, null, null, user, $"[Restauré] {request.MotifRestoration}");
@@ -433,12 +439,12 @@ public class ModeleFabricationService : IModeleFabricationService
         if (fabModele != null)
         {
             var user = _currentUserService.UserInfo;
-            var actif = await _fabRepository.GetModeleActifPourFamilleAsync(fabModele.NatureComposantCode, fabModele.OperationCode);
+            var actif = await _fabRepository.GetModeleActifPourFamilleAsync(fabModele.NatureArticleCode, fabModele.OperationCode);
             if (actif != null)
             {
                 actif.Statut = StatutsPlan.Archive;
-                actif.ArchiveLe = DateTime.UtcNow;
-                actif.ArchivePar = user;
+                //actif.ArchiveLe = DateTime.UtcNow;
+                //actif.ArchivePar = user;
             }
 
             var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleParCodeAsync(fabModele.Code) + 1;

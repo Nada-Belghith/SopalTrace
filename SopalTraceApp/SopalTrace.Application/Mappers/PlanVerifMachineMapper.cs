@@ -23,16 +23,16 @@ public static class PlanVerifMachineMapper
             Statut = entete.Statut ?? "",
             CreePar = entete.CreePar,
             CreeLe = entete.CreeLe ?? DateTime.MinValue,
-            ModifiePar = entete.ModifiePar ?? string.Empty,
-            ModifieLe = entete.ModifieLe,
+            //ModifiePar = entete.ModifiePar ?? string.Empty,
+            //ModifieLe = entete.ModifieLe,
 
             AfficheConformite = GetAfficheConformite(entete.MachineCode),
             AfficheMoyenDetectionRisques = true,
             AfficheFamilles = true,
             AfficheFuiteEtalon = GetAfficheFuiteEtalon(entete.MachineCode),
 
-            Remarques = entete.Remarques,
-            LegendeMoyens = entete.LegendeMoyens,
+            ////Remarques = entete.Remarques,
+            ////LegendeMoyens = entete.LegendeMoyens,
 
             Familles = entete.PlanVerifMachineFamilles?.Select(f => new VmFamilleDto
             {
@@ -103,8 +103,8 @@ public static class PlanVerifMachineMapper
             // Flags (Déduits dynamiquement, plus persistés)
             // Plus besoin de mapper les colonnes supprimées
 
-            Remarques = dto.Remarques,
-            LegendeMoyens = dto.LegendeMoyens
+            ////Remarques = dto.Remarques,
+            //LegendeMoyens = dto.LegendeMoyens
         };
 
         var famillesDb = dto.Familles?.Select(f => new PlanVerifMachineFamille
@@ -183,8 +183,8 @@ public static class PlanVerifMachineMapper
             AfficheMoyenDetectionRisques = true,
             AfficheFamilles = true,
             AfficheFuiteEtalon = GetAfficheFuiteEtalon(entete.MachineCode),
-            Remarques = entete.Remarques,
-            LegendeMoyens = entete.LegendeMoyens,
+            ////Remarques = entete.Remarques,
+            ////LegendeMoyens = entete.LegendeMoyens,
             Familles = entete.PlanVerifMachineFamilles?.Select(f => new VmFamilleDto
             {
                 RefFamilleCorpsId = f.RefFamilleCorpsId,
@@ -251,7 +251,7 @@ public static class PlanVerifMachineMapper
         };
     }
     // =======================================================
-    // 4. LOGIQUE DYNAMIQUE (D�DUCTION DES FLAGS)
+    // 4. LOGIQUE DYNAMIQUE (D�DUCTION DES FLAGS)
     // =======================================================
     private static bool GetAfficheConformite(string machineCode)
     {

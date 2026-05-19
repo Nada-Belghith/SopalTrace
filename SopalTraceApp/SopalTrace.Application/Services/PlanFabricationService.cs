@@ -135,7 +135,7 @@ public class PlanFabricationService : IPlanFabricationService
             if (modeleSource == null) throw new ModeleIntrouvableException(modeleSourceId.Value);
 
             // Sécurité : Pas d'instanciation directe sur un modèle générique
-            if (modeleSource.NatureComposantCodeNavigation?.EstGenerique == true)
+            if (await _repository.IsNatureGeneriqueAsync(modeleSource.NatureArticleCode))
                 throw new ModeleGeneriqueException(modeleSourceId.Value);
 
             nouveauPlan = PlanFabricationMapper.ConstruireEntitePlanAPartirDeModele(modeleSource, request, designationSage);
@@ -162,8 +162,8 @@ public class PlanFabricationService : IPlanFabricationService
             nouveauPlan.Nom = request.Nom;
         }
 
-        nouveauPlan.Remarques = request.Remarques;
-        nouveauPlan.LegendeMoyens = request.LegendeMoyens;
+        //nouveauPlan.Remarques = request.Remarques;
+        //nouveauPlan.LegendeMoyens = request.LegendeMoyens;
 
         // 7. Persistence immédiate des sections (Important pour Import Excel)
         if (request.Sections != null && request.Sections.Any())
@@ -210,22 +210,22 @@ public class PlanFabricationService : IPlanFabricationService
                 CreeLe = assPlan.CreeLe,
                 ModifiePar = assPlan.ModifiePar,
                 ModifieLe = assPlan.ModifieLe,
-                LegendeMoyens = assPlan.LegendeMoyens,
-                Remarques = assPlan.Remarques,
+                //LegendeMoyens = assPlan.LegendeMoyens,
+                //Remarques = assPlan.Remarques,
                 // Mappage minimal nécessaire pour que le frontend puisse l'afficher/éditer
                 Sections = assPlan.PlanAssSections.Select(s => new PlanSectionResponseDto {
                     Id = s.Id,
                     OrdreAffiche = s.OrdreAffiche,
                     LibelleSection = s.LibelleSection,
-                    FrequenceLibelle = s.PeriodiciteId.HasValue ? "Périodique" : "Sans",
+                    FrequenceLibelle = s.PeriodiciteId != Guid.Empty ? "Périodique" : "Sans",
                     RegleEchantillonnageId = s.RegleEchantillonnageId,
                     RegleEchantillonnageLibelle = s.RegleEchantillonnage?.Libelle ?? string.Empty,
                     Lignes = s.PlanAssLignes.Select(l => new PlanLigneResponseDto {
                         Id = l.Id,
                         OrdreAffiche = l.OrdreAffiche,
-                        TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                        TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                         LibelleAffiche = l.LibelleAffiche,
-                        TypeControleId = l.TypeControleId ?? Guid.Empty,
+                        TypeControleId = l.TypeControleId,
                         MoyenControleId = l.MoyenControleId,
                         InstrumentCode = l.InstrumentCode,
                         PeriodiciteId = s.PeriodiciteId,
@@ -262,8 +262,8 @@ public class PlanFabricationService : IPlanFabricationService
         var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode);
         var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(ancienPlan, ancienPlan.CodeArticleSage, ancienPlan.Designation ?? string.Empty, user, request.MotifModification);
         
-        nouveauPlan.Remarques = request.Remarques;
-        nouveauPlan.LegendeMoyens = request.LegendeMoyens;
+        //nouveauPlan.Remarques = request.Remarques;
+        //nouveauPlan.LegendeMoyens = request.LegendeMoyens;
         nouveauPlan.Version = nouvelleVersion;
         nouveauPlan.Statut = StatutsPlan.Actif;
 
@@ -347,7 +347,7 @@ public class PlanFabricationService : IPlanFabricationService
                 var nomNormalise = nom;
                 if (nom.StartsWith("Modèle ") || System.Text.RegularExpressions.Regex.IsMatch(nom, @"^PC-[A-Z0-9]"))
                 {
-                    nomNormalise = assPlan.NatureComposantCode switch
+                    nomNormalise = assPlan.NatureArticleCode switch
                     {
                         "PISTON" => "Plan de contrôle en cours de fabrication piston",
                         "PF"     => "Plan en cours de fabrication produit fini",
@@ -356,8 +356,8 @@ public class PlanFabricationService : IPlanFabricationService
                 }
                 assPlan.Designation = nomNormalise;
             }
-            if (legendeMoyens is not null) assPlan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
-            if (remarques is not null) assPlan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
+            //if (legendeMoyens is not null) assPlan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
+            //if (remarques is not null) assPlan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
 
             // Mapping vers DTOs Assemblage avec fallbacks pour les propriétés 'required'
             var assSections = sectionsModifiees.Select(s => new SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage.SectionAssEditDto {
@@ -396,8 +396,8 @@ public class PlanFabricationService : IPlanFabricationService
         plan.Statut = finaliser ? StatutsPlan.Actif : StatutsPlan.Brouillon;
 
         if (!string.IsNullOrWhiteSpace(nom)) plan.Nom = nom;
-        if (legendeMoyens is not null) plan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
-        if (remarques is not null) plan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
+        //if (legendeMoyens is not null) plan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
+        //if (remarques is not null) plan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
 
         await MettreAJourSectionsAsync(plan, sectionsModifiees, plan.ModifiePar);
 
@@ -446,13 +446,13 @@ public class PlanFabricationService : IPlanFabricationService
                 updateSection: (section, dto) =>
                 {
                     section.OrdreAffiche = dto.OrdreAffiche;
-                    section.FrequenceLibelle = string.IsNullOrWhiteSpace(dto.FrequenceLibelle) ? null : dto.FrequenceLibelle;
+                    //section.FrequenceLibelle = string.IsNullOrWhiteSpace(dto.FrequenceLibelle) ? null : dto.FrequenceLibelle;
                     section.TypeSectionId = dto.TypeSectionId;
                     section.PeriodiciteId = dto.PeriodiciteId;
                     section.RegleEchantillonnageId = dto.RegleEchantillonnageId;
 
                     // ✅ Reconstruction systématique du libellé complet côté serveur (Nature + Fréq + Règle)
-                    section.LibelleSection = PlanFabricationMapper.ReconstruireLibelleComplet(dto.LibelleSection, null, dto.FrequenceLibelle, dto.RegleEchantillonnageLibelle);
+                    section.LibelleSection = PlanFabricationMapper.ReconstruireLibelleComplet(dto.LibelleSection, null, null, dto.RegleEchantillonnageLibelle);
                 },
             getLines: section => section.PlanFabLignes,
             getLineDtos: dto => dto.Lignes,
@@ -508,6 +508,12 @@ public class PlanFabricationService : IPlanFabricationService
                 addedMoyens,
                 addedInstruments
             );
+
+            // Final cleanup to enforce XOR constraint on means of control
+            foreach (var l in sec.PlanFabLignes)
+            {
+                LineCleanupHelper.CleanupPlanFabLine(l);
+            }
         }
     }
 }

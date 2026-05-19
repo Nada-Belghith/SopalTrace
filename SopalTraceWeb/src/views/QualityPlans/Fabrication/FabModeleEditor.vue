@@ -258,14 +258,14 @@ const headerTitle = computed(() => {
   const famille = store.entete.familleProduitCode;
   const poste = store.entete.posteCode;
 
-  if (isForcedView.value) return 'Consultation du Modèle';
+  if (isForcedView.value) return 'Consultation du Plan Générique';
 
   if (nature === 'PISTON') {
-    return 'Plan en cours de fabrication PISTON';
+    return "Plan en cours d'assemblage PISTON";
   }
 
   if (nature === 'PF') {
-    let title = 'Plan en cours de fabrication PF';
+    let title = "Plan en cours d'assemblage PF";
     if (famille) {
       title += ` - ${famille}`;
     }
@@ -278,8 +278,12 @@ const headerTitle = computed(() => {
     return title;
   }
 
-  if (isEditMode.value) return isArchived.value ? 'Restauration d\'Archive' : `Édition du Modèle`;
-  return 'Création d\'un Modèle';
+  if (nature === 'CORPS' || nature === 'VOLANT') {
+    return `Plan en cours de fabrication ${nature}`;
+  }
+
+  if (isEditMode.value) return isArchived.value ? 'Restauration d\'Archive' : `Édition du Plan Générique`;
+  return 'Création d\'un Plan Générique';
 });
 
 const headerSubtitle = computed(() => {
@@ -305,9 +309,9 @@ const headerSubtitle = computed(() => {
 
 const actionButtonLabel = computed(() => {
   if (isLoading.value) return 'Enregistrement...';
-  if (isArchived.value) return 'Restaurer ce Modèle';
+  if (isArchived.value) return 'Restaurer ce Plan Générique';
   if (isEditMode.value) return 'Enregistrer les modifications';
-  return 'Enregistrer le Modèle';
+  return 'Enregistrer le Plan Générique';
 });
 
 const actionButtonIcon = computed(() => {

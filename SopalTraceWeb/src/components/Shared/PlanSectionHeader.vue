@@ -166,17 +166,30 @@ const est100Pourcent = computed(() => {
 });
 
 const titreCalcule = computed(() => {
-  if (localSection.value.nom) {
-    // Remove any trailing parentheses from the nom to prevent duplicating the frequency
-    return localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
-  } 
-
   const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
-  if (typeSec) {
-    return `${props.defaultTitle} ${typeSec.libelle}`;
-  } 
+  const baseTitle = typeSec 
+    ? `${props.defaultTitle} ${typeSec.libelle}`
+    : (localSection.value.libelleSection || props.defaultTitle);
 
-  return localSection.value.libelleSection || props.defaultTitle;
+  if (localSection.value.nom) {
+    const cleanNom = localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (!cleanNom) return baseTitle;
+
+    // Si le suffixe/nom est déjà identique au titre de base, on ne duplique pas
+    if (cleanNom.toLowerCase() === baseTitle.toLowerCase()) {
+      return baseTitle;
+    }
+    
+    // Si le titre de base contient déjà ce suffixe, on le renvoie tel quel
+    if (baseTitle.toLowerCase().includes(cleanNom.toLowerCase())) {
+      return baseTitle;
+    }
+
+    // Sinon, on combine les deux (ex: "Caractéristiques à contrôler aux réglages test")
+    return `${baseTitle} ${cleanNom}`;
+  }
+
+  return baseTitle;
 });
 
 const frequenceCalculee = computed(() => {
@@ -228,8 +241,26 @@ const libelleSectionComplet = computed(() => {
   if (freq) complements.push(freq);
   if (regle && regle !== freq) complements.push(regle);
   
-  const detail = complements.join(" - ");
-  if (detail && !titre.includes(detail)) {
+  const detail = complements.filter(c => {
+    if (!c) return false;
+    const normC = c.toLowerCase();
+    const normT = titre.toLowerCase();
+    
+    // Si le titre contient déjà "100%" ou "100 pièces", on exclut les compléments décrivant le 100% ou du 1 pièce/h
+    if ((normT.includes('100%') || normT.includes('100 pièces') || normT.includes('100 pieces')) &&
+        (normC.includes('100') || normC.includes('1 pièce') || normC.includes('1 piece'))) {
+      return false;
+    }
+    
+    // Si le titre contient déjà mot pour mot ce complément, on l'exclut
+    if (normT.includes(normC)) {
+      return false;
+    }
+    
+    return true;
+  }).join(" - ");
+  
+  if (detail) {
     return `${titre} (${detail})`;
   }
   return titre;

@@ -237,15 +237,11 @@ const onPage = (event) => {
 
 const tabs = [
   { id: 'ALL', label: 'Tous', short: 'Tous', icon: 'pi pi-th-large' },
-  { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' },
-  { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
-  { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
+  { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' }
 ];
 
 const categoryStyles = {
-  FAB: { label: 'Fabrication', icon: 'pi pi-cog', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300 border-slate-200', titleHoverClass: 'group-hover:text-amber-600' },
-  PF: { label: 'Produit Fini', icon: 'pi pi-box', colorClass: 'bg-blue-500', textClass: 'text-blue-500', hoverClass: 'hover:border-blue-300 border-slate-200', titleHoverClass: 'group-hover:text-blue-600' },
-  ECH: { label: 'Échantillonnage', icon: 'pi pi-check-square', colorClass: 'bg-purple-500', textClass: 'text-purple-500', hoverClass: 'hover:border-purple-300 border-slate-200', titleHoverClass: 'group-hover:text-purple-600' }
+  FAB: { label: 'Fabrication', icon: 'pi pi-cog', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300 border-slate-200', titleHoverClass: 'group-hover:text-amber-600' }
 };
 
 onMounted(async () => {

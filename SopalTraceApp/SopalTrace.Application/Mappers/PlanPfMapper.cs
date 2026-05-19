@@ -22,10 +22,10 @@ public static class PlanPfMapper
             Statut = entite.Statut,
             CreePar = entite.CreePar,
             CreeLe = entite.CreeLe,
-            ModifiePar = entite.ModifiePar ?? string.Empty,
-            ModifieLe = entite.ModifieLe,
-            Remarques = entite.Remarques ?? string.Empty,
-            LegendeMoyens = entite.LegendeMoyens ?? string.Empty,
+            ModifiePar = string.Empty,
+            ModifieLe = null,
+            Remarques = string.Empty,
+            LegendeMoyens = string.Empty,
             Sections = entite.PlanPfSections.OrderBy(s => s.OrdreAffiche).Select(MapSectionVersDto).ToList()
         };
     }
@@ -67,8 +67,8 @@ public static class PlanPfMapper
             DefauthequeId = entite.DefauthequeId,
             DefauthequeLibelle = entite.Defautheque != null ? $"{entite.Defautheque.Code} - {entite.Defautheque.Description}" : string.Empty,
             Instruction = entite.Instruction ?? string.Empty,
-            Observations = entite.Observations ?? string.Empty,
-            EstCritique = entite.EstCritique
+            Observations = entite.Observations ?? string.Empty
+            //EstCritique = entite.EstCritique
         };
     }
 
@@ -146,7 +146,7 @@ public static class PlanPfMapper
                     ligneEntity.DefauthequeId = lDto.DefauthequeId;
                     ligneEntity.Instruction = MapperHelper.NullIfEmpty(lDto.Instruction);
                     ligneEntity.Observations = MapperHelper.NullIfEmpty(lDto.Observations);
-                    ligneEntity.EstCritique = lDto.EstCritique;
+                    //ligneEntity.EstCritique = lDto.EstCritique;
                 }
                 else
                 {
@@ -165,8 +165,8 @@ public static class PlanPfMapper
                         LimiteSpecTexte = MapperHelper.NullIfEmpty(lDto.LimiteSpecTexte),
                         DefauthequeId = lDto.DefauthequeId,
                         Instruction = MapperHelper.NullIfEmpty(lDto.Instruction),
-                        Observations = MapperHelper.NullIfEmpty(lDto.Observations),
-                        EstCritique = lDto.EstCritique
+                        Observations = MapperHelper.NullIfEmpty(lDto.Observations)
+                        //EstCritique = lDto.EstCritique
                     };
                 }
 
@@ -188,9 +188,9 @@ public static class PlanPfMapper
             Statut = StatutsPlan.Actif,
             CreePar = auteurSecure,
             CreeLe = DateTime.UtcNow,
-            CommentaireVersion = request.MotifModification,
-            Remarques = request.Remarques,
-            LegendeMoyens = request.LegendeMoyens,
+            //CommentaireVersion = request.MotifModification,
+            //Remarques = request.Remarques,
+            //LegendeMoyens = request.LegendeMoyens,
             PlanPfSections = new List<PlanPfSection>(),
             PlanPfLignes = new List<PlanPfLigne>()
         };

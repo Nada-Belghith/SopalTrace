@@ -80,8 +80,8 @@ public abstract class BasePlanArticleLifecycleService<TEntete, TCreateDto, TUpda
 
         // Mettre à jour les métadonnées de sauvegarde automatique
 
-        plan.ModifiePar = userSecure;
-        plan.ModifieLe = DateTime.UtcNow;
+        //plan.ModifiePar = userSecure;
+        //plan.ModifieLe = DateTime.UtcNow;
 
         // Persister
         await _unitOfWork.CommitAsync();

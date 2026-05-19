@@ -17,6 +17,8 @@ public static class RolesApp
         Direction, 
         ProdGaz, 
         Responsable,
-        "QUALITE" // Fallback pour compatibilité
+        "QUALITE",     // Fallback pour compatibilité
+        "MAGASINIER",  // Correspond au code ERP réel
+        "OPERATEUR"    // Correspond au code ERP réel
     };
 }

@@ -21,8 +21,10 @@ public class PlanAssRepository : IPlanAssRepository
 
     public async Task<string?> GetDesignationArticleSageAsync(string codeArticleSage)
     {
-        var article = await _context.Itmmasters.FirstOrDefaultAsync(a => a.CodeArticle == codeArticleSage);
-        return article?.Designation;
+        return await _context.Articles
+            .Where(a => a.CodeArticle == codeArticleSage)
+            .Select(a => a.Designation)
+            .FirstOrDefaultAsync();
     }
 
     public async Task<int> GetDerniereVersionAsync(string operationCode, string? familleCode, string? codeArticleSage)
@@ -45,7 +47,7 @@ public class PlanAssRepository : IPlanAssRepository
         return await _context.PlanAssEntetes.AnyAsync(p =>
             p.OperationCode == operationCode &&
             p.FamilleProduitFiniCode == familleCode &&
-            p.NatureComposantCode == natureComposantCode &&
+            p.NatureArticleCode == natureComposantCode &&
             p.PosteCode == posteCode &&
             p.Statut == StatutsPlan.Actif);
     }
@@ -58,8 +60,10 @@ public class PlanAssRepository : IPlanAssRepository
 
     public async Task<bool> IsOperationValidePourNatureAsync(string natureCode, string operationCode)
     {
-        return await _context.NatureComposantOperations
-            .AnyAsync(g => g.NatureComposantCode == natureCode && g.OperationCode == operationCode);
+        // ✅ Vérification dans la table de gamme opératoire (NatureArticle_Operation)
+        // et NON dans les plans existants, pour permettre la création du premier plan d'assemblage.
+        return await _context.NatureArticleOperations
+            .AnyAsync(g => g.NatureArticleCode == natureCode && g.OperationCode == operationCode);
     }
 
     public async Task<bool> ExisteParCodeAsync(string code)
@@ -84,7 +88,7 @@ public class PlanAssRepository : IPlanAssRepository
             .FirstOrDefaultAsync(p => 
                 p.OperationCode == operationCode && 
                 p.FamilleProduitFiniCode == familleCode && 
-                p.NatureComposantCode == natureComposantCode &&
+                p.NatureArticleCode == natureComposantCode &&
                 p.PosteCode == posteCode &&
                 p.Statut == StatutsPlan.Actif);
     }
@@ -111,7 +115,7 @@ public class PlanAssRepository : IPlanAssRepository
         var query = _context.PlanAssEntetes.Where(p => p.Statut == StatutsPlan.Actif);
 
         if (!string.IsNullOrEmpty(natureComposantCode))
-            query = query.Where(p => p.NatureComposantCode == natureComposantCode);
+            query = query.Where(p => p.NatureArticleCode == natureComposantCode);
 
         if (!string.IsNullOrEmpty(operationCode))
             query = query.Where(p => p.OperationCode == operationCode);

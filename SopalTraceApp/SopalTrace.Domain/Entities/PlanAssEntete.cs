@@ -11,7 +11,7 @@ public partial class PlanAssEntete
 
     public string? FamilleProduitFiniCode { get; set; }
 
-    public string? NatureComposantCode { get; set; }
+    public string? NatureArticleCode { get; set; }
 
     public string? PosteCode { get; set; }
 
@@ -33,17 +33,11 @@ public partial class PlanAssEntete
 
     public DateTime? ModifieLe { get; set; }
 
-    public DateTime? ArchiveLe { get; set; }
-
-    public string? ArchivePar { get; set; }
-
-    public string? Remarques { get; set; }
-
     public virtual FamilleProduitFini? FamilleProduitFiniCodeNavigation { get; set; }
 
     public virtual RefFormulaire? Formulaire { get; set; }
 
-    public virtual NatureComposant? NatureComposantCodeNavigation { get; set; }
+    public virtual NatureArticle? NatureArticleCodeNavigation { get; set; }
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 

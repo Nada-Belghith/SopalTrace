@@ -25,8 +25,6 @@ public partial class PlanFabEntete
 
     public string? MachineDefautCode { get; set; }
 
-    public string? FamilleProduitFiniCode { get; set; }
-
     public Guid? FormulaireId { get; set; }
 
     public string? LegendeMoyens { get; set; }
@@ -39,17 +37,15 @@ public partial class PlanFabEntete
 
     public DateTime? ModifieLe { get; set; }
 
-    public string? CommentaireVersion { get; set; }
-
-    public string? Remarques { get; set; }
-
-    public virtual FamilleProduitFini? FamilleProduitFiniCodeNavigation { get; set; }
+    public virtual Article CodeArticleSageNavigation { get; set; } = null!;
 
     public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Machine? MachineDefautCodeNavigation { get; set; }
 
     public virtual ModeleFabEntete? ModeleSource { get; set; }
+
+    public virtual Operation? OperationCodeNavigation { get; set; }
 
     public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();
 

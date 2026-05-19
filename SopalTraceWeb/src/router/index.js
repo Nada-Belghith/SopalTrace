@@ -128,6 +128,19 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/Echantillonnage/EchModeleEditor.vue'),
         }
       ]
+    },
+    {
+      path: '/magasinier',
+      name: 'magasinier-root',
+      component: MainLayout,
+      meta: { requiresAuth: true, roles: ['ADMIN', 'MAGASINIER'] },
+      children: [
+        {
+          path: 'scan-of',
+          name: 'magasinier-scan-of',
+          component: () => import('@/views/Magasinier/OfScannerView.vue')
+        }
+      ]
     }
   ]
 })
@@ -146,12 +159,14 @@ router.beforeEach(async (to) => {
 
   // 2. Si l'user est déjà connecté et tente d'aller sur /login
   if (to.name === 'login' && authStore.isAuthenticated) {
+    if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
     return { name: 'dev-hub' };
   }
 
   // 3. Vérification des rôles (Routage Intelligent)
   const requiredRoles = to.meta.roles;
   if (requiredRoles && !authStore.hasAccess(requiredRoles)) {
+    if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
     return { name: 'dev-hub' }; // Accès refusé → redirection hub
   }
 

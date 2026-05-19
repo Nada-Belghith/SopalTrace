@@ -30,8 +30,8 @@ namespace SopalTrace.Application.Services
             if (planActif != null)
             {
                 planActif.Statut = StatutsPlan.Archive;
-                planActif.ModifieLe = DateTime.UtcNow;
-                planActif.ModifiePar = user;
+                //planActif.ModifieLe = DateTime.UtcNow;
+                //planActif.ModifiePar = user;
             }
         }
 
@@ -41,8 +41,8 @@ namespace SopalTrace.Application.Services
             foreach (var p in plansActifs)
             {
                 p.Statut = StatutsPlan.Archive;
-                p.ModifieLe = DateTime.UtcNow;
-                p.ModifiePar = user;
+                //p.ModifieLe = DateTime.UtcNow;
+                //p.ModifiePar = user;
             }
         }
 
@@ -53,8 +53,8 @@ namespace SopalTrace.Application.Services
             if (ancienPlanActif is not null && ancienPlanActif.Id != currentPlanId)
             {
                 ancienPlanActif.Statut = StatutsPlan.Archive;
-                ancienPlanActif.ModifiePar = user.Length > 20 ? user.Substring(0, 20) : user;
-                ancienPlanActif.ModifieLe = DateTime.UtcNow;
+                //ancienPlanActif.ModifiePar = user.Length > 20 ? user.Substring(0, 20) : user;
+                //ancienPlanActif.ModifieLe = DateTime.UtcNow;
             }
         }
 
@@ -64,8 +64,8 @@ namespace SopalTrace.Application.Services
             if (planActif != null)
             {
                 planActif.Statut = StatutsPlan.Archive;
-                planActif.ModifiePar = user;
-                planActif.ModifieLe = DateTime.UtcNow;
+                //planActif.ModifiePar = user;
+                //planActif.ModifieLe = DateTime.UtcNow;
             }
         }
     }

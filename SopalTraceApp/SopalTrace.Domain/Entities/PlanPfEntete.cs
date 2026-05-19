@@ -7,7 +7,7 @@ public partial class PlanPfEntete
 {
     public Guid Id { get; set; }
 
-    public string? FamilleProduitFiniCode { get; set; }
+    public string FamilleProduitFiniCode { get; set; } = null!;
 
     public int Version { get; set; }
 
@@ -17,17 +17,7 @@ public partial class PlanPfEntete
 
     public DateTime CreeLe { get; set; }
 
-    public string? ModifiePar { get; set; }
-
-    public DateTime? ModifieLe { get; set; }
-
-    public string? CommentaireVersion { get; set; }
-
-    public string? Remarques { get; set; }
-
-    public string? LegendeMoyens { get; set; }
-
-    public virtual FamilleProduitFini? FamilleProduitFiniCodeNavigation { get; set; }
+    public virtual FamilleProduitFini FamilleProduitFiniCodeNavigation { get; set; } = null!;
 
     public virtual ICollection<PlanPfLigne> PlanPfLignes { get; set; } = new List<PlanPfLigne>();
 

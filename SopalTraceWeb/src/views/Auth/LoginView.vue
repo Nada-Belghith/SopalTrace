@@ -124,8 +124,14 @@ const handleLogin = async () => {
       life: 3000
     });
 
-    // Redirection intelligente
-    router.push('/');
+    // Redirection intelligente selon le rôle de l'utilisateur
+    if (authStore.userRole === 'MAGASINIER') {
+      router.push('/magasinier/scan-of');
+    } else if (authStore.userRole === 'OPERATEUR') {
+      router.push('/dev/hub-plans');
+    } else {
+      router.push('/dev/hub');
+    }
   } catch {
     // L'erreur est gérée dans le store
   }

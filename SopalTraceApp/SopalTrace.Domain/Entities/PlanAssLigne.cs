@@ -13,15 +13,11 @@ public partial class PlanAssLigne
 
     public int OrdreAffiche { get; set; }
 
-    public Guid? TypeCaracteristiqueId { get; set; }
+    public Guid TypeCaracteristiqueId { get; set; }
 
     public string? LibelleAffiche { get; set; }
 
-    public Guid? TypeControleId { get; set; }
-
-    public Guid? MoyenControleId { get; set; }
-
-    public string? MoyenTexteLibre { get; set; }
+    public Guid TypeControleId { get; set; }
 
     public string? MachineCode { get; set; }
 
@@ -43,6 +39,10 @@ public partial class PlanAssLigne
 
     public bool EstCritique { get; set; }
 
+    public Guid? MoyenControleId { get; set; }
+
+    public string? MoyenTexteLibre { get; set; }
+
     public virtual Defautheque? Defautheque { get; set; }
 
     public virtual Instrument? InstrumentCodeNavigation { get; set; }
@@ -57,7 +57,7 @@ public partial class PlanAssLigne
 
     public virtual PlanAssSection Section { get; set; } = null!;
 
-    public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
+    public virtual TypeCaracteristique TypeCaracteristique { get; set; } = null!;
 
-    public virtual TypeControle? TypeControle { get; set; }
+    public virtual TypeControle TypeControle { get; set; } = null!;
 }

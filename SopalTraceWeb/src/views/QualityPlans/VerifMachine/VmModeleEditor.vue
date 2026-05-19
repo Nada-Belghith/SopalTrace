@@ -61,6 +61,9 @@ onMounted(async () => {
 const onSaved = (result) => {
   if (result.noChanges) {
     toast.info('Le plan est identique à la version actuelle. Aucune nouvelle version n\'a été créée.', 'Aucun changement');
+    setTimeout(() => {
+      router.push('/dev/hub');
+    }, 1500);
     return;
   }
 
@@ -69,9 +72,9 @@ const onSaved = (result) => {
     : `Nouvelle version (V${store.entete.version}) créée et activée.`, 
     'Plan Enregistré');
   
-  if (result.id && result.id !== route.params.id) {
-    router.replace(`/dev/verif-machine/editer/${result.id}`);
-  }
+  setTimeout(() => {
+    router.push('/dev/hub');
+  }, 1500);
 };
 
 const onRestaurerClick = () => {
@@ -85,7 +88,9 @@ const onVersioningConfirm = async (motif) => {
     const res = await store.restaurerPlanVerif(store.entete.id, motif);
     if (res.success) {
       toast.success('Le plan a été restauré avec succès.', 'Restauré');
-      router.replace(`/dev/verif-machine/editer/${res.planId}`);
+      setTimeout(() => {
+        router.push('/dev/hub');
+      }, 1500);
     }
   } catch {
     toast.error('Échec de la restauration.');

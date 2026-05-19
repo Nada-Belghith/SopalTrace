@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { logger } from '@/utils/logger'; // <-- 1. IMPORT DU LOGGER
 
-// Configuration de base
+// Configuration de base : Utilisation de chemins relatifs /api pour éviter les problèmes de CORS et d'adresses en dur
 const apiClient = axios.create({
-  baseURL: 'http://localhost:9091/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'

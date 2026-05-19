@@ -4,8 +4,8 @@
     <ConfirmDialog></ConfirmDialog>
 
     <div class="mb-10">
-      <h1 class="text-3xl font-black text-slate-900 tracking-tight">Gestion des Modèles</h1>
-      <p class="text-slate-500 mt-1 font-medium text-sm">Visualisez et gérez vos modèles de plans de contrôle existants.</p>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">Plans Génériques</h1>
+      <p class="text-slate-500 mt-1 font-medium text-sm">Visualisez et gérez vos plans de contrôle génériques existants.</p>
     </div>
 
     <!-- ========================================== -->
@@ -55,7 +55,7 @@
           <!-- Barre de recherche intégrée -->
           <div class="relative group">
             <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 text-sm"></i>
-            <input type="text" v-model="searchQuery" placeholder="Rechercher un modèle..." 
+            <input type="text" v-model="searchQuery" placeholder="Rechercher un plan..." 
               class="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full md:w-64 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
           </div>
         </div>
@@ -65,7 +65,7 @@
     <!-- Loading State -->
     <div v-if="isLoading" class="flex flex-col items-center justify-center py-20 text-blue-500">
       <i class="pi pi-spin pi-spinner text-4xl mb-4"></i>
-      <p class="text-sm font-bold text-slate-500 uppercase tracking-widest">Chargement des modèles...</p>
+      <p class="text-sm font-bold text-slate-500 uppercase tracking-widest">Chargement des plans...</p>
     </div>
 
     <!-- ========================================== -->
@@ -176,7 +176,7 @@
       <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4">
         <i class="pi pi-search text-2xl"></i>
       </div>
-      <h3 class="text-lg font-bold text-slate-700">Aucun modèle trouvé</h3>
+      <h3 class="text-lg font-bold text-slate-700">Aucun plan générique trouvé</h3>
       <p class="text-slate-500 mt-1">Modifiez vos filtres ou effectuez une nouvelle recherche.</p>
     </div>
 

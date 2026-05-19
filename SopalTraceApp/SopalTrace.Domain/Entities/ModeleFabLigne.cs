@@ -7,23 +7,17 @@ public partial class ModeleFabLigne
 {
     public Guid Id { get; set; }
 
-    public Guid ModeleEnteteId { get; set; }
-
     public Guid SectionId { get; set; }
 
     public int OrdreAffiche { get; set; }
 
-    public Guid? TypeCaracteristiqueId { get; set; }
+    public Guid TypeCaracteristiqueId { get; set; }
 
     public string? LibelleAffiche { get; set; }
 
     public string? LimiteSpecTexte { get; set; }
 
-    public Guid? TypeControleId { get; set; }
-
-    public Guid? MoyenControleId { get; set; }
-
-    public string? MoyenTexteLibre { get; set; }
+    public Guid TypeControleId { get; set; }
 
     public string? InstrumentCode { get; set; }
 
@@ -33,9 +27,11 @@ public partial class ModeleFabLigne
 
     public bool EstCritique { get; set; }
 
-    public virtual Instrument? InstrumentCodeNavigation { get; set; }
+    public Guid? MoyenControleId { get; set; }
 
-    public virtual ModeleFabEntete ModeleEntete { get; set; } = null!;
+    public string? MoyenTexteLibre { get; set; }
+
+    public virtual Instrument? InstrumentCodeNavigation { get; set; }
 
     public virtual MoyenControle? MoyenControle { get; set; }
 
@@ -45,7 +41,7 @@ public partial class ModeleFabLigne
 
     public virtual ModeleFabSection Section { get; set; } = null!;
 
-    public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
+    public virtual TypeCaracteristique TypeCaracteristique { get; set; } = null!;
 
-    public virtual TypeControle? TypeControle { get; set; }
+    public virtual TypeControle TypeControle { get; set; } = null!;
 }

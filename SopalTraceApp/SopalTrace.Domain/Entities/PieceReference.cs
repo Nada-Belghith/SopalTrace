@@ -15,7 +15,11 @@ public partial class PieceReference
 
     public string? FamilleDesc { get; set; }
 
+    public Guid? FamilleCorpsId { get; set; }
+
     public bool Actif { get; set; }
+
+    public virtual RefFamilleCorp? FamilleCorps { get; set; }
 
     public virtual ICollection<PlanVerifMachineMatricePiece> PlanVerifMachineMatricePieces { get; set; } = new List<PlanVerifMachineMatricePiece>();
 }

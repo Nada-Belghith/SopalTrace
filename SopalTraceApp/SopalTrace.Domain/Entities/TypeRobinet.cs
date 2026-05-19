@@ -13,7 +13,5 @@ public partial class TypeRobinet
 
     public virtual ICollection<FamilleProduitFini> FamilleProduitFinis { get; set; } = new List<FamilleProduitFini>();
 
-    public virtual ICollection<Itmmaster> Itmmasters { get; set; } = new List<Itmmaster>();
-
-    public virtual ICollection<Machine> Machines { get; set; } = new List<Machine>();
+    public virtual ICollection<ProduitFini> ProduitFinis { get; set; } = new List<ProduitFini>();
 }

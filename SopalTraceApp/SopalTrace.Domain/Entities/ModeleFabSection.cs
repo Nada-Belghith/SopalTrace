@@ -13,8 +13,6 @@ public partial class ModeleFabSection
 
     public string LibelleSection { get; set; } = null!;
 
-    public string? FrequenceLibelle { get; set; }
-
     public Guid? TypeSectionId { get; set; }
 
     public Guid? PeriodiciteId { get; set; }

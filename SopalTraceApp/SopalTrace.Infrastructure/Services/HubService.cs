@@ -28,11 +28,11 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "FAB",
-                (m.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
-                (m.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (m.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                (m.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
                 (m.Libelle ?? "Modèle Sans Nom"),
-                m.NatureComposantCode ?? "N/A",
-                m.FamilleProduitFiniCode ?? "N/A",
+                m.NatureArticleCode ?? "N/A",
+                "GEN",
                 m.OperationCode ?? "N/A",
                 "N/A",
                 m.Version,
@@ -47,10 +47,10 @@ public class HubService : IHubService
             .Select(m => new HubModeleDto(
                 m.Id,
                 "ASS",
-                (m.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
-                (m.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (m.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                (m.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
                 (m.Designation ?? "Plan Sans Nom"),
-                m.NatureComposantCode ?? "PF",
+                m.NatureArticleCode ?? "PF",
                 m.FamilleProduitFiniCode ?? "N/A",
                 m.OperationCode ?? "N/A",
                 m.PosteCode ?? "N/A",
@@ -86,8 +86,8 @@ public class HubService : IHubService
                 "Plan Global",
                 "N/A",
                 m.TypePlan ?? "N/A",
-                "NQA " + n.ValeurNqa,
-                "N/A",
+                "NQA",
+                n.ValeurNqa.ToString(),
                 m.Version,
                 m.Statut ?? "ACTIF",
                 "Niveau de contrôle: " + m.NiveauControle))
@@ -97,18 +97,18 @@ public class HubService : IHubService
         // 5. PRODUIT FINI
         var pfModeles = await _context.PlanPfEntetes
             .AsNoTracking()
-            .Where(m => m.FamilleProduitFiniCode != null && m.Statut == "ACTIF")
+            .Where(m => m.Statut == "ACTIF")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "PF",
                 "Plan de contrôle produit fini",
                 "PRODUIT FINI",
-                m.FamilleProduitFiniCode ?? "N/A",
-                "CONTRÔLE FINAL",
+                m.FamilleProduitFiniCode ?? "PF",
+                "CONTROLE FINAL",
                 "N/A",
                 m.Version,
                 m.Statut ?? "ACTIF",
-                "Gabarit de contrôle final."))
+                "Gabarit de controle final."))
             .ToListAsync();
         result.AddRange(pfModeles);
 
@@ -135,7 +135,7 @@ public class HubService : IHubService
     public async Task<IReadOnlyList<HubPlanDto>> GetTousLesPlansAsync()
     {
         var result = new List<HubPlanDto>();
-
+ 
         // 1. PLANS DE FABRICATION
         var fabPlans = await _context.PlanFabEntetes
             .AsNoTracking()
@@ -145,11 +145,11 @@ public class HubService : IHubService
                 "FAB",
                 // ✅ Priorité au Nom stocké, SAUF si c'est un nom technique hérité
                 !string.IsNullOrWhiteSpace(p.Nom) && !p.Nom.StartsWith("Modèle ") && !p.Nom.StartsWith("PC-") ? p.Nom :
-                (p.ModeleSource != null && p.ModeleSource.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
-                (p.ModeleSource != null && p.ModeleSource.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (p.ModeleSource != null && p.ModeleSource.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                (p.ModeleSource != null && p.ModeleSource.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
                 $"Plan {p.CodeArticleSage}",
-                p.ModeleSource != null ? p.ModeleSource.NatureComposantCode : "N/A",
-                p.FamilleProduitFiniCode ?? (p.ModeleSource != null ? (p.ModeleSource.FamilleProduitFiniCode ?? "N/A") : "N/A"),
+                p.ModeleSource != null ? p.ModeleSource.NatureArticleCode : "N/A",
+                p.CodeArticleSageNavigation.ProduitFini != null ? p.CodeArticleSageNavigation.ProduitFini.FamilleProduitFiniCode : "FAB",
                 p.ModeleSource != null ? (p.ModeleSource.OperationCode ?? "N/A") : (p.OperationCode ?? "N/A"),
                 "N/A",
                 p.Version,
@@ -159,30 +159,30 @@ public class HubService : IHubService
                 p.Designation))
             .ToListAsync();
         result.AddRange(fabPlans);
-
+  
         // 2. PLANS D'ASSEMBLAGE (PISTON / PF : plans article, non modèles)
         // Plans ASS : PISTON, PF, ou ceux avec nature NULL (créés via un bug de routing)
         var assPlans = await _context.PlanAssEntetes
             .AsNoTracking()
-            .Where(p => p.NatureComposantCode == "PISTON" || p.NatureComposantCode == "PF" || p.NatureComposantCode == null)
+            .Where(p => p.NatureArticleCode == "PISTON" || p.NatureArticleCode == "PF" || p.NatureArticleCode == null)
             .Where(p => p.OperationCode == "ASS") // Exclure les modèles génériques
             .Select(p => new HubPlanDto(
                 p.Id,
-                "ASS",
+                "FAB",
                 // ✅ Nom : ignorer les noms techniques ("Modèle ...", "PC-..."), inférer depuis la nature
                 (!string.IsNullOrWhiteSpace(p.Designation) && !p.Designation.StartsWith("Modèle ") && !p.Designation.StartsWith("PC-")) ? p.Designation :
-                (p.NatureComposantCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
-                (p.NatureComposantCode == "PF") ? "Plan en cours de fabrication produit fini" :
+                (p.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
+                (p.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
                 // Nature NULL : essayer de deviner depuis la Designation
                 (!string.IsNullOrWhiteSpace(p.Designation) && p.Designation.ToLower().Contains("piston")) ? "Plan de contrôle en cours de fabrication piston" :
                 "Plan Assemblage",
-                p.NatureComposantCode ?? "N/A",
-                p.FamilleProduitFiniCode ?? "N/A",
+                p.NatureArticleCode ?? "N/A",
+                p.FamilleProduitFiniCode ?? "ASS",
                 p.OperationCode ?? "N/A",
                 p.PosteCode ?? "N/A",
                 p.Version,
                 p.Statut ?? "BROUILLON",
-                $"Plan assemblage {p.NatureComposantCode ?? "ASS"}",
+                $"Plan assemblage {p.NatureArticleCode ?? "ASS"}",
                 null,
                 p.Designation))
             .ToListAsync();
@@ -201,8 +201,8 @@ public class HubService : IHubService
                 var m = await _context.ModeleFabEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
-                m.ArchiveLe = statut == "ARCHIVE" ? DateTime.UtcNow : null;
-                m.ArchivePar = statut == "ARCHIVE" ? "ADMIN" : null;
+                //m.ArchiveLe = statut == "ARCHIVE" ? DateTime.UtcNow : null;
+                //m.ArchivePar = statut == "ARCHIVE" ? "ADMIN" : null;
                 break;
             }
             case "ASS":
@@ -210,8 +210,8 @@ public class HubService : IHubService
                 var m = await _context.PlanAssEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
-                m.ModifieLe = DateTime.UtcNow;
-                m.ModifiePar = "ADMIN";
+                //m.ModifieLe = DateTime.UtcNow;
+                //m.ModifiePar = "ADMIN";
                 break;
             }
             case "VM":
@@ -219,8 +219,8 @@ public class HubService : IHubService
                 var m = await _context.PlanVerifMachineEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
-                m.ModifieLe = DateTime.UtcNow;
-                m.ModifiePar = "ADMIN";
+                //m.ModifieLe = DateTime.UtcNow;
+                //m.ModifiePar = "ADMIN";
                 break;
             }
             case "ECH":
@@ -235,8 +235,8 @@ public class HubService : IHubService
                 var m = await _context.PlanPfEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
-                m.ModifieLe = DateTime.UtcNow;
-                m.ModifiePar = "ADMIN";
+                //m.ModifieLe = DateTime.UtcNow;
+                //m.ModifiePar = "ADMIN";
                 break;
             }
             case "RC":
@@ -244,8 +244,8 @@ public class HubService : IHubService
                 var m = await _context.PlanNcEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
-                m.ModifieLe = DateTime.UtcNow;
-                m.ModifiePar = "ADMIN";
+                //m.ModifieLe = DateTime.UtcNow;
+                //m.ModifiePar = "ADMIN";
                 break;
             }
             default:
@@ -263,7 +263,19 @@ public class HubService : IHubService
             case "FAB":
             {
                 var p = await _context.PlanFabEntetes.FindAsync(id);
-                if (p is null) return false;
+                if (p is null)
+                {
+                    var assPlan = await _context.PlanAssEntetes.FindAsync(id);
+                    if (assPlan is null) return false;
+
+                    if (statut == "ARCHIVE" && assPlan.Statut == "BROUILLON")
+                    {
+                        return false;
+                    }
+
+                    assPlan.Statut = statut;
+                    break;
+                }
 
                 if (statut == "ARCHIVE" && p.Statut == "BROUILLON")
                 {
@@ -271,8 +283,8 @@ public class HubService : IHubService
                 }
 
                 p.Statut = statut;
-                p.ModifieLe = DateTime.UtcNow;
-                p.ModifiePar = "ADMIN";
+                //p.ModifieLe = DateTime.UtcNow;
+                //p.ModifiePar = "ADMIN";
                 break;
             }
             default:
@@ -294,7 +306,28 @@ public class HubService : IHubService
                         .ThenInclude(s => s.PlanFabLignes)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
-                if (plan is null) return false;
+                if (plan is null)
+                {
+                    var assPlan = await _context.PlanAssEntetes
+                        .Include(p => p.PlanAssSections)
+                            .ThenInclude(s => s.PlanAssLignes)
+                        .FirstOrDefaultAsync(p => p.Id == id);
+
+                    if (assPlan is null) return false;
+                    if (assPlan.Statut != "BROUILLON") return false;
+
+                    foreach (var section in assPlan.PlanAssSections)
+                    {
+                        _context.PlanAssLignes.RemoveRange(section.PlanAssLignes);
+                    }
+
+                    _context.PlanAssSections.RemoveRange(assPlan.PlanAssSections);
+                    _context.PlanAssEntetes.Remove(assPlan);
+
+                    await _context.SaveChangesAsync();
+                    return true;
+                }
+
                 if (plan.Statut != "BROUILLON") return false;
 
                 // Suppression complète : sections + lignes + entête

@@ -95,7 +95,7 @@ public class PlanFabricationController : ControllerBase
 
             var brouillonQuery = planQuery.Where(p => p.Statut == "BROUILLON");
             if (!string.IsNullOrWhiteSpace(typeRobinetCode)) brouillonQuery = brouillonQuery.Where(p => p.FamilleProduitFiniCode == typeRobinetCode);
-            if (!string.IsNullOrWhiteSpace(natureComposantCode)) brouillonQuery = brouillonQuery.Where(p => p.NatureComposantCode == natureComposantCode);
+            if (!string.IsNullOrWhiteSpace(natureComposantCode)) brouillonQuery = brouillonQuery.Where(p => p.NatureArticleCode == natureComposantCode);
             if (!string.IsNullOrWhiteSpace(opCode)) brouillonQuery = brouillonQuery.Where(p => p.OperationCode == opCode);
             if (!string.IsNullOrWhiteSpace(posteCode)) brouillonQuery = brouillonQuery.Where(p => p.PosteCode == posteCode);
 
@@ -124,7 +124,7 @@ public class PlanFabricationController : ControllerBase
         if (!string.IsNullOrWhiteSpace(natureComposantCode))
         {
             brouillonQuery = brouillonQuery.Where(p =>
-                p.ModeleSourceId == null || p.ModeleSource!.NatureComposantCode == natureComposantCode);
+                p.ModeleSourceId == null || p.ModeleSource!.NatureArticleCode == natureComposantCode);
         }
         
         // <-- NOUVEAU: Applique le contrôle d'Opération sur le Brouillon également
