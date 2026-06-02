@@ -9,7 +9,7 @@ public partial class Nqa
 
     public double ValeurNqa { get; set; }
 
-    public virtual ICollection<PlanAssSection> PlanAssSections { get; set; } = new List<PlanAssSection>();
+    public virtual ICollection<PlanAssemblageSection> PlanAssemblageSections { get; set; } = new List<PlanAssemblageSection>();
 
     public virtual ICollection<PlanEchantillonnageEntete> PlanEchantillonnageEntetes { get; set; } = new List<PlanEchantillonnageEntete>();
 }

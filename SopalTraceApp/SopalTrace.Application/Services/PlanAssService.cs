@@ -110,7 +110,7 @@ public class PlanAssService : IPlanAssService
             codeArticle);
 
         var planId = Guid.NewGuid();
-        var nouveauPlan = new PlanAssEntete
+        var nouveauPlan = new PlanAssemblageEntete
         {
             Id = planId,
             OperationCode = request.OperationCode,
@@ -122,7 +122,7 @@ public class PlanAssService : IPlanAssService
             CreeLe = DateTime.UtcNow,
             LegendeMoyens = request.LegendeMoyens,
             //Remarques = request.Remarques,
-            PlanAssSections = new List<PlanAssSection>()
+            PlanAssemblageSections = new List<PlanAssemblageSection>()
         };
 
         foreach (var sectionDto in request.Sections ?? new List<SectionAssEditDto>())
@@ -134,7 +134,7 @@ public class PlanAssService : IPlanAssService
             {
                 var ligne = PlanAssMapper.ConstruireNouvelleLigne(planId, section.Id, ligneDto);
                 ligne.Id = ligneDto.Id.GetValueOrDefault(Guid.NewGuid());
-                section.PlanAssLignes.Add(ligne);
+                section.PlanAssemblageLignes.Add(ligne);
             }
 
             // Résolution intelligente de la règle d'échantillonnage
@@ -145,13 +145,13 @@ public class PlanAssService : IPlanAssService
                     section.RegleEchantillonnageLibelle);
             }
 
-            nouveauPlan.PlanAssSections.Add(section);
+            nouveauPlan.PlanAssemblageSections.Add(section);
         }
 
         // Final cleanup to enforce XOR constraint on means of control
-        foreach (var sec in nouveauPlan.PlanAssSections)
+        foreach (var sec in nouveauPlan.PlanAssemblageSections)
         {
-            foreach (var l in sec.PlanAssLignes)
+            foreach (var l in sec.PlanAssemblageLignes)
             {
                 LineCleanupHelper.CleanupPlanAssLine(l);
             }
@@ -224,7 +224,7 @@ public class PlanAssService : IPlanAssService
             }
 
             SectionUpdateHelper.UpdateSections(
-                plan.PlanAssSections,
+                plan.PlanAssemblageSections,
                 sectionsModifiees,
                 deleteSection: section => { /* Deletion is handled by collection removal */ },
                 deleteLine: line => { /* Deletion is handled by collection removal */ },
@@ -245,14 +245,14 @@ public class PlanAssService : IPlanAssService
                     section.RegleEchantillonnageId = dto.RegleEchantillonnageId;
                     section.RegleEchantillonnageLibelle = dto.RegleEchantillonnageLibelle;
                 },
-                getLines: section => section.PlanAssLignes,
+                getLines: section => section.PlanAssemblageLignes,
                 getLineDtos: dto => dto.Lignes,
                 createLine: (dto, section) => PlanAssMapper.ConstruireNouvelleLigne(planId, section.Id, dto),
                 updateLine: (line, dto) => PlanAssMapper.MettreAJourEntiteLigne(line, dto)
             );
 
             // Post-processing specific to PlanAssService
-            foreach (var section in plan.PlanAssSections)
+            foreach (var section in plan.PlanAssemblageSections)
             {
                 if (section.RegleEchantillonnageId == null && !string.IsNullOrWhiteSpace(section.RegleEchantillonnageLibelle))
                 {
@@ -261,7 +261,7 @@ public class PlanAssService : IPlanAssService
                         section.RegleEchantillonnageLibelle);
                 }
 
-                foreach (var ligne in section.PlanAssLignes)
+                foreach (var ligne in section.PlanAssemblageLignes)
                 {
                     if (!string.IsNullOrWhiteSpace(ligne.LibelleAffiche) && ligne.TypeCaracteristiqueId == Guid.Empty)
                     {

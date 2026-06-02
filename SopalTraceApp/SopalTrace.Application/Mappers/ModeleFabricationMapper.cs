@@ -26,9 +26,9 @@ public static class ModeleFabricationMapper
         return $"{original}-V{nouvelleVersion}";
     }
 
-    public static ModeleFabEntete ConstruireEntiteModeleAPartirDeDto(CreateModeleRequestDto dto)
+    public static ModeleFabricationEntete ConstruireEntiteModeleAPartirDeDto(CreateModeleRequestDto dto)
     {
-        var modele = new ModeleFabEntete
+        var modele = new ModeleFabricationEntete
         {
             Id = Guid.NewGuid(),
             Code = dto.Code,
@@ -46,18 +46,18 @@ public static class ModeleFabricationMapper
             LegendeMoyens = dto.LegendeMoyens,
             CreePar = "Admin",
             CreeLe = DateTime.UtcNow,
-            ModeleFabSections = new List<ModeleFabSection>()
+            ModeleFabricationSections = new List<ModeleFabricationSection>()
         };
 
         DupliquerSections(modele, dto.Sections);
         return modele;
     }
 
-    public static ModeleFabEntete ConstruireNouvelleVersionModele(ModeleFabEntete ancienModele, NouvelleVersionModeleRequestDto request, string auteur, int nouvelleVersion)
+    public static ModeleFabricationEntete ConstruireNouvelleVersionModele(ModeleFabricationEntete ancienModele, NouvelleVersionModeleRequestDto request, string auteur, int nouvelleVersion)
     {
         string baseCode = string.IsNullOrWhiteSpace(request.Code) ? ancienModele.Code : request.Code;
 
-        var nouveauModele = new ModeleFabEntete
+        var nouveauModele = new ModeleFabricationEntete
         {
             Id = Guid.NewGuid(),
             Code = IncrementerSuffixeVersion(baseCode, nouvelleVersion),
@@ -74,18 +74,18 @@ public static class ModeleFabricationMapper
             LegendeMoyens = string.IsNullOrWhiteSpace(request.LegendeMoyens) ? ancienModele.LegendeMoyens : request.LegendeMoyens,
             CreePar = auteur,
             CreeLe = DateTime.UtcNow,
-            ModeleFabSections = new List<ModeleFabSection>()
+            ModeleFabricationSections = new List<ModeleFabricationSection>()
         };
 
-        var sectionsSource = request.Sections?.Any() == true ? request.Sections : MapperSectionsExistantesEnEditables(ancienModele.ModeleFabSections);
+        var sectionsSource = request.Sections?.Any() == true ? request.Sections : MapperSectionsExistantesEnEditables(ancienModele.ModeleFabricationSections);
         DupliquerSections(nouveauModele, sectionsSource);
 
         return nouveauModele;
     }
 
-    public static ModeleFabEntete RestaurerEntiteModele(ModeleFabEntete modeleArchive, string auteur, string motif, int nouvelleVersion)
+    public static ModeleFabricationEntete RestaurerEntiteModele(ModeleFabricationEntete modeleArchive, string auteur, string motif, int nouvelleVersion)
     {
-        var nouveauModele = new ModeleFabEntete
+        var nouveauModele = new ModeleFabricationEntete
         {
             Id = Guid.NewGuid(),
             Code = IncrementerSuffixeVersion(modeleArchive.Code, nouvelleVersion),
@@ -99,25 +99,25 @@ public static class ModeleFabricationMapper
             LegendeMoyens = modeleArchive.LegendeMoyens,
             CreePar = auteur,
             CreeLe = DateTime.UtcNow,
-            ModeleFabSections = new List<ModeleFabSection>()
+            ModeleFabricationSections = new List<ModeleFabricationSection>()
         };
 
-        var sectionsSource = MapperSectionsExistantesEnEditables(modeleArchive.ModeleFabSections);
+        var sectionsSource = MapperSectionsExistantesEnEditables(modeleArchive.ModeleFabricationSections);
         DupliquerSections(nouveauModele, sectionsSource);
 
         return nouveauModele;
     }
 
-    private static IEnumerable<SectionModeleEditDto> MapperSectionsExistantesEnEditables(IEnumerable<ModeleFabSection>? existantes)
+    private static IEnumerable<SectionModeleEditDto> MapperSectionsExistantesEnEditables(IEnumerable<ModeleFabricationSection>? existantes)
     {
-        return (existantes ?? Enumerable.Empty<ModeleFabSection>()).Select(s => new SectionModeleEditDto
+        return (existantes ?? Enumerable.Empty<ModeleFabricationSection>()).Select(s => new SectionModeleEditDto
         {
             OrdreAffiche = s.OrdreAffiche,
             LibelleSection = s.LibelleSection,
             TypeSectionId = s.TypeSectionId,
             PeriodiciteId = s.PeriodiciteId,
             FrequenceLibelle = s.Periodicite?.Libelle,
-                Lignes = (s.ModeleFabLignes ?? Enumerable.Empty<ModeleFabLigne>()).Select(l => new LigneModeleEditDto
+                Lignes = (s.ModeleFabricationLignes ?? Enumerable.Empty<ModeleFabricationLigne>()).Select(l => new LigneModeleEditDto
             {
                 OrdreAffiche = l.OrdreAffiche,
                 TypeCaracteristiqueId = l.TypeCaracteristiqueId,
@@ -135,7 +135,7 @@ public static class ModeleFabricationMapper
     }
 
     /// <summary>
-    /// Duplique les sections du DTO vers l'entité ModeleFabSection.
+    /// Duplique les sections du DTO vers l'entité ModeleFabricationSection.
     /// 
     /// LOGIQUE : Les sections des modèles sont toujours stockées par LibelleSection (texte libre).
     /// Le choix de TypeSectionId (référence) se fait au moment de la création du PLAN,
@@ -143,12 +143,12 @@ public static class ModeleFabricationMapper
     /// 
     /// Dans un modèle, on garde toujours la flexibilité du texte libre.
     /// </summary>
-    public static void DupliquerSections(ModeleFabEntete modele, IEnumerable<SectionModeleEditDto> sectionsSource)
+    public static void DupliquerSections(ModeleFabricationEntete modele, IEnumerable<SectionModeleEditDto> sectionsSource)
     {
         foreach (var secDto in sectionsSource)
         {
             var sectionId = Guid.NewGuid();
-            var section = new ModeleFabSection
+            var section = new ModeleFabricationSection
             {
                 Id = sectionId,
                 ModeleEnteteId = modele.Id,
@@ -159,15 +159,15 @@ public static class ModeleFabricationMapper
                 TypeSectionId = secDto.TypeSectionId,
                 PeriodiciteId = MapperHelper.NullIfEmpty(secDto.PeriodiciteId),
                 //FrequenceLibelle = string.IsNullOrWhiteSpace(secDto.FrequenceLibelle) ? null : secDto.FrequenceLibelle,
-                ModeleFabLignes = new List<ModeleFabLigne>()
+                ModeleFabricationLignes = new List<ModeleFabricationLigne>()
             };
 
             foreach (var lignDto in secDto.Lignes)
             {
                 var instrumentData = MapperHelper.NormalizeInstrumentCode(lignDto.InstrumentCode);
 
-                // DupliquerSections: création ModeleFabLigne
-                section.ModeleFabLignes.Add(new ModeleFabLigne
+                // DupliquerSections: création ModeleFabricationLigne
+                section.ModeleFabricationLignes.Add(new ModeleFabricationLigne
                 {
                     Id = Guid.NewGuid(),
                     //ModeleEnteteId = modele.Id,
@@ -185,11 +185,11 @@ public static class ModeleFabricationMapper
                     LimiteSpecTexte = string.IsNullOrWhiteSpace(lignDto.LimiteSpecTexte) ? null : lignDto.LimiteSpecTexte
                 });
             }
-            modele.ModeleFabSections.Add(section);
+            modele.ModeleFabricationSections.Add(section);
         }
     }
 
-    public static ModeleResponseDto MapperEntiteModeleVersDto(ModeleFabEntete modele)
+    public static ModeleResponseDto MapperEntiteModeleVersDto(ModeleFabricationEntete modele)
     {
         return new ModeleResponseDto
         {
@@ -204,12 +204,12 @@ public static class ModeleFabricationMapper
             Statut = modele.Statut, Notes = modele.Notes ?? string.Empty,
             LegendeMoyens = modele.LegendeMoyens ?? string.Empty, CreePar = modele.CreePar, CreeLe = modele.CreeLe,
             //ArchiveLe = modele.ArchiveLe, ArchivePar = modele.ArchivePar ?? string.Empty,
-            Sections = modele.ModeleFabSections?.Select(s => new ModeleSectionResponseDto
+            Sections = modele.ModeleFabricationSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id, OrdreAffiche = s.OrdreAffiche, LibelleSection = s.LibelleSection, 
                 TypeSectionId = s.TypeSectionId, PeriodiciteId = s.PeriodiciteId,
                 FrequenceLibelle = s.Periodicite?.Libelle ?? string.Empty,
-                Lignes = s.ModeleFabLignes?.Select(l => new ModeleLigneResponseDto
+                Lignes = s.ModeleFabricationLignes?.Select(l => new ModeleLigneResponseDto
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,

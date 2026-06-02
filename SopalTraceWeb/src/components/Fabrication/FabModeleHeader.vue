@@ -66,15 +66,29 @@
           :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
+      <!-- CONFIGURATION COLONNES -->
+      <div v-if="!isReadOnly" class="col-span-full mt-4 flex justify-end">
+        <button @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded font-bold text-sm flex items-center gap-2 transition-colors">
+          <i class="pi pi-sliders-h"></i> Configurer Colonnes
+        </button>
+      </div>
     </div>
+
+    <!-- MODAL DE CONFIGURATION DES COLONNES -->
+    <ColumnConfigurator 
+      v-model:visible="showColumnModal"
+      v-model="store.entete.configurationColonnes"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, watch, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 
+const showColumnModal = ref(false);
 const store = useFabModeleStore();
 const route = useRoute();
 const props = defineProps({

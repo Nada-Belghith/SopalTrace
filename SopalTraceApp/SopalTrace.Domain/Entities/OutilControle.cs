@@ -11,7 +11,7 @@ public partial class OutilControle
 
     public string Libelle { get; set; } = null!;
 
-    public Guid TypeControleId { get; set; }
+    public Guid? TypeControleId { get; set; }
 
     public Guid? TypeCaracteristiqueId { get; set; }
 
@@ -31,5 +31,5 @@ public partial class OutilControle
 
     public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 
-    public virtual TypeControle TypeControle { get; set; } = null!;
+    public virtual TypeControle? TypeControle { get; set; }
 }

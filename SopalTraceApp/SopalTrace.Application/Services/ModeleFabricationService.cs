@@ -79,9 +79,9 @@ public class ModeleFabricationService : IModeleFabricationService
             await SmartDictionaryPassAssAsync(modele);
 
             // Nettoyage final des GUIDs vides pour éviter les erreurs de clés étrangères
-            foreach (var s in modele.PlanAssSections)
+            foreach (var s in modele.PlanAssemblageSections)
             {
-                foreach (var l in s.PlanAssLignes)
+                foreach (var l in s.PlanAssemblageLignes)
                 {
                     LineCleanupHelper.CleanupPlanAssLine(l);
                 }
@@ -114,9 +114,9 @@ public class ModeleFabricationService : IModeleFabricationService
             await SmartDictionaryPassAsync(modele);
 
             // Nettoyage final des GUIDs vides pour éviter les erreurs de clés étrangères
-            foreach (var s in modele.ModeleFabSections)
+            foreach (var s in modele.ModeleFabricationSections)
             {
-                foreach (var l in s.ModeleFabLignes)
+                foreach (var l in s.ModeleFabricationLignes)
                 {
                     LineCleanupHelper.CleanupModeleFabLine(l);
                 }
@@ -128,15 +128,15 @@ public class ModeleFabricationService : IModeleFabricationService
         }
     }
 
-    private async Task SmartDictionaryPassAsync(ModeleFabEntete modele)
+    private async Task SmartDictionaryPassAsync(ModeleFabricationEntete modele)
     {
         var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sec in modele.ModeleFabSections)
+        foreach (var sec in modele.ModeleFabricationSections)
         {
-            foreach (var ligne in sec.ModeleFabLignes)
+            foreach (var ligne in sec.ModeleFabricationLignes)
             {
                 // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
                 //if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
@@ -218,15 +218,15 @@ public class ModeleFabricationService : IModeleFabricationService
         }
     }
 
-    private async Task SmartDictionaryPassAssAsync(PlanAssEntete modele)
+    private async Task SmartDictionaryPassAssAsync(PlanAssemblageEntete modele)
     {
         var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sec in modele.PlanAssSections)
+        foreach (var sec in modele.PlanAssemblageSections)
         {
-            foreach (var ligne in sec.PlanAssLignes)
+            foreach (var ligne in sec.PlanAssemblageLignes)
             {
                 // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
                 //if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;

@@ -13,11 +13,11 @@ public partial class RefRegleEchantillonnage
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<ModeleFabSection> ModeleFabSections { get; set; } = new List<ModeleFabSection>();
+    public virtual ICollection<ModeleFabricationSection> ModeleFabricationSections { get; set; } = new List<ModeleFabricationSection>();
 
-    public virtual ICollection<PlanAssSection> PlanAssSections { get; set; } = new List<PlanAssSection>();
+    public virtual ICollection<PlanAssemblageSection> PlanAssemblageSections { get; set; } = new List<PlanAssemblageSection>();
 
-    public virtual ICollection<PlanFabSection> PlanFabSections { get; set; } = new List<PlanFabSection>();
+    public virtual ICollection<PlanFabricationSection> PlanFabricationSections { get; set; } = new List<PlanFabricationSection>();
 
-    public virtual ICollection<PlanPfSection> PlanPfSections { get; set; } = new List<PlanPfSection>();
+    public virtual ICollection<PlanProduitFiniSection> PlanProduitFiniSections { get; set; } = new List<PlanProduitFiniSection>();
 }

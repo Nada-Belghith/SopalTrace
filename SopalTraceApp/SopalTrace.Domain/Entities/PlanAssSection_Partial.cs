@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanAssSection
+public partial class PlanAssemblageSection
 {
     [NotMapped]
     public string? RegleEchantillonnageLibelle { get; set; }

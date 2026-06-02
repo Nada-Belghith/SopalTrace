@@ -17,14 +17,30 @@
         </select>
       </div>
 
+      <!-- CONFIGURATION COLONNES -->
+      <div v-if="!isReadOnly" class="flex justify-end mt-4">
+        <button @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded font-bold text-sm flex items-center gap-2 transition-colors">
+          <i class="pi pi-sliders-h"></i> Configurer Colonnes
+        </button>
+      </div>
+
     </div>
+
+    <!-- MODAL DE CONFIGURATION DES COLONNES -->
+    <ColumnConfigurator 
+      v-model:visible="showColumnModal"
+      v-model="store.entete.configurationColonnes"
+    />
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { usePfPlanStore } from '@/stores/pfPlanStore';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 
 const store = usePfPlanStore();
+const showColumnModal = ref(false);
 defineProps({
   isReadOnly: {
     type: Boolean,

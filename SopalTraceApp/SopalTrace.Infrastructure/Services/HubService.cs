@@ -23,7 +23,7 @@ public class HubService : IHubService
         var result = new List<HubModeleDto>();
 
         // 1. FABRICATION (Modèles uniquement)
-        var fabModeles = await _context.ModeleFabEntetes
+        var fabModeles = await _context.ModeleFabricationEntetes
             .AsNoTracking()
             .Select(m => new HubModeleDto(
                 m.Id,
@@ -42,7 +42,7 @@ public class HubService : IHubService
         result.AddRange(fabModeles);
 
         // 2. ASSEMBLAGE
-        var assModeles = await _context.PlanAssEntetes
+        var assModeles = await _context.PlanAssemblageEntetes
             .AsNoTracking()
             .Select(m => new HubModeleDto(
                 m.Id,
@@ -95,7 +95,7 @@ public class HubService : IHubService
         result.AddRange(echModeles);
 
         // 5. PRODUIT FINI
-        var pfModeles = await _context.PlanPfEntetes
+        var pfModeles = await _context.PlanProduitFiniEntetes
             .AsNoTracking()
             .Where(m => m.Statut == "ACTIF")
             .Select(m => new HubModeleDto(
@@ -113,7 +113,7 @@ public class HubService : IHubService
         result.AddRange(pfModeles);
 
         // 6. RÉSULTAT CONTRÔLE
-        var ncModeles = await _context.PlanNcEntetes
+        var ncModeles = await _context.PlanNonConformiteEntetes
             .AsNoTracking()
             .Select(m => new HubModeleDto(
                 m.Id,
@@ -137,7 +137,7 @@ public class HubService : IHubService
         var result = new List<HubPlanDto>();
  
         // 1. PLANS DE FABRICATION
-        var fabPlans = await _context.PlanFabEntetes
+        var fabPlans = await _context.PlanFabricationEntetes
             .AsNoTracking()
             .Include(p => p.ModeleSource)
             .Select(p => new HubPlanDto(
@@ -162,7 +162,7 @@ public class HubService : IHubService
   
         // 2. PLANS D'ASSEMBLAGE (PISTON / PF : plans article, non modèles)
         // Plans ASS : PISTON, PF, ou ceux avec nature NULL (créés via un bug de routing)
-        var assPlans = await _context.PlanAssEntetes
+        var assPlans = await _context.PlanAssemblageEntetes
             .AsNoTracking()
             .Where(p => p.NatureArticleCode == "PISTON" || p.NatureArticleCode == "PF" || p.NatureArticleCode == null)
             .Where(p => p.OperationCode == "ASS") // Exclure les modèles génériques
@@ -198,7 +198,7 @@ public class HubService : IHubService
         {
             case "FAB":
             {
-                var m = await _context.ModeleFabEntetes.FindAsync(id);
+                var m = await _context.ModeleFabricationEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ArchiveLe = statut == "ARCHIVE" ? DateTime.UtcNow : null;
@@ -207,7 +207,7 @@ public class HubService : IHubService
             }
             case "ASS":
             {
-                var m = await _context.PlanAssEntetes.FindAsync(id);
+                var m = await _context.PlanAssemblageEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
@@ -232,7 +232,7 @@ public class HubService : IHubService
             }
             case "PF":
             {
-                var m = await _context.PlanPfEntetes.FindAsync(id);
+                var m = await _context.PlanProduitFiniEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
@@ -241,7 +241,7 @@ public class HubService : IHubService
             }
             case "RC":
             {
-                var m = await _context.PlanNcEntetes.FindAsync(id);
+                var m = await _context.PlanNonConformiteEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
@@ -262,10 +262,10 @@ public class HubService : IHubService
         {
             case "FAB":
             {
-                var p = await _context.PlanFabEntetes.FindAsync(id);
+                var p = await _context.PlanFabricationEntetes.FindAsync(id);
                 if (p is null)
                 {
-                    var assPlan = await _context.PlanAssEntetes.FindAsync(id);
+                    var assPlan = await _context.PlanAssemblageEntetes.FindAsync(id);
                     if (assPlan is null) return false;
 
                     if (statut == "ARCHIVE" && assPlan.Statut == "BROUILLON")
@@ -301,28 +301,28 @@ public class HubService : IHubService
         {
             case "FAB":
             {
-                var plan = await _context.PlanFabEntetes
-                    .Include(p => p.PlanFabSections)
-                        .ThenInclude(s => s.PlanFabLignes)
+                var plan = await _context.PlanFabricationEntetes
+                    .Include(p => p.PlanFabricationSections)
+                        .ThenInclude(s => s.PlanFabricationLignes)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null)
                 {
-                    var assPlan = await _context.PlanAssEntetes
-                        .Include(p => p.PlanAssSections)
-                            .ThenInclude(s => s.PlanAssLignes)
+                    var assPlan = await _context.PlanAssemblageEntetes
+                        .Include(p => p.PlanAssemblageSections)
+                            .ThenInclude(s => s.PlanAssemblageLignes)
                         .FirstOrDefaultAsync(p => p.Id == id);
 
                     if (assPlan is null) return false;
                     if (assPlan.Statut != "BROUILLON") return false;
 
-                    foreach (var section in assPlan.PlanAssSections)
+                    foreach (var section in assPlan.PlanAssemblageSections)
                     {
-                        _context.PlanAssLignes.RemoveRange(section.PlanAssLignes);
+                        _context.PlanAssemblageLignes.RemoveRange(section.PlanAssemblageLignes);
                     }
 
-                    _context.PlanAssSections.RemoveRange(assPlan.PlanAssSections);
-                    _context.PlanAssEntetes.Remove(assPlan);
+                    _context.PlanAssemblageSections.RemoveRange(assPlan.PlanAssemblageSections);
+                    _context.PlanAssemblageEntetes.Remove(assPlan);
 
                     await _context.SaveChangesAsync();
                     return true;
@@ -331,28 +331,28 @@ public class HubService : IHubService
                 if (plan.Statut != "BROUILLON") return false;
 
                 // Suppression complète : sections + lignes + entête
-                foreach (var section in plan.PlanFabSections)
+                foreach (var section in plan.PlanFabricationSections)
                 {
-                    _context.PlanFabLignes.RemoveRange(section.PlanFabLignes);
+                    _context.PlanFabricationLignes.RemoveRange(section.PlanFabricationLignes);
                 }
 
-                _context.PlanFabSections.RemoveRange(plan.PlanFabSections);
-                _context.PlanFabEntetes.Remove(plan);
+                _context.PlanFabricationSections.RemoveRange(plan.PlanFabricationSections);
+                _context.PlanFabricationEntetes.Remove(plan);
 
                 await _context.SaveChangesAsync();
                 return true;
             }
             case "RC":
             {
-                var plan = await _context.PlanNcEntetes
-                    .Include(p => p.PlanNcLignes)
+                var plan = await _context.PlanNonConformiteEntetes
+                    .Include(p => p.PlanNonConformiteLignes)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null) return false;
                 if (plan.Statut != "BROUILLON") return false;
 
-                _context.PlanNcLignes.RemoveRange(plan.PlanNcLignes);
-                _context.PlanNcEntetes.Remove(plan);
+                _context.PlanNonConformiteLignes.RemoveRange(plan.PlanNonConformiteLignes);
+                _context.PlanNonConformiteEntetes.Remove(plan);
 
                 await _context.SaveChangesAsync();
                 return true;

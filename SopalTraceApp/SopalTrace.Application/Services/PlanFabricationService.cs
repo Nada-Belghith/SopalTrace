@@ -126,7 +126,7 @@ public class PlanFabricationService : IPlanFabricationService
         // 4. Archiver l'ancien plan actif pour cet article/opération avant de créer le nouveau
         await _planArchiverService.ArchivePlanFabricationActifAsync(request.CodeArticleSage, request.OperationCode, user);
 
-        PlanFabEntete nouveauPlan;
+        PlanFabricationEntete nouveauPlan;
 
         // 5. Instanciation du Header
         if (modeleSourceId.HasValue)
@@ -213,19 +213,19 @@ public class PlanFabricationService : IPlanFabricationService
                 //LegendeMoyens = assPlan.LegendeMoyens,
                 //Remarques = assPlan.Remarques,
                 // Mappage minimal nécessaire pour que le frontend puisse l'afficher/éditer
-                Sections = assPlan.PlanAssSections.Select(s => new PlanSectionResponseDto {
+                Sections = assPlan.PlanAssemblageSections.Select(s => new PlanSectionResponseDto {
                     Id = s.Id,
                     OrdreAffiche = s.OrdreAffiche,
                     LibelleSection = s.LibelleSection,
                     FrequenceLibelle = s.PeriodiciteId != Guid.Empty ? "Périodique" : "Sans",
                     RegleEchantillonnageId = s.RegleEchantillonnageId,
                     RegleEchantillonnageLibelle = s.RegleEchantillonnage?.Libelle ?? string.Empty,
-                    Lignes = s.PlanAssLignes.Select(l => new PlanLigneResponseDto {
+                    Lignes = s.PlanAssemblageLignes.Select(l => new PlanLigneResponseDto {
                         Id = l.Id,
                         OrdreAffiche = l.OrdreAffiche,
-                        TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                        TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
                         LibelleAffiche = l.LibelleAffiche,
-                        TypeControleId = l.TypeControleId,
+                        TypeControleId = l.TypeControleId ?? Guid.Empty,
                         MoyenControleId = l.MoyenControleId,
                         InstrumentCode = l.InstrumentCode,
                         PeriodiciteId = s.PeriodiciteId,
@@ -431,10 +431,10 @@ public class PlanFabricationService : IPlanFabricationService
         return true;
     }
 
-    private Task MettreAJourSectionsAsync(PlanFabEntete plan, List<SectionEditDto> sectionsModifiees, string user)
+    private Task MettreAJourSectionsAsync(PlanFabricationEntete plan, List<SectionEditDto> sectionsModifiees, string user)
     {
         SectionUpdateHelper.UpdateSections(
-            plan.PlanFabSections,
+            plan.PlanFabricationSections,
             sectionsModifiees,
             deleteSection: section => _repository.DeleteSection(section),
             deleteLine: line => _repository.DeleteLigne(line),
@@ -454,7 +454,7 @@ public class PlanFabricationService : IPlanFabricationService
                     // ✅ Reconstruction systématique du libellé complet côté serveur (Nature + Fréq + Règle)
                     section.LibelleSection = PlanFabricationMapper.ReconstruireLibelleComplet(dto.LibelleSection, null, null, dto.RegleEchantillonnageLibelle);
                 },
-            getLines: section => section.PlanFabLignes,
+            getLines: section => section.PlanFabricationLignes,
             getLineDtos: dto => dto.Lignes,
             createLine: (dto, section) => PlanFabricationMapper.ConstruireNouvelleLignePlan(plan.Id, section.Id, dto),
             updateLine: (line, dto) => PlanFabricationMapper.MettreAJourEntiteLigne(line, dto)
@@ -463,20 +463,20 @@ public class PlanFabricationService : IPlanFabricationService
         return Task.CompletedTask;
     }
 
-    private async Task SmartDictionaryPassAsync(PlanFabEntete plan)
+    private async Task SmartDictionaryPassAsync(PlanFabricationEntete plan)
     {
         var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedRegles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sec in plan.PlanFabSections)
+        foreach (var sec in plan.PlanFabricationSections)
         {
             // ✅ On tente de retrouver la règle existante par son libellé (sans jamais en créer une nouvelle)
             var regleLibelle = sec.RegleEchantillonnageLibelle;
             void SetRegleId(Guid? id) => sec.RegleEchantillonnageId = id;
 
-            var lignes = sec.PlanFabLignes.Select(l => 
+            var lignes = sec.PlanFabricationLignes.Select(l => 
             {
                 // Nettoyage des chaînes
                 if (string.IsNullOrWhiteSpace(l.InstrumentCode)) l.InstrumentCode = null;
@@ -510,7 +510,7 @@ public class PlanFabricationService : IPlanFabricationService
             );
 
             // Final cleanup to enforce XOR constraint on means of control
-            foreach (var l in sec.PlanFabLignes)
+            foreach (var l in sec.PlanFabricationLignes)
             {
                 LineCleanupHelper.CleanupPlanFabLine(l);
             }

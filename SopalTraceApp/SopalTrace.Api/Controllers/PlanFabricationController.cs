@@ -74,14 +74,14 @@ public class PlanFabricationController : ControllerBase
         {
             if (isAss)
             {
-                opCode = await _context.PlanAssEntetes
+                opCode = await _context.PlanAssemblageEntetes
                     .Where(m => m.Id == modeleId.Value)
                     .Select(m => m.OperationCode)
                     .FirstOrDefaultAsync();
             }
             else
             {
-                opCode = await _context.ModeleFabEntetes
+                opCode = await _context.ModeleFabricationEntetes
                     .Where(m => m.Id == modeleId.Value)
                     .Select(m => m.OperationCode)
                     .FirstOrDefaultAsync();
@@ -90,8 +90,8 @@ public class PlanFabricationController : ControllerBase
 
         if (isAss)
         {
-            // PlanAssEntete n'a pas de CodeArticleSage : c'est un modèle générique filtré par opération/famille
-            var planQuery = _context.PlanAssEntetes.AsQueryable();
+            // PlanAssemblageEntete n'a pas de CodeArticleSage : c'est un modèle générique filtré par opération/famille
+            var planQuery = _context.PlanAssemblageEntetes.AsQueryable();
 
             var brouillonQuery = planQuery.Where(p => p.Statut == "BROUILLON");
             if (!string.IsNullOrWhiteSpace(typeRobinetCode)) brouillonQuery = brouillonQuery.Where(p => p.FamilleProduitFiniCode == typeRobinetCode);
@@ -110,7 +110,7 @@ public class PlanFabricationController : ControllerBase
         }
         else
         {
-            var planQuery = _context.PlanFabEntetes.Where(p => p.CodeArticleSage == articleCode);
+            var planQuery = _context.PlanFabricationEntetes.Where(p => p.CodeArticleSage == articleCode);
 
 
 

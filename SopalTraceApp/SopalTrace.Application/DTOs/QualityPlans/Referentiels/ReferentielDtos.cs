@@ -127,3 +127,17 @@ public record PlanNcReferentielsDto(
     List<MachinePosteDto> Machines,
     List<ReferenceItemDto> RisquesDefauts
 );
+
+public record FormulaireStructureDto(
+    Guid Id,
+    string CodeReference,
+    string Designation,
+    string? ConfigurationStructureJson,
+    string Role,
+    int Version
+);
+
+public record UpdateFormulaireStructureDto(
+    string? ConfigurationStructureJson
+);
+

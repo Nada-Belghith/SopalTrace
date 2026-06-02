@@ -19,6 +19,20 @@ public partial class PlanVerifMachineEntete
 
     public DateTime? CreeLe { get; set; }
 
+    public string? ModifiePar { get; set; }
+
+    public DateTime? ModifieLe { get; set; }
+
+    public string? ConfigurationColonnesJson { get; set; }
+
+    public Guid? FormulaireId { get; set; }
+
+    public string? Remarques { get; set; }
+
+    public string? LegendeMoyens { get; set; }
+
+    public virtual RefFormulaire? Formulaire { get; set; }
+
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
 
     public virtual ICollection<PlanVerifMachineFamille> PlanVerifMachineFamilles { get; set; } = new List<PlanVerifMachineFamille>();

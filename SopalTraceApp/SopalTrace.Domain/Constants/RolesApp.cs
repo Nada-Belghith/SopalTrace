@@ -3,22 +3,19 @@ namespace SopalTrace.Domain.Constants;
 public static class RolesApp
 {
     public const string Admin = "ADMIN";
-    public const string Qualite = "QUAL"; // Correspond au code ERP
-    public const string Magasin = "MAG"; // Correspond au code ERP
-    public const string Direction = "DI"; // Correspond au code ERP
-    public const string ProdGaz = "PROD_GAZ"; // Correspond au code ERP
-    public const string Responsable = "RESPONSABLE";
-    
+    public const string ResponsableDI = "RESPONSABLE_DI";
+    public const string ResponsableQualite = "RESPONSABLE_QUALITE";
+    public const string Operateur = "OPERATEUR";
+    public const string Magasinier = "MAGASINIER";
+    public const string SuperviseurQualite = "SUPERVISEUR_QUALITE";
+
     public static readonly string[] TousLesRolesAutorises = 
     { 
         Admin, 
-        Qualite, 
-        Magasin, 
-        Direction, 
-        ProdGaz, 
-        Responsable,
-        "QUALITE",     // Fallback pour compatibilité
-        "MAGASINIER",  // Correspond au code ERP réel
-        "OPERATEUR"    // Correspond au code ERP réel
+        ResponsableDI, 
+        ResponsableQualite, 
+        Operateur, 
+        Magasinier,
+        SuperviseurQualite
     };
 }

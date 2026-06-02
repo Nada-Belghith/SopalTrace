@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanFabEntete
+public partial class PlanFabricationEntete
 {
     public Guid Id { get; set; }
 
@@ -29,6 +29,8 @@ public partial class PlanFabEntete
 
     public string? LegendeMoyens { get; set; }
 
+    public string? Remarques { get; set; }
+
     public string CreePar { get; set; } = null!;
 
     public DateTime CreeLe { get; set; }
@@ -43,11 +45,11 @@ public partial class PlanFabEntete
 
     public virtual Machine? MachineDefautCodeNavigation { get; set; }
 
-    public virtual ModeleFabEntete? ModeleSource { get; set; }
+    public virtual ModeleFabricationEntete? ModeleSource { get; set; }
 
     public virtual Operation? OperationCodeNavigation { get; set; }
 
-    public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();
+    public virtual ICollection<PlanFabricationLigne> PlanFabricationLignes { get; set; } = new List<PlanFabricationLigne>();
 
-    public virtual ICollection<PlanFabSection> PlanFabSections { get; set; } = new List<PlanFabSection>();
+    public virtual ICollection<PlanFabricationSection> PlanFabricationSections { get; set; } = new List<PlanFabricationSection>();
 }

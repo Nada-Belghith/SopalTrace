@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class ModeleFabSection
+public partial class ModeleFabricationSection
 {
     public Guid Id { get; set; }
 
@@ -19,13 +19,13 @@ public partial class ModeleFabSection
 
     public Guid? RegleEchantillonnageId { get; set; }
 
-    public virtual ModeleFabEntete ModeleEntete { get; set; } = null!;
+    public virtual ModeleFabricationEntete ModeleEntete { get; set; } = null!;
 
-    public virtual ICollection<ModeleFabLigne> ModeleFabLignes { get; set; } = new List<ModeleFabLigne>();
+    public virtual ICollection<ModeleFabricationLigne> ModeleFabricationLignes { get; set; } = new List<ModeleFabricationLigne>();
 
     public virtual Periodicite? Periodicite { get; set; }
 
-    public virtual ICollection<PlanFabSection> PlanFabSections { get; set; } = new List<PlanFabSection>();
+    public virtual ICollection<PlanFabricationSection> PlanFabricationSections { get; set; } = new List<PlanFabricationSection>();
 
     public virtual RefRegleEchantillonnage? RegleEchantillonnage { get; set; }
 

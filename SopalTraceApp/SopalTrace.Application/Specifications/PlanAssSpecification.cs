@@ -58,7 +58,7 @@ public static class PlanAssSpecification
     /// <summary>
     /// Valide qu'un plan existe
     /// </summary>
-    public static void ValidatePlanExists(PlanAssEntete? plan, Guid planId)
+    public static void ValidatePlanExists(PlanAssemblageEntete? plan, Guid planId)
     {
         if (plan is null)
         {

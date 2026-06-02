@@ -55,7 +55,7 @@ public class PlanPfService : IPlanPfService
         await _planArchiverService.ArchivePlansPfActifsAsync(dto.FamilleProduitFiniCode ?? "", user);
 
         // 2. Créer le nouveau en ACTIF
-        var plan = new PlanPfEntete
+        var plan = new PlanProduitFiniEntete
         {
             Id = Guid.NewGuid(),
             FamilleProduitFiniCode = dto.FamilleProduitFiniCode,
@@ -64,7 +64,7 @@ public class PlanPfService : IPlanPfService
             //Remarques = dto.Remarques,
             //LegendeMoyens = dto.LegendeMoyens,
             Statut = StatutsPlan.Actif,
-            PlanPfSections = new List<PlanPfSection>()
+            PlanProduitFiniSections = new List<PlanProduitFiniSection>()
         };
 
         if (dto.Sections != null && dto.Sections.Any())
@@ -156,9 +156,9 @@ public class PlanPfService : IPlanPfService
         nouveauPlan.Statut = StatutsPlan.Actif;
 
         // Copier les sections de l'ancien plan
-        if (planArchive.PlanPfSections != null && planArchive.PlanPfSections.Any())
+        if (planArchive.PlanProduitFiniSections != null && planArchive.PlanProduitFiniSections.Any())
         {
-            var sectionsDto = planArchive.PlanPfSections
+            var sectionsDto = planArchive.PlanProduitFiniSections
                 .OrderBy(s => s.OrdreAffiche)
                 .Select(s => s.ConvertProduitFiniSectionEntityToEditableDto())
                 .ToList();
@@ -184,19 +184,19 @@ public class PlanPfService : IPlanPfService
         return true;
     }
 
-    private async Task SmartDictionaryPassAsync(PlanPfEntete plan)
+    private async Task SmartDictionaryPassAsync(PlanProduitFiniEntete plan)
     {
         var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedRegles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sec in plan.PlanPfSections)
+        foreach (var sec in plan.PlanProduitFiniSections)
         {
             var regleLibelle = sec.RegleEchantillonnageLibelle;
             void SetRegleId(Guid? id) => sec.RegleEchantillonnageId = id;
 
-            var lignes = sec.PlanPfLignes.Select(l => 
+            var lignes = sec.PlanProduitFiniLignes.Select(l => 
             {
                 // Nettoyage des chaînes vides
                 if (string.IsNullOrWhiteSpace(l.InstrumentCode)) l.InstrumentCode = null;
@@ -230,7 +230,7 @@ public class PlanPfService : IPlanPfService
             );
 
             // Final cleanup to enforce XOR constraint on means of control
-            foreach (var l in sec.PlanPfLignes)
+            foreach (var l in sec.PlanProduitFiniLignes)
             {
                 LineCleanupHelper.CleanupPlanPfLine(l);
             }

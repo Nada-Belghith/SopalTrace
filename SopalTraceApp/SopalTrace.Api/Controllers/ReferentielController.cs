@@ -72,4 +72,20 @@ public class ReferentielController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
+
+    [HttpGet("formulaires/role/{role}")]
+    public async Task<IActionResult> GetFormulaireByRole(string role)
+    {
+        var result = await _referentielService.GetFormulaireByRoleAsync(role);
+        if (result == null) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
+        return Ok(new { success = true, data = result });
+    }
+
+    [HttpPut("formulaires/role/{role}")]
+    public async Task<IActionResult> UpdateFormulaireStructure(string role, [FromBody] UpdateFormulaireStructureDto request)
+    {
+        var success = await _referentielService.UpdateFormulaireStructureAsync(role, request.ConfigurationStructureJson);
+        if (!success) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
+        return Ok(new { success = true, message = "Structure du formulaire mise a jour avec succes." });
+    }
 }

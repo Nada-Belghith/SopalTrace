@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -17,7 +17,7 @@ public partial class PlanNcColonne
 
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
 
-    public virtual PlanNcEntete PlanNcentete { get; set; } = null!;
+    public virtual PlanNonConformiteEntete PlanNonConformiteEntete { get; set; } = null!;
     
     public Guid? FormulaireId { get; set; }
 

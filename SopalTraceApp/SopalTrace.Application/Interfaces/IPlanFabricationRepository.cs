@@ -15,45 +15,45 @@ public interface IPlanFabricationRepository
 
     // Modèles
     Task<bool> ExisteModeleActifAsync(string natureCode, string? operationCode);
-    Task<IReadOnlyList<ModeleFabEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode);
-    Task<ModeleFabEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId);
-    Task<ModeleFabEntete?> GetModeleAvecRelationsAsync(Guid modeleId);
-    Task<ModeleFabEntete?> GetModelePourArchivageAsync(Guid modeleId);
-    Task AddModeleAsync(ModeleFabEntete modele);
+    Task<IReadOnlyList<ModeleFabricationEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode);
+    Task<ModeleFabricationEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId);
+    Task<ModeleFabricationEntete?> GetModeleAvecRelationsAsync(Guid modeleId);
+    Task<ModeleFabricationEntete?> GetModelePourArchivageAsync(Guid modeleId);
+    Task AddModeleAsync(ModeleFabricationEntete modele);
     Task<bool> ExisteModeleParCodeAsync(string code);
     Task<bool> ExisteModeleParCodeEtLibelleAsync(string code, string libelle);
-    void DeleteModele(ModeleFabEntete modele);
+    void DeleteModele(ModeleFabricationEntete modele);
 
     Task<int> GetDerniereVersionModeleAsync(string? natureCode, string? operationCode); 
     Task<int> GetDerniereVersionModeleParCodeAsync(string code);
-    Task<ModeleFabEntete?> GetBrouillonModeleLePlusRecentAsync(string? natureCode, string? operationCode); 
+    Task<ModeleFabricationEntete?> GetBrouillonModeleLePlusRecentAsync(string? natureCode, string? operationCode); 
 
     // Plans
     Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage);
     Task<bool> ExistePlanActifPourArticleEtOperationAsync(string codeArticleSage, string? operationCode);
-    Task<PlanFabEntete?> GetPlanActifPourArticleAsync(string codeArticleSage);
-    Task<PlanFabEntete?> GetPlanActifPourArticleEtOperationAsync(string codeArticleSage, string operationCode);
-    Task<PlanFabEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid? modeleSourceId, string? operationCode = null);
-    Task<PlanFabEntete?> GetPlanAvecRelationsAsync(Guid planId);
-    Task<PlanFabEntete?> GetPlanCompletPourMiseAJourAsync(Guid planId);
-    Task<List<PlanFabLigne>> GetLignesDuPlanAsync(Guid planId);
-    Task<PlanFabEntete?> GetPlanByIdAsync(Guid planId);
+    Task<PlanFabricationEntete?> GetPlanActifPourArticleAsync(string codeArticleSage);
+    Task<PlanFabricationEntete?> GetPlanActifPourArticleEtOperationAsync(string codeArticleSage, string operationCode);
+    Task<PlanFabricationEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid? modeleSourceId, string? operationCode = null);
+    Task<PlanFabricationEntete?> GetPlanAvecRelationsAsync(Guid planId);
+    Task<PlanFabricationEntete?> GetPlanCompletPourMiseAJourAsync(Guid planId);
+    Task<List<PlanFabricationLigne>> GetLignesDuPlanAsync(Guid planId);
+    Task<PlanFabricationEntete?> GetPlanByIdAsync(Guid planId);
     
-    Task<IReadOnlyList<PlanFabEntete>> GetPlansParFiltresAsync(string? natureCode, string? operationCode);
+    Task<IReadOnlyList<PlanFabricationEntete>> GetPlansParFiltresAsync(string? natureCode, string? operationCode);
 
-    void Delete(PlanFabEntete plan);
-    void DeleteSection(PlanFabSection section);
-    void DeleteLigne(PlanFabLigne ligne);
+    void Delete(PlanFabricationEntete plan);
+    void DeleteSection(PlanFabricationSection section);
+    void DeleteLigne(PlanFabricationLigne ligne);
 
-    Task AddPlanAsync(PlanFabEntete plan);
+    Task AddPlanAsync(PlanFabricationEntete plan);
 
-    Task AddPlanSectionAsync(PlanFabSection section);
-    Task AddPlanLigneAsync(PlanFabLigne ligne);
+    Task AddPlanSectionAsync(PlanFabricationSection section);
+    Task AddPlanLigneAsync(PlanFabricationLigne ligne);
 
     Task SaveChangesAsync();
     Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null);
-    Task<ModeleFabEntete?> GetModeleActifParCriteresAsync(string natureCode, string operationCode);
-    Task<ModeleFabEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode);
+    Task<ModeleFabricationEntete?> GetModeleActifParCriteresAsync(string natureCode, string operationCode);
+    Task<ModeleFabricationEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode);
 
     Task DeletePlanWithChildrenAsync(Guid planId);
 }

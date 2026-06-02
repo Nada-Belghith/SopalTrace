@@ -1,4 +1,4 @@
-﻿using SopalTrace.Application.DTOs.QualityPlans.PlansNC;
+using SopalTrace.Application.DTOs.QualityPlans.PlansNC;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Linq;
@@ -7,7 +7,7 @@ namespace SopalTrace.Application.Mappers;
 
 public static class PlanNcMapper
 {
-    public static PlanNcResponseDto MapperEntiteVersDto(PlanNcEntete plan)
+    public static PlanNcResponseDto MapperEntiteVersDto(PlanNonConformiteEntete plan)
     {
         return new PlanNcResponseDto
         {
@@ -20,7 +20,7 @@ public static class PlanNcMapper
             CreeLe = plan.CreeLe,
             //Remarques = plan.Remarques,
             //LegendeMoyens = plan.LegendeMoyens,
-            Lignes = plan.PlanNcLignes.Select(l => new LigneNcResponseDto
+            Lignes = plan.PlanNonConformiteLignes.Select(l => new LigneNcResponseDto
             {
                 Id = l.Id,
                 OrdreAffiche = l.OrdreAffiche,
@@ -31,9 +31,9 @@ public static class PlanNcMapper
         };
     }
 
-    public static PlanNcLigne ConstruireNouvelleLigne(Guid planId, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
+    public static PlanNonConformiteLigne ConstruireNouvelleLigne(Guid planId, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
     {
-        return new PlanNcLigne
+        return new PlanNonConformiteLigne
         {
             Id = Guid.NewGuid(),
             PlanNcenteteId = planId,
@@ -43,17 +43,17 @@ public static class PlanNcMapper
         };
     }
 
-    public static void MettreAJourLigne(PlanNcLigne ligne, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
+    public static void MettreAJourLigne(PlanNonConformiteLigne ligne, LigneNcEditDto dto, Guid resolvedRisqueDefautId)
     {
         ligne.OrdreAffiche = dto.OrdreAffiche;
         ligne.MachineCode = dto.MachineCode;
         ligne.RisqueDefautId = resolvedRisqueDefautId;
     }
 
-    public static PlanNcEntete DupliquerEntitePlan(PlanNcEntete source, string modifiePar, string motif)
+    public static PlanNonConformiteEntete DupliquerEntitePlan(PlanNonConformiteEntete source, string modifiePar, string motif)
     {
         var planId = Guid.NewGuid();
-        return new PlanNcEntete
+        return new PlanNonConformiteEntete
         {
             Id = planId,
             PosteCode = source.PosteCode,
@@ -64,7 +64,7 @@ public static class PlanNcMapper
             CreeLe = DateTime.UtcNow,
             //Remarques = source.Remarques,
             //LegendeMoyens = source.LegendeMoyens,
-            PlanNcLignes = source.PlanNcLignes.Select(l => new PlanNcLigne
+            PlanNonConformiteLignes = source.PlanNonConformiteLignes.Select(l => new PlanNonConformiteLigne
             {
                 Id = Guid.NewGuid(),
                 PlanNcenteteId = planId,

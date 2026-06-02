@@ -54,6 +54,13 @@
               class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-slate-900 font-semibold text-slate-800 outline-none disabled:bg-slate-50">
           </div>
 
+
+          <div class="flex items-end mt-4 md:mt-0">
+            <button v-if="!props.isReadOnly" @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors">
+              <i class="pi pi-sliders-h"></i> Configurer Colonnes
+            </button>
+          </div>
+
         </div>
       </section>
 
@@ -389,7 +396,13 @@
   </div>
 
   <!-- ============================================================ -->
-  <!-- MODALE INLINE : CRÉATION PIÈCE RÉFÉRENCE / ÉTALON FUITE     -->
+  <!-- MODAL DE CONFIGURATION DES COLONNES -->
+  <ColumnConfigurator 
+      v-model:visible="showColumnModal"
+      v-model="store.entete.configurationColonnes"
+  />
+
+  <!-- MODAL INLINE : CRÉATION PIÈCE RÉFÉRENCE / ÉTALON FUITE     -->
   <!-- ============================================================ -->
   <Teleport to="body">
     <div v-if="showAddPieceModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -483,6 +496,7 @@ import { useRouter } from 'vue-router';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
@@ -497,6 +511,8 @@ const store = useVerifMachineStore();
 const confirm = useConfirm();
 const toast = useToast();
 const router = useRouter();
+
+const showColumnModal = ref(false);
 
 const onCancel = () => {
   router.push('/dev/hub');

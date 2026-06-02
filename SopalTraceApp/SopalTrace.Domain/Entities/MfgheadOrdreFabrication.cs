@@ -15,13 +15,15 @@ public partial class MfgheadOrdreFabrication
 
     public double QuantiteReelle { get; set; }
 
-    public int StatutOf { get; set; }
+    public string StatutOf { get; set; } = null!;
 
     public DateTime? DateDebut { get; set; }
 
     public DateTime? DateFin { get; set; }
 
     public virtual Article CodeArticleNavigation { get; set; } = null!;
+
+    public virtual ICollection<ExecControleOf> ExecControleOfs { get; set; } = new List<ExecControleOf>();
 
     public virtual ICollection<MagExpeditionBlScanOf> MagExpeditionBlScanOfs { get; set; } = new List<MagExpeditionBlScanOf>();
 

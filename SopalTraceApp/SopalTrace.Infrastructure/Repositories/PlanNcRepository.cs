@@ -18,46 +18,46 @@ public class PlanNcRepository : IPlanNcRepository
 
     public async Task<bool> ExistePlanActifAsync(string posteCode)
     {
-        return await _context.PlanNcEntetes.AnyAsync(p =>
+        return await _context.PlanNonConformiteEntetes.AnyAsync(p =>
             p.PosteCode == posteCode &&
             p.Statut == "ACTIF");
     }
 
-    public async Task<PlanNcEntete?> GetPlanActifAsync(string posteCode)
+    public async Task<PlanNonConformiteEntete?> GetPlanActifAsync(string posteCode)
     {
-        return await _context.PlanNcEntetes.FirstOrDefaultAsync(p =>
+        return await _context.PlanNonConformiteEntetes.FirstOrDefaultAsync(p =>
             p.PosteCode == posteCode &&
             p.Statut == "ACTIF");
     }
 
-    public async Task<List<PlanNcEntete>> GetTousLesPlansAsync()
+    public async Task<List<PlanNonConformiteEntete>> GetTousLesPlansAsync()
     {
-        return await _context.PlanNcEntetes
+        return await _context.PlanNonConformiteEntetes
             .OrderByDescending(p => p.CreeLe)
             .ToListAsync();
     }
 
-    public async Task<PlanNcEntete?> GetPlanAvecRelationsAsync(Guid planId)
+    public async Task<PlanNonConformiteEntete?> GetPlanAvecRelationsAsync(Guid planId)
     {
-        return await _context.PlanNcEntetes
-            .Include(p => p.PlanNcLignes)
+        return await _context.PlanNonConformiteEntetes
+            .Include(p => p.PlanNonConformiteLignes)
                 .ThenInclude(l => l.RisqueDefaut)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
-    public async Task AddPlanAsync(PlanNcEntete plan)
+    public async Task AddPlanAsync(PlanNonConformiteEntete plan)
     {
-        await _context.PlanNcEntetes.AddAsync(plan);
+        await _context.PlanNonConformiteEntetes.AddAsync(plan);
     }
 
-    public void AddLigne(PlanNcLigne ligne)
+    public void AddLigne(PlanNonConformiteLigne ligne)
     {
-        _context.PlanNcLignes.Add(ligne);
+        _context.PlanNonConformiteLignes.Add(ligne);
     }
 
-    public void RemoveLigne(PlanNcLigne ligne)
+    public void RemoveLigne(PlanNonConformiteLigne ligne)
     {
-        _context.PlanNcLignes.Remove(ligne);
+        _context.PlanNonConformiteLignes.Remove(ligne);
     }
 
     public async Task SaveChangesAsync()

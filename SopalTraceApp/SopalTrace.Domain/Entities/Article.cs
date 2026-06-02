@@ -37,7 +37,7 @@ public partial class Article
 
     public virtual NatureArticle NatureArticleCodeNavigation { get; set; } = null!;
 
-    public virtual ICollection<PlanFabEntete> PlanFabEntetes { get; set; } = new List<PlanFabEntete>();
+    public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 
     public virtual ProduitFini? ProduitFini { get; set; }
 }

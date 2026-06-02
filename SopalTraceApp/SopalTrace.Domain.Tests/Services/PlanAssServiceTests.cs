@@ -63,7 +63,7 @@
 
 ////        // Assert
 ////        Assert.NotEqual(Guid.Empty, result);
-////        _mockRepository.Verify(r => r.AddPlanAsync(It.IsAny<PlanAssEntete>()), Moq.Times.Once);
+////        _mockRepository.Verify(r => r.AddPlanAsync(It.IsAny<PlanAssemblageEntete>()), Moq.Times.Once);
 ////        _mockRepository.Verify(r => r.SaveChangesAsync(), Moq.Times.Once);
 ////    }
 
@@ -119,7 +119,7 @@
 ////        // Arrange
 ////        var planId = Guid.NewGuid();
 ////        _mockRepository.Setup(r => r.GetPlanAvecRelationsAsync(planId))
-////            .ReturnsAsync((PlanAssEntete?)null);
+////            .ReturnsAsync((PlanAssemblageEntete?)null);
 
 ////        // Act & Assert
 ////        await Assert.ThrowsAsync<PlanNotFoundException>(
@@ -131,7 +131,7 @@
 ////    {
 ////        // Arrange
 ////        var planId = Guid.NewGuid();
-////        var plan = new PlanAssEntete
+////        var plan = new PlanAssemblageEntete
 ////        {
 ////            Id = planId,
 ////            OperationCode = "OP001",
@@ -142,7 +142,7 @@
 ////            Statut = StatutsPlan.Actif,
 ////            CreePar = "TestUser",
 ////            CreeLe = DateTime.UtcNow,
-////            PlanAssSections = new List<PlanAssSection>()
+////            PlanAssemblageSections = new List<PlanAssemblageSection>()
 ////        };
 
 ////        _mockRepository.Setup(r => r.GetPlanAvecRelationsAsync(planId))
@@ -162,7 +162,7 @@
 ////    {
 ////        // Arrange
 ////        var planId = Guid.NewGuid();
-////        var plan = new PlanAssEntete
+////        var plan = new PlanAssemblageEntete
 ////        {
 ////            Id = planId,
 ////            OperationCode = "OP001",
@@ -173,7 +173,7 @@
 ////            Statut = StatutsPlan.Brouillon,
 ////            CreePar = "TestUser",
 ////            CreeLe = DateTime.UtcNow,
-////            PlanAssSections = new List<PlanAssSection>()
+////            PlanAssemblageSections = new List<PlanAssemblageSection>()
 ////        };
 
 ////        var statusRequest = new ChangePlanAssStatusRequestDto

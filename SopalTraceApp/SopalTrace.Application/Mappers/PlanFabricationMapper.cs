@@ -11,9 +11,9 @@ namespace SopalTrace.Application.Mappers;
 
 public static class PlanFabricationMapper
 {
-    public static PlanFabEntete ConstruireEntitePlanAPartirDeModele(ModeleFabEntete modele, CreatePlanRequestDto dto, string designationSage)
+    public static PlanFabricationEntete ConstruireEntitePlanAPartirDeModele(ModeleFabricationEntete modele, CreatePlanRequestDto dto, string designationSage)
     {
-        var plan = new PlanFabEntete
+        var plan = new PlanFabricationEntete
         {
             Id = Guid.NewGuid(), ModeleSourceId = modele.Id, CodeArticleSage = dto.CodeArticleSage,
             Designation = designationSage, Nom = dto.Nom ?? $"PC-{dto.CodeArticleSage}",
@@ -22,12 +22,12 @@ public static class PlanFabricationMapper
             //LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
             //Remarques = string.IsNullOrWhiteSpace(dto.Remarques) ? modele.Notes : dto.Remarques,
             //FamilleProduitFiniCode = modele.FamilleProduitFiniCode,
-            PlanFabSections = new List<PlanFabSection>()
+            PlanFabricationSections = new List<PlanFabricationSection>()
         };
 
-        foreach (var modeleSection in modele.ModeleFabSections)
+        foreach (var modeleSection in modele.ModeleFabricationSections)
         {
-            var planSection = new PlanFabSection
+            var planSection = new PlanFabricationSection
             {
                 Id = Guid.NewGuid(), PlanEnteteId = plan.Id, ModeleSectionId = modeleSection.Id,
                 OrdreAffiche = modeleSection.OrdreAffiche, 
@@ -36,14 +36,14 @@ public static class PlanFabricationMapper
                 RegleEchantillonnageId = modeleSection.RegleEchantillonnageId,
                 LibelleSection = ReconstruireLibelleComplet(modeleSection.LibelleSection, modeleSection.TypeSection?.Libelle, modeleSection.Periodicite?.Libelle, modeleSection.RegleEchantillonnage?.Libelle),
                 //FrequenceLibelle = modeleSection.FrequenceLibelle, 
-                PlanFabLignes = new List<PlanFabLigne>()
+                PlanFabricationLignes = new List<PlanFabricationLigne>()
             };
 
-            foreach (var modeleLigne in modeleSection.ModeleFabLignes)
+            foreach (var modeleLigne in modeleSection.ModeleFabricationLignes)
             {
                 var instrumentData = MapperHelper.NormalizeInstrumentCode(modeleLigne.InstrumentCode, modeleLigne.MoyenTexteLibre);
 
-                planSection.PlanFabLignes.Add(new PlanFabLigne
+                planSection.PlanFabricationLignes.Add(new PlanFabricationLigne
                 {
                     Id = Guid.NewGuid(), PlanEnteteId = plan.Id, SectionId = planSection.Id, ModeleLigneSourceId = modeleLigne.Id,
                     OrdreAffiche = modeleLigne.OrdreAffiche, TypeCaracteristiqueId = modeleLigne.TypeCaracteristiqueId,
@@ -54,16 +54,16 @@ public static class PlanFabricationMapper
                     LimiteSpecTexte = string.IsNullOrWhiteSpace(modeleLigne.LimiteSpecTexte) ? null : modeleLigne.LimiteSpecTexte
                 });
             }
-            plan.PlanFabSections.Add(planSection);
+            plan.PlanFabricationSections.Add(planSection);
         }
 
         return plan;
     }
 
-    public static PlanFabEntete DupliquerEntitePlan(PlanFabEntete source, string nouveauCode, string nouvelleDesig, string? creePar, string? comm = null)
+    public static PlanFabricationEntete DupliquerEntitePlan(PlanFabricationEntete source, string nouveauCode, string nouvelleDesig, string? creePar, string? comm = null)
     {
         int nouvelleVersion = comm == null ? 1 : source.Version + 1;
-        var plan = new PlanFabEntete
+        var plan = new PlanFabricationEntete
         {
             Id = Guid.NewGuid(), ModeleSourceId = source.ModeleSourceId, CodeArticleSage = nouveauCode,
             Designation = nouvelleDesig, Nom = !string.IsNullOrWhiteSpace(source.Nom) ? source.Nom : $"Plan de contrôle {nouvelleDesig}",
@@ -73,24 +73,24 @@ public static class PlanFabricationMapper
             //Remarques = source.Remarques,
             //CommentaireVersion = comm,
             CreePar = creePar ?? "SYSTEM", CreeLe = DateTime.UtcNow,
-            PlanFabSections = new List<PlanFabSection>()
+            PlanFabricationSections = new List<PlanFabricationSection>()
         };
 
-        foreach (var sourceSection in source.PlanFabSections)
+        foreach (var sourceSection in source.PlanFabricationSections)
         {
-            var planSection = new PlanFabSection
+            var planSection = new PlanFabricationSection
             {
                 Id = Guid.NewGuid(), PlanEnteteId = plan.Id, ModeleSectionId = sourceSection.ModeleSectionId,
                 OrdreAffiche = sourceSection.OrdreAffiche, LibelleSection = sourceSection.LibelleSection,
                 //FrequenceLibelle = sourceSection.FrequenceLibelle, 
                 RegleEchantillonnageId = sourceSection.RegleEchantillonnageId, 
                 RegleEchantillonnageLibelle = sourceSection.RegleEchantillonnageLibelle,
-                PlanFabLignes = new List<PlanFabLigne>()
+                PlanFabricationLignes = new List<PlanFabricationLigne>()
             };
 
-            foreach (var sourceLigne in sourceSection.PlanFabLignes)
+            foreach (var sourceLigne in sourceSection.PlanFabricationLignes)
             {
-                planSection.PlanFabLignes.Add(new PlanFabLigne
+                planSection.PlanFabricationLignes.Add(new PlanFabricationLigne
                 {
                     Id = Guid.NewGuid(), PlanEnteteId = plan.Id, SectionId = planSection.Id, ModeleLigneSourceId = sourceLigne.ModeleLigneSourceId,
                     OrdreAffiche = sourceLigne.OrdreAffiche, TypeCaracteristiqueId = sourceLigne.TypeCaracteristiqueId,
@@ -102,12 +102,12 @@ public static class PlanFabricationMapper
                     Observations = sourceLigne.Observations, Instruction = sourceLigne.Instruction, EstCritique = sourceLigne.EstCritique
                 });
             }
-            plan.PlanFabSections.Add(planSection);
+            plan.PlanFabricationSections.Add(planSection);
         }
         return plan;
     }
 
-    public static PlanFabSection ConstruireNouvelleSectionPlan(Guid planId, SectionEditDto dto)
+    public static PlanFabricationSection ConstruireNouvelleSectionPlan(Guid planId, SectionEditDto dto)
     {
         var libelle = string.IsNullOrWhiteSpace(dto.LibelleSection) ? "NOUVELLE SECTION" : dto.LibelleSection?.Trim();
 
@@ -116,7 +116,7 @@ public static class PlanFabricationMapper
         // the UI shows exactly what was imported by the user (same behaviour as PF).
         var persistedLabel = libelle;
 
-        return new PlanFabSection
+        return new PlanFabricationSection
         {
             PlanEnteteId = planId, ModeleSectionId = MapperHelper.NullIfEmpty(dto.ModeleSectionId), OrdreAffiche = dto.OrdreAffiche,
             TypeSectionId = dto.TypeSectionId,
@@ -124,7 +124,7 @@ public static class PlanFabricationMapper
             RegleEchantillonnageId = MapperHelper.NullIfEmpty(dto.RegleEchantillonnageId),
             LibelleSection = ReconstruireLibelleComplet(dto.LibelleSection, null, dto.FrequenceLibelle, dto.RegleEchantillonnageLibelle),
             //FrequenceLibelle = string.IsNullOrWhiteSpace(dto.FrequenceLibelle) ? null : dto.FrequenceLibelle,
-            PlanFabLignes = new List<PlanFabLigne>()
+            PlanFabricationLignes = new List<PlanFabricationLigne>()
         };
     }
 
@@ -163,11 +163,11 @@ public static class PlanFabricationMapper
         return full;
     }
 
-    public static PlanFabLigne ConstruireNouvelleLignePlan(Guid planId, Guid sectionId, LigneEditDto dto)
+    public static PlanFabricationLigne ConstruireNouvelleLignePlan(Guid planId, Guid sectionId, LigneEditDto dto)
     {
         var instrumentData = MapperHelper.NormalizeInstrumentCode(dto.InstrumentCode);
 
-        return new PlanFabLigne
+        return new PlanFabricationLigne
         {
             PlanEnteteId = planId, SectionId = sectionId, ModeleLigneSourceId = MapperHelper.NullIfEmpty(dto.ModeleLigneSourceId),
             OrdreAffiche = dto.OrdreAffiche, 
@@ -181,7 +181,7 @@ public static class PlanFabricationMapper
         };
     }
 
-    public static void MettreAJourEntiteLigne(PlanFabLigne ligne, LigneEditDto dto)
+    public static void MettreAJourEntiteLigne(PlanFabricationLigne ligne, LigneEditDto dto)
     {
         var instrumentData = MapperHelper.NormalizeInstrumentCode(dto.InstrumentCode);
 
@@ -194,7 +194,7 @@ public static class PlanFabricationMapper
         ligne.LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte; ligne.Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations; ligne.Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction;
     }
 
-    public static PlanResponseDto MapperEntitePlanVersDto(PlanFabEntete plan)
+    public static PlanResponseDto MapperEntitePlanVersDto(PlanFabricationEntete plan)
     {
         return new PlanResponseDto
         {
@@ -213,7 +213,7 @@ public static class PlanFabricationMapper
             CreeLe = plan.CreeLe,
             //ModifiePar = plan.ModifiePar ?? string.Empty,
             //ModifieLe = plan.ModifieLe,
-            Sections = plan.PlanFabSections?.Select(s => new PlanSectionResponseDto
+            Sections = plan.PlanFabricationSections?.Select(s => new PlanSectionResponseDto
             {
                 Id = s.Id,
                 ModeleSectionId = s.ModeleSectionId,
@@ -224,15 +224,15 @@ public static class PlanFabricationMapper
                 PeriodiciteId = s.PeriodiciteId,
                 RegleEchantillonnageId = s.RegleEchantillonnageId,
                 RegleEchantillonnageLibelle = s.RegleEchantillonnage?.Libelle ?? string.Empty,
-                Lignes = s.PlanFabLignes?.Select(l => new PlanLigneResponseDto
+                Lignes = s.PlanFabricationLignes?.Select(l => new PlanLigneResponseDto
                 {
                     Id = l.Id,
                     ModeleLigneSourceId = l.ModeleLigneSourceId,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
                     LibelleAffiche = l.LibelleAffiche ?? string.Empty,
                     NomCategorie = l.TypeCaracteristique?.Libelle ?? string.Empty,
-                    TypeControleId = l.TypeControleId,
+                    TypeControleId = l.TypeControleId ?? Guid.Empty,
                     MoyenControleId = l.MoyenControleId,
                     PeriodiciteId = l.PeriodiciteId,
                     InstrumentCode = l.InstrumentCode ?? l.MoyenTexteLibre ?? string.Empty,
@@ -245,9 +245,9 @@ public static class PlanFabricationMapper
         };
     }
 
-    public static PlanFabEntete ConstruireEntitePlanVierge(CreatePlanRequestDto dto, string designationSage)
+    public static PlanFabricationEntete ConstruireEntitePlanVierge(CreatePlanRequestDto dto, string designationSage)
     {
-        return new PlanFabEntete
+        return new PlanFabricationEntete
         {
             Id = Guid.NewGuid(),
             ModeleSourceId = null,
@@ -261,7 +261,7 @@ public static class PlanFabricationMapper
             CreeLe = DateTime.UtcNow,
             //LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
             //Remarques = dto.Remarques,
-            PlanFabSections = new List<PlanFabSection>()
+            PlanFabricationSections = new List<PlanFabricationSection>()
         };
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanAssLigne
+public partial class PlanAssemblageLigne
 {
     public Guid Id { get; set; }
 
@@ -13,11 +13,11 @@ public partial class PlanAssLigne
 
     public int OrdreAffiche { get; set; }
 
-    public Guid TypeCaracteristiqueId { get; set; }
+    public Guid? TypeCaracteristiqueId { get; set; }
 
     public string? LibelleAffiche { get; set; }
 
-    public Guid TypeControleId { get; set; }
+    public Guid? TypeControleId { get; set; }
 
     public string? MachineCode { get; set; }
 
@@ -43,6 +43,10 @@ public partial class PlanAssLigne
 
     public string? MoyenTexteLibre { get; set; }
 
+    public string? ColonnesSupplementaires { get; set; }
+
+    public string? ImageBase64 { get; set; }
+
     public virtual Defautheque? Defautheque { get; set; }
 
     public virtual Instrument? InstrumentCodeNavigation { get; set; }
@@ -53,11 +57,11 @@ public partial class PlanAssLigne
 
     public virtual Periodicite? Periodicite { get; set; }
 
-    public virtual PlanAssEntete PlanEntete { get; set; } = null!;
+    public virtual PlanAssemblageEntete PlanEntete { get; set; } = null!;
 
-    public virtual PlanAssSection Section { get; set; } = null!;
+    public virtual PlanAssemblageSection Section { get; set; } = null!;
 
-    public virtual TypeCaracteristique TypeCaracteristique { get; set; } = null!;
+    public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 
-    public virtual TypeControle TypeControle { get; set; } = null!;
+    public virtual TypeControle? TypeControle { get; set; }
 }

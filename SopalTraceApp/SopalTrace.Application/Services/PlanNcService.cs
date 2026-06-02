@@ -19,7 +19,7 @@ namespace SopalTrace.Application.Services;
 /// Hérite de BasePlanLifecycleService pour centralize le cycle de vie (CRUD, versionning, archivage).
 /// Implémente les hooks spécifiques à NC.
 /// </summary>
-public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNcRequestDto, SavePlanNcDto>, IPlanNcService
+public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, CreatePlanNcRequestDto, SavePlanNcDto>, IPlanNcService
 {
     private readonly IPlanNcRepository _repository;
     private readonly IValidator<CreatePlanNcRequestDto> _createValidator;
@@ -67,7 +67,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// <summary>
     /// Hook: Archiver l'ancien plan actif avant activation/versionning.
     /// </summary>
-    protected override async Task HandleVersioningBeforeActivationAsync(PlanNcEntete plan, string user)
+    protected override async Task HandleVersioningBeforeActivationAsync(PlanNonConformiteEntete plan, string user)
     {
         // Archiver l'ancien plan actif pour ce code poste
         var posteCode = plan.PosteCode;
@@ -79,7 +79,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// <summary>
     /// Récupère un plan NC par son ID.
     /// </summary>
-    protected override async Task<PlanNcEntete?> ObtenirEntiteAsync(Guid id)
+    protected override async Task<PlanNonConformiteEntete?> ObtenirEntiteAsync(Guid id)
     {
         return await _repository.GetPlanAvecRelationsAsync(id);
     }
@@ -87,10 +87,10 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// <summary>
     /// Crée une nouvelle entité plan NC à partir du DTO de création.
     /// </summary>
-    protected override async Task<PlanNcEntete> CreerEntiteAsync(CreatePlanNcRequestDto dto, string user)
+    protected override async Task<PlanNonConformiteEntete> CreerEntiteAsync(CreatePlanNcRequestDto dto, string user)
     {
         var planId = Guid.NewGuid();
-        var lines = new List<PlanNcLigne>();
+        var lines = new List<PlanNonConformiteLigne>();
         
         // Cache local pour éviter les doublons de défauts dans le même traitement
         var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
@@ -115,7 +115,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
                     }
                 }
 
-                lines.Add(new PlanNcLigne
+                lines.Add(new PlanNonConformiteLigne
                 {
                     Id = Guid.NewGuid(),
                     PlanNcenteteId = planId,
@@ -126,7 +126,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             }
         }
 
-        return new PlanNcEntete
+        return new PlanNonConformiteEntete
         {
             Id = planId,
             PosteCode = dto.PosteCode,
@@ -137,7 +137,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             CreeLe = DateTime.UtcNow,
             //Remarques = dto.Remarques,
             //LegendeMoyens = dto.LegendeMoyens,
-            PlanNcLignes = lines
+            PlanNonConformiteLignes = lines
         };
     }
 
@@ -146,7 +146,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// <summary>
     /// Applique les mises à jour du DTO sur l'entité brouillon NC.
     /// </summary>
-    protected override async Task ApplierMiseAJourDraftAsync(PlanNcEntete plan, SavePlanNcDto dto, string user)
+    protected override async Task ApplierMiseAJourDraftAsync(PlanNonConformiteEntete plan, SavePlanNcDto dto, string user)
     {
         plan.Nom = dto.Nom;
         //plan.Remarques = dto.Remarques;
@@ -176,7 +176,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
 
         // 2. NETTOYAGE (Suppression des lignes absentes)
         var dtoIds = dto.Lignes.Select(l => l.Id).OfType<Guid>().ToList();
-        var lignesASupprimer = plan.PlanNcLignes.Where(l => !dtoIds.Contains(l.Id)).ToList();
+        var lignesASupprimer = plan.PlanNonConformiteLignes.Where(l => !dtoIds.Contains(l.Id)).ToList();
         foreach (var l in lignesASupprimer) _repository.RemoveLigne(l);
 
         // 3. SHUFFLE (Pass 2 - Éviter les conflits d'index UNIQUE sur OrdreAffiche)
@@ -184,7 +184,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         int tempBase = 5000;
         foreach (var item in resolvedLines)
         {
-            var existing = item.Dto.Id.HasValue ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == item.Dto.Id.Value) : null;
+            var existing = item.Dto.Id.HasValue ? plan.PlanNonConformiteLignes.FirstOrDefault(l => l.Id == item.Dto.Id.Value) : null;
             if (existing != null)
             {
                 existing.OrdreAffiche = tempBase + item.Dto.OrdreAffiche;
@@ -195,7 +195,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         // 4. FINALISATION (Pass 3 - Assignation des ordres réels et ajout des nouvelles lignes)
         foreach (var item in resolvedLines)
         {
-            var existing = item.Dto.Id.HasValue ? plan.PlanNcLignes.FirstOrDefault(l => l.Id == item.Dto.Id.Value) : null;
+            var existing = item.Dto.Id.HasValue ? plan.PlanNonConformiteLignes.FirstOrDefault(l => l.Id == item.Dto.Id.Value) : null;
             if (existing != null)
             {
                 PlanNcMapper.MettreAJourLigne(existing, item.Dto, item.ResolvedId);
@@ -203,7 +203,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             else
             {
                 var nouvelleLigne = PlanNcMapper.ConstruireNouvelleLigne(plan.Id, item.Dto, item.ResolvedId);
-                plan.PlanNcLignes.Add(nouvelleLigne);
+                plan.PlanNonConformiteLignes.Add(nouvelleLigne);
                 _repository.AddLigne(nouvelleLigne);
             }
         }
@@ -214,7 +214,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// <summary>
     /// Persiste une nouvelle entité plan NC en base.
     /// </summary>
-    protected override async Task PersisterEntiteAsync(PlanNcEntete plan)
+    protected override async Task PersisterEntiteAsync(PlanNonConformiteEntete plan)
     {
         await _repository.AddPlanAsync(plan);
     }
@@ -222,7 +222,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// <summary>
     /// Calcule la nouvelle version pour un plan NC.
     /// </summary>
-    protected override async Task<int> CalculerNouvelleVersionAsync(PlanNcEntete plan)
+    protected override async Task<int> CalculerNouvelleVersionAsync(PlanNonConformiteEntete plan)
     {
         var tousLesPlans = await _repository.GetTousLesPlansAsync();
         var maxVersion = tousLesPlans
@@ -235,14 +235,14 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
     /// <summary>
     /// Crée une nouvelle version du plan NC (copie).
     /// </summary>
-    protected override async Task<PlanNcEntete> CreerNouvelleVersionEntiteAsync(
-        PlanNcEntete ancienPlan, 
+    protected override async Task<PlanNonConformiteEntete> CreerNouvelleVersionEntiteAsync(
+        PlanNonConformiteEntete ancienPlan, 
         SavePlanNcDto dto, 
         int nouvelleVersion, 
         string user)
     {
         var nouveauPlanId = Guid.NewGuid();
-        var lines = new List<PlanNcLigne>();
+        var lines = new List<PlanNonConformiteLigne>();
 
         // Cache local pour éviter les doublons de défauts dans le même traitement
         var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
@@ -265,7 +265,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
                 }
             }
 
-            lines.Add(new PlanNcLigne
+            lines.Add(new PlanNonConformiteLigne
             {
                 Id = Guid.NewGuid(),
                 PlanNcenteteId = nouveauPlanId,
@@ -275,7 +275,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             });
         }
 
-        return new PlanNcEntete
+        return new PlanNonConformiteEntete
         {
             Id = nouveauPlanId,
             PosteCode = ancienPlan.PosteCode,
@@ -286,14 +286,14 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             CreeLe = DateTime.UtcNow,
             //Remarques = dto.Remarques,
             //LegendeMoyens = dto.LegendeMoyens,
-            PlanNcLignes = lines
+            PlanNonConformiteLignes = lines
         };
     }
 
     /// <summary>
     /// Vérifie si un brouillon identique existe déjà (par code poste).
     /// </summary>
-    protected override async Task<PlanNcEntete?> ObtenirBrouillonExistantAsync(CreatePlanNcRequestDto dto)
+    protected override async Task<PlanNonConformiteEntete?> ObtenirBrouillonExistantAsync(CreatePlanNcRequestDto dto)
     {
         var tousLesPlans = await _repository.GetTousLesPlansAsync();
         // Pour les NC, on considère qu'il n'y a qu'un seul plan "de référence" par poste.
@@ -364,7 +364,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
 
         // 1. RÉSOLUTION ET NETTOYAGE
         var dtoIds = lignesModifiees.Select(l => l.Id).OfType<Guid>().ToList();
-        var lignesASupprimer = plan.PlanNcLignes.Where(l => !dtoIds.Contains(l.Id)).ToList();
+        var lignesASupprimer = plan.PlanNonConformiteLignes.Where(l => !dtoIds.Contains(l.Id)).ToList();
         foreach (var l in lignesASupprimer) _repository.RemoveLigne(l);
 
         var resolvedItems = new List<(LigneNcEditDto Dto, Guid ResolvedId)>();
@@ -380,7 +380,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         {
             if (item.Dto.Id.HasValue)
             {
-                var existing = plan.PlanNcLignes.FirstOrDefault(x => x.Id == item.Dto.Id.Value);
+                var existing = plan.PlanNonConformiteLignes.FirstOrDefault(x => x.Id == item.Dto.Id.Value);
                 if (existing != null) existing.OrdreAffiche = tempBase + item.Dto.OrdreAffiche;
             }
         }
@@ -389,7 +389,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         // 3. FINALISATION (Pass 2 - Assignation réelle et ajouts)
         foreach (var item in resolvedItems)
         {
-            var existing = item.Dto.Id.HasValue ? plan.PlanNcLignes.FirstOrDefault(x => x.Id == item.Dto.Id.Value) : null;
+            var existing = item.Dto.Id.HasValue ? plan.PlanNonConformiteLignes.FirstOrDefault(x => x.Id == item.Dto.Id.Value) : null;
             if (existing != null)
             {
                 PlanNcMapper.MettreAJourLigne(existing, item.Dto, item.ResolvedId);
@@ -420,7 +420,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
         if (ancienPlan == null) throw new InvalidOperationException("Plan introuvable.");
 
         // Créer une copie du plan en brouillon
-        var nouveauPlan = new PlanNcEntete
+        var nouveauPlan = new PlanNonConformiteEntete
         {
             Id = Guid.NewGuid(),
             PosteCode = ancienPlan.PosteCode,
@@ -429,7 +429,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             Statut = StatutsPlan.Brouillon,
             CreePar = request.ModifiePar,
             CreeLe = DateTime.UtcNow,
-            PlanNcLignes = ancienPlan.PlanNcLignes.Select(l => new PlanNcLigne
+            PlanNonConformiteLignes = ancienPlan.PlanNonConformiteLignes.Select(l => new PlanNonConformiteLigne
             {
                 Id = Guid.NewGuid(),
                 OrdreAffiche = l.OrdreAffiche,
@@ -472,7 +472,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
 
         // Créer une nouvelle version basée sur l'archive
         var nouveauPlanId = Guid.NewGuid();
-        var nouveauPlan = new PlanNcEntete
+        var nouveauPlan = new PlanNonConformiteEntete
         {
             Id = nouveauPlanId,
             PosteCode = planArchive.PosteCode,
@@ -481,7 +481,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNcEntete, CreatePlanNc
             Statut = StatutsPlan.Actif,
             CreePar = restaurePar,
             CreeLe = DateTime.UtcNow,
-            PlanNcLignes = planArchive.PlanNcLignes.Select(l => new PlanNcLigne
+            PlanNonConformiteLignes = planArchive.PlanNonConformiteLignes.Select(l => new PlanNonConformiteLigne
             {
                 Id = Guid.NewGuid(),
                 PlanNcenteteId = nouveauPlanId,

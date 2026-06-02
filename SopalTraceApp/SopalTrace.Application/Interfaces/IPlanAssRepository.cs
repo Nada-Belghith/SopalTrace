@@ -21,14 +21,14 @@ public interface IPlanAssRepository
     Task<bool> ExisteParCodeEtLibelleAsync(string code, string libelle);
 
     // Récupération
-    Task<PlanAssEntete?> GetPlanAvecRelationsAsync(Guid planId);
-    Task<PlanAssEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode);
-    Task<PlanAssEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage);
-    Task<PlanAssEntete?> GetPlanByIdAsync(Guid planId);
-    Task<List<PlanAssEntete>> GetPlansActifsAsync(string operationCode, string? familleCode, string? codeArticleSage);
-    Task<IReadOnlyList<PlanAssEntete>> GetModelesParFiltresAsync(string? natureComposantCode, string? operationCode, string? posteCode = null, string? familleProduitCode = null);
+    Task<PlanAssemblageEntete?> GetPlanAvecRelationsAsync(Guid planId);
+    Task<PlanAssemblageEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode);
+    Task<PlanAssemblageEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage);
+    Task<PlanAssemblageEntete?> GetPlanByIdAsync(Guid planId);
+    Task<List<PlanAssemblageEntete>> GetPlansActifsAsync(string operationCode, string? familleCode, string? codeArticleSage);
+    Task<IReadOnlyList<PlanAssemblageEntete>> GetModelesParFiltresAsync(string? natureComposantCode, string? operationCode, string? posteCode = null, string? familleProduitCode = null);
 
     // Persistance
-    Task AddPlanAsync(PlanAssEntete plan);
+    Task AddPlanAsync(PlanAssemblageEntete plan);
     Task SaveChangesAsync();
 }

@@ -41,7 +41,7 @@ Ces services gèrent les plans par famille de robinet avec versioning spécifiqu
 #### Plans de Type Article (Multi-sections)
 
 - **PlanFabricationService** : Plans de Fabrication
-  - Entité: `PlanFabEntete` (implémente `IPlanEntete`)
+  - Entité: `PlanFabricationEntete` (implémente `IPlanEntete`)
   - Caractéristique: Support article complet avec sections/lignes
   - Versioning: Par article/opération
   - Optimisations: ✅ Helper `CalculerNouvelleVersionAsync`, validation centralisée

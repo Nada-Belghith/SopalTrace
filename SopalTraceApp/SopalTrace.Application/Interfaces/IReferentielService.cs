@@ -19,4 +19,7 @@ public interface IReferentielService
     Task<Guid> CreateCaracteristiqueAsync(CreateCaracteristiqueDto request);
 
     Task<PieceRefDto> CreatePieceReferenceAsync(CreatePieceReferenceDto request);
+
+    Task<FormulaireStructureDto?> GetFormulaireByRoleAsync(string role);
+    Task<bool> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson);
 }

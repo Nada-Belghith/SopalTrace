@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanNcLigne
+public partial class PlanNonConformiteLigne
 {
     public Guid Id { get; set; }
 
@@ -17,7 +17,7 @@ public partial class PlanNcLigne
 
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
 
-    public virtual PlanNcEntete PlanNcentete { get; set; } = null!;
+    public virtual PlanNonConformiteEntete PlanNcentete { get; set; } = null!;
 
     public virtual RisqueDefaut RisqueDefaut { get; set; } = null!;
 }

@@ -7,11 +7,11 @@ namespace SopalTrace.Application.Interfaces;
 public interface IPlanNcRepository
 {
     Task<bool> ExistePlanActifAsync(string posteCode);
-    Task<PlanNcEntete?> GetPlanActifAsync(string posteCode);
-    Task<List<PlanNcEntete>> GetTousLesPlansAsync();
-    Task<PlanNcEntete?> GetPlanAvecRelationsAsync(Guid planId);
-    Task AddPlanAsync(PlanNcEntete plan);
-    void AddLigne(PlanNcLigne ligne);
-    void RemoveLigne(PlanNcLigne ligne);
+    Task<PlanNonConformiteEntete?> GetPlanActifAsync(string posteCode);
+    Task<List<PlanNonConformiteEntete>> GetTousLesPlansAsync();
+    Task<PlanNonConformiteEntete?> GetPlanAvecRelationsAsync(Guid planId);
+    Task AddPlanAsync(PlanNonConformiteEntete plan);
+    void AddLigne(PlanNonConformiteLigne ligne);
+    void RemoveLigne(PlanNonConformiteLigne ligne);
     Task SaveChangesAsync();
 }

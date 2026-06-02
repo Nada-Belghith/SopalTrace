@@ -37,7 +37,7 @@ const router = createRouter({
           path: 'hub',
           name: 'dev-hub',
           component: () => import('@/views/QualityPlans/DevModelHub.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE', 'QUALITE'] } // Exemple de restriction
+          meta: { roles: ['ADMIN', 'RESPONSABLE_DI', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'hub-plans',
@@ -51,13 +51,19 @@ const router = createRouter({
           path: 'fab/nouveau', 
           name: 'dev-fab-modele-create',
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE'] }
+          meta: { roles: ['ADMIN', 'RESPONSABLE', 'SUPERVISEUR_QUALITE'] }
+        },
+        {
+          path: 'fab/specifique', 
+          name: 'dev-fab-specifique',
+          component: () => import('@/views/QualityPlans/Fabrication/FormStructureEditor.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'fab/editer/:id',
           name: 'dev-fab-edit',
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE'] }
+          meta: { roles: ['ADMIN', 'RESPONSABLE', 'SUPERVISEUR_QUALITE'] }
         },
 
         // === NOUVEAU : ÉDITEUR PLANS PAR ARTICLE (Production) ===
@@ -141,36 +147,51 @@ const router = createRouter({
           component: () => import('@/views/Magasinier/OfScannerView.vue')
         }
       ]
+    },
+    {
+      path: '/superviseur',
+      name: 'superviseur-root',
+      component: MainLayout,
+      meta: { requiresAuth: true, roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] },
+      children: [
+        {
+          path: 'dashboard',
+          name: 'superviseur-dashboard',
+          component: () => import('@/views/Superviseur/SuperviseurDashboardView.vue')
+        }
+      ]
     }
   ]
 })
 
-// Navigation Guard — style Vue Router 4 (return au lieu de next)
-router.beforeEach(async (to) => {
+// Navigation Guard — style Vue Router 4
+router.beforeEach(async (to, from) => {
   const authStore = useAuthStore();
 
-  // 1. Vérification de l'authentification
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth !== false);
 
   if (requiresAuth && !authStore.isAuthenticated) {
-    authStore.logout(); // logout() redirige déjà vers /login
-    return false;
+    return { name: 'login' };
   }
 
-  // 2. Si l'user est déjà connecté et tente d'aller sur /login
   if (to.name === 'login' && authStore.isAuthenticated) {
     if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
+    if (authStore.userRole === 'SUPERVISEUR_QUALITE') return { name: 'superviseur-dashboard' };
+    if (authStore.userRole === 'OPERATEUR') return { name: 'operateur-dashboard' }; // adjust if operator route exists
     return { name: 'dev-hub' };
   }
 
-  // 3. Vérification des rôles (Routage Intelligent)
   const requiredRoles = to.meta.roles;
   if (requiredRoles && !authStore.hasAccess(requiredRoles)) {
-    if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
-    return { name: 'dev-hub' }; // Accès refusé → redirection hub
+    // PREVENT INFINITE REDIRECT: if we're already trying to go to the fallback, stop redirecting.
+    const fallbackRoute = authStore.userRole === 'MAGASINIER' ? 'magasinier-scan-of' : (authStore.userRole === 'SUPERVISEUR_QUALITE' ? 'superviseur-dashboard' : 'dev-hub');
+    if (to.name !== fallbackRoute) {
+       return { name: fallbackRoute };
+    }
+    // If the fallback route ITSELF requires roles the user doesn't have, they are completely unauthorized.
+    // Ideally redirect to an unauthorized page. Here we just let them go to the page but it might be blank.
   }
 
-  // ✅ Laisser passer
   return true;
 });
 

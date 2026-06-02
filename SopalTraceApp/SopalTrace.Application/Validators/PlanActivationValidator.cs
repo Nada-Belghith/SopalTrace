@@ -9,20 +9,20 @@ namespace SopalTrace.Application.Validators;
 /// 
 /// Ce validateur s'applique UNIQUEMENT lors de l'activation, pas lors des sauvegardes en brouillon.
 /// </summary>
-public class PlanActivationValidator : AbstractValidator<PlanFabEntete>
+public class PlanActivationValidator : AbstractValidator<PlanFabricationEntete>
 {
     public PlanActivationValidator()
     {
-        RuleFor(p => p.PlanFabSections)
+        RuleFor(p => p.PlanFabricationSections)
             .NotEmpty().WithMessage("Le plan doit contenir au moins une section pour être activé.");
 
-        RuleForEach(p => p.PlanFabSections)
+        RuleForEach(p => p.PlanFabricationSections)
             .ChildRules(section =>
             {
-                section.RuleFor(s => s.PlanFabLignes)
+                section.RuleFor(s => s.PlanFabricationLignes)
                     .NotEmpty().WithMessage("Chaque section doit contenir au moins une ligne.");
 
-                section.RuleForEach(s => s.PlanFabLignes)
+                section.RuleForEach(s => s.PlanFabricationLignes)
                     .ChildRules(ligne =>
                     {
                         // TypeControleId est le seul champ toujours obligatoire

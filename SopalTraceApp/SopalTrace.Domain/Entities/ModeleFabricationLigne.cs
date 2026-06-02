@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class ModeleFabLigne
+public partial class ModeleFabricationLigne
 {
     public Guid Id { get; set; }
 
@@ -11,13 +11,13 @@ public partial class ModeleFabLigne
 
     public int OrdreAffiche { get; set; }
 
-    public Guid TypeCaracteristiqueId { get; set; }
+    public Guid? TypeCaracteristiqueId { get; set; }
 
     public string? LibelleAffiche { get; set; }
 
     public string? LimiteSpecTexte { get; set; }
 
-    public Guid TypeControleId { get; set; }
+    public Guid? TypeControleId { get; set; }
 
     public string? InstrumentCode { get; set; }
 
@@ -31,17 +31,23 @@ public partial class ModeleFabLigne
 
     public string? MoyenTexteLibre { get; set; }
 
+    public string? Observations { get; set; }
+
+    public string? ColonnesSupplementaires { get; set; }
+
+    public string? ImageBase64 { get; set; }
+
     public virtual Instrument? InstrumentCodeNavigation { get; set; }
 
     public virtual MoyenControle? MoyenControle { get; set; }
 
     public virtual Periodicite? Periodicite { get; set; }
 
-    public virtual ICollection<PlanFabLigne> PlanFabLignes { get; set; } = new List<PlanFabLigne>();
+    public virtual ICollection<PlanFabricationLigne> PlanFabricationLignes { get; set; } = new List<PlanFabricationLigne>();
 
-    public virtual ModeleFabSection Section { get; set; } = null!;
+    public virtual ModeleFabricationSection Section { get; set; } = null!;
 
-    public virtual TypeCaracteristique TypeCaracteristique { get; set; } = null!;
+    public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 
-    public virtual TypeControle TypeControle { get; set; } = null!;
+    public virtual TypeControle? TypeControle { get; set; }
 }

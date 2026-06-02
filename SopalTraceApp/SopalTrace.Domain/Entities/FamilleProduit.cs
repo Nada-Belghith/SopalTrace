@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -15,7 +15,7 @@ public partial class FamilleProduit
 
     public virtual ICollection<Itmmaster> Itmmasters { get; set; } = new List<Itmmaster>();
 
-    public virtual ICollection<PlanAssEntete> PlanAssEntetes { get; set; } = new List<PlanAssEntete>();
+    public virtual ICollection<PlanAssemblageEntete> PlanAssemblageEntetes { get; set; } = new List<PlanAssemblageEntete>();
 
     public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
 }
