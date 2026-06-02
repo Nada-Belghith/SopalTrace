@@ -1,6 +1,26 @@
 <template>
   <div class="mb-10">
     <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">1. Informations générales</h3>
+    
+    <!-- CHOIX RÉFÉRENCE FORMULAIRE (Mode Assemblage Uniquement) -->
+    <div v-if="isAssemblyMode && !isEditMode" class="col-span-full mb-4 bg-blue-50/50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4">
+      <label class="block text-[11px] font-black text-blue-800 uppercase tracking-widest shrink-0">
+        <i class="pi pi-file-import mr-1 text-blue-600"></i> Réf. Formulaire (Modèle) *
+      </label>
+      <select 
+        v-model="refFormulaireSelected" 
+        :disabled="isReadOnly" 
+        class="w-full md:w-1/3 rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow bg-white border border-slate-300 text-slate-800 cursor-pointer shadow-sm">
+        <option value="">-- Choisir un formulaire générique --</option>
+        <option v-for="ref in formulairesReferences" :key="ref.id" :value="ref.id">
+          {{ ref.codeReference }} - {{ ref.designation }}
+        </option>
+      </select>
+      <p class="text-xs text-blue-600/80 font-medium italic">
+        La sélection du formulaire remplira automatiquement les champs suivants.
+      </p>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
 
       <!-- FAMILLE (Obligatoire) -->
@@ -83,7 +103,7 @@
 </template>
 
 <script setup>
-import { computed, watch, ref } from 'vue';
+import { computed, watch, ref, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
@@ -100,6 +120,68 @@ const props = defineProps({
     type: Boolean,
     default: false
   }
+});
+
+const isAssemblyMode = computed(() => route.query.mode === 'assembly');
+const formulairesReferences = computed(() => store.formulairesReferences || []);
+const refFormulaireSelected = ref('');
+const isAutoFilling = ref(false);
+
+watch(refFormulaireSelected, async (newRefId) => {
+  if (!newRefId) return;
+  const refObj = formulairesReferences.value.find(r => r.id === newRefId);
+  if (!refObj) return;
+
+  const designation = refObj.designation || '';
+  const d = designation.toUpperCase();
+
+  isAutoFilling.value = true;
+
+  // 1. Famille (doit être définie avant l'opération pour éviter des problèmes de filtre Vue)
+  const validFamilies = [...(store.famillesProduit || [])].sort((a, b) => {
+    const codeA = (a.code || '').length;
+    const codeB = (b.code || '').length;
+    return codeB - codeA; // Trier par longueur décroissante pour matcher le plus précis d'abord
+  });
+  
+  const foundFamily = validFamilies.find(f => d.includes((f.code || '').toUpperCase()));
+  if (foundFamily) {
+     store.entete.familleProduitCode = foundFamily.code;
+  } else if (d.includes('MANU') || d.includes('MANUELLE')) {
+     const manuFamily = validFamilies.find(f => f.code === 'RBGFM');
+     if (manuFamily) store.entete.familleProduitCode = manuFamily.code;
+     else store.entete.familleProduitCode = '';
+  } else {
+     store.entete.familleProduitCode = '';
+  }
+
+  // 2. Article (natureComposantCode)
+  if (d.includes('PISTON')) store.entete.natureComposantCode = 'PISTON';
+  else if (d.includes('PF') || d.includes('RBGFA-BAC')) store.entete.natureComposantCode = 'PF';
+  else store.entete.natureComposantCode = '';
+  
+  // 3. Opération
+  if (d.includes('ASS') || d.includes('ASSEMBLAGE') || d.includes('PF')) {
+    store.entete.operationCode = 'ASS';
+  } else {
+    store.entete.operationCode = '';
+  }
+
+  // 4. Poste (if any PASxx)
+  const posteMatch = d.match(/PAS\d+/);
+  if (posteMatch) {
+    store.entete.posteCode = posteMatch[0];
+  } else {
+    store.entete.posteCode = '';
+  }
+
+  // Set the gabarit title exactly as the designation to keep it as reference
+  store.entete.libelle = designation;
+
+  // Libérer le flag après la propagation de la réactivité
+  setTimeout(() => {
+    isAutoFilling.value = false;
+  }, 100);
 });
 
 // =========================================================================
@@ -212,6 +294,7 @@ const postesDisponibles = computed(() =>
 
 // Si Famille change → Réinitialise Opération, Article, Poste
 watch(() => store.entete.familleProduitCode, (newVal, oldVal) => {
+  if (isAutoFilling.value) return;
   if (newVal !== oldVal) {
     // Évite la boucle si c'est un auto-remplissage PISTON
     if (newVal === 'TOUS' && isPiston.value) return;
@@ -224,6 +307,7 @@ watch(() => store.entete.familleProduitCode, (newVal, oldVal) => {
 
 // Si Opération change → Réinitialise Article, Poste
 watch(() => store.entete.operationCode, (newVal, oldVal) => {
+  if (isAutoFilling.value) return;
   if (newVal !== oldVal) {
     // Évite la boucle si c'est un auto-remplissage PISTON
     if (newVal === 'ASS' && isPiston.value) return;
@@ -235,6 +319,7 @@ watch(() => store.entete.operationCode, (newVal, oldVal) => {
 
 // Si Article change → Réinitialise Poste
 watch(() => store.entete.natureComposantCode, (newVal, oldVal) => {
+  if (isAutoFilling.value) return;
   if (newVal !== oldVal) {
     store.entete.posteCode = '';
     

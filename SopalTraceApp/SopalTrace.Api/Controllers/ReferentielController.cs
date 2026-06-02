@@ -81,6 +81,13 @@ public class ReferentielController : ControllerBase
         return Ok(new { success = true, data = result });
     }
 
+    [HttpGet("formulaires/liste/{role}")]
+    public async Task<IActionResult> GetFormulairesListByRole(string role)
+    {
+        var result = await _referentielService.GetFormulairesListByRoleAsync(role);
+        return Ok(new { success = true, data = result });
+    }
+
     [HttpPut("formulaires/role/{role}")]
     public async Task<IActionResult> UpdateFormulaireStructure(string role, [FromBody] UpdateFormulaireStructureDto request)
     {

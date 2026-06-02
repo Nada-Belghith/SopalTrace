@@ -4,7 +4,7 @@
     <ConfirmDialog></ConfirmDialog>
 
     <div class="mb-10">
-      <h1 class="text-3xl font-black text-slate-900 tracking-tight">Plans Génériques</h1>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">DOCUMENTS GÉNÉRIQUES</h1>
       <p class="text-slate-500 mt-1 font-medium text-sm">Visualisez et gérez vos plans de contrôle génériques existants.</p>
     </div>
 

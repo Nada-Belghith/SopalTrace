@@ -339,6 +339,22 @@ public class ReferentielService : IReferentielService
         );
     }
 
+    public async Task<IEnumerable<FormulaireReferenceItemDto>> GetFormulairesListByRoleAsync(string role)
+    {
+        return await _context.RefFormulaires
+            .AsNoTracking()
+            .Where(f => f.Role == role && f.Statut == "ACTIF")
+            .OrderBy(f => f.Designation)
+            .Select(f => new FormulaireReferenceItemDto(
+                f.Id,
+                f.CodeReference,
+                f.Designation,
+                f.Role ?? string.Empty,
+                f.Version
+            ))
+            .ToListAsync();
+    }
+
     public async Task<bool> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson)
     {
         var formulaireActuel = await _context.RefFormulaires

@@ -21,5 +21,6 @@ public interface IReferentielService
     Task<PieceRefDto> CreatePieceReferenceAsync(CreatePieceReferenceDto request);
 
     Task<FormulaireStructureDto?> GetFormulaireByRoleAsync(string role);
+    Task<IEnumerable<FormulaireReferenceItemDto>> GetFormulairesListByRoleAsync(string role);
     Task<bool> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson);
 }

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { fabPlanService } from '@/services/fabPlanService';
+import { qualityPlansService } from '@/services/qualityPlansService';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
   // --- DICTIONNAIRES ---
@@ -17,6 +18,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const postes = ref([]);
   const famillesProduit = ref([]);
   const gammesOperatoires = ref([]);
+  const formulairesReferences = ref([]);
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU MODÈLE ---
@@ -74,6 +76,15 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     } catch (apiError) {
       console.error("Erreur réseau (Dictionnaires):", apiError);
       throw apiError;
+    }
+  };
+
+  const fetchFormulairesReferences = async (role) => {
+    try {
+      const response = await qualityPlansService.getFormulairesListByRole(role);
+      formulairesReferences.value = response.data?.data || [];
+    } catch (e) {
+      console.error("Erreur fetch formulaires:", e);
     }
   };
 
@@ -189,8 +200,20 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   return {
     operations, typesRobinet, naturesComposant,
     typesCaracteristique, typesControle, moyensControle,
-    periodicites, typesSection, reglesEchantillonnage, instruments, postes, famillesProduit, gammesOperatoires, isDicosLoaded,
-    entete, sections, isLoading, version, codeModeleAuto,
-    fetchDictionnaires, addSection, removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion
+    periodicites, typesSection, reglesEchantillonnage,
+    instruments,
+    postes,
+    famillesProduit,
+    gammesOperatoires,
+    formulairesReferences,
+    isDicosLoaded,
+    
+    // État Modèle
+    entete, sections, isLoading, version, codeModeleAuto,    
+    // Actions
+    fetchDictionnaires,
+    fetchFormulairesReferences,
+    addSection,
+    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion
   };
 });

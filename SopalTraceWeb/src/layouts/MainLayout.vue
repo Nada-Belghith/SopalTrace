@@ -72,46 +72,52 @@ const toggleMobileMenu = () => {
         <template v-if="authStore.isResponsable || authStore.userRole === 'SUPERVISEUR_QUALITE'">
           <!-- SECTION 1 : STRUCTURE DES PLANS -->
           <div class="px-6 mb-3">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Structure des plans</p>
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Structure des plans</p>
           </div>
-          <ul class="px-4 mb-6">
+          
+          <ul class="px-4 space-y-4 mb-6">
+            <!-- Plans Spécifiques -->
             <li>
-              <router-link to="/dev/fab/specifique" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
-                <i class="pi pi-list text-amber-500"></i> Plans Spécifiques
+              <router-link to="/dev/fab/specifique" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
+                <i class="pi pi-list text-amber-500 text-lg"></i> Plans Spécifiques
               </router-link>
             </li>
-          </ul>
 
-          <!-- SECTION 2 : PLANS GÉNÉRIQUES -->
-          <div class="px-6 mb-3 flex items-center gap-2.5">
-            <i class="pi pi-th-large text-blue-500 text-lg"></i>
-            <span class="text-sm font-bold text-slate-200">Plans Génériques</span>
-          </div>
-          <ul class="ml-[2.1rem] pl-4 border-l border-slate-800/80 space-y-2 mb-6">
+            <!-- Documents Génériques Group -->
             <li>
-              <router-link to="/dev/fab/nouveau?mode=assembly" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-blue-400 font-bold">
-                <i class="pi pi-plus-circle text-blue-500 text-sm"></i> En cours d'assemblage
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/dev/produit-fini/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-blue-400 font-bold">
-                <i class="pi pi-plus-circle text-blue-500 text-sm"></i> Contrôle Produit Fini
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/dev/verif-machine/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-orange-400 font-bold">
-                <i class="pi pi-plus-circle text-orange-500 text-sm"></i> Vérification Machine
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/dev/echantillonnage/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-purple-400 font-bold">
-                <i class="pi pi-plus-circle text-purple-500 text-sm"></i> Échantillonnage
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/dev/resultat-controle/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-red-400 font-bold">
-                <i class="pi pi-plus-circle text-red-500 text-sm"></i> Résultat Contrôle Poste
-              </router-link>
+              <div class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-white">
+                <i class="pi pi-th-large text-blue-500 text-lg"></i>
+                <span>Documents Génériques</span>
+              </div>
+              
+              <!-- Sub-items nested under Documents Génériques -->
+              <ul class="ml-8 pl-4 border-l border-slate-800/80 space-y-2 mt-2">
+                <li>
+                  <router-link to="/dev/fab/nouveau?mode=assembly" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-blue-400 font-bold">
+                    <i class="pi pi-plus-circle text-blue-500 text-sm"></i> En cours d'assemblage
+                  </router-link>
+                </li>
+                <li>
+                  <router-link to="/dev/produit-fini/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-blue-400 font-bold">
+                    <i class="pi pi-plus-circle text-blue-500 text-sm"></i> Contrôle Produit Fini
+                  </router-link>
+                </li>
+                <li>
+                  <router-link to="/dev/verif-machine/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-orange-400 font-bold">
+                    <i class="pi pi-plus-circle text-orange-500 text-sm"></i> Vérification Machine
+                  </router-link>
+                </li>
+                <li>
+                  <router-link to="/dev/echantillonnage/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-purple-400 font-bold">
+                    <i class="pi pi-plus-circle text-purple-500 text-sm"></i> Échantillonnage
+                  </router-link>
+                </li>
+                <li>
+                  <router-link to="/dev/resultat-controle/nouveau" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-red-400 font-bold">
+                    <i class="pi pi-plus-circle text-red-500 text-sm"></i> Résultat Contrôle Poste
+                  </router-link>
+                </li>
+              </ul>
             </li>
           </ul>
         </template>
@@ -119,7 +125,7 @@ const toggleMobileMenu = () => {
         <!-- SECTION : PRODUCTION (OPERATEUR) -->
         <template v-if="authStore.userRole === 'OPERATEUR'">
           <div class="px-6 mb-2">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Production</p>
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Production</p>
           </div>
           <ul class="space-y-1 px-3 mb-6">
             <li>
@@ -133,7 +139,7 @@ const toggleMobileMenu = () => {
         <!-- SECTION 3 : ANALYSES -->
         <template v-if="authStore.userRole !== 'MAGASINIER'">
           <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Analyses</p>
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Analyses</p>
           </div>
           <ul class="px-4 mb-6">
             <li>
@@ -147,7 +153,7 @@ const toggleMobileMenu = () => {
         <!-- SECTION : MAGASINIER -->
         <template v-if="authStore.userRole === 'MAGASINIER'">
           <div class="px-6 mb-2 border-t border-slate-800 pt-6">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Magasin</p>
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Magasin</p>
           </div>
           <ul class="space-y-1 px-3 mb-6">
             <li>

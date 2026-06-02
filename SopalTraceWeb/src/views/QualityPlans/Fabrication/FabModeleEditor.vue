@@ -436,6 +436,9 @@ const onFileSelected = async (event) => {
 onMounted(async () => {
   try {
     await store.fetchDictionnaires();
+    if (route.query.mode === 'assembly') {
+      await store.fetchFormulairesReferences('EN_COURS_DE_ASSEMBLAGE');
+    }
     
     if (route.params.id && route.params.id !== 'nouveau') {
       await chargerModelePourEdition(route.params.id);

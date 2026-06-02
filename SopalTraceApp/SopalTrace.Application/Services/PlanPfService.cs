@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 namespace SopalTrace.Application.Services;
 
 /// <summary>
-/// Service de gestion des Plans Produit Fini (Plans Génériques).
+/// Service de gestion des Plans Produit Fini (DOCUMENTS GÉNÉRIQUES).
 /// Aligné sur IPlanPfService.
 /// </summary>
 public class PlanPfService : IPlanPfService

@@ -137,6 +137,14 @@ public record FormulaireStructureDto(
     int Version
 );
 
+public record FormulaireReferenceItemDto(
+    Guid Id,
+    string CodeReference,
+    string Designation,
+    string Role,
+    int Version
+);
+
 public record UpdateFormulaireStructureDto(
     string? ConfigurationStructureJson
 );
