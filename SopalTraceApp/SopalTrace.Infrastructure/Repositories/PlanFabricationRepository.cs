@@ -72,7 +72,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
 
     public async Task<IReadOnlyList<ModeleFabricationEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode)
     {
-        var query = _context.ModeleFabricationEntetes.AsQueryable();
+        var query = _context.ModeleFabricationEntetes.Include(m => m.Formulaire).AsQueryable();
         if (!string.IsNullOrEmpty(natureCode)) query = query.Where(m => m.NatureArticleCode == natureCode);
         if (!string.IsNullOrEmpty(operationCode)) query = query.Where(m => m.OperationCode == operationCode);
         return await query.ToListAsync();
@@ -103,6 +103,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     public async Task<ModeleFabricationEntete?> GetModeleAvecRelationsAsync(Guid modeleId)
     {
         return await _context.ModeleFabricationEntetes
+            .Include(m => m.Formulaire)
             .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.TypeSection)
             .Include(m => m.ModeleFabricationSections)

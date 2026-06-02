@@ -30,8 +30,9 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     libelle: '',
     notes: '',
     legendeMoyens: '',
-    posteCode: '',   // Poste de travail (71, 72, 78) — utile pour PF auto soupape
-    familleProduitCode: ''
+    posteCode: '',
+    familleProduitCode: '',
+    refFormulaireCodeReference: ''  // Code du formulaire ref sélectionné (ex: FE-ASS-PISTON)
   });
 
   const sections = ref([]);
@@ -145,6 +146,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     familleProduitCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
     notes: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
+    configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
+    refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
     sections: sections.value.map(s => ({
       ordreAffiche: s.ordreAffiche,
       typeSectionId: s.typeSectionId,
@@ -165,7 +168,10 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         observations: l.observations,
         estCritique: l.estCritique,
         unite: l.unite || '',
-        limiteSpecTexte: l.limiteSpecTexte || null
+        limiteSpecTexte: l.limiteSpecTexte || null,
+        colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 
+          ? JSON.stringify(l.valeursColonnesSpecifiques) 
+          : null
       }))
     }))
   });

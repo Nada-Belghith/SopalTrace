@@ -31,6 +31,7 @@ public static class PlanAssMapper
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
             Remarques = string.Empty,
+            ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
             Sections = plan.PlanAssemblageSections?.Select(s => new SectionAssResponseDto
             {
                 Id = s.Id,
@@ -61,7 +62,8 @@ public static class PlanAssMapper
                     LimiteSpecTexte = l.LimiteSpecTexte,
                     Observations = l.Observations,
                     Instruction = l.Instruction,
-                    EstCritique = l.EstCritique
+                    EstCritique = l.EstCritique,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 }).ToList() ?? new List<LigneAssResponseDto>()
             }).ToList() ?? new List<SectionAssResponseDto>()
         };
@@ -87,6 +89,7 @@ public static class PlanAssMapper
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
             Notes = string.Empty,
+            ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
             Sections = plan.PlanAssemblageSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id,
@@ -110,7 +113,8 @@ public static class PlanAssMapper
                     Observations = l.Observations,
                     Instruction = l.Instruction,
                     EstCritique = l.EstCritique,
-                    MoyenTexteLibre = l.MoyenTexteLibre
+                    MoyenTexteLibre = l.MoyenTexteLibre,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 }).ToList() ?? new List<ModeleLigneResponseDto>()
             }).ToList() ?? new List<ModeleSectionResponseDto>()
         };
@@ -171,7 +175,8 @@ public static class PlanAssMapper
                     Observations = l.Observations,
                     Instruction = l.Instruction,
                     EstCritique = l.EstCritique,
-                    MoyenTexteLibre = l.MoyenTexteLibre
+                    MoyenTexteLibre = l.MoyenTexteLibre,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 });
             }
             entete.PlanAssemblageSections.Add(section);
@@ -213,7 +218,8 @@ public static class PlanAssMapper
             LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte,
             Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations,
             Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction,
-            EstCritique = dto.EstCritique
+            EstCritique = dto.EstCritique,
+            ColonnesSupplementaires = dto.ColonnesSupplementaires
         };
     }
 
@@ -229,6 +235,7 @@ public static class PlanAssMapper
         ligne.Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations;
         ligne.Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction;
         ligne.EstCritique = dto.EstCritique;
+        ligne.ColonnesSupplementaires = dto.ColonnesSupplementaires;
     }
 
     public static PlanAssemblageEntete DupliquerEntitePlan(PlanAssemblageEntete source, bool estModele, string? nouveauCodeArticle, string? nouvelleDesig, string creePar, string? motif)
@@ -286,7 +293,8 @@ public static class PlanAssMapper
                     LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
                     Observations = sourceLigne.Observations,
                     Instruction = sourceLigne.Instruction,
-                    EstCritique = sourceLigne.EstCritique
+                    EstCritique = sourceLigne.EstCritique,
+                    ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
                 });
             }
             plan.PlanAssemblageSections.Add(section);
@@ -365,7 +373,8 @@ public static class PlanAssMapper
                         Observations = l.Observations,
                         Instruction = l.Instruction,
                         EstCritique = l.EstCritique,
-                        MoyenTexteLibre = l.MoyenTexteLibre
+                        MoyenTexteLibre = l.MoyenTexteLibre,
+                        ColonnesSupplementaires = l.ColonnesSupplementaires
                     });
                 }
                 nouveauPlan.PlanAssemblageSections.Add(section);
@@ -404,7 +413,8 @@ public static class PlanAssMapper
                         LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
                         Observations = sourceLigne.Observations,
                         Instruction = sourceLigne.Instruction,
-                        EstCritique = sourceLigne.EstCritique
+                        EstCritique = sourceLigne.EstCritique,
+                        ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
                     });
                 }
                 nouveauPlan.PlanAssemblageSections.Add(section);

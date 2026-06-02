@@ -21,13 +21,15 @@ public class PlanPfService : IPlanPfService
     private readonly IPlanPfRepository _repository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IPlanArchiverService _planArchiverService;
+    private readonly IReferentielService _referentielService;
 
-    public PlanPfService(IUnitOfWork unitOfWork, IPlanPfRepository repository, ICurrentUserService currentUserService, IPlanArchiverService planArchiverService)
+    public PlanPfService(IUnitOfWork unitOfWork, IPlanPfRepository repository, ICurrentUserService currentUserService, IPlanArchiverService planArchiverService, IReferentielService referentielService)
     {
         _unitOfWork = unitOfWork;
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _currentUserService = currentUserService;
         _planArchiverService = planArchiverService;
+        _referentielService = referentielService;
     }
 
     private async Task<int> CalculerNouvelleVersionAsync(string familleProduitFiniCode)
@@ -73,6 +75,15 @@ public class PlanPfService : IPlanPfService
             await SmartDictionaryPassAsync(plan);
         }
 
+        if (!string.IsNullOrEmpty(dto.ConfigurationColonnesJson))
+        {
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", dto.ConfigurationColonnesJson);
+            if (newFormulaireId.HasValue)
+            {
+                plan.FormulaireId = newFormulaireId.Value;
+            }
+        }
+
         plan.Version = await CalculerNouvelleVersionAsync(plan.FamilleProduitFiniCode ?? "");
 
         await _repository.AddPlanAsync(plan);
@@ -108,6 +119,15 @@ public class PlanPfService : IPlanPfService
         {
             PlanPfMapper.MettreAJourArchitectureComplete(nouveauPlan, request.Sections, forceNewIds: true);
             await SmartDictionaryPassAsync(nouveauPlan);
+        }
+
+        if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+        {
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", request.ConfigurationColonnesJson);
+            if (newFormulaireId.HasValue)
+            {
+                nouveauPlan.FormulaireId = newFormulaireId.Value;
+            }
         }
 
         nouveauPlan.Statut = StatutsPlan.Actif;

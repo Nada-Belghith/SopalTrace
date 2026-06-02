@@ -129,7 +129,8 @@ public static class ModeleFabricationMapper
                 PeriodiciteId = l.PeriodiciteId,
                 Instruction = l.Instruction,
                 EstCritique = l.EstCritique,
-                LimiteSpecTexte = l.LimiteSpecTexte
+                LimiteSpecTexte = l.LimiteSpecTexte,
+                ColonnesSupplementaires = l.ColonnesSupplementaires
             }).ToList()
         });
     }
@@ -182,7 +183,8 @@ public static class ModeleFabricationMapper
                     PeriodiciteId = MapperHelper.NullIfEmpty(lignDto.PeriodiciteId),
                     Instruction = lignDto.Instruction,
                     EstCritique = lignDto.EstCritique,
-                    LimiteSpecTexte = string.IsNullOrWhiteSpace(lignDto.LimiteSpecTexte) ? null : lignDto.LimiteSpecTexte
+                    LimiteSpecTexte = string.IsNullOrWhiteSpace(lignDto.LimiteSpecTexte) ? null : lignDto.LimiteSpecTexte,
+                    ColonnesSupplementaires = string.IsNullOrWhiteSpace(lignDto.ColonnesSupplementaires) ? null : lignDto.ColonnesSupplementaires
                 });
             }
             modele.ModeleFabricationSections.Add(section);
@@ -204,6 +206,7 @@ public static class ModeleFabricationMapper
             Statut = modele.Statut, Notes = modele.Notes ?? string.Empty,
             LegendeMoyens = modele.LegendeMoyens ?? string.Empty, CreePar = modele.CreePar, CreeLe = modele.CreeLe,
             //ArchiveLe = modele.ArchiveLe, ArchivePar = modele.ArchivePar ?? string.Empty,
+            ConfigurationColonnesJson = modele.Formulaire?.ConfigurationStructureJson,
             Sections = modele.ModeleFabricationSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id, OrdreAffiche = s.OrdreAffiche, LibelleSection = s.LibelleSection, 
@@ -222,7 +225,8 @@ public static class ModeleFabricationMapper
                     PeriodiciteId = l.PeriodiciteId,
                     Instruction = l.Instruction ?? string.Empty,
                     EstCritique = l.EstCritique,
-                    LimiteSpecTexte = l.LimiteSpecTexte ?? string.Empty
+                    LimiteSpecTexte = l.LimiteSpecTexte ?? string.Empty,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 }).ToList() ?? new List<ModeleLigneResponseDto>()
             }).ToList() ?? new List<ModeleSectionResponseDto>()
         };

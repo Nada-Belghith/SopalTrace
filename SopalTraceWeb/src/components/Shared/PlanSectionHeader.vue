@@ -177,9 +177,17 @@ const titreCalcule = computed(() => {
 
   // 2. Sinon, on génère le titre par défaut
   const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
-  const baseTitle = typeSec 
-    ? `${props.defaultTitle} ${typeSec.libelle}`
-    : (localSection.value.libelleSection || props.defaultTitle);
+  let baseTitle = localSection.value.libelleSection || props.defaultTitle;
+  if (typeSec) {
+    // Eviter la duplication si le typeSec.libelle inclut déjà le defaultTitle
+    if (typeSec.libelle.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
+      baseTitle = typeSec.libelle;
+    } else if (props.defaultTitle.toLowerCase().includes(typeSec.libelle.toLowerCase())) {
+      baseTitle = props.defaultTitle;
+    } else {
+      baseTitle = `${props.defaultTitle} ${typeSec.libelle}`;
+    }
+  }
 
   return baseTitle;
 });

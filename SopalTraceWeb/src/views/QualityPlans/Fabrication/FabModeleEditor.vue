@@ -57,14 +57,16 @@
                 <span>Importer la structure Excel</span>
               </button>
             </div>
+            
+            <div v-if="!isReadOnly" class="ml-4 shrink-0 flex items-center">
+              <button @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors h-10 shadow-md">
+                <i class="pi pi-sliders-h"></i> Configurer Colonnes
+              </button>
+            </div>
           </div>
 
           <div class="mb-4 flex items-center justify-between">
-            <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrôle</h3>
-            <!-- CONFIGURATION COLONNES -->
-            <button v-if="!isReadOnly" @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center gap-2 transition-colors">
-              <i class="pi pi-sliders-h"></i> Configurer Colonnes
-            </button>
+            <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrle</h3>
           </div>
 
           <template v-if="groupes.length === 0">
@@ -79,6 +81,7 @@
               :sections="groupes"
               :remarques="store.entete.notes"
               :legende-moyens="store.entete.legendeMoyens"
+              :configuration-colonnes="store.entete.configurationColonnes"
               :types-section="store.typesSection || []"
               :types-caracteristique="store.typesCaracteristique || []"
               :types-controle="store.typesControle || []"
@@ -503,6 +506,7 @@ const chargerModelePourEdition = async (id) => {
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitCode || '';
+    store.entete.configurationColonnes = data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [];
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
       (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -571,7 +575,8 @@ const chargerModelePourEdition = async (id) => {
           unite: lig.unite || '',
           limiteSpecTexte: lig.limiteSpecTexte || '',
           observations: lig.observations || '',
-          moyenTexteLibre: lig.moyenTexteLibre || ''
+          moyenTexteLibre: lig.moyenTexteLibre || '',
+          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {}
         }))
       };
     });
@@ -674,7 +679,10 @@ const sauvegarderV2 = async (motif) => {
         unite: l.unite || '',
         limiteSpecTexte: l.limiteSpecTexte || '',
         observations: l.observations || '',
-        moyenTexteLibre: l.moyenTexteLibre || ''
+        moyenTexteLibre: l.moyenTexteLibre || '',
+        colonnesSupplementaires: Object.keys(l.valeursColonnesSpecifiques || {}).length > 0 
+          ? JSON.stringify(l.valeursColonnesSpecifiques) 
+          : null
       }))
     }));
 
@@ -692,6 +700,8 @@ const sauvegarderV2 = async (motif) => {
       code: store.entete.code || store.codeModeleAuto,
       posteCode: store.entete.posteCode || null,
       familleProduitCode: (store.entete.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (store.entete.familleProduitCode || null),
+      configurationColonnesJson: typeof store.entete.configurationColonnes === 'string' ? store.entete.configurationColonnes : JSON.stringify(store.entete.configurationColonnes || []),
+      refFormulaireCodeReference: store.entete.refFormulaireCodeReference || null,
       sections: sectionsForPayload
     };
 

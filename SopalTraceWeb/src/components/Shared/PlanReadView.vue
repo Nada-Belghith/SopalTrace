@@ -19,12 +19,9 @@
         <!-- ── En-tête colonnes ── -->
         <thead>
           <tr class="bg-[#1e3a5f] text-white text-center">
-            <th class="border border-slate-500 px-3 py-2.5 font-bold text-left w-[22%]">Caractéristique contrôlée</th>
-            <th class="border border-slate-500 px-3 py-2.5 font-bold w-[15%]">Limite de spécification</th>
-            <th class="border border-slate-500 px-3 py-2.5 font-bold w-[12%]">Type de contrôle</th>
-            <th class="border border-slate-500 px-3 py-2.5 font-bold w-[14%]">Moyen de contrôle</th>
-            <th class="border border-slate-500 px-3 py-2.5 font-bold w-[14%]">Code instrument de contrôle</th>
-            <th class="border border-slate-500 px-3 py-2.5 font-bold">Observations</th>
+            <th v-for="col in computedColumns" :key="col.key" class="border border-slate-500 px-3 py-2.5 font-bold" :class="[col.width, col.key === 'caracteristique' ? 'text-left' : '']">
+              {{ col.label }}
+            </th>
           </tr>
         </thead>
 
@@ -32,8 +29,8 @@
           <template v-for="section in sections" :key="section.id">
 
             <!-- ── Titre de section ── -->
-            <tr class="bg-[#dbeafe] border-t-2 border-[#1e3a5f]">
-              <td colspan="6" class="border border-blue-300 px-4 py-2.5 text-center font-black text-[13px] text-[#1e3a5f]">
+            <tr class="section-row bg-[#dbeafe] border-t-2 border-[#1e3a5f]">
+              <td :colspan="computedColumns.length" class="border border-blue-300 px-4 py-2.5 text-center font-black text-[13px] text-[#1e3a5f]">
                 {{ buildSectionTitle(section) }}
               </td>
             </tr>
@@ -45,23 +42,28 @@
               :class="lIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'"
               class="hover:bg-blue-50 transition-colors"
             >
-              <td class="border border-slate-200 px-3 py-2 font-semibold text-slate-800">
-                {{ resolveLibelle(ligne) }}
-              </td>
-              <td class="border border-slate-200 px-3 py-2 text-center text-slate-700">
-                {{ ligne.limiteSpecTexte || ligne.limiteSpec || '—' }}
-              </td>
-              <td class="border border-slate-200 px-3 py-2 text-center text-slate-700">
-                {{ resolveTypeControle(ligne) }}
-              </td>
-              <td class="border border-slate-200 px-3 py-2 text-center text-slate-700">
-                {{ resolveMoyenControle(ligne) }}
-              </td>
-              <td class="border border-slate-200 px-3 py-2 text-center font-mono text-slate-600 text-[11px]">
-                {{ ligne.instrumentCode || '—' }}
-              </td>
-              <td class="border border-slate-200 px-3 py-2 text-slate-600 italic">
-                {{ ligne.observations || '' }}
+              <td v-for="col in computedColumns" :key="col.key" class="border border-slate-200 px-3 py-2" :class="[col.key === 'caracteristique' || col.key === 'observations' ? 'text-left' : 'text-center', col.key === 'caracteristique' ? 'font-semibold text-slate-800' : 'text-slate-700', col.key === 'code_instrument' ? 'font-mono text-[11px]' : '']">
+                <template v-if="col.isCustom">
+                  {{ resolveCustomValue(ligne, col.key) }}
+                </template>
+                <template v-else-if="col.key === 'caracteristique'">
+                  {{ resolveLibelle(ligne) }}
+                </template>
+                <template v-else-if="col.key === 'limite_spec'">
+                  {{ ligne.limiteSpecTexte || ligne.limiteSpec || '—' }}
+                </template>
+                <template v-else-if="col.key === 'type_controle'">
+                  {{ resolveTypeControle(ligne) }}
+                </template>
+                <template v-else-if="col.key === 'moyen_controle'">
+                  {{ resolveMoyenControle(ligne) }}
+                </template>
+                <template v-else-if="col.key === 'code_instrument'">
+                  {{ ligne.instrumentCode || '—' }}
+                </template>
+                <template v-else-if="col.key === 'observations'">
+                  <span class="italic text-slate-600">{{ ligne.observations || '' }}</span>
+                </template>
               </td>
             </tr>
 
@@ -70,7 +72,7 @@
           </template>
 
           <tr v-if="!sections || sections.length === 0">
-            <td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">Aucune section définie.</td>
+            <td :colspan="computedColumns.length" class="px-4 py-8 text-center text-slate-400 italic">Aucune section définie.</td>
           </tr>
         </tbody>
       </table>
@@ -103,10 +105,13 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
+
 const props = defineProps({
   sections:       { type: Array,  default: () => [] },
   remarques:      { type: String, default: '' },
   legendeMoyens:  { type: String, default: '' },
+  configurationColonnes: { type: Array, default: () => [] },
   // Dictionnaires passés directement depuis le store parent
   typesSection:        { type: Array, default: () => [] },
   typesCaracteristique:{ type: Array, default: () => [] },
@@ -115,6 +120,49 @@ const props = defineProps({
   periodicites:        { type: Array, default: () => [] },
   reglesEchantillonnage: { type: Array, default: () => [] },
 });
+
+// ─── Colonnes Dynamiques ───
+const baseModeleColumns = [
+  { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
+  { key: 'limite_spec', label: 'Limite de spécification', width: 'w-[15%]' },
+  { key: 'type_controle', label: 'Type de contrôle', width: 'w-[12%]' },
+  { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[14%]' },
+  { key: 'code_instrument', label: 'Code instrument de contrôle', width: 'w-[14%]' },
+  { key: 'observations', label: 'Observations', width: '' }
+];
+
+const computedColumns = computed(() => {
+  let cols = [...baseModeleColumns];
+  let customCols = [];
+  
+  if (typeof props.configurationColonnes === 'string') {
+    try { customCols = JSON.parse(props.configurationColonnes); } catch(e){}
+  } else {
+    customCols = props.configurationColonnes || [];
+  }
+  
+  customCols.forEach(cc => {
+    const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
+    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', isCustom: true };
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, newCol);
+    } else {
+      cols.push(newCol);
+    }
+  });
+  return cols;
+});
+
+function resolveCustomValue(ligne, colKey) {
+  const dataSource = ligne.valeursColonnesSpecifiques || ligne.colonnesSupplementaires;
+  if (!dataSource) return '—';
+  try {
+    const parsed = typeof dataSource === 'string' ? JSON.parse(dataSource) : dataSource;
+    return parsed[colKey] || '—';
+  } catch (e) {
+    return '—';
+  }
+}
 
 // ─── Résolution des libellés ───
 

@@ -60,6 +60,7 @@ public record LigneAssEditDto
     public string? Observations { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
     public required bool EstCritique { get; init; }
+    public string? ColonnesSupplementaires { get; init; } = null;
 }
 
 // --- ACTIONS MÉTIER ---
@@ -114,6 +115,7 @@ public record PlanAssResponseDto
     public required DateTime CreeLe { get; init; }
     public string? ModifiePar { get; init; }
     public DateTime? ModifieLe { get; init; }
+    public string? ConfigurationColonnesJson { get; init; }
     public List<SectionAssResponseDto> Sections { get; init; } = new();
 }
 
@@ -152,4 +154,5 @@ public record LigneAssResponseDto
     public string? Instruction { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
     public required bool EstCritique { get; init; }
+    public string? ColonnesSupplementaires { get; init; }
 }

@@ -25,6 +25,8 @@ public class HubService : IHubService
         // 1. FABRICATION (Modèles uniquement)
         var fabModeles = await _context.ModeleFabricationEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "FAB",
@@ -35,7 +37,7 @@ public class HubService : IHubService
                 "GEN",
                 m.OperationCode ?? "N/A",
                 "N/A",
-                m.Version,
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,
                 m.Statut ?? "ACTIF",
                 "Gabarit de fabrication générique."))
             .ToListAsync();
@@ -44,6 +46,8 @@ public class HubService : IHubService
         // 2. ASSEMBLAGE
         var assModeles = await _context.PlanAssemblageEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "ASS",
@@ -54,7 +58,7 @@ public class HubService : IHubService
                 m.FamilleProduitFiniCode ?? "N/A",
                 m.OperationCode ?? "N/A",
                 m.PosteCode ?? "N/A",
-                m.Version,
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,
                 m.Statut ?? "ACTIF",
                 "Plan Maître d'assemblage."))
             .ToListAsync();
@@ -63,6 +67,8 @@ public class HubService : IHubService
         // 3. VÉRIF MACHINE
         var vmModeles = await _context.PlanVerifMachineEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "VM",
@@ -71,7 +77,7 @@ public class HubService : IHubService
                 "VM",
                 "VÉRIF",
                 m.MachineCode ?? "N/A",
-                m.Version ?? 1,
+                m.Formulaire != null ? m.Formulaire.Version : (m.Version ?? 1),
                 m.Statut ?? "ACTIF",
                 "Vérification des étalons machines."))
             .ToListAsync();
@@ -115,6 +121,7 @@ public class HubService : IHubService
         // 6. RÉSULTAT CONTRÔLE
         var ncModeles = await _context.PlanNonConformiteEntetes
             .AsNoTracking()
+            .Where(m => m.Statut == "ACTIF")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RC",
@@ -139,6 +146,8 @@ public class HubService : IHubService
         // 1. PLANS DE FABRICATION
         var fabPlans = await _context.PlanFabricationEntetes
             .AsNoTracking()
+            .Include(p => p.Formulaire)
+            .Where(p => p.Statut == "ACTIF")
             .Include(p => p.ModeleSource)
             .Select(p => new HubPlanDto(
                 p.Id,
@@ -152,7 +161,7 @@ public class HubService : IHubService
                 p.CodeArticleSageNavigation.ProduitFini != null ? p.CodeArticleSageNavigation.ProduitFini.FamilleProduitFiniCode : "FAB",
                 p.ModeleSource != null ? (p.ModeleSource.OperationCode ?? "N/A") : (p.OperationCode ?? "N/A"),
                 "N/A",
-                p.Version,
+                p.Formulaire != null ? p.Formulaire.Version : p.Version,
                 p.Statut,
                 $"Plan article {p.CodeArticleSage}",
                 p.CodeArticleSage,
@@ -164,8 +173,10 @@ public class HubService : IHubService
         // Plans ASS : PISTON, PF, ou ceux avec nature NULL (créés via un bug de routing)
         var assPlans = await _context.PlanAssemblageEntetes
             .AsNoTracking()
+            .Include(p => p.Formulaire)
             .Where(p => p.NatureArticleCode == "PISTON" || p.NatureArticleCode == "PF" || p.NatureArticleCode == null)
             .Where(p => p.OperationCode == "ASS") // Exclure les modèles génériques
+            .Where(p => p.Statut == "ACTIF") // Seulement les versions actives
             .Select(p => new HubPlanDto(
                 p.Id,
                 "FAB",
@@ -180,7 +191,7 @@ public class HubService : IHubService
                 p.FamilleProduitFiniCode ?? "ASS",
                 p.OperationCode ?? "N/A",
                 p.PosteCode ?? "N/A",
-                p.Version,
+                p.Formulaire != null ? p.Formulaire.Version : p.Version,
                 p.Statut ?? "BROUILLON",
                 $"Plan assemblage {p.NatureArticleCode ?? "ASS"}",
                 null,

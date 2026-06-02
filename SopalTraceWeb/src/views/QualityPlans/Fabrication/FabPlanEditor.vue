@@ -67,16 +67,17 @@
 
             <!-- Mode LECTURE -->
             <div v-if="isReadOnly" class="p-4 md:p-6">
-              <PlanReadView
-                :sections="sections"
-                :remarques="remarques"
-                :legende-moyens="legendeMoyens"
-                :types-section="store.typesSection || []"
-                :types-caracteristique="store.typesCaracteristique || []"
-                :types-controle="store.typesControle || []"
-                :moyens-controle="store.moyensControle || []"
-                :periodicites="store.periodicites || []"
-              />
+            <PlanReadView
+              :sections="sections"
+              :remarques="remarques"
+              :legende-moyens="legendeMoyens"
+              :configuration-colonnes="plan?.configurationColonnesJson ? (typeof plan.configurationColonnesJson === 'string' ? JSON.parse(plan.configurationColonnesJson) : plan.configurationColonnesJson) : []"
+              :types-section="store.typesSection || []"
+              :types-caracteristique="store.typesCaracteristique || []"
+              :types-controle="store.typesControle || []"
+              :moyens-controle="store.moyensControle || []"
+              :periodicites="store.periodicites || []"
+            />
             </div>
 
             <!-- Mode EDITION -->
@@ -692,7 +693,8 @@
                 instruction: lig.instruction || '',
                 observations: lig.observations || '',
                 estCritique: lig.estCritique || false,
-                libelleAffiche: lig.libelleAffiche || ''
+                libelleAffiche: lig.libelleAffiche || '',
+                valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
               }))
             };
           });
@@ -846,7 +848,8 @@
           instruction: lig.instruction || '',
           observations: lig.observations || '',
           estCritique: lig.estCritique,
-          libelleAffiche: lig.libelleAffiche
+          libelleAffiche: lig.libelleAffiche,
+          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
         }))
       };
     });
@@ -976,7 +979,8 @@
             instruction: lig.instruction || '',
             observations: lig.observations || '',
             estCritique: lig.estCritique,
-            libelleAffiche: lig.libelleAffiche
+            libelleAffiche: lig.libelleAffiche,
+            valeursColonnesSpecifiques: lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {}
           }))
         };
       });
@@ -1118,7 +1122,8 @@
             instruction: l.instruction || '',
             observations: l.observations || '',
             estCritique: l.estCritique || false,
-            libelleAffiche: (l.libelleAffiche || nomCaract).trim()
+            libelleAffiche: (l.libelleAffiche || nomCaract).trim(),
+            colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 ? JSON.stringify(l.valeursColonnesSpecifiques) : null
           };
         })
       };

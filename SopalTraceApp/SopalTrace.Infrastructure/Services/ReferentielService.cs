@@ -350,22 +350,37 @@ public class ReferentielService : IReferentielService
                 f.CodeReference,
                 f.Designation,
                 f.Role ?? string.Empty,
-                f.Version
+                f.Version,
+                f.ConfigurationStructureJson
             ))
             .ToListAsync();
     }
 
-    public async Task<bool> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson)
+    public async Task<Guid?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null)
     {
-        var formulaireActuel = await _context.RefFormulaires
-            .FirstOrDefaultAsync(f => f.Role == role && f.Statut == "ACTIF");
+        Guid? nouveauFormulaireId = null;
+
+        // Chercher le formulaire actif par codeReference ET role (spécifique) ou par role seul (générique)
+        RefFormulaire? formulaireActuel;
+        if (!string.IsNullOrWhiteSpace(codeReference))
+        {
+            // Cibler le formulaire SPÉCIFIQUE sélectionné par l'utilisateur
+            formulaireActuel = await _context.RefFormulaires
+                .FirstOrDefaultAsync(f => f.CodeReference == codeReference && f.Role == role && f.Statut == "ACTIF");
+        }
+        else
+        {
+            // Comportement générique : premier actif pour ce rôle
+            formulaireActuel = await _context.RefFormulaires
+                .FirstOrDefaultAsync(f => f.Role == role && f.Statut == "ACTIF");
+        }
 
         if (formulaireActuel != null)
         {
-            // Archive the current active version
+            // Archiver la version actuelle active
             formulaireActuel.Statut = "ARCHIVE";
 
-            // Create a new active version with version incremented
+            // Créer une nouvelle version active avec version+1
             var newVersion = formulaireActuel.Version + 1;
             var nouveauFormulaire = new RefFormulaire
             {
@@ -379,15 +394,17 @@ public class ReferentielService : IReferentielService
                 ConfigurationStructureJson = configurationStructureJson
             };
             _context.RefFormulaires.Add(nouveauFormulaire);
+            nouveauFormulaireId = nouveauFormulaire.Id;
         }
         else
         {
-            // Fallback if no active version exists yet
+            // Fallback : aucune version active trouvée → créer une nouvelle entrée
+            var code = !string.IsNullOrWhiteSpace(codeReference) ? codeReference : role;
             var nouveauFormulaire = new RefFormulaire
             {
                 Id = Guid.NewGuid(),
-                CodeReference = "PRC",
-                Designation = "Formulaire " + role,
+                CodeReference = code,
+                Designation = $"Formulaire {code}",
                 Version = 1,
                 Statut = "ACTIF",
                 CreeLe = DateTime.UtcNow,
@@ -395,9 +412,10 @@ public class ReferentielService : IReferentielService
                 ConfigurationStructureJson = configurationStructureJson
             };
             _context.RefFormulaires.Add(nouveauFormulaire);
+            nouveauFormulaireId = nouveauFormulaire.Id;
         }
 
         await _context.SaveChangesAsync();
-        return true;
+        return nouveauFormulaireId;
     }
 }

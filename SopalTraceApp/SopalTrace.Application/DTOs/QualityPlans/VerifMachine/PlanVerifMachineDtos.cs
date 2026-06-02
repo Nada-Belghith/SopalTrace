@@ -33,6 +33,7 @@ public record CreateVerifMachineModeleDto
 
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+    public string ConfigurationColonnesJson { get; init; }
 
     public List<VmFamilleDto> Familles { get; init; } = new();
     public List<VmLigneDto> LignesConformite { get; init; } = new();
@@ -51,6 +52,7 @@ public record VmLigneDto
     public int OrdreAffiche { get; init; }
     public string LibelleRisque { get; init; }
     public string LibelleMethode { get; init; }
+    public string? ColonnesSupplementaires { get; init; }
     public List<VmEcheanceDto> Echeances { get; init; } = new();
 }
 
@@ -89,6 +91,7 @@ public record PlanVerifMachineResponseDto
 
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+    public string ConfigurationColonnesJson { get; init; }
 
     public string CreePar { get; init; }
     public DateTime CreeLe { get; init; }
@@ -107,6 +110,7 @@ public record VmLigneResponseDto
     public string TypeLigne { get; init; } // "CONFORMITE" ou "RISQUE"
     public string LibelleRisque { get; init; }
     public string LibelleMethode { get; init; }
+    public string? ColonnesSupplementaires { get; init; }
     public List<VmEcheanceResponseDto> Echeances { get; init; } = new();
 }
 
@@ -135,6 +139,7 @@ public record NouvelleVersionVerifMachineDto
     public Guid AncienId { get; init; }
     public string ModifiePar { get; init; }
     public string MotifModification { get; init; }
+    public string ConfigurationColonnesJson { get; init; }
 }
 
 public record CreatePlanVerifMachineDto
@@ -152,6 +157,7 @@ public record VerifMachineLigneEditDto
     public string TypeLigne { get; init; }
     public string LibelleRisque { get; init; }
     public string LibelleMethode { get; init; }
+    public string? ColonnesSupplementaires { get; init; }
     public List<VerifMachineEcheanceEditDto> Echeances { get; init; } = new();
 }
 

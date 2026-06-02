@@ -23,6 +23,7 @@ public class ModeleFabricationService : IModeleFabricationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPlanFabricationRepository _fabRepository;
     private readonly IPlanAssRepository _assRepository;
+    private readonly IReferentielService _referentielService;
     private readonly IValidator<CreateModeleRequestDto> _modeleValidator;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ModeleFabricationService> _logger;
@@ -31,6 +32,7 @@ public class ModeleFabricationService : IModeleFabricationService
         IUnitOfWork unitOfWork,
         IPlanFabricationRepository fabRepository,
         IPlanAssRepository assRepository,
+        IReferentielService referentielService,
         IValidator<CreateModeleRequestDto> modeleValidator,
         ICurrentUserService currentUserService,
         ILogger<ModeleFabricationService> logger)
@@ -38,6 +40,7 @@ public class ModeleFabricationService : IModeleFabricationService
         _unitOfWork = unitOfWork;
         _fabRepository = fabRepository;
         _assRepository = assRepository;
+        _referentielService = referentielService;
         _modeleValidator = modeleValidator;
         _currentUserService = currentUserService;
         _logger = logger;
@@ -76,6 +79,18 @@ public class ModeleFabricationService : IModeleFabricationService
             modele.Statut = StatutsPlan.Actif;
             modele.Version = 0; // Commencer par Version 0
 
+            if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+            {
+                var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync(
+                    "EN_COURS_DE_ASSEMBLAGE",
+                    request.ConfigurationColonnesJson,
+                    request.RefFormulaireCodeReference);
+                if (newFormulaireId.HasValue)
+                {
+                    modele.FormulaireId = newFormulaireId.Value;
+                }
+            }
+
             await SmartDictionaryPassAssAsync(modele);
 
             // Nettoyage final des GUIDs vides pour éviter les erreurs de clés étrangères
@@ -110,6 +125,18 @@ public class ModeleFabricationService : IModeleFabricationService
             modele.CreePar = user; // Forcer l'utilisateur connecté
             modele.Statut = StatutsPlan.Actif;
             modele.Version = 0; // Commencer par Version 0
+
+            if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+            {
+                var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync(
+                    "EN_COURS_DE_FABRICATION",
+                    request.ConfigurationColonnesJson,
+                    request.RefFormulaireCodeReference);
+                if (newFormulaireId.HasValue)
+                {
+                    modele.FormulaireId = newFormulaireId.Value;
+                }
+            }
 
             await SmartDictionaryPassAsync(modele);
 
@@ -377,6 +404,19 @@ public class ModeleFabricationService : IModeleFabricationService
             var nouveauPlan = PlanAssMapper.ConstruireNouvelleVersionModele(assModele, request, user, nouvelleVersion);
             nouveauPlan.Statut = StatutsPlan.Actif;
             
+            if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+            {
+                var role = assModele.OperationCode == "ASS" ? "EN_COURS_DE_ASSEMBLAGE" : "EN_COURS_DE_FABRICATION";
+                var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync(
+                    role,
+                    request.ConfigurationColonnesJson,
+                    request.RefFormulaireCodeReference);
+                if (newFormulaireId.HasValue)
+                {
+                    nouveauPlan.FormulaireId = newFormulaireId.Value;
+                }
+            }
+
             await SmartDictionaryPassAssAsync(nouveauPlan);
 
             await _assRepository.AddPlanAsync(nouveauPlan);
@@ -398,6 +438,18 @@ public class ModeleFabricationService : IModeleFabricationService
             var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleParCodeAsync(fabModele.Code) + 1;
             var nouveauModele = ModeleFabricationMapper.ConstruireNouvelleVersionModele(fabModele, request, user, nouvelleVersion);
             nouveauModele.Statut = StatutsPlan.Actif;
+
+            if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+            {
+                var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync(
+                    "EN_COURS_DE_FABRICATION",
+                    request.ConfigurationColonnesJson,
+                    request.RefFormulaireCodeReference);
+                if (newFormulaireId.HasValue)
+                {
+                    nouveauModele.FormulaireId = newFormulaireId.Value;
+                }
+            }
 
             await SmartDictionaryPassAsync(nouveauModele);
 

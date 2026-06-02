@@ -12,11 +12,14 @@ public record CreateModeleRequestDto
     public required string? TypeRobinetCode { get; init; }
     public required string NatureComposantCode { get; init; }
     public required string OperationCode { get; init; }
-    public string? PosteCode { get; init; } = null;     // Poste de travail (ex: 71, 72, 78 pour PF auto soupape)
+    public string? PosteCode { get; init; } = null;
     public string? FamilleProduitCode { get; init; } = null;
     public string? Notes { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
-    public string? CreePar { get; init; } = "SYSTEM";   // Auteur de la création
+    public string? CreePar { get; init; } = "SYSTEM";
+    public string? ConfigurationColonnesJson { get; init; } = null;
+    /// <summary>Code du formulaire référence sélectionné par l'utilisateur (ex: FE-ASS-PISTON). Permet de versionner le bon formulaire.</summary>
+    public string? RefFormulaireCodeReference { get; init; } = null;
     public List<SectionModeleEditDto> Sections { get; init; } = new();
 }
 
@@ -74,6 +77,7 @@ public record LigneModeleEditDto
     public required bool EstCritique { get; init; }
     public string? LimiteSpecTexte { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
+    public string? ColonnesSupplementaires { get; init; } = null;
 }
 
 public record ChangeModeleStatusRequestDto
@@ -97,9 +101,10 @@ public record NouvelleVersionModeleRequestDto
     public string? FamilleProduitCode { get; init; } = null;
     public string? Notes { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
-
-    // CORRECTION ICI : Il faut que ça s'appelle "Sections" et non "SectionsModifiees" !
     public List<SectionModeleEditDto> Sections { get; init; } = new();
+    public string? ConfigurationColonnesJson { get; init; } = null;
+    /// <summary>Code du formulaire référence sélectionné (ex: FE-ASS-PISTON). Permet de versionner le bon formulaire spécifiquement.</summary>
+    public string? RefFormulaireCodeReference { get; init; } = null;
 }
 
 // --- RÉPONSES ---
@@ -123,6 +128,7 @@ public record ModeleResponseDto
     public DateTime? ModifieLe { get; init; }
     public string? ArchivePar { get; init; }
     public DateTime? ArchiveLe { get; init; }
+    public string? ConfigurationColonnesJson { get; init; }
     public List<ModeleSectionResponseDto> Sections { get; init; } = new();
 }
 
@@ -155,6 +161,7 @@ public record ModeleLigneResponseDto
 
     public string? LimiteSpecTexte { get; init; }
     public string? MoyenTexteLibre { get; init; }
+    public string? ColonnesSupplementaires { get; init; }
 }
 
 public record RestaurerModeleRequestDto(

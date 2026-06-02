@@ -65,11 +65,13 @@
       </td>
 
       <td v-else-if="col.isCustom" class="p-2 border-r border-slate-200 align-top">
-        <input v-model="localLigne.valeursColonnesSpecifiques[col.key]" 
-               :type="col.type === 'Nombre' ? 'number' : 'text'" 
-               :disabled="isReadOnly"
-               :placeholder="col.label"
-               :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none border', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-900 font-semibold cursor-not-allowed' : 'bg-white border-slate-200 text-slate-600 focus:border-blue-500']" />
+        <template v-if="localLigne.valeursColonnesSpecifiques">
+          <input v-model="localLigne.valeursColonnesSpecifiques[col.key]" 
+                 :type="col.type === 'Nombre' ? 'number' : 'text'" 
+                 :disabled="isReadOnly"
+                 :placeholder="col.label"
+                 :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none border', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-900 font-semibold cursor-not-allowed' : 'bg-white border-slate-200 text-slate-600 focus:border-blue-500']" />
+        </template>
       </td>
 
       <td v-else-if="col.key === 'actions'" class="p-2 align-middle text-center opacity-0 group-hover:opacity-100 transition-opacity w-8">

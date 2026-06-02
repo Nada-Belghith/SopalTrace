@@ -15,11 +15,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidator<CreatePlanVerifMachineDto> _createValidator;
+    private readonly IReferentielService _referentielService;
 
-    public PlanVerifMachineService(IUnitOfWork unitOfWork, IValidator<CreatePlanVerifMachineDto> createValidator)
+    public PlanVerifMachineService(IUnitOfWork unitOfWork, IValidator<CreatePlanVerifMachineDto> createValidator, IReferentielService referentielService)
     {
         _unitOfWork = unitOfWork;
         _createValidator = createValidator;
+        _referentielService = referentielService;
     }
 
     // =========================================================================
@@ -88,6 +90,15 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         nouveauPlan.Version = maxVersionExistante + 1;
         nouveauPlan.Statut = "ACTIF";
 
+        if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+        {
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson);
+            if (newFormulaireId.HasValue)
+            {
+                nouveauPlan.FormulaireId = newFormulaireId.Value;
+            }
+        }
+
         await _unitOfWork.PlanVerifMachineRepository.AddPlanAsync(nouveauPlan);
         await _unitOfWork.CommitAsync();
         
@@ -141,6 +152,15 @@ public class PlanVerifMachineService : IPlanVerifMachineService
             
         nouveauPlan.Version = maxVersion + 1; // Incrémentation propre (V+1)
 
+        if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+        {
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson);
+            if (newFormulaireId.HasValue)
+            {
+                nouveauPlan.FormulaireId = newFormulaireId.Value;
+            }
+        }
+
         // 5. On prépare l'insertion du nouveau plan
         await _unitOfWork.PlanVerifMachineRepository.AddPlanAsync(nouveauPlan);
         
@@ -170,6 +190,15 @@ public class PlanVerifMachineService : IPlanVerifMachineService
             .Max(p => p.Version) ?? -1;
             
         nouveauPlan.Version = maxVersion + 1;
+
+        if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+        {
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson);
+            if (newFormulaireId.HasValue)
+            {
+                nouveauPlan.FormulaireId = newFormulaireId.Value;
+            }
+        }
 
         // 4. Sauvegarder
         await _unitOfWork.PlanVerifMachineRepository.AddPlanAsync(nouveauPlan);

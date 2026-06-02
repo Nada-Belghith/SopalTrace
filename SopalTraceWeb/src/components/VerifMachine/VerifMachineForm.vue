@@ -68,7 +68,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label class="block text-xs font-bold text-slate-500 mb-1">Titre du Rapport</label>
-            <input v-model="store.entete.nom" type="text" :disabled="props.isReadOnly"
+            <input v-model="store.entete.nom" type="text" :disabled="props.isReadOnly" @blur="onNomBlur"
               class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-slate-900 font-semibold text-slate-800 outline-none disabled:bg-slate-50">
           </div>
 

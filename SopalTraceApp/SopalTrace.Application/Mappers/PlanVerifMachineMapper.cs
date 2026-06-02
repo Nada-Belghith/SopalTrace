@@ -64,6 +64,7 @@ public static class PlanVerifMachineMapper
             TypeLigne = ligne.TypeLigne,
             LibelleRisque = ligne.LibelleRisque,
             LibelleMethode = ligne.LibelleMethode,
+            ColonnesSupplementaires = ligne.ColonnesSupplementaires,
             Echeances = ligne.PlanVerifMachineEcheances
                 .OrderBy(e => e.OrdreAffiche)
                 .Select(e => new VmEcheanceResponseDto
@@ -136,6 +137,7 @@ public static class PlanVerifMachineMapper
             OrdreAffiche = dto.OrdreAffiche,
             LibelleRisque = dto.LibelleRisque,
             LibelleMethode = dto.LibelleMethode,
+            ColonnesSupplementaires = dto.ColonnesSupplementaires,
             TypeLigne = typeLigne,
             PlanVerifMachineEcheances = dto.Echeances.Select(e => ConstruireEcheance(ligneId, e, famillesDb)).ToList()
         };

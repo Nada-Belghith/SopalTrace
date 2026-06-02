@@ -96,6 +96,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       AfficheFuiteEtalon: finalAfficheFuiteEtalon,
       Remarques: entete.value.remarques || '',
       LegendeMoyens: entete.value.legendeMoyens || '',
+      ConfigurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
       Familles: familles.value
         .filter((f, idx, self) => self.findIndex(t => t.refFamilleCorpsId === f.refFamilleCorpsId) === idx)
         .map((f, idx) => ({
@@ -144,6 +145,9 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       TypeLigne: typeLigne,
       LibelleRisque: ligne.libelleRisque,
       LibelleMethode: ligne.libelleMethode,
+      ColonnesSupplementaires: ligne.valeursColonnesSpecifiques && Object.keys(ligne.valeursColonnesSpecifiques).length > 0 
+        ? JSON.stringify(ligne.valeursColonnesSpecifiques) 
+        : null,
       Echeances: Array.from(mergedMap.values()).map((ech, idx) => ({
         ...ech,
         OrdreAffiche: idx + 1
@@ -352,6 +356,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         statut: data.statut || 'ACTIF',
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
+        configurationColonnes: data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [],
       };
 
       familles.value = (data.familles || []).map(f => {
@@ -403,6 +408,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       _uid: genererUid(),
       libelleRisque: ligne.libelleRisque || '',
       libelleMethode: ligne.libelleMethode || '',
+      valeursColonnesSpecifiques: ligne.colonnesSupplementaires ? JSON.parse(ligne.colonnesSupplementaires) : {},
       groups: groups.length > 0 ? groups : [creerGroupVide()],
     };
   };

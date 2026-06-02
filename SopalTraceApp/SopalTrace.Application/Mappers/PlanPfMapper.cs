@@ -67,7 +67,8 @@ public static class PlanPfMapper
             DefauthequeId = entite.DefauthequeId,
             DefauthequeLibelle = entite.Defautheque != null ? $"{entite.Defautheque.Code} - {entite.Defautheque.Description}" : string.Empty,
             Instruction = entite.Instruction ?? string.Empty,
-            Observations = entite.Observations ?? string.Empty
+            Observations = entite.Observations ?? string.Empty,
+            ColonnesSupplementaires = entite.ColonnesSupplementaires
             //EstCritique = entite.EstCritique
         };
     }
@@ -146,6 +147,7 @@ public static class PlanPfMapper
                     ligneEntity.DefauthequeId = lDto.DefauthequeId;
                     ligneEntity.Instruction = MapperHelper.NullIfEmpty(lDto.Instruction);
                     ligneEntity.Observations = MapperHelper.NullIfEmpty(lDto.Observations);
+                    ligneEntity.ColonnesSupplementaires = lDto.ColonnesSupplementaires;
                     //ligneEntity.EstCritique = lDto.EstCritique;
                 }
                 else
@@ -165,7 +167,8 @@ public static class PlanPfMapper
                         LimiteSpecTexte = MapperHelper.NullIfEmpty(lDto.LimiteSpecTexte),
                         DefauthequeId = lDto.DefauthequeId,
                         Instruction = MapperHelper.NullIfEmpty(lDto.Instruction),
-                        Observations = MapperHelper.NullIfEmpty(lDto.Observations)
+                        Observations = MapperHelper.NullIfEmpty(lDto.Observations),
+                        ColonnesSupplementaires = lDto.ColonnesSupplementaires
                         //EstCritique = lDto.EstCritique
                     };
                 }

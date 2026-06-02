@@ -22,5 +22,9 @@ public interface IReferentielService
 
     Task<FormulaireStructureDto?> GetFormulaireByRoleAsync(string role);
     Task<IEnumerable<FormulaireReferenceItemDto>> GetFormulairesListByRoleAsync(string role);
-    Task<bool> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson);
+    /// <summary>
+    /// Archive le formulaire actif identifié par son codeReference et crée une nouvelle version active avec version+1.
+    /// Si codeReference est null, utilise le role pour trouver le formulaire actif (comportement générique).
+    /// </summary>
+    Task<Guid?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null);
 }

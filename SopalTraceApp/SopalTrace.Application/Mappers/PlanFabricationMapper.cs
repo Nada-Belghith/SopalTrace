@@ -99,7 +99,8 @@ public static class PlanFabricationMapper
                     InstrumentCode = sourceLigne.InstrumentCode,
                     MoyenTexteLibre = sourceLigne.MoyenTexteLibre,
                     LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
-                    Observations = sourceLigne.Observations, Instruction = sourceLigne.Instruction, EstCritique = sourceLigne.EstCritique
+                    Observations = sourceLigne.Observations, Instruction = sourceLigne.Instruction, EstCritique = sourceLigne.EstCritique,
+                    ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
                 });
             }
             plan.PlanFabricationSections.Add(planSection);
@@ -177,7 +178,8 @@ public static class PlanFabricationMapper
             MoyenControleId = MapperHelper.NullIfEmpty(dto.MoyenControleId), PeriodiciteId = MapperHelper.NullIfEmpty(dto.PeriodiciteId),
             InstrumentCode = instrumentData.InstrumentCode, MoyenTexteLibre = instrumentData.MoyenTexteLibre,
             LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte, Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations,
-            Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction
+            Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction,
+            ColonnesSupplementaires = dto.ColonnesSupplementaires
         };
     }
 
@@ -192,6 +194,7 @@ public static class PlanFabricationMapper
         ligne.MoyenControleId = MapperHelper.NullIfEmpty(dto.MoyenControleId); ligne.PeriodiciteId = MapperHelper.NullIfEmpty(dto.PeriodiciteId);
         ligne.InstrumentCode = instrumentData.InstrumentCode; ligne.MoyenTexteLibre = instrumentData.MoyenTexteLibre; 
         ligne.LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte; ligne.Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations; ligne.Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction;
+        ligne.ColonnesSupplementaires = dto.ColonnesSupplementaires;
     }
 
     public static PlanResponseDto MapperEntitePlanVersDto(PlanFabricationEntete plan)
@@ -239,7 +242,8 @@ public static class PlanFabricationMapper
                     LimiteSpecTexte = l.LimiteSpecTexte ?? string.Empty,
                     Observations = l.Observations ?? string.Empty,
                     Instruction = l.Instruction ?? string.Empty,
-                    EstCritique = l.EstCritique
+                    EstCritique = l.EstCritique,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 }).ToList() ?? new List<PlanLigneResponseDto>()
             }).ToList() ?? new List<PlanSectionResponseDto>()
         };

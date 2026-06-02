@@ -79,6 +79,7 @@ public class PlanAssRepository : IPlanAssRepository
                 .ThenInclude(s => s.PlanAssemblageLignes)
             .Include(p => p.PlanAssemblageSections)
                 .ThenInclude(s => s.RegleEchantillonnage)
+            .Include(p => p.Formulaire)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
@@ -112,7 +113,9 @@ public class PlanAssRepository : IPlanAssRepository
 
     public async Task<IReadOnlyList<PlanAssemblageEntete>> GetModelesParFiltresAsync(string? natureComposantCode, string? operationCode, string? posteCode = null, string? familleProduitCode = null)
     {
-        var query = _context.PlanAssemblageEntetes.Where(p => p.Statut == StatutsPlan.Actif);
+        var query = _context.PlanAssemblageEntetes
+            .Include(p => p.Formulaire)
+            .Where(p => p.Statut == StatutsPlan.Actif);
 
         if (!string.IsNullOrEmpty(natureComposantCode))
             query = query.Where(p => p.NatureArticleCode == natureComposantCode);

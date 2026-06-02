@@ -80,6 +80,7 @@
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du Gabarit *</label>
         <input 
           v-model="store.entete.libelle" 
+          @blur="onLibelleBlur"
           type="text" 
           placeholder="Ex: Modèle Standard Corps..." 
           :disabled="isEditMode || isReadOnly" 
@@ -136,11 +137,43 @@ watch(refFormulaireSelected, async (newRefId) => {
   // Set the gabarit title exactly as the designation to keep it as reference
   store.entete.libelle = designation;
 
+  // ✅ Mémoriser le codeReference du formulaire sélectionné pour le versioning ciblé
+  store.entete.refFormulaireCodeReference = refObj.codeReference || '';
+  
+  // Appliquer la configuration des colonnes du formulaire sélectionné
+  if (refObj.configurationStructureJson) {
+    try {
+      store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
+        ? JSON.parse(refObj.configurationStructureJson) 
+        : refObj.configurationStructureJson;
+    } catch (e) {
+      console.error("Erreur parsing configuration colonnes:", e);
+    }
+  }
+
   // Libérer le flag après la propagation de la réactivité
   setTimeout(() => {
     isAutoFilling.value = false;
   }, 100);
 });
+
+const onLibelleBlur = () => {
+  if (props.isReadOnly || props.isEditMode) return;
+  const lib = store.entete.libelle || '';
+  if (!lib) return;
+  
+  isAutoFilling.value = true;
+  const parsed = parseDesignation(lib, store.famillesProduit || [], [], store.postes || []);
+  
+  if (parsed.familleCode) store.entete.familleProduitCode = parsed.familleCode;
+  if (parsed.natureComposantCode) store.entete.natureComposantCode = parsed.natureComposantCode;
+  if (parsed.operationCode) store.entete.operationCode = parsed.operationCode;
+  if (parsed.posteCode) store.entete.posteCode = parsed.posteCode;
+  
+  setTimeout(() => {
+    isAutoFilling.value = false;
+  }, 100);
+};
 
 // =========================================================================
 // LOGIQUE PRINCIPALE : AFFICHER POSTE SI FAMILLE=SOUPAPE ET ARTICLE=PF
