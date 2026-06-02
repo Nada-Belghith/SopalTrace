@@ -21,6 +21,7 @@ public interface IReferentielService
     Task<PieceRefDto> CreatePieceReferenceAsync(CreatePieceReferenceDto request);
 
     Task<FormulaireStructureDto?> GetFormulaireByRoleAsync(string role);
+    Task<FormulaireStructureDto?> GetFormulaireByIdAsync(Guid id);
     Task<IEnumerable<FormulaireReferenceItemDto>> GetFormulairesListByRoleAsync(string role);
     /// <summary>
     /// Archive le formulaire actif identifié par son codeReference et crée une nouvelle version active avec version+1.

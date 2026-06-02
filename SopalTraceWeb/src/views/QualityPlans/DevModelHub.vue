@@ -131,6 +131,11 @@
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded">
               <i class="pi pi-map-marker text-[9px]"></i> {{ plan.poste }}
             </span>
+            <!-- Badge RefFormulaire -->
+            <span v-if="plan.codeReferenceFormulaire"
+              class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded">
+              <i class="pi pi-file text-[9px]"></i> {{ plan.codeReferenceFormulaire }}
+            </span>
           </div>
 
           <!-- Footer Card: Version + Actions -->
@@ -151,7 +156,9 @@
                  <i class="pi pi-box"></i>
                </button>
 
-               <i class="pi pi-eye text-slate-300 ml-1 transition-colors text-sm" :class="categoryStyles[plan.category]?.textClass || 'group-hover:text-blue-500'"></i>
+               <button @click.stop="consulter(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Visualiser">
+                 <i class="pi pi-eye"></i>
+               </button>
             </div>
           </div>
         </div>

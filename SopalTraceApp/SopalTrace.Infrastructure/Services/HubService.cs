@@ -39,7 +39,8 @@ public class HubService : IHubService
                 "N/A",
                 m.Formulaire != null ? m.Formulaire.Version : m.Version,
                 m.Statut ?? "ACTIF",
-                "Gabarit de fabrication générique."))
+                "Gabarit de fabrication générique.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(fabModeles);
 
@@ -60,7 +61,8 @@ public class HubService : IHubService
                 m.PosteCode ?? "N/A",
                 m.Formulaire != null ? m.Formulaire.Version : m.Version,
                 m.Statut ?? "ACTIF",
-                "Plan Maître d'assemblage."))
+                "Plan Maître d'assemblage.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(assModeles);
 
@@ -79,7 +81,8 @@ public class HubService : IHubService
                 m.MachineCode ?? "N/A",
                 m.Formulaire != null ? m.Formulaire.Version : (m.Version ?? 1),
                 m.Statut ?? "ACTIF",
-                "Vérification des étalons machines."))
+                "Vérification des étalons machines.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(vmModeles);
 
@@ -96,7 +99,8 @@ public class HubService : IHubService
                 n.ValeurNqa.ToString(),
                 m.Version,
                 m.Statut ?? "ACTIF",
-                "Niveau de contrôle: " + m.NiveauControle))
+                "Niveau de contrôle: " + m.NiveauControle,
+                null))
             .ToListAsync();
         result.AddRange(echModeles);
 
@@ -114,7 +118,8 @@ public class HubService : IHubService
                 "N/A",
                 m.Version,
                 m.Statut ?? "ACTIF",
-                "Gabarit de controle final."))
+                "Gabarit de controle final.",
+                null))
             .ToListAsync();
         result.AddRange(pfModeles);
 
@@ -132,7 +137,8 @@ public class HubService : IHubService
                 m.PosteCode ?? "N/A",
                 m.Version,
                 m.Statut,
-                "Fiche de contrôle par poste de travail."))
+                "Fiche de contrôle par poste de travail.",
+                null))
             .ToListAsync();
         result.AddRange(ncModeles);
 
@@ -142,62 +148,29 @@ public class HubService : IHubService
     public async Task<IReadOnlyList<HubPlanDto>> GetTousLesPlansAsync()
     {
         var result = new List<HubPlanDto>();
- 
-        // 1. PLANS DE FABRICATION
-        var fabPlans = await _context.PlanFabricationEntetes
+
+        // 1. STRUCTURES GENERIQUES (REF FORMULAIRES PRC)
+        var prcStructures = await _context.RefFormulaires
             .AsNoTracking()
-            .Include(p => p.Formulaire)
-            .Where(p => p.Statut == "ACTIF" || p.Statut == "ARCHIVE" || p.Statut == "BROUILLON")
-            .Include(p => p.ModeleSource)
-            .Select(p => new HubPlanDto(
-                p.Id,
-                "FAB",
-                // ✅ Priorité au Nom stocké, SAUF si c'est un nom technique hérité
-                !string.IsNullOrWhiteSpace(p.Nom) && !p.Nom.StartsWith("Modèle ") && !p.Nom.StartsWith("PC-") ? p.Nom :
-                (p.ModeleSource != null && p.ModeleSource.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
-                (p.ModeleSource != null && p.ModeleSource.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
-                $"Plan {p.CodeArticleSage}",
-                p.ModeleSource != null ? p.ModeleSource.NatureArticleCode : "N/A",
-                p.CodeArticleSageNavigation.ProduitFini != null ? p.CodeArticleSageNavigation.ProduitFini.FamilleProduitFiniCode : "FAB",
-                p.ModeleSource != null ? (p.ModeleSource.OperationCode ?? "N/A") : (p.OperationCode ?? "N/A"),
+            .Where(f => f.Role == "EN_COURS_DE_FABRICATION")
+            .Where(f => f.Statut == "ACTIF" || f.Statut == "ARCHIVE")
+            .Select(f => new HubPlanDto(
+                f.Id,
+                "PRC_STRUCT",
+                "Structure PRC",
                 "N/A",
-                p.Formulaire != null ? p.Formulaire.Version : p.Version,
-                p.Statut,
-                $"Plan article {p.CodeArticleSage}",
-                p.CodeArticleSage,
-                p.Designation))
-            .ToListAsync();
-        result.AddRange(fabPlans);
-  
-        // 2. PLANS D'ASSEMBLAGE (PISTON / PF : plans article, non modèles)
-        // Plans ASS : PISTON, PF, ou ceux avec nature NULL (créés via un bug de routing)
-        var assPlans = await _context.PlanAssemblageEntetes
-            .AsNoTracking()
-            .Include(p => p.Formulaire)
-            .Where(p => p.NatureArticleCode == "PISTON" || p.NatureArticleCode == "PF" || p.NatureArticleCode == null)
-            .Where(p => p.OperationCode == "ASS") // Exclure les modèles génériques
-            .Where(p => p.Statut == "ACTIF" || p.Statut == "ARCHIVE" || p.Statut == "BROUILLON") // Seulement les versions actives
-            .Select(p => new HubPlanDto(
-                p.Id,
-                "FAB",
-                // ✅ Nom : ignorer les noms techniques ("Modèle ...", "PC-..."), inférer depuis la nature
-                (!string.IsNullOrWhiteSpace(p.Designation) && !p.Designation.StartsWith("Modèle ") && !p.Designation.StartsWith("PC-")) ? p.Designation :
-                (p.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
-                (p.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
-                // Nature NULL : essayer de deviner depuis la Designation
-                (!string.IsNullOrWhiteSpace(p.Designation) && p.Designation.ToLower().Contains("piston")) ? "Plan de contrôle en cours de fabrication piston" :
-                "Plan Assemblage",
-                p.NatureArticleCode ?? "N/A",
-                p.FamilleProduitFiniCode ?? "ASS",
-                p.OperationCode ?? "N/A",
-                p.PosteCode ?? "N/A",
-                p.Formulaire != null ? p.Formulaire.Version : p.Version,
-                p.Statut ?? "BROUILLON",
-                $"Plan assemblage {p.NatureArticleCode ?? "ASS"}",
+                "N/A",
+                "N/A",
+                "N/A",
+                f.Version,
+                f.Statut,
+                $"Structure de référence des plans en cours de fabrication",
                 null,
-                p.Designation))
+                $"Structure de référence",
+                f.CodeReference
+            ))
             .ToListAsync();
-        result.AddRange(assPlans);
+        result.AddRange(prcStructures);
 
         return result;
     }

@@ -81,6 +81,14 @@ public class ReferentielController : ControllerBase
         return Ok(new { success = true, data = result });
     }
 
+    [HttpGet("formulaires/{id}")]
+    public async Task<IActionResult> GetFormulaireById(Guid id)
+    {
+        var result = await _referentielService.GetFormulaireByIdAsync(id);
+        if (result == null) return NotFound(new { success = false, message = $"Formulaire {id} introuvable." });
+        return Ok(new { success = true, data = result });
+    }
+
     [HttpGet("formulaires/liste/{role}")]
     public async Task<IActionResult> GetFormulairesListByRole(string role)
     {

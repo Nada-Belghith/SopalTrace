@@ -87,11 +87,23 @@ const toggleMobileMenu = () => {
           </div>
           
           <ul class="px-4 space-y-4 mb-6">
-            <!-- Plans Spécifiques -->
+            <!-- Plans Spécifiques Group -->
             <li>
-              <router-link to="/dev/fab/specifique" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
-                <i class="pi pi-list text-amber-500 text-lg"></i> Plans Spécifiques
+              <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
+                <i class="pi pi-list text-amber-500 text-lg"></i>
+                <span>Plans Spécifiques</span>
               </router-link>
+              
+              <!-- Sub-items nested under Plans Spécifiques -->
+              <ul class="ml-8 pl-4 border-l border-slate-800/80 space-y-2 mt-2">
+                <li>
+                  <router-link to="/dev/fab/specifique" 
+                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
+                    :class="isDocActive('/dev/fab/specifique') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                    <i class="pi pi-plus-circle text-amber-500 text-sm"></i> Plan de contrôle en cours de fabrication
+                  </router-link>
+                </li>
+              </ul>
             </li>
 
             <!-- Documents Génériques Group -->

@@ -44,7 +44,7 @@
 
         <div class="p-6 md:p-8 space-y-8">
           <!-- Top Section: Config Form & Actives columns -->
-          <div class="bg-[#0f172a] text-slate-100 rounded-2xl p-6 md:p-8 shadow-2xl border border-slate-800">
+          <div v-if="!isViewOnly" class="bg-[#0f172a] text-slate-100 rounded-2xl p-6 md:p-8 shadow-2xl border border-slate-800">
             <div class="flex justify-between items-start mb-8">
               <div>
                 <h2 class="text-lg font-black text-amber-500 flex items-center gap-2.5 tracking-wide uppercase">
@@ -96,7 +96,9 @@
                       </select>
                     </div>
                   </div>
-
+                  <button @click="addColumn" class="w-full bg-amber-500 hover:bg-amber-600 text-[#0f172a] font-black uppercase text-xs py-2.5 rounded-lg transition-colors">
+                    Ajouter la colonne
+                  </button>
                 </div>
               </div>
 
@@ -136,6 +138,7 @@
                     <div class="flex items-center gap-3">
                       <span class="text-[10px] text-slate-500 font-medium">Après : {{ getColumnLabel(col.insertAfter) }}</span>
                       <button 
+                        v-if="!isViewOnly"
                         @click="removeColumn(index)" 
                         class="text-slate-500 hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                         title="Supprimer la colonne"
@@ -192,14 +195,15 @@
         <!-- ACTIONS FOOTER -->
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-3.5">
           <button 
-            @click="$router.push('/dev/hub')" 
+            @click="$router.push('/dev/hub-plans')" 
             class="px-6 py-3 rounded-xl text-xs font-black tracking-widest text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all uppercase active:scale-95 cursor-pointer"
             :disabled="isSaving"
           >
-            Annuler
+            {{ isViewOnly ? 'Fermer' : 'Annuler' }}
           </button>
           
           <button 
+            v-if="!isViewOnly"
             @click="saveStructure" 
             class="px-6 py-3 rounded-xl text-xs font-black tracking-widest text-slate-900 bg-amber-500 hover:bg-amber-400 flex items-center gap-2 transition-all uppercase active:scale-95 shadow-lg shadow-amber-500/20 border-2 border-amber-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="isSaving"
@@ -217,14 +221,16 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import apiClient from '@/services/apiClient'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 
 const isSaving = ref(false)
+const isViewOnly = computed(() => route.query.view === 'true')
 const customColumns = ref([])
 const newCol = ref({ label: '', type: 'Texte', insertAfter: 'code_instrument' })
 const formCode = ref('')
@@ -242,7 +248,11 @@ const baseColumns = [
 // Fetch the RefFormulaire for EN_COURS_DE_FABRICATION
 const loadStructure = async () => {
   try {
-    const res = await apiClient.get('/referentiels/formulaires/role/EN_COURS_DE_FABRICATION')
+    const endpoint = route.query.id 
+      ? `/referentiels/formulaires/${route.query.id}`
+      : '/referentiels/formulaires/role/EN_COURS_DE_FABRICATION'
+      
+    const res = await apiClient.get(endpoint)
     if (res.data?.success && res.data?.data) {
       formCode.value = res.data.data.codeReference
       formVersion.value = res.data.data.version
