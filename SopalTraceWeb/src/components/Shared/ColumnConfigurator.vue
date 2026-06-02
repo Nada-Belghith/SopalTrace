@@ -51,17 +51,13 @@
                     </div>
                   </div>
 
-                  <button @click="addColumn" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-black tracking-wide uppercase py-3 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors mt-2 shadow-lg shadow-amber-500/20">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                    Ajouter la colonne
-                  </button>
                 </div>
               </div>
 
               <!-- COLONNES ACTIVES -->
               <div class="space-y-4">
                 <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Colonnes actives ({{ customColumns.length }})</h3>
-                <div class="bg-[#1e293b]/50 border border-slate-700/50 rounded-xl h-full min-h-[180px] p-4 flex flex-col gap-2 overflow-y-auto">
+                <div class="bg-[#1e293b]/50 border border-slate-700/50 rounded-xl h-[240px] p-4 flex flex-col gap-2 overflow-y-auto">
                   <div v-if="customColumns.length === 0" class="m-auto text-center text-slate-500 text-xs flex flex-col items-center gap-2">
                     <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Aucune colonne personnalisée pour le moment.
@@ -185,14 +181,40 @@ const previewColumns = computed(() => {
       cols.push(cc)
     }
   })
+  
+  if (newCol.value.label.trim()) {
+    const draftCol = {
+      key: 'draft_col',
+      label: newCol.value.label.trim(),
+      type: newCol.value.type,
+      insertAfter: newCol.value.insertAfter
+    }
+    const insertIdx = cols.findIndex(c => c.key === draftCol.insertAfter)
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, draftCol)
+    } else {
+      cols.push(draftCol)
+    }
+  }
+  
   return cols
 })
 
 const close = () => {
   emit('update:visible', false)
+  newCol.value.label = '' // Reset when closing
 }
 
 const save = () => {
+  if (newCol.value.label.trim()) {
+    customColumns.value.push({
+      key: `custom_${Date.now()}`,
+      label: newCol.value.label.trim(),
+      type: newCol.value.type,
+      insertAfter: newCol.value.insertAfter
+    })
+    newCol.value.label = ''
+  }
   emit('update:modelValue', customColumns.value)
   emit('save', customColumns.value)
   close()

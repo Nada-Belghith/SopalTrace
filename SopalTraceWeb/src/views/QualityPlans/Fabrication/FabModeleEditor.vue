@@ -205,7 +205,7 @@ const {
 const modeleEditionId = ref(null);
 const codeOriginal = ref('');
 const statut = ref('BROUILLON');
-const version = ref(1);
+const version = ref(0);
 const showVersioningDialog = ref(false);
 const showColumnModal = ref(false);
 const versioningMode = ref('FAB');

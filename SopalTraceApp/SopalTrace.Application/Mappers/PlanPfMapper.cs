@@ -26,6 +26,7 @@ public static class PlanPfMapper
             ModifieLe = null,
             Remarques = string.Empty,
             LegendeMoyens = string.Empty,
+            ConfigurationColonnesJson = entite.Formulaire?.ConfigurationStructureJson,
             Sections = entite.PlanProduitFiniSections.OrderBy(s => s.OrdreAffiche).Select(MapSectionVersDto).ToList()
         };
     }

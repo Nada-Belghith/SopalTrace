@@ -37,7 +37,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const sections = ref([]);
   const isLoading = ref(false);
-  const version = ref(1);
+  const version = ref(0);
 
   const codeModeleAuto = computed(() => {
     const op = entete.value.operationCode || 'XXX';

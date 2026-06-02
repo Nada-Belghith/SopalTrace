@@ -35,6 +35,7 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
     {
         // 4 niveaux d'Include pour ramener l'arbre complet
         return await _context.PlanVerifMachineEntetes
+            .Include(p => p.Formulaire)
             .Include(p => p.PlanVerifMachineFamilles)
             .Include(p => p.PlanVerifMachineLignes)
                 .ThenInclude(l => l.PlanVerifMachineEcheances)

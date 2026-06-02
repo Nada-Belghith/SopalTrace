@@ -97,13 +97,6 @@
                     </div>
                   </div>
 
-                  <button 
-                    @click="addColumn" 
-                    class="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-black tracking-widest uppercase py-3.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-amber-500/10 mt-6"
-                  >
-                    <i class="pi pi-plus-circle text-sm"></i>
-                    Ajouter la colonne
-                  </button>
                 </div>
               </div>
 
@@ -338,7 +331,6 @@ const removeColumn = (index) => {
   })
 }
 
-// Compute table headers with custom columns correctly inserted
 const previewColumns = computed(() => {
   let cols = [...baseColumns]
   customColumns.value.forEach(cc => {
@@ -349,11 +341,37 @@ const previewColumns = computed(() => {
       cols.push(cc)
     }
   })
+  
+  if (newCol.value.label.trim()) {
+    const draftCol = {
+      key: 'draft_col',
+      label: newCol.value.label.trim(),
+      type: newCol.value.type,
+      insertAfter: newCol.value.insertAfter
+    }
+    const insertIdx = cols.findIndex(c => c.key === draftCol.insertAfter)
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, draftCol)
+    } else {
+      cols.push(draftCol)
+    }
+  }
+  
   return cols
 })
 
 // Save custom columns array to the backend DB as JSON
 const saveStructure = async () => {
+  if (newCol.value.label.trim()) {
+    customColumns.value.push({
+      key: `custom_${Date.now()}`,
+      label: newCol.value.label.trim(),
+      type: newCol.value.type,
+      insertAfter: newCol.value.insertAfter
+    })
+    newCol.value.label = ''
+  }
+
   isSaving.value = true
   try {
     const payload = {

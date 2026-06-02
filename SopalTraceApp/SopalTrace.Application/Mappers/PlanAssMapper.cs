@@ -307,7 +307,7 @@ public static class PlanAssMapper
         if (string.IsNullOrWhiteSpace(original)) return original;
         var regex = new System.Text.RegularExpressions.Regex(@"-[Vv]\d+$");
 
-        if (nouvelleVersion == 1)
+        if (nouvelleVersion == 0)
         {
             return regex.IsMatch(original) ? regex.Replace(original, "") : original;
         }

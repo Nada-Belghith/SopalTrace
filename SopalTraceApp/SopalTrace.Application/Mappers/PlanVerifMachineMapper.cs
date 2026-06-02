@@ -31,6 +31,8 @@ public static class PlanVerifMachineMapper
             AfficheFamilles = true,
             AfficheFuiteEtalon = GetAfficheFuiteEtalon(entete.MachineCode),
 
+            ConfigurationColonnesJson = entete.Formulaire?.ConfigurationStructureJson,
+
             ////Remarques = entete.Remarques,
             ////LegendeMoyens = entete.LegendeMoyens,
 

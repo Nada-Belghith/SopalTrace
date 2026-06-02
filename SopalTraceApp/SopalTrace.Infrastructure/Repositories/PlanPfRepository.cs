@@ -31,6 +31,7 @@ public class PlanPfRepository : IPlanPfRepository
     public async Task<PlanProduitFiniEntete?> GetPlanByIdAsync(Guid id)
     {
         return await _context.PlanProduitFiniEntetes
+            .Include(p => p.Formulaire)
             .Include(p => p.FamilleProduitFiniCodeNavigation)
             .Include(p => p.PlanProduitFiniSections)
                 .ThenInclude(s => s.PlanProduitFiniLignes)

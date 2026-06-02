@@ -26,7 +26,7 @@ public class HubService : IHubService
         var fabModeles = await _context.ModeleFabricationEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF")
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "FAB",
@@ -47,7 +47,7 @@ public class HubService : IHubService
         var assModeles = await _context.PlanAssemblageEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF")
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "ASS",
@@ -68,7 +68,7 @@ public class HubService : IHubService
         var vmModeles = await _context.PlanVerifMachineEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF")
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "VM",
@@ -103,7 +103,7 @@ public class HubService : IHubService
         // 5. PRODUIT FINI
         var pfModeles = await _context.PlanProduitFiniEntetes
             .AsNoTracking()
-            .Where(m => m.Statut == "ACTIF")
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "PF",
@@ -121,7 +121,7 @@ public class HubService : IHubService
         // 6. RÉSULTAT CONTRÔLE
         var ncModeles = await _context.PlanNonConformiteEntetes
             .AsNoTracking()
-            .Where(m => m.Statut == "ACTIF")
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RC",
@@ -147,7 +147,7 @@ public class HubService : IHubService
         var fabPlans = await _context.PlanFabricationEntetes
             .AsNoTracking()
             .Include(p => p.Formulaire)
-            .Where(p => p.Statut == "ACTIF")
+            .Where(p => p.Statut == "ACTIF" || p.Statut == "ARCHIVE" || p.Statut == "BROUILLON")
             .Include(p => p.ModeleSource)
             .Select(p => new HubPlanDto(
                 p.Id,
@@ -176,7 +176,7 @@ public class HubService : IHubService
             .Include(p => p.Formulaire)
             .Where(p => p.NatureArticleCode == "PISTON" || p.NatureArticleCode == "PF" || p.NatureArticleCode == null)
             .Where(p => p.OperationCode == "ASS") // Exclure les modèles génériques
-            .Where(p => p.Statut == "ACTIF") // Seulement les versions actives
+            .Where(p => p.Statut == "ACTIF" || p.Statut == "ARCHIVE" || p.Statut == "BROUILLON") // Seulement les versions actives
             .Select(p => new HubPlanDto(
                 p.Id,
                 "FAB",

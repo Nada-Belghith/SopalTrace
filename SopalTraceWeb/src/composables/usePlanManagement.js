@@ -15,7 +15,7 @@ export function usePlanManagement() {
   const planId = ref(null);
   const planData = ref(null);
   const statut = ref('BROUILLON');
-  const version = ref(1);
+  const version = ref(0);
   const codeArticleSage = ref('');
   const designation = ref('');
 
