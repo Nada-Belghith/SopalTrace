@@ -10,6 +10,23 @@
             </h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+              <!-- CHOIX RÉFÉRENCE FORMULAIRE -->
+              <div v-if="!isReadOnly && !store.entete.id" class="col-span-full mb-4 bg-emerald-50/50 border border-emerald-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4">
+                <label class="block text-[11px] font-black text-emerald-800 uppercase tracking-widest shrink-0">
+                  <i class="pi pi-file-import mr-1 text-emerald-600"></i> Réf. Formulaire *
+                </label>
+                <select 
+                  v-model="refFormulaireSelected" 
+                  class="w-full md:w-1/3 rounded px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500 transition-shadow bg-white border border-slate-300 text-slate-800 cursor-pointer shadow-sm">
+                  <option value="">-- Choisir un formulaire générique --</option>
+                  <option v-for="ref in store.formulairesReferences" :key="ref.id" :value="ref.id">
+                    {{ ref.codeReference }} - {{ ref.designation }}
+                  </option>
+                </select>
+                <p class="text-xs text-emerald-600/80 font-medium italic">
+                  La sélection du formulaire remplira automatiquement le poste.
+                </p>
+              </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-2 uppercase">Poste de travail concerné</label>
                 <select v-model="store.entete.posteCode" @change="onSelectionChange" :disabled="isReadOnly || store.entete.id" class="w-full border border-slate-200 rounded-lg py-2.5 px-4 text-sm focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-medium bg-slate-50">
@@ -20,10 +37,10 @@
                 </select>
               </div>
               
-              <div v-if="!isReadOnly && !store.entete.id" class="flex justify-end">
+              <div v-if="!isReadOnly && !store.entete.id" class="col-span-full flex justify-end mt-4">
                 <button @click="$refs.fileInput.click()" 
                         :disabled="store.isLoading || !store.entete.posteCode"
-                        class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg shadow-emerald-500/20">
+                        class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg shadow-emerald-500/20 w-full md:w-auto justify-center">
                   <i v-if="!store.isLoading" class="ri-file-excel-2-line text-lg"></i>
                   <i v-else class="ri-loader-4-line animate-spin text-lg"></i>
                   Importer Excel
@@ -139,7 +156,7 @@
 </template>
 
 <script setup>
-import { onMounted, computed, ref } from 'vue';
+import { onMounted, computed, ref, watch } from 'vue';
 import { usePlanNcStore } from '@/stores/planNcStore';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
@@ -148,6 +165,7 @@ import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+import { parseDesignation } from '@/utils/designationParser';
 
 defineProps({
     isReadOnly: { type: Boolean, default: false }
@@ -159,12 +177,17 @@ const confirm = useConfirm();
 const router = useRouter();
 const route = useRoute();
 const fileInput = ref(null);
+const refFormulaireSelected = ref('');
 
 const onCancel = () => {
     router.push('/dev/hub');
 };
 
 onMounted(async () => {
+  if (!props.isReadOnly && !store.entete.id) {
+    store.fetchFormulairesReferences('RESULTAT_CONTROLE');
+  }
+
   await store.fetchDictionnaires();
   await store.fetchTousLesPlans();
   
@@ -172,6 +195,20 @@ onMounted(async () => {
       await store.chargerPlanNc(route.params.id);
   } else {
       store.resetState();
+  }
+});
+
+watch(refFormulaireSelected, (newRefId) => {
+  if (!newRefId) return;
+  const refObj = store.formulairesReferences.find(r => r.id === newRefId);
+  if (!refObj) return;
+
+  const designation = refObj.designation || '';
+  const parsed = parseDesignation(designation, [], [], store.postes || []);
+
+  if (parsed.posteCode) {
+    store.entete.posteCode = parsed.posteCode;
+    onSelectionChange();
   }
 });
 

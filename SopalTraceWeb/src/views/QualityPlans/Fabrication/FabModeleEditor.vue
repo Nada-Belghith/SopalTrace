@@ -59,8 +59,12 @@
             </div>
           </div>
 
-          <div class="mb-4">
+          <div class="mb-4 flex items-center justify-between">
             <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrôle</h3>
+            <!-- CONFIGURATION COLONNES -->
+            <button v-if="!isReadOnly" @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center gap-2 transition-colors">
+              <i class="pi pi-sliders-h"></i> Configurer Colonnes
+            </button>
           </div>
 
           <template v-if="groupes.length === 0">
@@ -102,6 +106,7 @@
                   v-for="ligne in groupe.lignes" 
                   :key="ligne.id" 
                   :ligne="ligne"
+                  :columns="modeleColumns"
                   :is-read-only="isReadOnly"
                   :operation-code="store.entete?.operationCode"
                   @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
@@ -141,6 +146,12 @@
         </div>
       </div>
     </div>
+    
+    <!-- MODAL DE CONFIGURATION DES COLONNES -->
+    <ColumnConfigurator 
+      v-model:visible="showColumnModal"
+      v-model="store.entete.configurationColonnes"
+    />
   </div>
 </template>
 
@@ -165,6 +176,7 @@ import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import FabSectionCard from '@/components/Fabrication/FabSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 import { useEditorSections } from '@/composables/useEditorSections';
@@ -192,6 +204,7 @@ const codeOriginal = ref('');
 const statut = ref('BROUILLON');
 const version = ref(1);
 const showVersioningDialog = ref(false);
+const showColumnModal = ref(false);
 const versioningMode = ref('FAB');
 const isAutoVersioning = ref(false);
 
@@ -222,17 +235,36 @@ watch(
 );
 
 // ============================================================================
-// COLONNES RÉUTILISABLES
+// COLONNES RÉUTILISABLES ET DYNAMIQUES
 // ============================================================================
-const modeleColumns = [
-  { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Observations', width: 'flex-1' },
-  { label: '', width: 'w-12', textAlign: 'center' }
+const baseModeleColumns = [
+  { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
+  { key: 'limite_spec', label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
+  { key: 'type_controle', label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'code_instrument', label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'observations', label: 'Observations', width: 'flex-1' }
 ];
+
+const modeleColumns = computed(() => {
+  let cols = [...baseModeleColumns];
+  const customCols = store.entete.configurationColonnes || [];
+  
+  customCols.forEach(cc => {
+    const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
+    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', textAlign: 'center', isCustom: true };
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, newCol);
+    } else {
+      cols.push(newCol);
+    }
+  });
+
+  // Always add the actions column at the end
+  cols.push({ key: 'actions', label: '', width: 'w-12', textAlign: 'center' });
+  
+  return cols;
+});
 
 const isLoading = computed(() => store.isLoading);
 const isEditMode = computed(() => !!modeleEditionId.value);

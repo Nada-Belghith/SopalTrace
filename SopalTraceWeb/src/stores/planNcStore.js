@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { planNcService } from '@/services/planNcService';
+import { qualityPlansService } from '@/services/qualityPlansService';
 import { genererUid } from '@/utils/uuidUtils';
 
 export const usePlanNcStore = defineStore('planNc', () => {
@@ -8,6 +9,7 @@ export const usePlanNcStore = defineStore('planNc', () => {
   const postes = ref([]);
   const machines = ref([]);
   const risquesDefauts = ref([]);
+  const formulairesReferences = ref([]);
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU PLAN ---
@@ -74,6 +76,15 @@ export const usePlanNcStore = defineStore('planNc', () => {
       }
     } catch (error) {
       console.error('Erreur chargement dictionnaires PlanNC:', error);
+    }
+  };
+
+  const fetchFormulairesReferences = async (role) => {
+    try {
+      const response = await qualityPlansService.getFormulairesListByRole(role);
+      formulairesReferences.value = response.data?.data || [];
+    } catch (e) {
+      console.error("Erreur fetch formulaires:", e);
     }
   };
 
@@ -255,9 +266,9 @@ export const usePlanNcStore = defineStore('planNc', () => {
   };
 
   return {
-    postes, machines, risquesDefauts, isDicosLoaded,
+    postes, machines, risquesDefauts, isDicosLoaded, formulairesReferences,
     entete, lignes, isLoading, planInitialise, plansExistants,
-    fetchDictionnaires, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc,
+    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, initialiserNouveauPlan, chargerPlanNc,
     ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan,
     resetState, importerDepuisExcel
   };

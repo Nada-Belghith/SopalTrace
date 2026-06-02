@@ -60,6 +60,10 @@
               <i :class="isReadOnly ? 'pi pi-eye text-blue-400' : 'pi pi-sliders-v text-blue-400'"></i>
               {{ isReadOnly ? 'Visualisation du plan' : 'Éditeur de Structure' }}
             </div>
+            <!-- CONFIGURATION COLONNES -->
+            <button v-if="!isReadOnly" @click="showColumnModal = true" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center gap-2 transition-colors">
+              <i class="pi pi-sliders-h"></i> Configurer Colonnes
+            </button>
           </div>
 
           <div v-if="isLoadingData" class="py-20 text-center text-blue-500">
@@ -101,6 +105,7 @@
                     v-for="ligne in section.lignes" 
                     :key="ligne.id" 
                     :ligne="ligne"
+                    :columns="modeleColumns"
                     :is-read-only="isReadOnly"
                     :operation-code="'PF'"
                     @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
@@ -142,6 +147,12 @@
 
       </div>
     </div>
+    
+    <!-- MODAL DE CONFIGURATION DES COLONNES -->
+    <ColumnConfigurator 
+      v-model:visible="showColumnModal"
+      v-model="store.entete.configurationColonnes"
+    />
   </div>
 </template>
 
@@ -164,6 +175,7 @@ import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import Toast from 'primevue/toast';
 import { pfPlanService } from '@/services/pfPlanService';
 
@@ -178,6 +190,7 @@ const isLoadingData = ref(false);
 const isSaving = ref(false);
 const isVersioningSaving = ref(false);
 const showVersioningDialog = ref(false);
+const showColumnModal = ref(false);
 const versioningMode = ref('PF');
 const fileInput = ref(null);
 
@@ -306,17 +319,36 @@ const onFileSelected = async (event) => {
 };
 
 // ============================================================================
-// COLONNES RÉUTILISABLES
+// COLONNES RÉUTILISABLES ET DYNAMIQUES
 // ============================================================================
-const modeleColumns = [
-  { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Observations', width: 'flex-1' },
-  { label: '', width: 'w-12', textAlign: 'center' }
+const baseModeleColumns = [
+  { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
+  { key: 'limite_spec', label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
+  { key: 'type_controle', label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'code_instrument', label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'observations', label: 'Observations', width: 'flex-1' }
 ];
+
+const modeleColumns = computed(() => {
+  let cols = [...baseModeleColumns];
+  const customCols = store.entete.configurationColonnes || [];
+  
+  customCols.forEach(cc => {
+    const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
+    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', textAlign: 'center', isCustom: true };
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, newCol);
+    } else {
+      cols.push(newCol);
+    }
+  });
+
+  // Always add the actions column at the end
+  cols.push({ key: 'actions', label: '', width: 'w-12', textAlign: 'center' });
+  
+  return cols;
+});
 
 const isEditMode = computed(() => !!planId.value);
 const isArchived = computed(() => store.entete?.statut === 'ARCHIVE');

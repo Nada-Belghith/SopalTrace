@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { pfPlanService } from '@/services/pfPlanService';
+import { qualityPlansService } from '@/services/qualityPlansService';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
 export const usePfPlanStore = defineStore('pfPlan', () => {
@@ -15,6 +16,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   const instruments = ref([]); 
   const postes = ref([]);
   const reglesEchantillonnage = ref([]);
+  const formulairesReferences = ref([]);
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU PLAN ---
@@ -82,6 +84,15 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     } catch (apiError) {
       console.error("Erreur réseau (Dictionnaires):", apiError);
       throw apiError; 
+    }
+  };
+
+  const fetchFormulairesReferences = async (role) => {
+    try {
+      const response = await qualityPlansService.getFormulairesListByRole(role);
+      formulairesReferences.value = response.data?.data || [];
+    } catch (e) {
+      console.error("Erreur fetch formulaires:", e);
     }
   };
 
@@ -198,7 +209,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   return {
     typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle, 
     periodicites, typesSection, instruments, postes, isDicosLoaded, 
-    entete, sections, isLoading, reglesEchantillonnage,
-    fetchDictionnaires, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan
+    entete, sections, isLoading, reglesEchantillonnage, formulairesReferences,
+    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan
   };
 });

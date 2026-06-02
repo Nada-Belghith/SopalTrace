@@ -166,28 +166,20 @@ const est100Pourcent = computed(() => {
 });
 
 const titreCalcule = computed(() => {
+  // 1. Si l'utilisateur a saisi un texte personnalisé, on l'utilise EXACTEMENT tel quel
+  // (sans forcer le préfixe par défaut, pour permettre une personnalisation totale)
+  if (localSection.value.nom) {
+    const cleanNom = localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (cleanNom) {
+      return cleanNom;
+    }
+  }
+
+  // 2. Sinon, on génère le titre par défaut
   const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
   const baseTitle = typeSec 
     ? `${props.defaultTitle} ${typeSec.libelle}`
     : (localSection.value.libelleSection || props.defaultTitle);
-
-  if (localSection.value.nom) {
-    const cleanNom = localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
-    if (!cleanNom) return baseTitle;
-
-    // Si le suffixe/nom est déjà identique au titre de base, on ne duplique pas
-    if (cleanNom.toLowerCase() === baseTitle.toLowerCase()) {
-      return baseTitle;
-    }
-    
-    // Si le titre de base contient déjà ce suffixe, on le renvoie tel quel
-    if (baseTitle.toLowerCase().includes(cleanNom.toLowerCase())) {
-      return baseTitle;
-    }
-
-    // Sinon, on combine les deux (ex: "Caractéristiques à contrôler aux réglages test")
-    return `${baseTitle} ${cleanNom}`;
-  }
 
   return baseTitle;
 });

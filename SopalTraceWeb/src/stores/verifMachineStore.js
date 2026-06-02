@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { verifMachineService } from '@/services/verifMachineService';
+import { qualityPlansService } from '@/services/qualityPlansService';
 import { genererUid } from '@/utils/uuidUtils';
 
 /**
@@ -16,6 +17,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   const moyensDetection = ref([]);
   const piecesReference = ref([]);
   const fuitesEtalon = ref([]);
+  const formulairesReferences = ref([]);
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU PLAN ---
@@ -314,6 +316,15 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     }
   };
 
+  const fetchFormulairesReferences = async (role) => {
+    try {
+      const response = await qualityPlansService.getFormulairesListByRole(role);
+      formulairesReferences.value = response.data?.data || [];
+    } catch (e) {
+      console.error("Erreur fetch formulaires:", e);
+    }
+  };
+
   const fetchTousLesPlans = async () => {
     try {
       const response = await verifMachineService.getTousLesPlans();
@@ -551,7 +562,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   return {
-    machines, periodicites, famillesCorps, moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded,
+    machines, periodicites, famillesCorps, moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded, formulairesReferences,
     entete, familles, lignesConformite, lignesRisques,
     isLoading, planInitialise, plansExistants,
     genererUid, creerGroupVide, creerLigneVide,
@@ -560,7 +571,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,
     ajouterGroupPeriodicite, supprimerGroupPeriodicite, ajouterRowDetail, supprimerRowDetail,
     getPieceValue, setPieceValue,
-    fetchDictionnaires, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications,
+    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications,
     restaurerPlanVerif, importerDepuisExcel
   };
 });

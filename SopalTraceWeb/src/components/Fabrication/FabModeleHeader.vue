@@ -5,7 +5,7 @@
     <!-- CHOIX RÉFÉRENCE FORMULAIRE (Mode Assemblage Uniquement) -->
     <div v-if="isAssemblyMode && !isEditMode" class="col-span-full mb-4 bg-blue-50/50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4">
       <label class="block text-[11px] font-black text-blue-800 uppercase tracking-widest shrink-0">
-        <i class="pi pi-file-import mr-1 text-blue-600"></i> Réf. Formulaire (Modèle) *
+        <i class="pi pi-file-import mr-1 text-blue-600"></i> Réf. Formulaire  *
       </label>
       <select 
         v-model="refFormulaireSelected" 
@@ -86,29 +86,18 @@
           :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
-      <!-- CONFIGURATION COLONNES -->
-      <div v-if="!isReadOnly" class="col-span-full mt-4 flex justify-end">
-        <button @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded font-bold text-sm flex items-center gap-2 transition-colors">
-          <i class="pi pi-sliders-h"></i> Configurer Colonnes
-        </button>
-      </div>
     </div>
 
-    <!-- MODAL DE CONFIGURATION DES COLONNES -->
-    <ColumnConfigurator 
-      v-model:visible="showColumnModal"
-      v-model="store.entete.configurationColonnes"
-    />
+
   </div>
 </template>
 
 <script setup>
-import { computed, watch, ref, nextTick } from 'vue';
+import { computed, watch, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
-import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
+import { parseDesignation } from '@/utils/designationParser';
 
-const showColumnModal = ref(false);
 const store = useFabModeleStore();
 const route = useRoute();
 const props = defineProps({
@@ -133,47 +122,16 @@ watch(refFormulaireSelected, async (newRefId) => {
   if (!refObj) return;
 
   const designation = refObj.designation || '';
-  const d = designation.toUpperCase();
-
   isAutoFilling.value = true;
 
-  // 1. Famille (doit être définie avant l'opération pour éviter des problèmes de filtre Vue)
-  const validFamilies = [...(store.famillesProduit || [])].sort((a, b) => {
-    const codeA = (a.code || '').length;
-    const codeB = (b.code || '').length;
-    return codeB - codeA; // Trier par longueur décroissante pour matcher le plus précis d'abord
-  });
-  
-  const foundFamily = validFamilies.find(f => d.includes((f.code || '').toUpperCase()));
-  if (foundFamily) {
-     store.entete.familleProduitCode = foundFamily.code;
-  } else if (d.includes('MANU') || d.includes('MANUELLE')) {
-     const manuFamily = validFamilies.find(f => f.code === 'RBGFM');
-     if (manuFamily) store.entete.familleProduitCode = manuFamily.code;
-     else store.entete.familleProduitCode = '';
-  } else {
-     store.entete.familleProduitCode = '';
-  }
+  const parsed = parseDesignation(designation, store.famillesProduit || [], [], store.postes || []);
 
-  // 2. Article (natureComposantCode)
-  if (d.includes('PISTON')) store.entete.natureComposantCode = 'PISTON';
-  else if (d.includes('PF') || d.includes('RBGFA-BAC')) store.entete.natureComposantCode = 'PF';
-  else store.entete.natureComposantCode = '';
-  
-  // 3. Opération
-  if (d.includes('ASS') || d.includes('ASSEMBLAGE') || d.includes('PF')) {
-    store.entete.operationCode = 'ASS';
-  } else {
-    store.entete.operationCode = '';
-  }
+  if (parsed.familleCode !== '') store.entete.familleProduitCode = parsed.familleCode;
+  else store.entete.familleProduitCode = '';
 
-  // 4. Poste (if any PASxx)
-  const posteMatch = d.match(/PAS\d+/);
-  if (posteMatch) {
-    store.entete.posteCode = posteMatch[0];
-  } else {
-    store.entete.posteCode = '';
-  }
+  store.entete.natureComposantCode = parsed.natureComposantCode;
+  store.entete.operationCode = parsed.operationCode;
+  store.entete.posteCode = parsed.posteCode;
 
   // Set the gabarit title exactly as the designation to keep it as reference
   store.entete.libelle = designation;
