@@ -29,7 +29,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     afficheMoyenDetectionRisques: true,
     afficheFamilles: true,
     afficheFuiteEtalon: false,
-    version: 1,
+    version: 0,
     statut: 'ACTIF',
     remarques: '',
     legendeMoyens: '',
@@ -208,11 +208,12 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const resetPlan = () => {
-    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 1, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
+    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
     familles.value = [];
     lignesConformite.value = [];
     lignesRisques.value = [];
     planInitialise.value = false;
+    plansExistants.value = [];
     snapshotOriginal.value = null;
   };
 
@@ -357,7 +358,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         afficheMoyenDetectionRisques: data.afficheMoyenDetectionRisques,
         afficheFamilles: data.afficheFamilles,
         afficheFuiteEtalon: data.afficheFuiteEtalon,
-        version: data.version || 1,
+        version: data.version ?? 0,
         statut: data.statut || 'ACTIF',
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
@@ -485,6 +486,9 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         lignesRisques.value = [];
       }
 
+      // Re-charger les dictionnaires pour inclure les éventuelles nouvelles pièces créées par le backend
+      await fetchDictionnaires(true);
+
       // ✅ IMPORT DES FAMILLES DÉTECTÉES DANS L'EXCEL
       if (data.familles?.length > 0) {
         // On ne vide plus les familles existantes pour préserver les ajouts manuels
@@ -566,19 +570,30 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
             }))
           }))
         }));
-
       };
 
-      if (data.lignesConformite?.length > 0) {
-        lignesConformite.value = mapLignes(data.lignesConformite);
-        entete.value.afficheConformite = true;
-      }
-      if (data.lignesRisques?.length > 0) {
-        lignesRisques.value = mapLignes(data.lignesRisques);
-      }
+      const checkMachineSansConformite = (machineCode) => {
+        if (!machineCode) return false;
+        const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
+        return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
+               code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
+      };
 
-      // Re-charger les dictionnaires pour inclure les éventuelles nouvelles pièces créées
-      await fetchDictionnaires(true); // Passer true pour forcer le rechargement
+      if (checkMachineSansConformite(entete.value.machineCode)) {
+        // Force all lines into Risques if the machine doesn't support Conformite
+        const combinedLines = [...(data.lignesConformite || []), ...(data.lignesRisques || [])];
+        if (combinedLines.length > 0) {
+          lignesRisques.value = mapLignes(combinedLines);
+        }
+      } else {
+        if (data.lignesConformite?.length > 0) {
+          lignesConformite.value = mapLignes(data.lignesConformite);
+          entete.value.afficheConformite = true;
+        }
+        if (data.lignesRisques?.length > 0) {
+          lignesRisques.value = mapLignes(data.lignesRisques);
+        }
+      }
 
       return { success: true };
     } finally {

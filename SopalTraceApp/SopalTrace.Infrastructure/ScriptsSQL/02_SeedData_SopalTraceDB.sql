@@ -1,4 +1,4 @@
-﻿-- =================================================================================
+-- =================================================================================
 -- SCRIPT MASTER V7.0.0 - JEU DE DONNÉES (SEED DATA) V3.0
 -- 100% Adapté à la base sans table 'Composant' et avec 'SF' inclus.
 -- =================================================================================
@@ -101,7 +101,11 @@ INSERT INTO dbo.Ref_FamilleCorps (Code, Designation) VALUES
 ('C_25B0A01', 'Corps (25B0A01)'), 
 ('C_25AXA01', 'Corps (25AXA01)'), 
 ('C_25AWA01', 'Corps (25AWA01)'), 
-('C_25UA01', 'Corps (25UA01)');
+('C_25UA01', 'Corps (25UA01)'),
+('C_25A8A01', 'Corps (25A8A01)'),
+('C_2588A01', 'Corps (2588A01)'),
+('C_2576A01', 'Corps (2576A01)'),
+('C_2519A01', 'Corps (2519A01)');
 
 INSERT INTO dbo.Ref_MoyenDetection (Code, Designation) VALUES 
 ('PRC', 'PRC'), 
@@ -389,7 +393,10 @@ INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
 SELECT 'MAS22', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('F_30_35', 'F_23', 'FAM_40_43_44', 'FAM_49');
 
 INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
-SELECT 'BEE46', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
+SELECT 'BEE46', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25A8A01', 'C_2588A01', 'C_2576A01', 'C_2519A01');
+
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'BEE47', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('F_30_35', 'F_23', 'FAM_40_43_44', 'FAM_49');
 
 INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
 SELECT 'BEE22', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');

@@ -123,8 +123,9 @@ public partial class ExcelImportService
         for (int j = 0; j <= map.HeaderBottomRow && j < rows.Count; j++)
         {
             string txt = NormalizeForSearch(string.Join(" ", rows[j].CellsUsed().Select(c => SafeGetCellValue(c))));
-            if (MatchesAny(txt, CaractKeywords) && !MatchesAny(txt, ConformiteKeywords)) inConformite = false;
-            else if (MatchesAny(txt, ConformiteKeywords)) inConformite = true;
+            bool hasConformiteInitial = MatchesAny(txt, ConformiteKeywords) && !txt.Contains("nonconformit");
+            if (MatchesAny(txt, CaractKeywords) && !hasConformiteInitial) inConformite = false;
+            else if (hasConformiteInitial) inConformite = true;
         }
 
         ImportVerifMachineLigneDto? currentLigne = null;
@@ -153,7 +154,9 @@ public partial class ExcelImportService
             if (map.HeaderBottomRow > -1 && row.RowNumber() <= map.HeaderBottomRow) continue;
 
             // 1. DÉTECTION DE CHANGEMENT DE SECTION (Header)
-            bool isSectionTitle = MatchesAny(normalizedFullText, ConformiteKeywords) || 
+            bool hasConformiteTitle = MatchesAny(normalizedFullText, ConformiteKeywords) && !normalizedFullText.Contains("nonconformit");
+            
+            bool isSectionTitle = hasConformiteTitle || 
                                   MatchesAny(normalizedFullText, CaractKeywords);
 
             bool isHeaderRow = isSectionTitle || row.CellsUsed().Any(c => {
@@ -165,8 +168,8 @@ public partial class ExcelImportService
 
             if (isHeaderRow)
             {
-                if (MatchesAny(normalizedFullText, CaractKeywords) && !MatchesAny(normalizedFullText, ConformiteKeywords)) inConformite = false;
-                else if (MatchesAny(normalizedFullText, ConformiteKeywords)) inConformite = true;
+                if (MatchesAny(normalizedFullText, CaractKeywords) && !hasConformiteTitle) inConformite = false;
+                else if (hasConformiteTitle) inConformite = true;
                 
                 currentLigne = null;
                 
