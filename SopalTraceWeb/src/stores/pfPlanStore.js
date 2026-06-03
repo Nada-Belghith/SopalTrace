@@ -142,7 +142,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         if (hydrated.lignes) {
           hydrated.lignes = hydrated.lignes.map(l => ({
             ...l,
-            valeursColonnesSpecifiques: l.colonnesSupplementaires ? JSON.parse(l.colonnesSupplementaires) : {}
+            valeursColonnesSpecifiques: l.colonnesSupplementaires ? (typeof l.colonnesSupplementaires === 'string' ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires) : {}
           }));
         }
         

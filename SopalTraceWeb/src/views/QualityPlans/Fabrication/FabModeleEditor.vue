@@ -369,6 +369,12 @@ const onFileSelected = async (event) => {
 
   const formData = new FormData();
   formData.append('file', file);
+  if (store.entete.configurationColonnes) {
+    const configJson = typeof store.entete.configurationColonnes === 'string'
+      ? store.entete.configurationColonnes
+      : JSON.stringify(store.entete.configurationColonnes);
+    formData.append('configurationColonnesJson', configJson);
+  }
 
   try {
     store.isLoading = true;
@@ -416,7 +422,8 @@ const onFileSelected = async (event) => {
                     observations: lig.observations || '',
                     instruction: lig.instruction || '',
                     estCritique: lig.estCritique || false,
-                    libelleAffiche: lig.libelleAffiche || ''
+                    libelleAffiche: lig.libelleAffiche || '',
+                    valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
                   }))
                 : [] // ✅ Sections sans lignes (complexes) restent vides pour édition
             };
@@ -576,7 +583,7 @@ const chargerModelePourEdition = async (id) => {
           limiteSpecTexte: lig.limiteSpecTexte || '',
           observations: lig.observations || '',
           moyenTexteLibre: lig.moyenTexteLibre || '',
-          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {}
+          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
         }))
       };
     });

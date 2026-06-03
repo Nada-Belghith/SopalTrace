@@ -30,4 +30,6 @@ public class ImportNcLigneDto
 
     /// <summary>Désignation du défaut tel que renseigné dans la colonne B du fichier.</summary>
     public string LibelleDefaut { get; set; } = string.Empty;
+
+    public Dictionary<string, string> ColonnesSupplementaires { get; set; } = new();
 }

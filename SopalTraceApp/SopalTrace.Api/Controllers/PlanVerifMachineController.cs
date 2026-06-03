@@ -182,7 +182,7 @@ public class PlanVerifMachineController : ControllerBase
     }
 
     [HttpPost("import-excel")]
-    public async Task<IActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
+    public async Task<IActionResult> ImportExcel(IFormFile file, [FromForm] string configurationColonnesJson, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { success = false, message = "Veuillez sélectionner un fichier." });
@@ -190,7 +190,7 @@ public class PlanVerifMachineController : ControllerBase
         try
         {
             using var stream = file.OpenReadStream();
-            var result = await excelService.ParseVerifMachineExcelAsync(stream, file.FileName);
+            var result = await excelService.ParseVerifMachineExcelAsync(stream, file.FileName, configurationColonnesJson);
             return Ok(new { success = true, data = result });
         }
         catch (Exception ex)

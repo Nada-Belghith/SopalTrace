@@ -65,6 +65,8 @@ public partial class ExcelImportService : IExcelImportService
         public int MoyenCol { get; set; } = 4;
         public int InstCol { get; set; } = 5;
         public List<int> ObsCols { get; set; } = new List<int>();
+        public Dictionary<int, string> CustomCols { get; set; } = new(); // ColumnNumber -> CustomKey
+        public Dictionary<string, string> CustomColsDefinition { get; set; } = new(); // NormLabel -> Key
     }
 
     private class VerifMachineColumnMapping
@@ -77,6 +79,8 @@ public partial class ExcelImportService : IExcelImportService
         public int PieceRefEndCol { get; set; } = 4;
         public int? FuiteCol { get; set; } = null;
         public Dictionary<int, string> Familles { get; set; } = new();
+        public Dictionary<int, string> CustomCols { get; set; } = new(); // ColumnNumber -> CustomKey
+        public Dictionary<string, string> CustomColsDefinition { get; set; } = new(); // NormLabel -> Key
         public int HeaderBottomRow { get; set; } = -1;
     }
 
@@ -124,7 +128,7 @@ public partial class ExcelImportService : IExcelImportService
         catch { return ""; }
     }
 
-    public async Task<ImportExcelResultDto> ParsePlanExcelAsync(Stream excelStream, string fileName)
+    public async Task<ImportExcelResultDto> ParsePlanExcelAsync(Stream excelStream, string fileName, string configurationColonnesJson = null)
     {
         if (fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             return await ParseCsvAsync(excelStream);
@@ -138,6 +142,32 @@ public partial class ExcelImportService : IExcelImportService
         if (!rows.Any()) return result;
 
         var map = new PlanColumnMapping();
+        
+        var customColsDefinition = new Dictionary<string, string>(); // NormLabel -> Key
+        if (!string.IsNullOrWhiteSpace(configurationColonnesJson))
+        {
+            try
+            {
+                var customCols = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(configurationColonnesJson);
+                if (customCols != null)
+                {
+                    foreach (var col in customCols)
+                    {
+                        if (col.TryGetValue("key", out var keyObj) && col.TryGetValue("label", out var labelObj))
+                        {
+                            var key = keyObj?.ToString();
+                            var label = NormalizeForSearch(labelObj?.ToString() ?? "");
+                            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(label))
+                            {
+                                customColsDefinition[label] = key;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
         ImportExcelSectionDto currentSection = null;
 
         for (int i = 0; i < rows.Count; i++)
@@ -214,6 +244,7 @@ public partial class ExcelImportService : IExcelImportService
             if (isHeaderRow)
             {
                 map = new PlanColumnMapping();
+                map.CustomColsDefinition = customColsDefinition;
                 foreach (var cell in row.CellsUsed())
                 {
                     string val = NormalizeForSearch(SafeGetCellValue(cell));
@@ -225,6 +256,7 @@ public partial class ExcelImportService : IExcelImportService
                     else if (MatchesAny(val, MoyenKeywords)) map.MoyenCol = cIdx;
                     else if (MatchesAny(val, TypeKeywords) || (MatchesAny(val, ControleKeywords) && !MatchesAny(val, MoyenKeywords))) map.TypeCol = cIdx;
                     else if (MatchesAny(val, ObsKeywords)) map.ObsCols.Add(cIdx);
+                    else if (map.CustomColsDefinition.TryGetValue(val, out var customKey)) map.CustomCols[cIdx] = customKey;
                 }
                 
                 if (map.InstCol == 5 && !SafeGetCellValue(row.Cell(map.InstCol)).ToLower().Contains("code"))
@@ -276,19 +308,44 @@ public partial class ExcelImportService : IExcelImportService
             int evalCaractCol = map.IsInitialized ? map.CaractCol : 1;
             string colCaract = SafeGetCellValue(row.Cell(evalCaractCol));
 
-            if (string.IsNullOrEmpty(colCaract)) continue;
+            bool rowHasOtherData = false;
+            if (map.IsInitialized)
+            {
+                rowHasOtherData = !string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(map.LimiteCol))) ||
+                                  !string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(map.TypeCol))) ||
+                                  !string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(map.MoyenCol))) ||
+                                  !string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(map.InstCol)));
+                
+                if (!rowHasOtherData)
+                {
+                    foreach (var colIdx in map.ObsCols)
+                    {
+                        if (!string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(colIdx)))) { rowHasOtherData = true; break; }
+                    }
+                }
+                
+                if (!rowHasOtherData)
+                {
+                    foreach (var colIdx in map.CustomCols.Keys)
+                    {
+                        if (!string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(colIdx)))) { rowHasOtherData = true; break; }
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(colCaract) && !rowHasOtherData) continue;
 
             if (currentSection != null && map.IsInitialized)
             {
-                string colLimite = SafeGetCellValue(row.Cell(map.LimiteCol));
-                string colType = SafeGetCellValue(row.Cell(map.TypeCol));
-
-                if (!string.IsNullOrEmpty(colLimite) || !string.IsNullOrEmpty(colType))
+                if (rowHasOtherData)
                 {
                     var ligne = await ParseLigneAsync(row, map);
                     currentSection.Lignes.Add(ligne);
                 }
-                else result.Remarques += colCaract + "\n";
+                else if (!string.IsNullOrWhiteSpace(colCaract))
+                {
+                    result.Remarques += colCaract + "\n";
+                }
             }
         }
         return result;
@@ -374,6 +431,18 @@ public partial class ExcelImportService : IExcelImportService
             if (!string.IsNullOrWhiteSpace(obs)) obsList.Add(obs);
         }
         ligne.Observations = string.Join(" - ", obsList);
+
+        if (map.CustomCols.Count > 0)
+        {
+            foreach (var kvp in map.CustomCols)
+            {
+                string cVal = SafeGetCellValue(row.Cell(kvp.Key));
+                if (!string.IsNullOrWhiteSpace(cVal))
+                {
+                    ligne.ColonnesSupplementaires[kvp.Value] = cVal;
+                }
+            }
+        }
 
         return await CompleteParseLigneAsync(ligne, typeControle, moyenControle, limiteSpec);
     }

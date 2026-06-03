@@ -413,7 +413,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       _uid: genererUid(),
       libelleRisque: ligne.libelleRisque || '',
       libelleMethode: ligne.libelleMethode || '',
-      valeursColonnesSpecifiques: ligne.colonnesSupplementaires ? JSON.parse(ligne.colonnesSupplementaires) : {},
+      valeursColonnesSpecifiques: ligne.colonnesSupplementaires ? (typeof ligne.colonnesSupplementaires === 'string' ? JSON.parse(ligne.colonnesSupplementaires) : ligne.colonnesSupplementaires) : {},
       groups: groups.length > 0 ? groups : [creerGroupVide()],
     };
   };
@@ -463,7 +463,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   const importerDepuisExcel = async (file) => {
     isLoading.value = true;
     try {
-      const response = await verifMachineService.importExcel(file);
+      const configColonnesJson = typeof entete.value.configurationColonnes === 'string'
+        ? entete.value.configurationColonnes
+        : JSON.stringify(entete.value.configurationColonnes || []);
+
+      const response = await verifMachineService.importExcel(file, configColonnesJson);
       const data = response.data.data;
 
       // ✅ REFRESH DICTIONARIES (Backend might have created new families/pieces)
@@ -516,7 +520,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
           _uid: genererUid(),
           libelleRisque: li.libelleRisque,
           libelleMethode: li.libelleMethode,
-          valeursColonnesSpecifiques: {},
+          valeursColonnesSpecifiques: li.colonnesSupplementaires || {},
           groups: li.echeances.map(ech => ({
             _uid: genererUid(),
             periodiciteId: ech.periodiciteId || '',

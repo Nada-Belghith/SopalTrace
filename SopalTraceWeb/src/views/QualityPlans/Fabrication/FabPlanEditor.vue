@@ -559,6 +559,12 @@
 
     const formData = new FormData();
     formData.append('file', file);
+    if (plan.value?.configurationColonnesJson) {
+      const configJson = typeof plan.value.configurationColonnesJson === 'string'
+        ? plan.value.configurationColonnesJson
+        : JSON.stringify(plan.value.configurationColonnesJson);
+      formData.append('configurationColonnesJson', configJson);
+    }
 
     try {
       wizard.isGenerating.value = true;
@@ -980,7 +986,7 @@
             observations: lig.observations || '',
             estCritique: lig.estCritique,
             libelleAffiche: lig.libelleAffiche,
-            valeursColonnesSpecifiques: lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {}
+            valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
           }))
         };
       });

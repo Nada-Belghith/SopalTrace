@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlansNC;
 using SopalTrace.Application.Interfaces;
@@ -62,14 +63,23 @@ public class PlanNcController : ControllerBase
 
     [HttpPost("import-excel")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
+    public async Task<IActionResult> ImportExcel(IFormFile file, [FromForm] string configurationColonnesJson, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
-            return BadRequest(new { success = false, message = "Aucun fichier fourni." });
+            return BadRequest(new { success = false, message = "Fichier manquant." });
 
-        using var stream = file.OpenReadStream();
-        var result = await excelService.ParsePlanNcExcelAsync(stream, file.FileName);
-        return Ok(new { success = true, data = result });
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { success = false, message = "Seuls les fichiers Excel (.xlsx) sont supportés." });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var parsedData = await excelService.ParsePlanNcExcelAsync(stream, file.FileName, configurationColonnesJson);
+            return Ok(new { success = true, data = parsedData });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 }
-

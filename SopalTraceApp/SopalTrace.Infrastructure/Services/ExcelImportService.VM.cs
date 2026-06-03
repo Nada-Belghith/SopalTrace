@@ -16,10 +16,34 @@ public partial class ExcelImportService
     // =========================================================================
     // VERIF MACHINE (inchangé)
     // =========================================================================
-    private VerifMachineColumnMapping BuildVMMap(List<IXLRow> rows, int startIdx)
+    private VerifMachineColumnMapping BuildVMMap(List<IXLRow> rows, int startIdx, string configurationColonnesJson = null)
     {
         var map = new VerifMachineColumnMapping();
         var searchRows = rows.Skip(startIdx).Take(8).ToList();
+        
+        if (!string.IsNullOrWhiteSpace(configurationColonnesJson))
+        {
+            try
+            {
+                var customCols = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(configurationColonnesJson);
+                if (customCols != null)
+                {
+                    foreach (var col in customCols)
+                    {
+                        if (col.TryGetValue("key", out var keyObj) && col.TryGetValue("label", out var labelObj))
+                        {
+                            var key = keyObj?.ToString();
+                            var label = NormalizeForSearch(labelObj?.ToString() ?? "");
+                            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(label))
+                            {
+                                map.CustomColsDefinition[label] = key;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
 
         foreach (var r in searchRows)
         {
@@ -46,6 +70,10 @@ public partial class ExcelImportService
                         else map.PieceRefEndCol = cNum;
                     }
                 }
+                else if (map.CustomColsDefinition.TryGetValue(val, out var customKey))
+                {
+                    map.CustomCols[cNum] = customKey;
+                }
             }
         }
 
@@ -70,7 +98,7 @@ public partial class ExcelImportService
         return map;
     }
 
-    public async Task<ImportVerifMachineExcelResultDto> ParseVerifMachineExcelAsync(Stream excelStream, string fileName)
+    public async Task<ImportVerifMachineExcelResultDto> ParseVerifMachineExcelAsync(Stream excelStream, string fileName, string configurationColonnesJson = null)
     {
         ResetCaches();
         var result = new ImportVerifMachineExcelResultDto();
@@ -82,7 +110,7 @@ public partial class ExcelImportService
         if (fileNameMatch.Success) result.MachineCode = fileNameMatch.Groups[1].Value;
 
         var rows = worksheet.RowsUsed().ToList();
-        var map = BuildVMMap(rows, 0);
+        var map = BuildVMMap(rows, 0, configurationColonnesJson);
 
         foreach (var fam in map.Familles.Values)
         {
@@ -155,6 +183,7 @@ public partial class ExcelImportService
                     map.MoyenDetCol = null;
                     map.PieceRefStartCol = 0;
                     map.FuiteCol = null;
+                    map.CustomCols.Clear();
 
                     foreach (var c in row.CellsUsed())
                     {
@@ -175,6 +204,10 @@ public partial class ExcelImportService
                             }
                         }
                         else if (val.Contains("fuite") && val.Contains("etalon")) map.FuiteCol = c.Address.ColumnNumber;
+                        else if (map.CustomColsDefinition.TryGetValue(val, out var customKey))
+                        {
+                            map.CustomCols[c.Address.ColumnNumber] = customKey;
+                        }
                     }
                 }
                 continue;
@@ -209,9 +242,23 @@ public partial class ExcelImportService
             string colB = string.IsNullOrWhiteSpace(rawColB) ? lastSeenMethode : rawColB;
             string colC = string.IsNullOrWhiteSpace(rawColC) ? lastSeenPerio : rawColC;
 
-            // Une ligne est valide si elle a un libellé OU une période OU une pièce de référence
+            // Une ligne est valide si elle a un libellé OU une période OU une pièce de référence OU une colonne personnalisée
             bool hasPieceInRow = map.PieceRefStartCol > 0 && !string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(map.PieceRefStartCol)));
-            if (string.IsNullOrWhiteSpace(colA) && string.IsNullOrWhiteSpace(colB) && string.IsNullOrWhiteSpace(colC) && !hasPieceInRow) continue;
+            
+            bool hasCustomColumnInRow = false;
+            if (map.CustomCols.Count > 0)
+            {
+                foreach (var colIdx in map.CustomCols.Keys)
+                {
+                    if (!string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(colIdx))))
+                    {
+                        hasCustomColumnInRow = true;
+                        break;
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(colA) && string.IsNullOrWhiteSpace(colB) && string.IsNullOrWhiteSpace(colC) && !hasPieceInRow && !hasCustomColumnInRow) continue;
 
             if (!string.IsNullOrWhiteSpace(colA) || !string.IsNullOrWhiteSpace(colB) || currentLigne == null)
             {
@@ -232,6 +279,19 @@ public partial class ExcelImportService
 
                     if (inConformite) result.LignesConformite.Add(currentLigne);
                     else result.LignesRisques.Add(currentLigne);
+                }
+
+                // Add or update custom columns values
+                if (map.CustomCols.Count > 0)
+                {
+                    foreach (var kvp in map.CustomCols)
+                    {
+                        string cVal = SafeGetCellValue(row.Cell(kvp.Key));
+                        if (!string.IsNullOrWhiteSpace(cVal))
+                        {
+                            currentLigne.ColonnesSupplementaires[kvp.Value] = cVal;
+                        }
+                    }
                 }
             }
 

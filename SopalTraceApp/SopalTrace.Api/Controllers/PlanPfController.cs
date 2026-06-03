@@ -119,7 +119,7 @@ public class PlanPfController : ControllerBase
 
     [HttpPost("import-excel")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
+    public async Task<ActionResult> ImportExcel(IFormFile file, [FromForm] string configurationColonnesJson, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });
@@ -130,7 +130,7 @@ public class PlanPfController : ControllerBase
         try
         {
             using var stream = file.OpenReadStream();
-            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName);
+            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName, configurationColonnesJson);
             return Ok(new { message = "Import réussi", data = parsedData });
         }
         catch (Exception ex)
