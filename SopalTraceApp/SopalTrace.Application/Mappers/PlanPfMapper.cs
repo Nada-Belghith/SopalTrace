@@ -138,9 +138,9 @@ public static class PlanPfMapper
                     ligneEntity = existingLigne;
                     ligneEntity.SectionId = sectionId;
                     ligneEntity.OrdreAffiche = lDto.OrdreAffiche;
-                    ligneEntity.TypeCaracteristiqueId = MapperHelper.NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty;
+                    ligneEntity.TypeCaracteristiqueId = MapperHelper.NullIfEmpty(lDto.TypeCaracteristiqueId);
                     ligneEntity.LibelleAffiche = MapperHelper.NullIfEmpty(lDto.LibelleAffiche);
-                    ligneEntity.TypeControleId = MapperHelper.NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty;
+                    ligneEntity.TypeControleId = MapperHelper.NullIfEmpty(lDto.TypeControleId);
                     ligneEntity.MoyenControleId = MapperHelper.NullIfEmpty(lDto.MoyenControleId);
                     ligneEntity.InstrumentCode = MapperHelper.NullIfEmpty(instrumentData.InstrumentCode);
                     ligneEntity.MoyenTexteLibre = MapperHelper.NullIfEmpty(instrumentData.MoyenTexteLibre);
@@ -159,9 +159,9 @@ public static class PlanPfMapper
                         PlanEnteteId = entite.Id,
                         SectionId = sectionId,
                         OrdreAffiche = lDto.OrdreAffiche,
-                        TypeCaracteristiqueId = MapperHelper.NullIfEmpty(lDto.TypeCaracteristiqueId) ?? Guid.Empty,
+                        TypeCaracteristiqueId = MapperHelper.NullIfEmpty(lDto.TypeCaracteristiqueId),
                         LibelleAffiche = MapperHelper.NullIfEmpty(lDto.LibelleAffiche),
-                        TypeControleId = MapperHelper.NullIfEmpty(lDto.TypeControleId) ?? Guid.Empty,
+                        TypeControleId = MapperHelper.NullIfEmpty(lDto.TypeControleId),
                         MoyenControleId = MapperHelper.NullIfEmpty(lDto.MoyenControleId),
                         InstrumentCode = MapperHelper.NullIfEmpty(instrumentData.InstrumentCode),
                         MoyenTexteLibre = MapperHelper.NullIfEmpty(instrumentData.MoyenTexteLibre),

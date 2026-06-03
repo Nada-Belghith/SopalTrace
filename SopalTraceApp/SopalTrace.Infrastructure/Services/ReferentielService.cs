@@ -423,7 +423,7 @@ public class ReferentielService : IReferentielService
                 Id = Guid.NewGuid(),
                 CodeReference = code,
                 Designation = $"Formulaire {code}",
-                Version = 0,
+                Version = 1,
                 Statut = "ACTIF",
                 CreeLe = DateTime.UtcNow,
                 Role = role,

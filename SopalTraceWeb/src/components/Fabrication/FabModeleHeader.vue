@@ -148,7 +148,10 @@ watch(refFormulaireSelected, async (newRefId) => {
         : refObj.configurationStructureJson;
     } catch (e) {
       console.error("Erreur parsing configuration colonnes:", e);
+      store.entete.configurationColonnes = [];
     }
+  } else {
+    store.entete.configurationColonnes = [];
   }
 
   // Libérer le flag après la propagation de la réactivité

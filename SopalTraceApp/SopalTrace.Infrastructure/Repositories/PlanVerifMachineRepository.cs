@@ -86,6 +86,26 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
         return machine?.RefFamilleCorps?.ToList() ?? new List<RefFamilleCorp>();
     }
 
+    public async Task SyncMachineFamillesAsync(string machineCode, List<Guid> refFamilleCorpsIds)
+    {
+        var machine = await _context.Machines
+            .Include(m => m.RefFamilleCorps)
+            .FirstOrDefaultAsync(m => m.CodeMachine == machineCode);
+
+        if (machine != null)
+        {
+            machine.RefFamilleCorps.Clear();
+            foreach (var id in refFamilleCorpsIds)
+            {
+                var refFam = await _context.RefFamilleCorps.FindAsync(id);
+                if (refFam != null)
+                {
+                    machine.RefFamilleCorps.Add(refFam);
+                }
+            }
+        }
+    }
+
     public void RemoveLigne(PlanVerifMachineLigne ligne) => _context.PlanVerifMachineLignes.Remove(ligne);
     public void RemoveEcheance(PlanVerifMachineEcheance echeance) => _context.PlanVerifMachineEcheances.Remove(echeance);
     public void RemoveMatricePiece(PlanVerifMachineMatricePiece matricePiece) => _context.Remove(matricePiece);

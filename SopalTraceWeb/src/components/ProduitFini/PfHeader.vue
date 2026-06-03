@@ -75,5 +75,19 @@ watch(refFormulaireSelected, (newRefId) => {
   if (parsed.familleCode) {
     store.entete.familleProduitFiniCode = parsed.familleCode;
   }
+
+  // Appliquer la configuration des colonnes du formulaire sélectionné
+  if (refObj.configurationStructureJson) {
+    try {
+      store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
+        ? JSON.parse(refObj.configurationStructureJson) 
+        : refObj.configurationStructureJson;
+    } catch (e) {
+      console.error("Erreur parsing configuration colonnes:", e);
+      store.entete.configurationColonnes = [];
+    }
+  } else {
+    store.entete.configurationColonnes = [];
+  }
 });
 </script>

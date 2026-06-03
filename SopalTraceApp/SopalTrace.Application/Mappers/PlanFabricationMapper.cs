@@ -172,8 +172,8 @@ public static class PlanFabricationMapper
         {
             PlanEnteteId = planId, SectionId = sectionId, ModeleLigneSourceId = MapperHelper.NullIfEmpty(dto.ModeleLigneSourceId),
             OrdreAffiche = dto.OrdreAffiche, 
-            TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId) ?? Guid.Empty, 
-            TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId) ?? Guid.Empty,
+            TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId), 
+            TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId),
             LibelleAffiche = string.IsNullOrWhiteSpace(dto.LibelleAffiche) ? null : dto.LibelleAffiche, EstCritique = dto.EstCritique,
             MoyenControleId = MapperHelper.NullIfEmpty(dto.MoyenControleId), PeriodiciteId = MapperHelper.NullIfEmpty(dto.PeriodiciteId),
             InstrumentCode = instrumentData.InstrumentCode, MoyenTexteLibre = instrumentData.MoyenTexteLibre,
@@ -188,8 +188,8 @@ public static class PlanFabricationMapper
         var instrumentData = MapperHelper.NormalizeInstrumentCode(dto.InstrumentCode);
 
         ligne.OrdreAffiche = dto.OrdreAffiche; 
-        ligne.TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId) ?? Guid.Empty; 
-        ligne.TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId) ?? Guid.Empty;
+        ligne.TypeCaracteristiqueId = MapperHelper.NullIfEmpty(dto.TypeCaracteristiqueId); 
+        ligne.TypeControleId = MapperHelper.NullIfEmpty(dto.TypeControleId);
         ligne.LibelleAffiche = string.IsNullOrWhiteSpace(dto.LibelleAffiche) ? null : dto.LibelleAffiche; ligne.EstCritique = dto.EstCritique;
         ligne.MoyenControleId = MapperHelper.NullIfEmpty(dto.MoyenControleId); ligne.PeriodiciteId = MapperHelper.NullIfEmpty(dto.PeriodiciteId);
         ligne.InstrumentCode = instrumentData.InstrumentCode; ligne.MoyenTexteLibre = instrumentData.MoyenTexteLibre; 

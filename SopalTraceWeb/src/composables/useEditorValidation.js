@@ -67,26 +67,6 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
       return false;
     }
 
-    let hasIncompleteLines = false;
-
-    sectionsRef.value.forEach(section => {
-      (section.lignes || []).forEach(ligne => {
-        // En Fabrication, on peut saisir un libellé à la main (libelleAffiche) 
-        // ou choisir une caractéristique (typeCaracteristiqueId).
-        const hasCarac = isIdValide(ligne.typeCaracteristiqueId) || !isNullOrEmpty(ligne.libelleAffiche);
-        const hasCtrl = isIdValide(ligne.typeControleId);
-
-        if (!hasCarac || !hasCtrl) {
-          hasIncompleteLines = true;
-        }
-      });
-    });
-
-    if (hasIncompleteLines) {
-      showError('Les lignes de contrôle ajoutées doivent obligatoirement avoir une "Caractéristique" et un "Type de contrôle".', 'Ligne incomplète');
-      return false;
-    }
-
     return true;
   };
 
@@ -94,21 +74,6 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
     const hasLignes = sectionsRef.value.some(section => (section.lignes || []).length > 0);
     if (!hasLignes) {
       showWarn('Veuillez ajouter au moins une ligne de contrôle.', 'Saisie requise');
-      return false;
-    }
-
-    let hasMissingTypeControle = false;
-
-    sectionsRef.value.forEach(section => {
-      (section.lignes || []).forEach(ligne => {
-        if (!ligne.typeControleId) {
-          hasMissingTypeControle = true;
-        }
-      });
-    });
-
-    if (hasMissingTypeControle) {
-      showError('Veuillez définir le "Type de contrôle" pour toutes vos lignes, ou supprimez les lignes vides avant d\'activer le plan.', 'Ligne incomplète');
       return false;
     }
 

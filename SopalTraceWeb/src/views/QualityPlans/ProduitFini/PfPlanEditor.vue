@@ -40,7 +40,7 @@
                 <PfHeader :is-read-only="isReadOnly" />
               </div>
 
-              <div v-if="!isReadOnly" class="ml-8 shrink-0 flex items-center">
+              <div v-if="!isReadOnly" class="ml-8 shrink-0 flex items-center gap-3">
                 <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.csv" class="hidden" />
                 <button @click="$refs.fileInput.click()" 
                   class="h-10 px-5 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
@@ -48,6 +48,11 @@
                   <i v-if="!isLoadingData" class="ri-file-excel-2-line text-xl"></i>
                   <i v-else class="ri-loader-4-line animate-spin text-xl"></i>
                   <span>Importer la structure Excel</span>
+                </button>
+
+                <button @click="showColumnModal = true" 
+                  class="h-10 px-5 flex items-center gap-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95">
+                  <i class="pi pi-sliders-h text-lg"></i> Configurer Colonnes
                 </button>
               </div>
             </div>
@@ -60,10 +65,6 @@
               <i :class="isReadOnly ? 'pi pi-eye text-blue-400' : 'pi pi-sliders-v text-blue-400'"></i>
               {{ isReadOnly ? 'Visualisation du plan' : 'Éditeur de Structure' }}
             </div>
-            <!-- CONFIGURATION COLONNES -->
-            <button v-if="!isReadOnly" @click="showColumnModal = true" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center gap-2 transition-colors">
-              <i class="pi pi-sliders-h"></i> Configurer Colonnes
-            </button>
           </div>
 
           <div v-if="isLoadingData" class="py-20 text-center text-blue-500">

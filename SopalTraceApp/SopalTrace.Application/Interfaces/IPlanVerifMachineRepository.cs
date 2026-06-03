@@ -16,6 +16,7 @@ public interface IPlanVerifMachineRepository
 
     /// <summary>Retourne les familles de corps configurées pour une machine dans Machine_FamilleCorps.</summary>
     Task<List<RefFamilleCorp>> GetFamillesParMachineAsync(string machineCode);
+    Task SyncMachineFamillesAsync(string machineCode, List<Guid> refFamilleCorpsIds);
 
     Task AddPlanAsync(PlanVerifMachineEntete plan);
 

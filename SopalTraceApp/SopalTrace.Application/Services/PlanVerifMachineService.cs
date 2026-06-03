@@ -85,14 +85,14 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersionExistante = tousLesPlans
             .Where(p => p.MachineCode == request.MachineCode)
-            .Max(p => p.Version) ?? -1;
+            .Max(p => (int?)p.Version) ?? 0;
         
         nouveauPlan.Version = maxVersionExistante + 1;
         nouveauPlan.Statut = "ACTIF";
 
         if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
         {
-            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson);
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson, $"FE-VM-{request.MachineCode}");
             if (newFormulaireId.HasValue)
             {
                 nouveauPlan.FormulaireId = newFormulaireId.Value;
@@ -100,6 +100,15 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         }
 
         await _unitOfWork.PlanVerifMachineRepository.AddPlanAsync(nouveauPlan);
+        
+        if (request.Familles != null)
+        {
+            await _unitOfWork.PlanVerifMachineRepository.SyncMachineFamillesAsync(
+                request.MachineCode, 
+                request.Familles.Select(f => f.RefFamilleCorpsId).ToList()
+            );
+        }
+
         await _unitOfWork.CommitAsync();
         
         return nouveauPlan.Id;
@@ -148,13 +157,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersion = tousLesPlans
             .Where(p => p.MachineCode == planActuel.MachineCode)
-            .Max(p => p.Version) ?? -1;
+            .Max(p => (int?)p.Version) ?? 0;
             
         nouveauPlan.Version = maxVersion + 1; // Incrémentation propre (V+1)
 
         if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
         {
-            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson);
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson, $"FE-VM-{planActuel.MachineCode}");
             if (newFormulaireId.HasValue)
             {
                 nouveauPlan.FormulaireId = newFormulaireId.Value;
@@ -164,6 +173,14 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         // 5. On prépare l'insertion du nouveau plan
         await _unitOfWork.PlanVerifMachineRepository.AddPlanAsync(nouveauPlan);
         
+        if (request.Familles != null)
+        {
+            await _unitOfWork.PlanVerifMachineRepository.SyncMachineFamillesAsync(
+                nouveauPlan.MachineCode, 
+                request.Familles.Select(f => f.RefFamilleCorpsId).ToList()
+            );
+        }
+
         // 🚀 LA MAGIE EST ICI : UN SEUL COMMIT !
         // EF Core va automatiquement faire l'UPDATE de l'ancien et l'INSERT du nouveau en une seule transaction SQL sécurisée.
         await _unitOfWork.CommitAsync();
@@ -187,13 +204,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersion = tousLesPlans
             .Where(p => p.MachineCode == ancienPlan.MachineCode)
-            .Max(p => p.Version) ?? -1;
+            .Max(p => (int?)p.Version) ?? 0;
             
         nouveauPlan.Version = maxVersion + 1;
 
         if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
         {
-            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson);
+            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson, $"FE-VM-{ancienPlan.MachineCode}");
             if (newFormulaireId.HasValue)
             {
                 nouveauPlan.FormulaireId = newFormulaireId.Value;
@@ -241,7 +258,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var tousLesPlans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         var maxVersion = tousLesPlans
             .Where(p => p.MachineCode == planArchived.MachineCode)
-            .Max(p => p.Version) ?? -1;
+            .Max(p => (int?)p.Version) ?? 0;
 
         // 3. Créer une nouvelle version basée sur l'archive
         var nouveauPlan = PlanVerifMachineMapper.DupliquerEntitePlan(planArchived, restaurePar, motif);

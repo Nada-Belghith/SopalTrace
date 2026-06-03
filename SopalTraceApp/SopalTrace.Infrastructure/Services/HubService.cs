@@ -107,6 +107,7 @@ public class HubService : IHubService
         // 5. PRODUIT FINI
         var pfModeles = await _context.PlanProduitFiniEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
             .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
@@ -119,7 +120,7 @@ public class HubService : IHubService
                 m.Version,
                 m.Statut ?? "ACTIF",
                 "Gabarit de controle final.",
-                null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(pfModeles);
 
