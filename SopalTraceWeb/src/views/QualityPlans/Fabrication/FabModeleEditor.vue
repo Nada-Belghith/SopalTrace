@@ -495,6 +495,7 @@ onMounted(async () => {
 
 const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
+  store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
     const res = await qualityPlansService.getModeleById(id);
     const data = res.data.data || res.data;
@@ -600,8 +601,10 @@ const chargerModelePourEdition = async (id) => {
     router.push('/dev/hub');
   } finally {
     store.isLoading = false;
+    store.isBeingLoaded = false;  // ✅ Réactive les watchers après le chargement
   }
 };
+
 
 
 const preparerDonneesEtFrequences = async () => {
@@ -630,7 +633,8 @@ const sauvegarderDirectement = async () => {
       null, // typeRobinet (optionnel)
       store.entete.natureComposantCode,
       store.entete.operationCode,
-      store.entete.posteCode
+      store.entete.posteCode,
+      store.entete.familleProduitCode  // ✅ filtre par famille pour éviter d'archiver BAC01 quand on crée BAC02
     );
 
     const activeModel = (resExist.data?.data || []).find(m => m.statut === 'ACTIF');
@@ -647,9 +651,9 @@ const sauvegarderDirectement = async () => {
     }
 
     store.sections = await preparerDonneesEtFrequences();
-    await store.saveModele(store.entete.legendeMoyens);
+    const resData = await store.saveModele(store.entete.legendeMoyens);
     
-    toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle créé et activé !', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle (V${resData?.version ?? 0}) créé et activé !`, life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
@@ -663,57 +667,10 @@ const sauvegarderV2 = async (motif) => {
   store.isLoading = true;
   try {
     const sectionsPrepared = await preparerDonneesEtFrequences();
+    store.sections = sectionsPrepared;
 
-    const sectionsForPayload = sectionsPrepared.map((s, idx) => ({
-      id: s.id,
-      ordreAffiche: idx + 1,
-      typeSectionId: s.typeSectionId,
-      periodiciteId: s.periodiciteId,
-      libelleSection: s.libelleSection || 'SECTION SANS NOM',
-      frequenceLibelle: s.frequenceLibelle || '',
-      notes: s.notes || '',
-      lignes: (s.lignes || []).map((l, lIdx) => ({
-        id: l.id,
-        ordreAffiche: l.ordreAffiche ?? (lIdx + 1),
-        typeCaracteristiqueId: l.typeCaracteristiqueId,
-        libelleAffiche: l.libelleAffiche,
-        typeControleId: l.typeControleId,
-        moyenControleId: l.moyenControleId,
-        instrumentCode: l.instrumentCode,
-        periodiciteId: l.periodiciteId,
-        instruction: l.instruction,
-        estCritique: l.estCritique,
-        unite: l.unite || '',
-        limiteSpecTexte: l.limiteSpecTexte || '',
-        observations: l.observations || '',
-        moyenTexteLibre: l.moyenTexteLibre || '',
-        colonnesSupplementaires: Object.keys(l.valeursColonnesSpecifiques || {}).length > 0 
-          ? JSON.stringify(l.valeursColonnesSpecifiques) 
-          : null
-      }))
-    }));
-
-    const payloadV2 = {
-      ancienId: modeleEditionId.value,
-      modifiePar: 'ADMIN_QUALITE',
-      motifModification: motif || 'Création d\'une nouvelle version',
-      libelle: store.entete.libelle || `Modèle ${store.codeModeleAuto} V${version.value + 1}`,
-      notes: store.entete.notes || '',
-      legendeMoyens: store.entete.legendeMoyens || '',
-
-      natureComposantCode: store.entete.natureComposantCode || null,
-      typeRobinetCode: store.entete.typeRobinetCode || null,
-      operationCode: store.entete.operationCode || null,
-      code: store.entete.code || store.codeModeleAuto,
-      posteCode: store.entete.posteCode || null,
-      familleProduitCode: (store.entete.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (store.entete.familleProduitCode || null),
-      configurationColonnesJson: typeof store.entete.configurationColonnes === 'string' ? store.entete.configurationColonnes : JSON.stringify(store.entete.configurationColonnes || []),
-      refFormulaireCodeReference: store.entete.refFormulaireCodeReference || null,
-      sections: sectionsForPayload
-    };
-
-    await creerNouvelleVersionModele(payloadV2);
-    toast.add({ severity: 'success', summary: `V${version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
+    const resData = await store.creerNouvelleVersion(modeleEditionId.value, motif, store.entete.legendeMoyens);
+    toast.add({ severity: 'success', summary: `V${resData?.version ?? version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
@@ -728,7 +685,7 @@ const restaurerArchive = async (motif) => {
   try {
     const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
     await restaurerModele(payloadRestore);
-    toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: 'L\'archive a été réactivée en tant que nouvelle version.', life: 4000 });
+    toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur de restauration', detail: error.message, life: 6000 });

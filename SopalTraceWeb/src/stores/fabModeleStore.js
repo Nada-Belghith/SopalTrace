@@ -32,11 +32,13 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     legendeMoyens: '',
     posteCode: '',
     familleProduitCode: '',
+    versionInitiale: null,
     refFormulaireCodeReference: ''  // Code du formulaire ref sélectionné (ex: FE-ASS-PISTON)
   });
 
   const sections = ref([]);
   const isLoading = ref(false);
+  const isBeingLoaded = ref(false); // ✅ Empêche les watchers de cascade pendant le chargement
   const version = ref(0);
 
   const codeModeleAuto = computed(() => {
@@ -146,6 +148,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     familleProduitCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
     notes: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
+    versionInitiale: entete.value.versionInitiale,
     configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
     refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
     sections: sections.value.map(s => ({
@@ -181,7 +184,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       const res = await fabPlanService.creerModele(payload);
-      return res.data.modeleId;
+      return res.data; // Return the whole data which includes modeleId and version
     } finally {
       isLoading.value = false;
     }
@@ -196,8 +199,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await fabPlanService.creerNouvelleVersionModele(payload);
-      return res.data.modeleId;
+      const res = await fabPlanService.nouvelleVersionModele(payload);
+      return res.data; // Return full data with modeleId and version
     } finally {
       isLoading.value = false;
     }
@@ -220,6 +223,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion
+    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion,
+    isBeingLoaded
   };
 });

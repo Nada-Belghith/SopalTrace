@@ -55,6 +55,17 @@
           </div>
 
           <div v-else class="p-6 md:p-8">
+            <!-- CONFIGURATION DU PLAN -->
+            <div v-if="!isReadOnly && planId === 'nouveau'" class="mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+              <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">Configuration du plan</h3>
+              <div class="w-1/3">
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.1em] mb-2">Version de départ</label>
+                <input v-model.number="versionInitiale" type="number" min="0" placeholder="0"
+                  class="w-full bg-white border-2 border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all">
+                <p class="text-[10px] text-slate-400 mt-1 italic">Définit la version initiale de ce plan.</p>
+              </div>
+            </div>
+
             <div class="mb-4">
               <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">Structure des lignes de contrôle</h3>
             </div>
@@ -191,6 +202,7 @@
   const plan = ref(null);
   const legendeMoyens = ref('');
   const remarques = ref('');
+  const versionInitiale = ref(null);
   const isLoadingData = ref(false);
   const isVersioningSaving = ref(false);
 
@@ -500,6 +512,7 @@
               }))
             }))
         };
+        planCreationPayload.value.versionInitiale = versionInitiale.value;
 
         toast.add({ severity: 'success', summary: 'Succès', detail: 'Structure clonée chargée en mémoire.', life: 3000 });
       } else {
@@ -1144,6 +1157,9 @@
 
     try {
       if (currentPlanId === 'nouveau' && planCreationPayload.value) {
+        if (versionInitiale.value !== null) {
+          planCreationPayload.value.versionInitiale = versionInitiale.value;
+        }
         const instRes = await qualityPlansService.instantiatePlan(planCreationPayload.value);
         currentPlanId = instRes.data.planId;
         planId.value = currentPlanId;
@@ -1180,6 +1196,9 @@
 
     if (currentPlanId === 'nouveau' && planCreationPayload.value) {
       try {
+        if (versionInitiale.value !== null) {
+          planCreationPayload.value.versionInitiale = versionInitiale.value;
+        }
         const instRes = await qualityPlansService.instantiatePlan(planCreationPayload.value);
         currentPlanId = instRes.data.planId;
         planId.value = currentPlanId;

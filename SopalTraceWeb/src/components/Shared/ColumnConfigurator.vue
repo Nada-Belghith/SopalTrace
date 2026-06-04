@@ -37,6 +37,15 @@
                     <input v-model="newCol.label" type="text" class="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all placeholder-slate-600">
                   </div>
                   
+                  <div v-if="showTargetTable">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Table cible</label>
+                    <select v-model="newCol.targetTable" class="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all appearance-none">
+                      <option value="all">Les deux tables (Conformité & Risques)</option>
+                      <option value="conformite">Section Conformité uniquement</option>
+                      <option value="risques">Section Risques & Défauts uniquement</option>
+                    </select>
+                  </div>
+
                   <div class="grid grid-cols-2 gap-4">
                     <div>
                       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Type</label>
@@ -49,7 +58,7 @@
                     <div v-if="!hideInsertAfter">
                       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Insérer après</label>
                       <select v-model="newCol.insertAfter" class="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all appearance-none">
-                        <option v-for="col in baseColumns" :key="col.key" :value="col.key">{{ col.label }}</option>
+                        <option v-for="col in availableInsertAfterOptions" :key="col.key" :value="col.key">{{ col.label }}</option>
                       </select>
                     </div>
                   </div>
@@ -69,6 +78,9 @@
                     <div>
                       <span class="font-bold text-white">{{ col.label }}</span>
                       <span class="text-xs ml-2" :class="col.key === 'draft_col' ? 'text-amber-400' : 'text-slate-400'">({{ col.type }}) <span v-if="col.key === 'draft_col'" class="italic text-[9px] px-1 bg-amber-500/20 rounded">En cours...</span></span>
+                      <div v-if="showTargetTable && col.targetTable && col.targetTable !== 'all'" class="text-[10px] text-amber-500/80 mt-1 uppercase tracking-wide">
+                        {{ col.targetTable === 'conformite' ? 'Table: Conformité' : 'Table: Risques' }}
+                      </div>
                     </div>
                     <button @click="removeColumn(col, index)" class="text-red-400 hover:text-red-300">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -87,12 +99,18 @@
       <!-- APERÇU -->
       <div class="px-6 pb-2 bg-white">
         <div class="border border-slate-200 rounded-xl bg-white overflow-hidden text-slate-800 shadow-sm">
-          <div class="p-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Aperçu de la structure du plan</h3>
+          <div class="p-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+              <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Aperçu de la structure du plan</h3>
+            </div>
+            <div v-if="showTargetTable" class="flex items-center gap-1 bg-slate-200/50 p-1 rounded-lg">
+              <button @click="previewTarget = 'conformite'" :class="previewTarget === 'conformite' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="px-3 py-1.5 text-[10px] rounded-md font-bold uppercase transition-all">Table Conformité</button>
+              <button @click="previewTarget = 'risques'" :class="previewTarget === 'risques' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="px-3 py-1.5 text-[10px] rounded-md font-bold uppercase transition-all">Table Risques</button>
+            </div>
           </div>
           <div class="p-4 overflow-x-auto">
-            <slot name="preview" :preview-columns="previewColumns" :custom-only-columns="customOnlyColumns">
+            <slot name="preview" :preview-columns="previewColumns" :custom-only-columns="customOnlyColumns" :preview-target="previewTarget">
               <table class="w-full text-left text-xs whitespace-nowrap">
                 <thead class="bg-[#0f172a] text-white font-black text-[10px] uppercase tracking-wider">
                   <tr>
@@ -149,13 +167,21 @@ const props = defineProps({
       { key: 'observations', label: 'OBSERVATIONS' }
     ]
   },
-  hideInsertAfter: { type: Boolean, default: false }
+  hideInsertAfter: { type: Boolean, default: false },
+  showTargetTable: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible', 'update:modelValue', 'save'])
 
 const customColumns = ref([])
-const newCol = ref({ label: '', type: 'Texte', insertAfter: 'code_instrument' })
+const newCol = ref({ label: '', type: 'Texte', insertAfter: 'code_instrument', targetTable: 'all' })
+const previewTarget = ref('conformite')
+
+watch(() => newCol.value.targetTable, (newVal) => {
+  if (newVal === 'conformite' || newVal === 'risques') {
+    previewTarget.value = newVal;
+  }
+})
 
 watch(() => props.visible, (val) => {
   if (val) {
@@ -172,23 +198,65 @@ const addColumn = () => {
     key: `custom_${Date.now()}`,
     label: newCol.value.label,
     type: newCol.value.type,
-    insertAfter: newCol.value.insertAfter
+    insertAfter: newCol.value.insertAfter,
+    targetTable: newCol.value.targetTable
   })
   newCol.value.label = ''
+  newCol.value.targetTable = 'all'
 }
 
 const removeColumn = (col, index) => {
   if (col && col.key === 'draft_col') {
     newCol.value.label = ''
     newCol.value.type = 'Texte'
+    newCol.value.targetTable = 'all'
   } else {
     customColumns.value.splice(index, 1)
   }
 }
 
+const availableInsertAfterOptions = computed(() => {
+  let cols = props.baseColumns.map(c => ({...c}))
+  
+  // Appliquer les propriétés spécifiques à la table (labels & visibility)
+  cols = cols.filter(c => {
+    if (newCol.value.targetTable === 'risques' && c.hiddenInRisques) return false;
+    if (newCol.value.targetTable === 'conformite' && c.hiddenInConformite) return false;
+    return true;
+  });
+
+  cols.forEach(c => {
+    if (newCol.value.targetTable === 'conformite' && c.labelConformite) {
+      c.label = c.labelConformite;
+    } else if (newCol.value.targetTable === 'risques' && c.labelRisques) {
+      c.label = c.labelRisques;
+    } else if (newCol.value.targetTable === 'all') {
+      if (c.labelConformite && c.labelRisques && c.labelConformite !== c.labelRisques) {
+        c.label = `${c.labelConformite} / ${c.labelRisques}`;
+      }
+    }
+  });
+
+  customColumns.value.forEach(cc => {
+    if (props.showTargetTable && cc.targetTable && cc.targetTable !== 'all') {
+      if (newCol.value.targetTable !== 'all' && cc.targetTable !== newCol.value.targetTable) return;
+    }
+    const insertIdx = cols.findIndex(c => c.key === cc.insertAfter)
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, cc)
+    } else {
+      cols.push(cc)
+    }
+  })
+  return cols
+})
+
 const previewColumns = computed(() => {
   let cols = [...props.baseColumns]
   customColumns.value.forEach(cc => {
+    if (props.showTargetTable && cc.targetTable && cc.targetTable !== 'all') {
+      if (cc.targetTable !== previewTarget.value) return;
+    }
     const insertIdx = cols.findIndex(c => c.key === cc.insertAfter)
     if (insertIdx !== -1) {
       cols.splice(insertIdx + 1, 0, cc)
@@ -202,7 +270,11 @@ const previewColumns = computed(() => {
       key: 'draft_col',
       label: newCol.value.label.trim(),
       type: newCol.value.type,
-      insertAfter: newCol.value.insertAfter
+      insertAfter: newCol.value.insertAfter,
+      targetTable: newCol.value.targetTable
+    }
+    if (props.showTargetTable && draftCol.targetTable && draftCol.targetTable !== 'all') {
+      if (draftCol.targetTable !== previewTarget.value) return cols;
     }
     const insertIdx = cols.findIndex(c => c.key === draftCol.insertAfter)
     if (insertIdx !== -1) {
@@ -222,7 +294,8 @@ const customOnlyColumns = computed(() => {
       key: 'draft_col',
       label: newCol.value.label.trim(),
       type: newCol.value.type,
-      insertAfter: newCol.value.insertAfter
+      insertAfter: newCol.value.insertAfter,
+      targetTable: newCol.value.targetTable
     })
   }
   return cols
@@ -231,6 +304,7 @@ const customOnlyColumns = computed(() => {
 const close = () => {
   emit('update:visible', false)
   newCol.value.label = '' // Reset when closing
+  newCol.value.targetTable = 'all'
 }
 
 const save = () => {
@@ -239,9 +313,11 @@ const save = () => {
       key: `custom_${Date.now()}`,
       label: newCol.value.label.trim(),
       type: newCol.value.type,
-      insertAfter: newCol.value.insertAfter
+      insertAfter: newCol.value.insertAfter,
+      targetTable: newCol.value.targetTable
     })
     newCol.value.label = ''
+    newCol.value.targetTable = 'all'
   }
   emit('update:modelValue', customColumns.value)
   emit('save', customColumns.value)

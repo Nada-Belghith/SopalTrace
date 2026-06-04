@@ -91,6 +91,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     return {
       Nom: entete.value.nom,
       MachineCode: entete.value.machineCode,
+      VersionInitiale: entete.value.versionInitiale,
       AfficheConformite: finalAfficheConformite,
       AfficheMoyenDetectionRisques: entete.value.afficheMoyenDetectionRisques,
       AfficheFamilles: entete.value.afficheFamilles,
@@ -208,7 +209,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const resetPlan = () => {
-    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
+    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, versionInitiale: null, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
     familles.value = [];
     lignesConformite.value = [];
     lignesRisques.value = [];
@@ -432,14 +433,14 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         const newId = response.data.planId || response.data.id;
         entete.value.id = newId;
         prendreSnapshot();
-        return { id: newId, noChanges: false };
+        return { id: newId, noChanges: false, version: response.data.version };
       } else {
         const response = await verifMachineService.creerPlanVerif(payload);
         const newId = response.data.planId || response.data.id;
         entete.value.id = newId;
         prendreSnapshot();
         await fetchTousLesPlans();
-        return { id: newId, noChanges: false };
+        return { id: newId, noChanges: false, version: response.data.version, isNew: true };
       }
     } finally {
       isLoading.value = false;
@@ -490,7 +491,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       await fetchDictionnaires(true);
 
       // ✅ IMPORT DES FAMILLES DÉTECTÉES DANS L'EXCEL
-      if (data.familles?.length > 0) {
+      // On importe les familles de l'Excel UNIQUEMENT si la machine n'a pas déjà de familles configurées.
+      if (data.familles?.length > 0 && familles.value.length === 0) {
         // On ne vide plus les familles existantes pour préserver les ajouts manuels
         const normalizeStr = s => s?.replace(/\s+/g, '').toUpperCase() || '';
         data.familles.forEach(fStr => {
@@ -542,10 +544,15 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
                   let matchingFamId = null;
                   if (mp.familleCode) {
-                    const normMpFam = mp.familleCode.replace(/\s+/g, '').toUpperCase();
+                    // Correction des fautes de frappe courantes dans les fichiers Excel
+                    let correctedFamCode = mp.familleCode
+                      .replace('2580A01', '25B0A01')
+                      .replace('25AUA01', '25UA01');
+                    
+                    const normMpFam = correctedFamCode.replace(/\s+/g, '').toUpperCase();
                     const importedFam = familles.value.find(f => {
                       const normFLib = f.libelle?.replace(/\s+/g, '').toUpperCase() || '';
-                      return normFLib === normMpFam || mp.familleCode.includes(`(${f.libelle})`);
+                      return normFLib === normMpFam || correctedFamCode.includes(`(${f.libelle})`);
                     });
                     if (importedFam) matchingFamId = importedFam.refFamilleCorpsId;
                   }

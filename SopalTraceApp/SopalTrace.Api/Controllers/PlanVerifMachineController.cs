@@ -42,8 +42,9 @@ public class PlanVerifMachineController : ControllerBase
 
         try
         {
-            var id = await _service.CreerPlanVerifAsync(request, "ADMIN");
-            return Ok(new { success = true, planId = id, message = "Plan de vérification machine créé avec succès." });
+            var newId = await _service.CreerPlanVerifAsync(request, "ADMIN");
+            var data = await _service.GetPlanVerifByIdAsync(newId);
+            return Ok(new { success = true, planId = newId, version = data?.Version ?? 0, message = "Plan de vérification machine créé avec succès." });
         }
         catch (ArgumentException ex)
         {
@@ -106,7 +107,8 @@ public class PlanVerifMachineController : ControllerBase
         try
         {
             var newId = await _service.CreerNouvelleVersionAsync(request with { AncienId = id });
-            return Ok(new { success = true, planId = newId, message = "Nouvelle version créée." });
+            var data = await _service.GetPlanVerifByIdAsync(newId);
+            return Ok(new { success = true, planId = newId, version = data?.Version ?? 0, message = "Nouvelle version créée." });
         }
         catch (Exception ex)
         {
@@ -144,7 +146,8 @@ public class PlanVerifMachineController : ControllerBase
         try
         {
             var newId = await _service.RestaurerPlanAsync(request.AncienId, request.ModifiePar ?? "ADMIN", request.MotifModification);
-            return Ok(new { success = true, planId = newId, message = "Plan restauré." });
+            var data = await _service.GetPlanVerifByIdAsync(newId);
+            return Ok(new { success = true, planId = newId, version = data?.Version ?? 0, message = "Plan restauré." });
         }
         catch (Exception ex)
         {

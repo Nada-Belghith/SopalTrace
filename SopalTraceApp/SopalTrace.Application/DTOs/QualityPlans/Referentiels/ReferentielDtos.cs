@@ -147,6 +147,7 @@ public record FormulaireReferenceItemDto(
 );
 
 public record UpdateFormulaireStructureDto(
-    string? ConfigurationStructureJson
+    string? ConfigurationStructureJson,
+    int? VersionInitiale
 );
 

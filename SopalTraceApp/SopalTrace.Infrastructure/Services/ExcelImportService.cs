@@ -48,7 +48,7 @@ public partial class ExcelImportService : IExcelImportService
                 stringBuilder.Append(c);
             }
         }
-        return stringBuilder.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant().Replace(" ", "").Replace("\n", "").Replace("\r", "");
+        return stringBuilder.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant().Replace(" ", "").Replace("-", "").Replace("_", "").Replace("\n", "").Replace("\r", "");
     }
 
     private static bool MatchesAny(string normalizedText, string[] keywords)

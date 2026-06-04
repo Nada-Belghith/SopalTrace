@@ -19,6 +19,7 @@ public record CreatePlanAssDto
     public string? CreePar { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
     public string? Remarques { get; init; } = null;
+    public int? VersionInitiale { get; init; } = null;
     public List<SectionAssEditDto> Sections { get; init; } = new();
 }
 
@@ -91,6 +92,7 @@ public record NouvelleVersionAssRequestDto
     public string? MotifModification { get; init; }
     public string? LegendeMoyens { get; init; }
     public string? Remarques { get; init; }
+    public int? VersionInitiale { get; init; }
 }
 
 // --- LECTURE ---

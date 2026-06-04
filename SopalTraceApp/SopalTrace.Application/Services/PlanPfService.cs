@@ -32,9 +32,11 @@ public class PlanPfService : IPlanPfService
         _referentielService = referentielService;
     }
 
-    private async Task<int> CalculerNouvelleVersionAsync(string familleProduitFiniCode)
+    private async Task<int> CalculerNouvelleVersionAsync(string familleProduitFiniCode, int? versionInitiale = null)
     {
-        return (await _repository.GetDerniereVersionPlanAsync(familleProduitFiniCode)) + 1;
+        var derniere = await _repository.GetDerniereVersionPlanAsync(familleProduitFiniCode);
+        if (derniere == -1 && versionInitiale.HasValue) return versionInitiale.Value;
+        return derniere + 1;
     }
 
     public async Task<List<PlanPfEnteteDto>> GetGenericPlansAsync()
@@ -77,14 +79,14 @@ public class PlanPfService : IPlanPfService
 
         if (!string.IsNullOrEmpty(dto.ConfigurationColonnesJson))
         {
-            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", dto.ConfigurationColonnesJson);
-            if (newFormulaireId.HasValue)
+            var formResult = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", dto.ConfigurationColonnesJson, null, dto.VersionInitiale);
+            if (formResult.HasValue)
             {
-                plan.FormulaireId = newFormulaireId.Value;
+                plan.FormulaireId = formResult.Value.Id;
             }
         }
 
-        plan.Version = await CalculerNouvelleVersionAsync(plan.FamilleProduitFiniCode ?? "");
+        plan.Version = await CalculerNouvelleVersionAsync(plan.FamilleProduitFiniCode ?? "", dto.VersionInitiale);
 
         await _repository.AddPlanAsync(plan);
         await _unitOfWork.CommitAsync();
@@ -107,7 +109,25 @@ public class PlanPfService : IPlanPfService
             //ancienPlan.ModifiePar = user;
         }
 
+        var jsonToUse = request.ConfigurationColonnesJson;
+        if (string.IsNullOrEmpty(jsonToUse) && ancienPlan.FormulaireId.HasValue)
+        {
+            var oldForm = await _referentielService.GetFormulaireByIdAsync(ancienPlan.FormulaireId.Value);
+            if (oldForm != null) jsonToUse = oldForm.ConfigurationStructureJson;
+        }
+
+        Guid? newFormulaireId = null;
         var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan.FamilleProduitFiniCode ?? "");
+
+        if (!string.IsNullOrEmpty(jsonToUse) || ancienPlan.FormulaireId.HasValue)
+        {
+            var formResult = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", jsonToUse, null, request.VersionInitiale);
+            if (formResult.HasValue)
+            {
+                newFormulaireId = formResult.Value.Id;
+                nouvelleVersion = formResult.Value.Version;
+            }
+        }
 
         var nouveauPlan = PlanPfMapper.CreerNouvelleVersionEntite(
             ancienPlan,
@@ -121,16 +141,8 @@ public class PlanPfService : IPlanPfService
             await SmartDictionaryPassAsync(nouveauPlan);
         }
 
-        if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
-        {
-            var newFormulaireId = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", request.ConfigurationColonnesJson);
-            if (newFormulaireId.HasValue)
-            {
-                nouveauPlan.FormulaireId = newFormulaireId.Value;
-            }
-        }
-
         nouveauPlan.Statut = StatutsPlan.Actif;
+        if (newFormulaireId.HasValue) nouveauPlan.FormulaireId = newFormulaireId.Value;
 
         await _repository.AddPlanAsync(nouveauPlan);
         await _unitOfWork.CommitAsync();
@@ -161,6 +173,25 @@ public class PlanPfService : IPlanPfService
         await _planArchiverService.ArchivePlansPfActifsAsync(planArchive.FamilleProduitFiniCode ?? "", user);
 
         var nouvelleVersion = await CalculerNouvelleVersionAsync(planArchive.FamilleProduitFiniCode ?? "");
+        Guid? newFormulaireId = null;
+
+        if (planArchive.FormulaireId.HasValue)
+        {
+            var oldForm = await _referentielService.GetFormulaireByIdAsync(planArchive.FormulaireId.Value);
+            if (oldForm != null)
+            {
+                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                    "PRODUIT_FINI",
+                    oldForm.ConfigurationStructureJson,
+                    oldForm.CodeReference);
+                
+                if (formResult.HasValue)
+                {
+                    newFormulaireId = formResult.Value.Id;
+                    nouvelleVersion = formResult.Value.Version;
+                }
+            }
+        }
 
         var requestVersion = new NouvelleVersionPfRequestDto
         { 
@@ -174,6 +205,7 @@ public class PlanPfService : IPlanPfService
         
         var nouveauPlan = PlanPfMapper.CreerNouvelleVersionEntite(planArchive, requestVersion, user, nouvelleVersion);
         nouveauPlan.Statut = StatutsPlan.Actif;
+        if (newFormulaireId.HasValue) nouveauPlan.FormulaireId = newFormulaireId.Value;
 
         // Copier les sections de l'ancien plan
         if (planArchive.PlanProduitFiniSections != null && planArchive.PlanProduitFiniSections.Any())

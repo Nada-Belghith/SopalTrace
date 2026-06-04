@@ -69,7 +69,7 @@ const onSaved = (result) => {
 
   toast.success(result.isNew 
     ? 'Le plan de vérification a été créé avec succès.'
-    : `Nouvelle version (V${store.entete.version}) créée et activée.`, 
+    : `Nouvelle version (V${result.version ?? store.entete.version}) créée et activée.`, 
     'Plan Enregistré');
   
   setTimeout(() => {

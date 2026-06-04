@@ -92,6 +92,7 @@ public class PlanFabricationService : IPlanFabricationService
                 Nom = request.Nom ?? $"PC-{request.CodeArticleSage}",
                 LegendeMoyens = request.LegendeMoyens,
                 Remarques = request.Remarques,
+                VersionInitiale = request.VersionInitiale,
                 Sections = new List<SectionAssEditDto>() // On ne gère pas encore l'import de sections vers l'assemblage ici
             };
 
@@ -146,7 +147,7 @@ public class PlanFabricationService : IPlanFabricationService
         }
 
         // 6. Gestion de la version et du nom
-        var prochaineVersion = await CalculerNouvelleVersionAsync(request.CodeArticleSage, request.OperationCode);
+        var prochaineVersion = request.VersionInitiale ?? await CalculerNouvelleVersionAsync(request.CodeArticleSage, request.OperationCode);
         nouveauPlan.Version = prochaineVersion;
         nouveauPlan.CreePar = user;
         nouveauPlan.Statut = StatutsPlan.Actif; // Création directe en mode ACTIF
@@ -259,7 +260,7 @@ public class PlanFabricationService : IPlanFabricationService
         // 1. Archiver TOUT plan actif existant pour cet article/opération (y compris l'ancien plan source s'il était actif)
         await _planArchiverService.ArchivePlanFabricationActifAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode, user);
 
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode);
+        var nouvelleVersion = request.VersionInitiale ?? await CalculerNouvelleVersionAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode);
         var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(ancienPlan, ancienPlan.CodeArticleSage, ancienPlan.Designation ?? string.Empty, user, request.MotifModification);
         
         //nouveauPlan.Remarques = request.Remarques;

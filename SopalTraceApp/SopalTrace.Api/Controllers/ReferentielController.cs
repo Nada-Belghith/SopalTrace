@@ -99,7 +99,7 @@ public class ReferentielController : ControllerBase
     [HttpPut("formulaires/role/{role}")]
     public async Task<IActionResult> UpdateFormulaireStructure(string role, [FromBody] UpdateFormulaireStructureDto request)
     {
-        var newId = await _referentielService.UpdateFormulaireStructureAsync(role, request.ConfigurationStructureJson);
+        var newId = await _referentielService.UpdateFormulaireStructureAsync(role, request.ConfigurationStructureJson, null, request.VersionInitiale);
         if (newId == null) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
         return Ok(new { success = true, message = "Structure du formulaire mise a jour avec succes.", newId = newId });
     }

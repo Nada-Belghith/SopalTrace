@@ -87,6 +87,13 @@
           :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
+      <!-- VERSION INITIALE -->
+      <div v-if="!isEditMode && !hasExistingVersion">
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Version de départ</label>
+        <input v-model.number="store.entete.versionInitiale" type="number" min="0" placeholder="0" :disabled="isReadOnly"
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
+      </div>
+
     </div>
 
 
@@ -116,6 +123,17 @@ const isAssemblyMode = computed(() => route.query.mode === 'assembly');
 const formulairesReferences = computed(() => store.formulairesReferences || []);
 const refFormulaireSelected = ref('');
 const isAutoFilling = ref(false);
+
+const hasExistingVersion = computed(() => {
+  if (!refFormulaireSelected.value) return false;
+  const refObj = formulairesReferences.value.find(r => r.id === refFormulaireSelected.value);
+  if (!refObj) return false;
+  
+  const hasVersion = refObj.version > 0 || refObj.Version > 0;
+  const hasConfig = refObj.configurationStructureJson !== null && refObj.configurationStructureJson !== undefined;
+  
+  return hasVersion || hasConfig;
+});
 
 watch(refFormulaireSelected, async (newRefId) => {
   if (!newRefId) return;
@@ -288,7 +306,7 @@ const postesDisponibles = computed(() =>
 
 // Si Famille change → Réinitialise Opération, Article, Poste
 watch(() => store.entete.familleProduitCode, (newVal, oldVal) => {
-  if (isAutoFilling.value) return;
+  if (isAutoFilling.value || store.isBeingLoaded) return;  // ✅ Pas de cascade pendant le chargement
   if (newVal !== oldVal) {
     // Évite la boucle si c'est un auto-remplissage PISTON
     if (newVal === 'TOUS' && isPiston.value) return;
@@ -301,7 +319,7 @@ watch(() => store.entete.familleProduitCode, (newVal, oldVal) => {
 
 // Si Opération change → Réinitialise Article, Poste
 watch(() => store.entete.operationCode, (newVal, oldVal) => {
-  if (isAutoFilling.value) return;
+  if (isAutoFilling.value || store.isBeingLoaded) return;  // ✅ Pas de cascade pendant le chargement
   if (newVal !== oldVal) {
     // Évite la boucle si c'est un auto-remplissage PISTON
     if (newVal === 'ASS' && isPiston.value) return;
@@ -313,7 +331,7 @@ watch(() => store.entete.operationCode, (newVal, oldVal) => {
 
 // Si Article change → Réinitialise Poste
 watch(() => store.entete.natureComposantCode, (newVal, oldVal) => {
-  if (isAutoFilling.value) return;
+  if (isAutoFilling.value || store.isBeingLoaded) return;  // ✅ Pas de cascade pendant le chargement
   if (newVal !== oldVal) {
     store.entete.posteCode = '';
     

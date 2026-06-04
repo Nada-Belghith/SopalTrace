@@ -374,9 +374,10 @@ public class ReferentielService : IReferentielService
             .ToListAsync();
     }
 
-    public async Task<Guid?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null)
+    public async Task<(Guid Id, int Version)?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null, int? versionInitiale = null)
     {
         Guid? nouveauFormulaireId = null;
+        int versionFinale = 1;
 
         // Chercher le formulaire actif par codeReference ET role (spécifique) ou par role seul (générique)
         RefFormulaire? formulaireActuel;
@@ -395,24 +396,40 @@ public class ReferentielService : IReferentielService
 
         if (formulaireActuel != null)
         {
-            // Archiver la version actuelle active
-            formulaireActuel.Statut = "ARCHIVE";
-
-            // Créer une nouvelle version active avec version+1
-            var newVersion = formulaireActuel.Version + 1;
-            var nouveauFormulaire = new RefFormulaire
+            if (string.IsNullOrEmpty(formulaireActuel.ConfigurationStructureJson))
             {
-                Id = Guid.NewGuid(),
-                CodeReference = formulaireActuel.CodeReference,
-                Designation = formulaireActuel.Designation,
-                Version = newVersion,
-                Statut = "ACTIF",
-                CreeLe = DateTime.UtcNow,
-                Role = role,
-                ConfigurationStructureJson = configurationStructureJson
-            };
-            _context.RefFormulaires.Add(nouveauFormulaire);
-            nouveauFormulaireId = nouveauFormulaire.Id;
+                // Si le formulaire est une coquille vide (initialisée par un script SQL),
+                // on ne l'archive pas. On le met à jour directement pour qu'il devienne la "vraie" version initiale.
+                formulaireActuel.ConfigurationStructureJson = configurationStructureJson;
+                if (versionInitiale.HasValue)
+                {
+                    formulaireActuel.Version = versionInitiale.Value;
+                }
+                nouveauFormulaireId = formulaireActuel.Id;
+                versionFinale = formulaireActuel.Version;
+            }
+            else
+            {
+                // Archiver la version actuelle active
+                formulaireActuel.Statut = "ARCHIVE";
+
+                // Créer une nouvelle version active avec version+1
+                var newVersion = formulaireActuel.Version + 1;
+                var nouveauFormulaire = new RefFormulaire
+                {
+                    Id = Guid.NewGuid(),
+                    CodeReference = formulaireActuel.CodeReference,
+                    Designation = formulaireActuel.Designation,
+                    Version = newVersion,
+                    Statut = "ACTIF",
+                    CreeLe = DateTime.UtcNow,
+                    Role = role,
+                    ConfigurationStructureJson = configurationStructureJson
+                };
+                _context.RefFormulaires.Add(nouveauFormulaire);
+                nouveauFormulaireId = nouveauFormulaire.Id;
+                versionFinale = newVersion;
+            }
         }
         else
         {
@@ -431,9 +448,11 @@ public class ReferentielService : IReferentielService
             };
             _context.RefFormulaires.Add(nouveauFormulaire);
             nouveauFormulaireId = nouveauFormulaire.Id;
+            versionFinale = 1;
         }
 
-        await _context.SaveChangesAsync();
-        return nouveauFormulaireId;
+        // ✅ PAS de SaveChangesAsync ici — le contexte est partagé avec l'UnitOfWork du service appelant.
+        // Le commit est fait UNE SEULE FOIS par l'appelant (CommitAsync), garantissant l'atomicité.
+        return nouveauFormulaireId.HasValue ? (nouveauFormulaireId.Value, versionFinale) : null;
     }
 }

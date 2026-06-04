@@ -401,6 +401,9 @@ SELECT 'BEE47', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('F_30_35', 'F_23', '
 INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
 SELECT 'BEE22', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
 
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'MAS19', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
+
 -- =================================================================================
 -- 20. TEST DE VOTRE NOUVELLE LOGIQUE MAGASINIER / QUICK CONTROL
 -- =================================================================================

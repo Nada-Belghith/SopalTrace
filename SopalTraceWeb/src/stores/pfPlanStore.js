@@ -24,6 +24,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     id: null,
     familleProduitFiniCode: '',
     familleProduitFiniLibelle: '',
+    versionInitiale: null,
     version: 1,
     statut: 'ACTIF',
     dateApplication: null,
@@ -160,6 +161,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         familleProduitFiniCode: entete.value.familleProduitFiniCode,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
+        versionInitiale: entete.value.versionInitiale,
         configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
         sections: mapSectionsForBackend()
       };
@@ -193,6 +195,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         motifModification: motif,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
+        versionInitiale: entete.value.versionInitiale,
         configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
         sections: mapSectionsForBackend()
       };

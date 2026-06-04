@@ -24,6 +24,7 @@ public record CreateVerifMachineModeleDto
 {
     public string Nom { get; init; }
     public string MachineCode { get; init; }
+    public int? VersionInitiale { get; init; }
 
     // Flags UI
     public bool AfficheConformite { get; init; }

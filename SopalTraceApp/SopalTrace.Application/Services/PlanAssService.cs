@@ -104,7 +104,7 @@ public class PlanAssService : IPlanAssService
             PlanAssSpecification.ValidateArticleExistsInErp(designationSage, codeArticle!);
         }
 
-        var nextVersion = await CalculerNouvelleVersionAsync(
+        var nextVersion = request.VersionInitiale ?? await CalculerNouvelleVersionAsync(
             request.OperationCode,
             MapperHelper.NullIfEmpty(request.FamilleCode),
             codeArticle);
@@ -380,6 +380,7 @@ public class PlanAssService : IPlanAssService
 
             // ✅ Forcer la préservation de NatureArticleCode depuis la source (évite les NULL en DB)
             planDuplique.NatureArticleCode = planSource.NatureArticleCode;
+            planDuplique.Version = request.VersionInitiale ?? planDuplique.Version;
 
             await _repository.AddPlanAsync(planDuplique);
             await _repository.SaveChangesAsync();

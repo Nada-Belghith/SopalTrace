@@ -74,7 +74,7 @@ public static class PlanAssMapper
         return new ModeleResponseDto
         {
             Id = plan.Id,
-            OperationCode = plan.OperationCode,
+            OperationCode = plan.OperationCode ?? "ASS",  // Fallback: ASS plans must always have an OperationCode
             Code = plan.Designation ?? "ASS",
             Libelle = plan.Designation ?? "Plan Assemblage",
             TypeRobinetCode = plan.FamilleProduitFiniCode ?? string.Empty,
@@ -322,9 +322,13 @@ public static class PlanAssMapper
         var nouveauPlan = new PlanAssemblageEntete
         {
             Id = planId,
-            OperationCode = request.OperationCode ?? ancienModele.OperationCode,
+            OperationCode = string.IsNullOrWhiteSpace(request.OperationCode)
+                ? (ancienModele.OperationCode ?? "ASS")     // Fallback si frontend envoie "" ou null
+                : request.OperationCode,
             FamilleProduitFiniCode = request.FamilleProduitCode ?? ancienModele.FamilleProduitFiniCode,
-            NatureArticleCode = request.NatureComposantCode ?? ancienModele.NatureArticleCode,
+            NatureArticleCode = string.IsNullOrWhiteSpace(request.NatureComposantCode)
+                ? (ancienModele.NatureArticleCode ?? "PF")  // Fallback si frontend envoie "" ou null
+                : request.NatureComposantCode,
             PosteCode = request.PosteCode ?? ancienModele.PosteCode,
             Designation = IncrementerSuffixeVersion(request.Libelle ?? ancienModele.Designation ?? "Plan Assemblage", nouvelleVersion),
             Version = nouvelleVersion,

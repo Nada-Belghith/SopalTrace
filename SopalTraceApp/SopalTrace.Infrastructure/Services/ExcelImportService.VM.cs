@@ -154,10 +154,19 @@ public partial class ExcelImportService
             if (map.HeaderBottomRow > -1 && row.RowNumber() <= map.HeaderBottomRow) continue;
 
             // 1. DÉTECTION DE CHANGEMENT DE SECTION (Header)
-            bool hasConformiteTitle = MatchesAny(normalizedFullText, ConformiteKeywords) && !normalizedFullText.Contains("nonconformit");
+            bool hasConformiteTitle = row.CellsUsed().Any(c => {
+                var val = NormalizeForSearch(SafeGetCellValue(c));
+                return MatchesAny(val, ConformiteKeywords) && !val.Contains("nonconformit");
+            });
             
-            bool isSectionTitle = hasConformiteTitle || 
-                                  MatchesAny(normalizedFullText, CaractKeywords);
+            bool hasCaractTitle = row.CellsUsed().Any(c => {
+                var val = NormalizeForSearch(SafeGetCellValue(c));
+                return MatchesAny(val, CaractKeywords);
+            });
+
+            bool isSectionTitle = hasConformiteTitle || hasCaractTitle;
+            
+            System.IO.File.AppendAllText("import_log.txt", $"Row {row.RowNumber()} => hasConf: {hasConformiteTitle}, hasCaract: {hasCaractTitle}, text: {normalizedFullText}, isHeader={isSectionTitle || row.CellsUsed().Any(c => MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), PerioKeywords) || MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), MoyenKeywords) || MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), TypeKeywords))}\n");
 
             bool isHeaderRow = isSectionTitle || row.CellsUsed().Any(c => {
                 var val = NormalizeForSearch(SafeGetCellValue(c));
@@ -168,8 +177,10 @@ public partial class ExcelImportService
 
             if (isHeaderRow)
             {
-                if (MatchesAny(normalizedFullText, CaractKeywords) && !hasConformiteTitle) inConformite = false;
+                if (hasCaractTitle && !hasConformiteTitle) inConformite = false;
                 else if (hasConformiteTitle) inConformite = true;
+                
+                System.IO.File.AppendAllText("import_log.txt", $"Row {row.RowNumber()} isHeaderRow. inConformite set to {inConformite}\n");
                 
                 currentLigne = null;
                 
@@ -282,6 +293,8 @@ public partial class ExcelImportService
 
                     if (inConformite) result.LignesConformite.Add(currentLigne);
                     else result.LignesRisques.Add(currentLigne);
+                    
+                    System.IO.File.AppendAllText("import_log.txt", $"Row {row.RowNumber()} added {colA} to {(inConformite ? "Conformite" : "Risques")}\n");
                 }
 
                 // Add or update custom columns values

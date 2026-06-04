@@ -22,6 +22,7 @@ public record CreatePlanRequestDto
     public string MachineDefautCode { get; set; }
     public string LegendeMoyens { get; init; } 
     public string Remarques { get; init; }
+    public int? VersionInitiale { get; init; }
     public List<SectionEditDto> Sections { get; init; } = new(); // Pour l'import direct
 }
 
@@ -50,6 +51,7 @@ public record NouvelleVersionRequestDto
     public string MotifModification { get; init; }
     public string LegendeMoyens { get; init; }
     public string Remarques { get; init; }
+    public int? VersionInitiale { get; init; }
     public List<SectionEditDto> SectionsModifiees { get; init; } = new();
 }
 

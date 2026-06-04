@@ -59,7 +59,7 @@ public class HubService : IHubService
                 m.FamilleProduitFiniCode ?? "N/A",
                 m.OperationCode ?? "N/A",
                 m.PosteCode ?? "N/A",
-                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,  // Version du RefFormulaire (source de vérité)
                 m.Statut ?? "ACTIF",
                 "Plan Maître d'assemblage.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null))

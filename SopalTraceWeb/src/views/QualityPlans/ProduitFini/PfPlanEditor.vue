@@ -368,7 +368,7 @@ const statut = computed(() => {
 });
 
 const codeAffiche = computed(() => {
-  const v = isEditMode.value ? (store.entete.version + 1) : (store.entete?.version || 1);
+  const v = (isEditMode.value && !isReadOnly.value) ? (store.entete.version + 1) : (store.entete?.version || 1);
   
   if (store.entete?.familleProduitFiniCode) {
     return `${store.entete.familleProduitFiniCode}-PF-V${v}`;
