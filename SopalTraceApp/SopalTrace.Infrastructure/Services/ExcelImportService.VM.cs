@@ -16,7 +16,7 @@ public partial class ExcelImportService
     // =========================================================================
     // VERIF MACHINE (inchangé)
     // =========================================================================
-    private VerifMachineColumnMapping BuildVMMap(List<IXLRow> rows, int startIdx, string configurationColonnesJson = null)
+    protected virtual VerifMachineColumnMapping BuildVMMap(List<IXLRow> rows, int startIdx, string configurationColonnesJson = null)
     {
         var map = new VerifMachineColumnMapping();
         var searchRows = rows.Skip(startIdx).Take(8).ToList();
@@ -56,10 +56,22 @@ public partial class ExcelImportService
                 {
                     if (map.RisqueCol == 0) map.RisqueCol = cNum;
                 }
-                else if (MatchesAny(val, TypeKeywords)) map.MethodeCol = cNum;
-                else if (MatchesAny(val, PerioKeywords)) map.PerioCol = cNum;
-                else if (!val.Contains("num") && MatchesAny(val, MoyenKeywords) && MatchesAny(val, ControleKeywords)) map.MoyenDetCol = cNum;
-                else if (val.Contains("fuite") && val.Contains("etalon")) map.FuiteCol = cNum;
+                else if (MatchesAny(val, TypeKeywords)) 
+                {
+                    if (map.MethodeCol == 0) map.MethodeCol = cNum;
+                }
+                else if (MatchesAny(val, PerioKeywords)) 
+                {
+                    if (map.PerioCol == 0) map.PerioCol = cNum;
+                }
+                else if (!val.Contains("num") && (val == "moyendedetection" || val == "moyendecontrole" || (MatchesAny(val, MoyenKeywords) && MatchesAny(val, ControleKeywords)))) 
+                {
+                    if (map.MoyenDetCol == null) map.MoyenDetCol = cNum;
+                }
+                else if (val.Contains("fuite") && val.Contains("etalon")) 
+                {
+                    if (map.FuiteCol == null) map.FuiteCol = cNum;
+                }
                 else if (val.Contains("num") || val.Contains("piece") || val.Contains("ref")) 
                 {
                     if ((val.Contains("piec") && (val.Contains("num") || val.Contains("ref"))) ||
@@ -80,17 +92,15 @@ public partial class ExcelImportService
         foreach (var r in searchRows)
         {
             bool foundFamiliesInThisRow = false;
-            if (map.PieceRefStartCol > 0 && map.PieceRefEndCol >= map.PieceRefStartCol)
+            foreach (var c in r.CellsUsed())
             {
-                for (int cNum = map.PieceRefStartCol; cNum <= map.PieceRefEndCol; cNum++)
+                string fVal = SafeGetCellValue(c);
+                string normFVal = NormalizeForSearch(fVal);
+                if (!string.IsNullOrWhiteSpace(fVal) && (normFVal.Contains("famille") || normFVal.Contains("corps") || Regex.IsMatch(fVal, @"^\s*\(\s*\d+")))
                 {
-                    string fVal = SafeGetCellValue(r.Cell(cNum));
-                    if (!string.IsNullOrWhiteSpace(fVal) && (fVal.Contains("Corps", StringComparison.OrdinalIgnoreCase) || fVal.StartsWith("(")))
-                    {
-                        map.Familles[cNum] = fVal;
-                        map.HeaderBottomRow = r.RowNumber();
-                        foundFamiliesInThisRow = true;
-                    }
+                    map.Familles[c.Address.ColumnNumber] = fVal;
+                    map.HeaderBottomRow = r.RowNumber();
+                    foundFamiliesInThisRow = true;
                 }
             }
             if (foundFamiliesInThisRow) break;
@@ -98,7 +108,7 @@ public partial class ExcelImportService
         return map;
     }
 
-    public async Task<ImportVerifMachineExcelResultDto> ParseVerifMachineExcelAsync(Stream excelStream, string fileName, string configurationColonnesJson = null)
+    public virtual async Task<ImportVerifMachineExcelResultDto> ParseVerifMachineExcelAsync(Stream excelStream, string fileName, string configurationColonnesJson = null)
     {
         ResetCaches();
         var result = new ImportVerifMachineExcelResultDto();
@@ -194,30 +204,55 @@ public partial class ExcelImportService
                 if (hasColumns)
                 {
                     // Recalcul dynamique des colonnes UNIQUEMENT si c'est la ligne des colonnes
+                    map.RisqueCol = 0;
+                    map.MethodeCol = 0;
+                    map.PerioCol = 0;
                     map.MoyenDetCol = null;
                     map.PieceRefStartCol = 0;
+                    map.PieceRefEndCol = 0;
                     map.FuiteCol = null;
                     map.CustomCols.Clear();
 
                     foreach (var c in row.CellsUsed())
                     {
                         string val = NormalizeForSearch(SafeGetCellValue(c));
-                        if (MatchesAny(val, ConformiteKeywords) && !MatchesAny(val, ObsKeywords) && !val.Contains("non")) map.RisqueCol = c.Address.ColumnNumber;
-                        else if (MatchesAny(val, CaractKeywords)) map.RisqueCol = c.Address.ColumnNumber;
-                        else if (MatchesAny(val, TypeKeywords)) map.MethodeCol = c.Address.ColumnNumber;
-                        else if (MatchesAny(val, PerioKeywords)) map.PerioCol = c.Address.ColumnNumber;
-                        else if (!val.Contains("num") && MatchesAny(val, ControleKeywords)) map.MoyenDetCol = c.Address.ColumnNumber;
+                        if (MatchesAny(val, ConformiteKeywords) && !MatchesAny(val, ObsKeywords) && !val.Contains("non")) 
+                        {
+                            if (map.RisqueCol == 0) map.RisqueCol = c.Address.ColumnNumber;
+                        }
+                        else if (MatchesAny(val, CaractKeywords)) 
+                        {
+                            if (map.RisqueCol == 0) map.RisqueCol = c.Address.ColumnNumber;
+                        }
+                        else if (MatchesAny(val, TypeKeywords)) 
+                        {
+                            if (map.MethodeCol == 0) map.MethodeCol = c.Address.ColumnNumber;
+                        }
+                        else if (MatchesAny(val, PerioKeywords)) 
+                        {
+                            if (map.PerioCol == 0) map.PerioCol = c.Address.ColumnNumber;
+                        }
+                        else if (!val.Contains("num") && (val == "moyendedetection" || val == "moyendecontrole" || (MatchesAny(val, MoyenKeywords) && MatchesAny(val, ControleKeywords)))) 
+                        {
+                            if (map.MoyenDetCol == null) map.MoyenDetCol = c.Address.ColumnNumber;
+                        }
                         else if (val.Contains("num") || val.Contains("piece") || val.Contains("ref")) 
                         {
                             if ((val.Contains("piec") && (val.Contains("num") || val.Contains("ref"))) ||
                                 (val.Contains("num") && MatchesAny(val, MoyenKeywords) && MatchesAny(val, ControleKeywords)))
                             {
-                                map.PieceRefStartCol = c.Address.ColumnNumber;
-                                if (c.IsMerged()) map.PieceRefEndCol = c.MergedRange().LastColumn().ColumnNumber();
-                                else map.PieceRefEndCol = c.Address.ColumnNumber;
+                                if (map.PieceRefStartCol == 0)
+                                {
+                                    map.PieceRefStartCol = c.Address.ColumnNumber;
+                                    if (c.IsMerged()) map.PieceRefEndCol = c.MergedRange().LastColumn().ColumnNumber();
+                                    else map.PieceRefEndCol = c.Address.ColumnNumber;
+                                }
                             }
                         }
-                        else if (val.Contains("fuite") && val.Contains("etalon")) map.FuiteCol = c.Address.ColumnNumber;
+                        else if (val.Contains("fuite") && val.Contains("etalon")) 
+                        {
+                            if (map.FuiteCol == null) map.FuiteCol = c.Address.ColumnNumber;
+                        }
                         else if (map.CustomColsDefinition.TryGetValue(val, out var customKey))
                         {
                             map.CustomCols[c.Address.ColumnNumber] = customKey;
@@ -338,7 +373,7 @@ public partial class ExcelImportService
                             periodicite = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync(normalizedPerio);
                             if (periodicite == null)
                             {
-                                periodicite = new Periodicite { Id = Guid.NewGuid(), Code = SafeSubstring(normalizedPerio.Replace(" ", "").ToUpper(), 30), Libelle = normalizedPerio, Actif = true };
+                                periodicite = new Periodicite { Id = Guid.NewGuid(), Code = SafeSubstring(normalizedPerio.Replace(" ", "").ToUpper(), 22) + normalizedPerio.GetHashCode().ToString("X").PadLeft(6, '0').Substring(0, 6), Libelle = SafeSubstring(normalizedPerio, 80), Actif = true };
                                 await _unitOfWork.DictionnaireQualiteRepository.AddPeriodiciteAsync(periodicite);
                                 await _unitOfWork.CommitAsync();
                             }
@@ -423,7 +458,7 @@ public partial class ExcelImportService
         return result;
     }
 
-    private void ResetCaches()
+    protected void ResetCaches()
     {
         _createdPerioCache.Clear();
         _createdPiecesCache.Clear();
@@ -431,7 +466,7 @@ public partial class ExcelImportService
         _createdMoyensCache.Clear();
     }
 
-    private async Task ProcessPieceCellAsync(string pieceCode, string familleCode, ImportVerifMachineRowDto rowDto, bool inConformite, string colD, string machineCode)
+    protected async Task ProcessPieceCellAsync(string pieceCode, string familleCode, ImportVerifMachineRowDto rowDto, bool inConformite, string colD, string machineCode)
     {
         if (string.IsNullOrWhiteSpace(pieceCode) || pieceCode.Trim().ToUpper() == "X") return;
 
@@ -450,7 +485,7 @@ public partial class ExcelImportService
         });
     }
 
-    private static bool IsLigneLegendePieces(string colA)
+    protected static bool IsLigneLegendePieces(string colA)
     {
         if (string.IsNullOrWhiteSpace(colA)) return false;
         int count = 0;
@@ -461,7 +496,7 @@ public partial class ExcelImportService
         return count >= 2;
     }
 
-    private static string BuildLegendeMoyensFromImport(ImportVerifMachineExcelResultDto result)
+    protected static string BuildLegendeMoyensFromImport(ImportVerifMachineExcelResultDto result)
     {
         var usedRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var ligne in result.LignesConformite.Concat(result.LignesRisques))
@@ -497,7 +532,7 @@ public partial class ExcelImportService
         return lines.Count > 0 ? string.Join(" | ", lines) : string.Empty;
     }
 
-    private async Task<PieceReference> GetOrCreatePieceRefAsync(string code, string typePiece, string machineCode)
+    protected async Task<PieceReference> GetOrCreatePieceRefAsync(string code, string typePiece, string machineCode)
     {
         var normalizedCode = SafeSubstring(code.ToUpper().Trim(), 30);
 
@@ -526,7 +561,7 @@ public partial class ExcelImportService
         return piece;
     }
 
-    private async Task<RefFamilleCorp> GetOrCreateFamilleAsync(string header)
+    protected async Task<RefFamilleCorp> GetOrCreateFamilleAsync(string header)
     {
         var match = Regex.Match(header, @"\(([^)]+)\)");
         string code = match.Success ? match.Groups[1].Value.Trim().ToUpper() : header.Trim().ToUpper();
@@ -553,7 +588,7 @@ public partial class ExcelImportService
         return famille;
     }
 
-    private async Task<RefMoyenDetection> GetOrCreateMoyenDetectionAsync(string libelle)
+    protected async Task<RefMoyenDetection> GetOrCreateMoyenDetectionAsync(string libelle)
     {
         var normalized = libelle.Trim();
         if (_createdMoyensCache.TryGetValue(normalized, out var cachedMd))

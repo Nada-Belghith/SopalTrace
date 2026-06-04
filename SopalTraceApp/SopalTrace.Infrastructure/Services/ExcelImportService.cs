@@ -14,27 +14,27 @@ namespace SopalTrace.Infrastructure.Services;
 
 public partial class ExcelImportService : IExcelImportService
 {
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IFrequencyParserService _frequencyParserService;
+    protected readonly IUnitOfWork _unitOfWork;
+    protected readonly IFrequencyParserService _frequencyParserService;
 
-    private readonly Dictionary<string, Periodicite> _createdPerioCache = new();
-    private readonly Dictionary<string, PieceReference> _createdPiecesCache = new();
-    private readonly Dictionary<string, RefFamilleCorp> _createdFamiliesCache = new();
-    private readonly Dictionary<string, RefMoyenDetection> _createdMoyensCache = new();
+    protected readonly Dictionary<string, Periodicite> _createdPerioCache = new();
+    protected readonly Dictionary<string, PieceReference> _createdPiecesCache = new();
+    protected readonly Dictionary<string, RefFamilleCorp> _createdFamiliesCache = new();
+    protected readonly Dictionary<string, RefMoyenDetection> _createdMoyensCache = new();
 
     // --- CONFIGURATION DES MOTS-CLÉS (Plus flexible) ---
-    private static readonly string[] CaractKeywords = { "caracteristique", "carac", "cote", "parametre", "defaut", "risque" };
-    private static readonly string[] LimiteKeywords = { "limite", "specification", "specif", "tolerance", "valeur" };
-    private static readonly string[] InstrumentKeywords = { "code", "id", "ref" };
-    private static readonly string[] MoyenKeywords = { "moyen", "instrument", "appareil", "outil", "equipement" };
-    private static readonly string[] TypeKeywords = { "type", "methode" }; 
-    private static readonly string[] ControleKeywords = { "controle", "verif", "detec" };
-    private static readonly string[] ObsKeywords = { "observation", "remarque", "note", "instruction" };
-    private static readonly string[] PerioKeywords = { "period", "frequence", "echeance", "taux" };
-    private static readonly string[] ConformiteKeywords = { "conformit" };
+    protected static readonly string[] CaractKeywords = { "caracteristique", "carac", "cote", "parametre", "defaut", "risque" };
+    protected static readonly string[] LimiteKeywords = { "limite", "specification", "specif", "tolerance", "valeur" };
+    protected static readonly string[] InstrumentKeywords = { "code", "id", "ref" };
+    protected static readonly string[] MoyenKeywords = { "moyen", "instrument", "appareil", "outil", "equipement" };
+    protected static readonly string[] TypeKeywords = { "type", "methode" }; 
+    protected static readonly string[] ControleKeywords = { "controle", "verif", "detec" };
+    protected static readonly string[] ObsKeywords = { "observation", "remarque", "note", "instruction" };
+    protected static readonly string[] PerioKeywords = { "period", "frequence", "echeance", "taux" };
+    protected static readonly string[] ConformiteKeywords = { "conformit" };
     
     // --- HELPERS NORMALISATION ---
-    private static string NormalizeForSearch(string text)
+    protected static string NormalizeForSearch(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
         var normalizedString = text.Normalize(System.Text.NormalizationForm.FormD);
@@ -51,12 +51,12 @@ public partial class ExcelImportService : IExcelImportService
         return stringBuilder.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant().Replace(" ", "").Replace("-", "").Replace("_", "").Replace("\n", "").Replace("\r", "");
     }
 
-    private static bool MatchesAny(string normalizedText, string[] keywords)
+    protected static bool MatchesAny(string normalizedText, string[] keywords)
     {
         return keywords.Any(k => normalizedText.Contains(k));
     }
 
-    private class PlanColumnMapping
+    protected class PlanColumnMapping
     {
         public bool IsInitialized { get; set; } = false;
         public int CaractCol { get; set; } = 1;
@@ -69,7 +69,7 @@ public partial class ExcelImportService : IExcelImportService
         public Dictionary<string, string> CustomColsDefinition { get; set; } = new(); // NormLabel -> Key
     }
 
-    private class VerifMachineColumnMapping
+    protected class VerifMachineColumnMapping
     {
         public int RisqueCol { get; set; } = 1;
         public int MethodeCol { get; set; } = 2;
@@ -90,13 +90,13 @@ public partial class ExcelImportService : IExcelImportService
         _frequencyParserService = frequencyParserService;
     }
 
-    private string SafeSubstring(string text, int maxLength)
+    protected string SafeSubstring(string text, int maxLength)
     {
         if (string.IsNullOrEmpty(text)) return text;
         return text.Length <= maxLength ? text : text.Substring(0, maxLength);
     }
 
-    private string FixEncoding(string text)
+    protected string FixEncoding(string text)
     {
         if (string.IsNullOrEmpty(text)) return text;
         
@@ -114,7 +114,7 @@ public partial class ExcelImportService : IExcelImportService
         return text;
     }
 
-    private string SafeGetCellValue(IXLCell cell)
+    protected string SafeGetCellValue(IXLCell cell)
     {
         try
         {

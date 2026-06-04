@@ -30,7 +30,7 @@
 
             <!-- ── Titre de section ── -->
             <tr class="section-row bg-[#dbeafe] border-t-2 border-[#1e3a5f]">
-              <td :colspan="computedColumns.length" class="border border-blue-300 px-4 py-2.5 text-center font-black text-[13px] text-[#1e3a5f]">
+              <td colspan="100" class="border border-blue-300 px-4 py-2.5 text-center font-black text-[13px] text-[#1e3a5f]">
                 {{ buildSectionTitle(section) }}
               </td>
             </tr>
@@ -72,7 +72,7 @@
           </template>
 
           <tr v-if="!sections || sections.length === 0">
-            <td :colspan="computedColumns.length" class="px-4 py-8 text-center text-slate-400 italic">Aucune section définie.</td>
+            <td colspan="100" class="px-4 py-8 text-center text-slate-400 italic">Aucune section définie.</td>
           </tr>
         </tbody>
       </table>

@@ -104,7 +104,7 @@ public record LigneEditDto
     public string Observations { get; init; }
     public string Instruction { get; init; }
     public bool EstCritique { get; init; } = false;
-    public string? ColonnesSupplementaires { get; init; }
+    public string ColonnesSupplementaires { get; init; }
 }
 
 // ====================================================================
@@ -164,7 +164,7 @@ public record PlanLigneResponseDto
     public string Observations { get; set; }
     public string Instruction { get; set; }
     public bool EstCritique { get; init; }
-    public string? ColonnesSupplementaires { get; set; }
+    public string ColonnesSupplementaires { get; set; }
 }
 
 public record RestaurerPlanRequestDto(

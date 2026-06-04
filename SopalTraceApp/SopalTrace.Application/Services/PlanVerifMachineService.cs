@@ -24,17 +24,19 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         _referentielService = referentielService;
     }
 
+    public virtual string Role => "DEFAULT";
+
     // =========================================================================
     // LECTURE
     // =========================================================================
-    public async Task<PlanVerifMachineResponseDto> GetPlanVerifByIdAsync(Guid planId)
+    public virtual async Task<PlanVerifMachineResponseDto> GetPlanVerifByIdAsync(Guid planId)
     {
         var plan = await _unitOfWork.PlanVerifMachineRepository.GetPlanAvecRelationsAsync(planId);
         if (plan == null) throw new Exception("Plan introuvable.");
         return PlanVerifMachineMapper.MapperEntiteVersDto(plan);
     }
 
-    public async Task<List<PlanVerifMachineResponseDto>> GetTousLesPlansVerifAsync()
+    public virtual async Task<List<PlanVerifMachineResponseDto>> GetTousLesPlansVerifAsync()
     {
         var plans = await _unitOfWork.PlanVerifMachineRepository.GetTousLesPlanAsync();
         return plans.Select(p => PlanVerifMachineMapper.MapperEntiteVersDto(p)).ToList();
@@ -43,7 +45,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
     /// <summary>
     /// Retourne les familles de corps configurées pour une machine dans Machine_FamilleCorps.
     /// </summary>
-    public async Task<List<FamilleCorpsDto>> GetFamillesParMachineAsync(string machineCode)
+    public virtual async Task<List<FamilleCorpsDto>> GetFamillesParMachineAsync(string machineCode)
     {
         var familles = await _unitOfWork.PlanVerifMachineRepository.GetFamillesParMachineAsync(machineCode);
         return familles.Select(f => new FamilleCorpsDto
@@ -64,7 +66,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
     // =========================================================================
     // CRÉATION
     // =========================================================================
-   public async Task<Guid> CreerPlanVerifAsync(CreateVerifMachineModeleDto request, string creePar)
+   public virtual async Task<Guid> CreerPlanVerifAsync(CreateVerifMachineModeleDto request, string creePar)
     {
         var nouveauPlan = PlanVerifMachineMapper.ConstruireDepuisModeleDto(request, creePar);
 
@@ -128,7 +130,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
     // =========================================================================
     
     // Remarque : Changement de la signature pour retourner un Task<Guid> (le nouvel ID V+1)
-    public async Task<Guid> MettreAJourPlanVerifAsync(Guid planIdActuel, CreateVerifMachineModeleDto request, string modifiePar)
+    public virtual async Task<Guid> MettreAJourPlanVerifAsync(Guid planIdActuel, CreateVerifMachineModeleDto request, string modifiePar)
     {
         // 1. On récupère l'ancien plan. 
         // Note : Si vous avez une méthode GetByIdAsync (sans les relations), utilisez-la ! 

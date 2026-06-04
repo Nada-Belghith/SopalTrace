@@ -1,6 +1,6 @@
 <template>
   <tr class="bg-[#f1f5f9] border-t-4 border-slate-300">
-    <td :colspan="colspan" class="p-3 px-4 relative">
+    <td colspan="100" class="p-3 px-4 relative">
       <div class="flex flex-col gap-3 pr-40">
         
         <!-- LIGNE D'INPUTS -->
