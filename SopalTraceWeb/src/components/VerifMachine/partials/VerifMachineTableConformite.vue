@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full">
+  <div class="w-full min-w-max">
     <div class="bg-slate-800 text-slate-200 border-l-4 border-blue-500 text-[11px] font-bold uppercase p-3 flex justify-between items-center rounded-t-lg">
       <span class="flex items-center gap-2"><i class="ri-checkbox-circle-line text-blue-400 text-lg"></i> Section Conformité</span>
       <button v-if="!props.isReadOnly" @click="store.ajouterLigneConformite()" class="text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded shadow-sm transition-colors flex items-center gap-1 font-bold">
@@ -360,7 +360,11 @@ const flattenedRowsConformite = computed(() => {
       // 4. Dynamic rowspans for Custom Columns
       if (store.entete.configurationColonnes) {
         try {
-          const cCols = JSON.parse(store.entete.configurationColonnes).filter(c => c.target === 'conformite');
+          let cols = store.entete.configurationColonnes;
+          if (typeof cols === 'string') {
+             cols = cols.trim() === '' ? [] : JSON.parse(cols);
+          }
+          const cCols = cols.filter(c => !c.targetTable || c.targetTable === 'all' || c.targetTable === 'conformite');
           cCols.forEach(cCol => {
             let currentVal = null;
             let startIdx = 0;

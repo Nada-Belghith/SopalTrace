@@ -144,7 +144,7 @@ public partial class SopalTraceDbContext : DbContext
     {
         modelBuilder.Entity<Article>(entity =>
         {
-            entity.HasKey(e => e.CodeArticle).HasName("PK__Article__32384FB04D8DF09C");
+            entity.HasKey(e => e.CodeArticle).HasName("PK__Article__32384FB02F2C3C74");
 
             entity.ToTable("Article");
 
@@ -185,7 +185,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Atextra>(entity =>
         {
-            entity.HasKey(e => new { e.Codfic0, e.Zone0, e.Ident10, e.Langue0 }).HasName("PK__ATEXTRA__4F21B2DB4CBD1514");
+            entity.HasKey(e => new { e.Codfic0, e.Zone0, e.Ident10, e.Langue0 }).HasName("PK__ATEXTRA__4F21B2DB800D9CD9");
 
             entity.ToTable("ATEXTRA");
 
@@ -213,7 +213,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Autili>(entity =>
         {
-            entity.HasKey(e => e.Usr0).HasName("PK__AUTILIS__0812AE6970828F8F");
+            entity.HasKey(e => e.Usr0).HasName("PK__AUTILIS__0812AE6968172A96");
 
             entity.ToTable("AUTILIS");
 
@@ -240,7 +240,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<BomdNomenclature>(entity =>
         {
-            entity.HasKey(e => new { e.ArticleParent, e.CodeComposant, e.CodeAlternative }).HasName("PK__BOMD_Nom__2710E85106271E63");
+            entity.HasKey(e => new { e.ArticleParent, e.CodeComposant, e.CodeAlternative }).HasName("PK__BOMD_Nom__2710E8513ACC0FFD");
 
             entity.ToTable("BOMD_Nomenclature");
 
@@ -268,11 +268,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Defautheque>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Defauthe__3214EC072CE3B234");
+            entity.HasKey(e => e.Id).HasName("PK__Defauthe__3214EC072CD8BB50");
 
             entity.ToTable("Defautheque", tb => tb.HasTrigger("trg_no_del_Defautheque"));
 
-            entity.HasIndex(e => e.Code, "UQ__Defauthe__A25C5AA72A2AA949").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__Defauthe__A25C5AA78CD9CE20").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -286,7 +286,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<ExecControleOf>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Exec_Con__3214EC074FF74B66");
+            entity.HasKey(e => e.Id).HasName("PK__Exec_Con__3214EC07BA161867");
 
             entity.ToTable("Exec_ControleOF");
 
@@ -325,34 +325,34 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.MachineCodeNavigation).WithMany(p => p.ExecControleOfMachineCodeNavigations)
                 .HasForeignKey(d => d.MachineCode)
-                .HasConstraintName("FK__Exec_Cont__Machi__4183B671");
+                .HasConstraintName("FK__Exec_Cont__Machi__408F9238");
 
             entity.HasOne(d => d.MachineCodePrevuNavigation).WithMany(p => p.ExecControleOfMachineCodePrevuNavigations)
                 .HasForeignKey(d => d.MachineCodePrevu)
-                .HasConstraintName("FK__Exec_Cont__Machi__3F9B6DFF");
+                .HasConstraintName("FK__Exec_Cont__Machi__3EA749C6");
 
             entity.HasOne(d => d.NumeroOfNavigation).WithMany(p => p.ExecControleOfs)
                 .HasForeignKey(d => d.NumeroOf)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Exec_Cont__Numer__3DB3258D");
+                .HasConstraintName("FK__Exec_Cont__Numer__3CBF0154");
 
             entity.HasOne(d => d.OperationCodeNavigation).WithMany(p => p.ExecControleOfs)
                 .HasForeignKey(d => d.OperationCode)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Exec_Cont__Opera__3EA749C6");
+                .HasConstraintName("FK__Exec_Cont__Opera__3DB3258D");
 
             entity.HasOne(d => d.PosteCodeNavigation).WithMany(p => p.ExecControleOfPosteCodeNavigations)
                 .HasForeignKey(d => d.PosteCode)
-                .HasConstraintName("FK__Exec_Cont__Poste__4277DAAA");
+                .HasConstraintName("FK__Exec_Cont__Poste__4183B671");
 
             entity.HasOne(d => d.PosteCodePrevuNavigation).WithMany(p => p.ExecControleOfPosteCodePrevuNavigations)
                 .HasForeignKey(d => d.PosteCodePrevu)
-                .HasConstraintName("FK__Exec_Cont__Poste__408F9238");
+                .HasConstraintName("FK__Exec_Cont__Poste__3F9B6DFF");
         });
 
         modelBuilder.Entity<ExecControleTranche>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Exec_Con__3214EC07AE5C198D");
+            entity.HasKey(e => e.Id).HasName("PK__Exec_Con__3214EC071BA84028");
 
             entity.ToTable("Exec_ControleTranche");
 
@@ -379,12 +379,12 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.ExecControleOf).WithMany(p => p.ExecControleTranches)
                 .HasForeignKey(d => d.ExecControleOfid)
-                .HasConstraintName("FK__Exec_Cont__ExecC__50C5FA01");
+                .HasConstraintName("FK__Exec_Cont__ExecC__4FD1D5C8");
         });
 
         modelBuilder.Entity<ExecPieceType>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Exec_Pie__3214EC07EE3B2651");
+            entity.HasKey(e => e.Id).HasName("PK__Exec_Pie__3214EC079C23D3F4");
 
             entity.ToTable("Exec_PieceType");
 
@@ -405,12 +405,12 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.ExecControleOf).WithMany(p => p.ExecPieceTypes)
                 .HasForeignKey(d => d.ExecControleOfid)
-                .HasConstraintName("FK__Exec_Piec__ExecC__4B0D20AB");
+                .HasConstraintName("FK__Exec_Piec__ExecC__4A18FC72");
         });
 
         modelBuilder.Entity<ExecPrelevement>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Exec_Pre__3214EC079E13254E");
+            entity.HasKey(e => e.Id).HasName("PK__Exec_Pre__3214EC0777D9AD42");
 
             entity.ToTable("Exec_Prelevement");
 
@@ -426,12 +426,12 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.ExecControleTranche).WithMany(p => p.ExecPrelevements)
                 .HasForeignKey(d => d.ExecControleTrancheId)
-                .HasConstraintName("FK__Exec_Prel__ExecC__558AAF1E");
+                .HasConstraintName("FK__Exec_Prel__ExecC__54968AE5");
         });
 
         modelBuilder.Entity<ExecPrelevementLigne>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Exec_Pre__3214EC07061682E3");
+            entity.HasKey(e => e.Id).HasName("PK__Exec_Pre__3214EC072306BE66");
 
             entity.ToTable("Exec_Prelevement_Ligne");
 
@@ -445,12 +445,12 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.Prelevement).WithMany(p => p.ExecPrelevementLignes)
                 .HasForeignKey(d => d.PrelevementId)
-                .HasConstraintName("FK__Exec_Prel__Prele__5A4F643B");
+                .HasConstraintName("FK__Exec_Prel__Prele__595B4002");
         });
 
         modelBuilder.Entity<FamilleProduitFini>(entity =>
         {
-            entity.HasKey(e => e.Code).HasName("PK__FamilleP__A25C5AA657FF2F06");
+            entity.HasKey(e => e.Code).HasName("PK__FamilleP__A25C5AA690D03E76");
 
             entity.ToTable("FamilleProduitFini", tb => tb.HasTrigger("trg_no_del_FamilleProduitFini"));
 
@@ -472,7 +472,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Instrument>(entity =>
         {
-            entity.HasKey(e => e.CodeInstrument).HasName("PK__Instrume__E6E435051CC46A6A");
+            entity.HasKey(e => e.CodeInstrument).HasName("PK__Instrume__E6E435055D9E7260");
 
             entity.ToTable("Instrument", tb => tb.HasTrigger("trg_no_del_Instrument"));
 
@@ -497,7 +497,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<JournalConnexion>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__JournalC__3214EC0734A520CC");
+            entity.HasKey(e => e.Id).HasName("PK__JournalC__3214EC070D9D9A4A");
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Action)
@@ -516,7 +516,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Machine>(entity =>
         {
-            entity.HasKey(e => e.CodeMachine).HasName("PK__Machine__50D6760F651CBCEE");
+            entity.HasKey(e => e.CodeMachine).HasName("PK__Machine__50D6760F73F43195");
 
             entity.ToTable("Machine");
 
@@ -556,7 +556,7 @@ public partial class SopalTraceDbContext : DbContext
                         .HasConstraintName("FK__Machine_F__Machi__44CA3770"),
                     j =>
                     {
-                        j.HasKey("MachineCode", "RefFamilleCorpsId").HasName("PK__Machine___74270A8AF46230FF");
+                        j.HasKey("MachineCode", "RefFamilleCorpsId").HasName("PK__Machine___74270A8A7C0EDE21");
                         j.ToTable("Machine_FamilleCorps");
                         j.IndexerProperty<string>("MachineCode")
                             .HasMaxLength(30)
@@ -566,7 +566,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<MagExpeditionBl>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Mag_Expe__3214EC074BD99F3B");
+            entity.HasKey(e => e.Id).HasName("PK__Mag_Expe__3214EC079E3222DA");
 
             entity.ToTable("Mag_ExpeditionBL");
 
@@ -590,12 +590,12 @@ public partial class SopalTraceDbContext : DbContext
             entity.HasOne(d => d.NumeroBlNavigation).WithMany(p => p.MagExpeditionBls)
                 .HasForeignKey(d => d.NumeroBl)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Mag_Exped__Numer__314D4EA8");
+                .HasConstraintName("FK__Mag_Exped__Numer__30592A6F");
         });
 
         modelBuilder.Entity<MagExpeditionBlScanOf>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Mag_Expe__3214EC07E0854419");
+            entity.HasKey(e => e.Id).HasName("PK__Mag_Expe__3214EC07259941C1");
 
             entity.ToTable("Mag_ExpeditionBL_ScanOF");
 
@@ -611,17 +611,17 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.ExpeditionBl).WithMany(p => p.MagExpeditionBlScanOfs)
                 .HasForeignKey(d => d.ExpeditionBlid)
-                .HasConstraintName("FK__Mag_Exped__Exped__37FA4C37");
+                .HasConstraintName("FK__Mag_Exped__Exped__370627FE");
 
             entity.HasOne(d => d.NumeroOfscanneNavigation).WithMany(p => p.MagExpeditionBlScanOfs)
                 .HasForeignKey(d => d.NumeroOfscanne)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Mag_Exped__Numer__38EE7070");
+                .HasConstraintName("FK__Mag_Exped__Numer__37FA4C37");
         });
 
         modelBuilder.Entity<MagPreparationOf>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Mag_Prep__3214EC07ED6D277D");
+            entity.HasKey(e => e.Id).HasName("PK__Mag_Prep__3214EC07D50CA269");
 
             entity.ToTable("Mag_PreparationOF");
 
@@ -645,12 +645,12 @@ public partial class SopalTraceDbContext : DbContext
             entity.HasOne(d => d.NumeroOfNavigation).WithMany(p => p.MagPreparationOfs)
                 .HasForeignKey(d => d.NumeroOf)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Mag_Prepa__Numer__1F2E9E6D");
+                .HasConstraintName("FK__Mag_Prepa__Numer__1E3A7A34");
         });
 
         modelBuilder.Entity<MagPreparationOfLot>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Mag_Prep__3214EC07666F4220");
+            entity.HasKey(e => e.Id).HasName("PK__Mag_Prep__3214EC07E0BB8C7D");
 
             entity.ToTable("Mag_PreparationOF_Lot");
 
@@ -669,16 +669,16 @@ public partial class SopalTraceDbContext : DbContext
             entity.HasOne(d => d.CodeArticleNavigation).WithMany(p => p.MagPreparationOfLots)
                 .HasForeignKey(d => d.CodeArticle)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Mag_Prepa__CodeA__26CFC035");
+                .HasConstraintName("FK__Mag_Prepa__CodeA__25DB9BFC");
 
             entity.HasOne(d => d.PreparationOf).WithMany(p => p.MagPreparationOfLots)
                 .HasForeignKey(d => d.PreparationOfid)
-                .HasConstraintName("FK__Mag_Prepa__Prepa__25DB9BFC");
+                .HasConstraintName("FK__Mag_Prepa__Prepa__24E777C3");
         });
 
         modelBuilder.Entity<MagQuickControlRapport>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Mag_Quic__3214EC079F3F4FDD");
+            entity.HasKey(e => e.Id).HasName("PK__Mag_Quic__3214EC07123A6E43");
 
             entity.ToTable("Mag_QuickControl_Rapport");
 
@@ -701,17 +701,17 @@ public partial class SopalTraceDbContext : DbContext
             entity.HasOne(d => d.CodeArticleNavigation).WithMany(p => p.MagQuickControlRapports)
                 .HasForeignKey(d => d.CodeArticle)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Mag_Quick__CodeA__2C88998B");
+                .HasConstraintName("FK__Mag_Quick__CodeA__2B947552");
 
             entity.HasOne(d => d.NumeroOfNavigation).WithMany(p => p.MagQuickControlRapports)
                 .HasForeignKey(d => d.NumeroOf)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Mag_Quick__Numer__2B947552");
+                .HasConstraintName("FK__Mag_Quick__Numer__2AA05119");
         });
 
         modelBuilder.Entity<MfgheadOrdreFabrication>(entity =>
         {
-            entity.HasKey(e => e.NumeroOf).HasName("PK__MFGHEAD___C6A65F30DA836235");
+            entity.HasKey(e => e.NumeroOf).HasName("PK__MFGHEAD___C6A65F30212546B1");
 
             entity.ToTable("MFGHEAD_OrdreFabrication");
 
@@ -739,7 +739,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<MfgmatBesoinOf>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__MFGMAT_B__3214EC0711CBD727");
+            entity.HasKey(e => e.Id).HasName("PK__MFGMAT_B__3214EC0721173C41");
 
             entity.ToTable("MFGMAT_BesoinOF");
 
@@ -763,11 +763,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<ModeleFabricationEntete>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Modele_F__3214EC0700A67062");
+            entity.HasKey(e => e.Id).HasName("PK__Modele_F__3214EC07CFFAE931");
 
             entity.ToTable("Modele_Fabrication_Entete");
 
-            entity.HasIndex(e => new { e.Code, e.Libelle, e.Version }, "UQ__Modele_F__EE6B988796313E3D").IsUnique();
+            entity.HasIndex(e => new { e.Code, e.Libelle, e.Version }, "UQ__Modele_F__EE6B9887F9C0038C").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Code)
@@ -817,7 +817,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<ModeleFabricationLigne>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Modele_F__3214EC0795283B4D");
+            entity.HasKey(e => e.Id).HasName("PK__Modele_F__3214EC07D198AEE8");
 
             entity.ToTable("Modele_Fabrication_Ligne");
 
@@ -863,7 +863,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<ModeleFabricationSection>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Modele_F__3214EC0722BDBEB8");
+            entity.HasKey(e => e.Id).HasName("PK__Modele_F__3214EC077EE5640C");
 
             entity.ToTable("Modele_Fabrication_Section");
 
@@ -891,11 +891,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<MoyenControle>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__MoyenCon__3214EC070D37A1E7");
+            entity.HasKey(e => e.Id).HasName("PK__MoyenCon__3214EC077D770E91");
 
             entity.ToTable("MoyenControle", tb => tb.HasTrigger("trg_no_del_MoyenControle"));
 
-            entity.HasIndex(e => e.Code, "UQ__MoyenCon__A25C5AA7DED89E74").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__MoyenCon__A25C5AA7A68A4A7A").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -909,7 +909,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<NatureArticle>(entity =>
         {
-            entity.HasKey(e => e.Code).HasName("PK__NatureAr__A25C5AA622E4A3FD");
+            entity.HasKey(e => e.Code).HasName("PK__NatureAr__A25C5AA62576712E");
 
             entity.ToTable("NatureArticle", tb => tb.HasTrigger("trg_no_del_NatureArticle"));
 
@@ -927,7 +927,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<NatureArticleOperation>(entity =>
         {
-            entity.HasKey(e => new { e.NatureArticleCode, e.OperationCode }).HasName("PK__NatureAr__6403AE7775A37BEE");
+            entity.HasKey(e => new { e.NatureArticleCode, e.OperationCode }).HasName("PK__NatureAr__6403AE77931C2935");
 
             entity.ToTable("NatureArticle_Operation");
 
@@ -951,18 +951,18 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Nqa>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__NQA__3214EC07C7D4D6FA");
+            entity.HasKey(e => e.Id).HasName("PK__NQA__3214EC07EFDA4043");
 
             entity.ToTable("NQA", tb => tb.HasTrigger("trg_no_del_NQA"));
 
-            entity.HasIndex(e => e.ValeurNqa, "UQ__NQA__1DA3E24847D581F8").IsUnique();
+            entity.HasIndex(e => e.ValeurNqa, "UQ__NQA__1DA3E248C81ACE3A").IsUnique();
 
             entity.Property(e => e.ValeurNqa).HasColumnName("ValeurNQA");
         });
 
         modelBuilder.Entity<Operation>(entity =>
         {
-            entity.HasKey(e => e.Code).HasName("PK__Operatio__A25C5AA6E2AC9D40");
+            entity.HasKey(e => e.Code).HasName("PK__Operatio__A25C5AA654CAA3CA");
 
             entity.ToTable("Operation", tb => tb.HasTrigger("trg_no_del_Operation"));
 
@@ -977,11 +977,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<OutilControle>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__OutilCon__3214EC07FFA2F705");
+            entity.HasKey(e => e.Id).HasName("PK__OutilCon__3214EC07B8C26CBD");
 
             entity.ToTable("OutilControle");
 
-            entity.HasIndex(e => e.Code, "UQ__OutilCon__A25C5AA78D236B82").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__OutilCon__A25C5AA7B3FE6C39").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1014,11 +1014,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Periodicite>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Periodic__3214EC07750FF0A0");
+            entity.HasKey(e => e.Id).HasName("PK__Periodic__3214EC07F190198D");
 
             entity.ToTable("Periodicite", tb => tb.HasTrigger("trg_no_del_Periodicite"));
 
-            entity.HasIndex(e => e.Code, "UQ__Periodic__A25C5AA73A40CA9E").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__Periodic__A25C5AA7CBCFE610").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1035,11 +1035,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PieceReference>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__PieceRef__3214EC073F6A815E");
+            entity.HasKey(e => e.Id).HasName("PK__PieceRef__3214EC07B7D4D7AD");
 
             entity.ToTable("PieceReference", tb => tb.HasTrigger("trg_no_del_PieceReference"));
 
-            entity.HasIndex(e => e.Code, "UQ__PieceRef__A25C5AA7AB22BC68").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__PieceRef__A25C5AA7CF14B5B4").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1063,7 +1063,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanAssemblageEntete>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ass__3214EC076182AF96");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ass__3214EC079215EA71");
 
             entity.ToTable("Plan_Assemblage_Entete");
 
@@ -1122,7 +1122,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanAssemblageLigne>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ass__3214EC07339A10AB");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ass__3214EC075F6B69F4");
 
             entity.ToTable("Plan_Assemblage_Ligne");
 
@@ -1187,7 +1187,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanAssemblageSection>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ass__3214EC07C5D1839B");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ass__3214EC07B4B02D0B");
 
             entity.ToTable("Plan_Assemblage_Section");
 
@@ -1222,7 +1222,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanEchantillonnageEntete>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ech__3214EC073933CD3B");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ech__3214EC0722F1AF1A");
 
             entity.ToTable("Plan_Echantillonnage_Entete");
 
@@ -1259,11 +1259,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanEchantillonnageRegle>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ech__3214EC0794F2BC97");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ech__3214EC07CEBF2E12");
 
             entity.ToTable("Plan_Echantillonnage_Regle");
 
-            entity.HasIndex(e => new { e.FicheEnteteId, e.LettreCode }, "UQ__Plan_Ech__D6AC40B605203765").IsUnique();
+            entity.HasIndex(e => new { e.FicheEnteteId, e.LettreCode }, "UQ__Plan_Ech__D6AC40B6B3AB7648").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CritereAcceptationAc).HasColumnName("CritereAcceptation_Ac");
@@ -1284,7 +1284,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanFabricationEntete>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Fab__3214EC074349411A");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Fab__3214EC07E4DA25AC");
 
             entity.ToTable("Plan_Fabrication_Entete");
 
@@ -1347,7 +1347,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanFabricationLigne>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Fab__3214EC073CD68EBC");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Fab__3214EC07EDD0B566");
 
             entity.ToTable("Plan_Fabrication_Ligne");
 
@@ -1402,7 +1402,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanFabricationSection>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Fab__3214EC0750251D8D");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Fab__3214EC077A074FF1");
 
             entity.ToTable("Plan_Fabrication_Section");
 
@@ -1434,11 +1434,9 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanNonConformiteEntete>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Non__3214EC07334788D7");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Non__3214EC07BDA103BF");
 
             entity.ToTable("Plan_NonConformite_Entete");
-
-            entity.HasIndex(e => new { e.PosteCode, e.Version }, "UQ__Plan_Non__03CB8A146F4A017A").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CreeLe)
@@ -1462,19 +1460,23 @@ public partial class SopalTraceDbContext : DbContext
                 .IsUnicode(false)
                 .HasDefaultValue("BROUILLON");
 
+            entity.HasOne(d => d.Formulaire).WithMany(p => p.PlanNonConformiteEntetes)
+                .HasForeignKey(d => d.FormulaireId)
+                .HasConstraintName("FK__Plan_NonC__Formu__7167D3BD");
+
             entity.HasOne(d => d.PosteCodeNavigation).WithMany(p => p.PlanNonConformiteEntetes)
                 .HasForeignKey(d => d.PosteCode)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Plan_NonC__Poste__6D9742D9");
+                .HasConstraintName("FK__Plan_NonC__Poste__6CA31EA0");
         });
 
         modelBuilder.Entity<PlanNonConformiteLigne>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Non__3214EC07615D9E5F");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Non__3214EC076DE63E56");
 
             entity.ToTable("Plan_NonConformite_Ligne");
 
-            entity.HasIndex(e => new { e.PlanNcenteteId, e.OrdreAffiche }, "UQ__Plan_Non__90C61738352C2895").IsUnique();
+            entity.HasIndex(e => new { e.PlanNcenteteId, e.OrdreAffiche }, "UQ__Plan_Non__90C6173824D4CCA3").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.MachineCode)
@@ -1499,11 +1501,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanProduitFiniEntete>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Pro__3214EC078978C60B");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Pro__3214EC073CB5047D");
 
             entity.ToTable("Plan_ProduitFini_Entete");
 
-            entity.HasIndex(e => new { e.FamilleProduitFiniCode, e.Version }, "UQ__Plan_Pro__98E0A082990FFDCA").IsUnique();
+            entity.HasIndex(e => new { e.FamilleProduitFiniCode, e.Version }, "UQ__Plan_Pro__98E0A0820D78DE86").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CreeLe)
@@ -1536,7 +1538,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanProduitFiniLigne>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Pro__3214EC07741CC5FE");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Pro__3214EC0702371B74");
 
             entity.ToTable("Plan_ProduitFini_Ligne");
 
@@ -1587,7 +1589,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanProduitFiniSection>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Pro__3214EC07673F5E03");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Pro__3214EC0775165116");
 
             entity.ToTable("Plan_ProduitFini_Section");
 
@@ -1615,7 +1617,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<PlanVerifMachineEcheance>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC07ABECD7EC");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC07B462F6AD");
 
             entity.ToTable("Plan_VerifMachine_Echeance");
 
@@ -1624,24 +1626,22 @@ public partial class SopalTraceDbContext : DbContext
             entity.HasOne(d => d.Periodicite).WithMany(p => p.PlanVerifMachineEcheances)
                 .HasForeignKey(d => d.PeriodiciteId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Plan_Veri__Perio__11D4A34F");
+                .HasConstraintName("FK__Plan_Veri__Perio__10E07F16");
 
             entity.HasOne(d => d.PlanLigne).WithMany(p => p.PlanVerifMachineEcheances)
                 .HasForeignKey(d => d.PlanLigneId)
-                .HasConstraintName("FK__Plan_Veri__PlanL__10E07F16");
+                .HasConstraintName("FK__Plan_Veri__PlanL__0FEC5ADD");
 
             entity.HasOne(d => d.RefMoyenDetection).WithMany(p => p.PlanVerifMachineEcheances)
                 .HasForeignKey(d => d.RefMoyenDetectionId)
-                .HasConstraintName("FK__Plan_Veri__RefMo__12C8C788");
+                .HasConstraintName("FK__Plan_Veri__RefMo__11D4A34F");
         });
 
         modelBuilder.Entity<PlanVerifMachineEntete>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC079D956811");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC07AD06D38A");
 
             entity.ToTable("Plan_VerifMachine_Entete");
-
-            entity.HasIndex(e => new { e.MachineCode, e.Version }, "UQ__Plan_Ver__9B71F5ABB9D6FCE4").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CreeLe)
@@ -1668,37 +1668,37 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.Formulaire).WithMany(p => p.PlanVerifMachineEntetes)
                 .HasForeignKey(d => d.FormulaireId)
-                .HasConstraintName("FK__Plan_Veri__Formu__019E3B86");
+                .HasConstraintName("FK__Plan_Veri__Formu__00AA174D");
 
             entity.HasOne(d => d.MachineCodeNavigation).WithMany(p => p.PlanVerifMachineEntetes)
                 .HasForeignKey(d => d.MachineCode)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Plan_Veri__Machi__7CD98669");
+                .HasConstraintName("FK__Plan_Veri__Machi__7BE56230");
         });
 
         modelBuilder.Entity<PlanVerifMachineFamille>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC07A11F5BD9");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC070DB597DC");
 
             entity.ToTable("Plan_VerifMachine_Famille");
 
-            entity.HasIndex(e => new { e.PlanEnteteId, e.RefFamilleCorpsId }, "UQ__Plan_Ver__7457AEA4DEAFB44D").IsUnique();
+            entity.HasIndex(e => new { e.PlanEnteteId, e.RefFamilleCorpsId }, "UQ__Plan_Ver__7457AEA45F62F58E").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
 
             entity.HasOne(d => d.PlanEntete).WithMany(p => p.PlanVerifMachineFamilles)
                 .HasForeignKey(d => d.PlanEnteteId)
-                .HasConstraintName("FK__Plan_Veri__PlanE__0662F0A3");
+                .HasConstraintName("FK__Plan_Veri__PlanE__056ECC6A");
 
             entity.HasOne(d => d.RefFamilleCorps).WithMany(p => p.PlanVerifMachineFamilles)
                 .HasForeignKey(d => d.RefFamilleCorpsId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Plan_Veri__RefFa__075714DC");
+                .HasConstraintName("FK__Plan_Veri__RefFa__0662F0A3");
         });
 
         modelBuilder.Entity<PlanVerifMachineLigne>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC0756E462AF");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC07450D3BB7");
 
             entity.ToTable("Plan_VerifMachine_Ligne");
 
@@ -1716,16 +1716,16 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.PlanEntete).WithMany(p => p.PlanVerifMachineLignes)
                 .HasForeignKey(d => d.PlanEnteteId)
-                .HasConstraintName("FK__Plan_Veri__PlanE__0B27A5C0");
+                .HasConstraintName("FK__Plan_Veri__PlanE__0A338187");
         });
 
         modelBuilder.Entity<PlanVerifMachineMatricePiece>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC0726C24E4D");
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Ver__3214EC07919192FE");
 
             entity.ToTable("Plan_VerifMachine_MatricePiece");
 
-            entity.HasIndex(e => new { e.EcheanceId, e.FamilleId, e.RoleVerif }, "UQ__Plan_Ver__779871C42D4DFC87").IsUnique();
+            entity.HasIndex(e => new { e.EcheanceId, e.FamilleId, e.RoleVerif }, "UQ__Plan_Ver__779871C49F15532A").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.RoleVerif)
@@ -1734,20 +1734,20 @@ public partial class SopalTraceDbContext : DbContext
 
             entity.HasOne(d => d.Echeance).WithMany(p => p.PlanVerifMachineMatricePieces)
                 .HasForeignKey(d => d.EcheanceId)
-                .HasConstraintName("FK__Plan_Veri__Echea__1881A0DE");
+                .HasConstraintName("FK__Plan_Veri__Echea__178D7CA5");
 
             entity.HasOne(d => d.Famille).WithMany(p => p.PlanVerifMachineMatricePieces)
                 .HasForeignKey(d => d.FamilleId)
-                .HasConstraintName("FK__Plan_Veri__Famil__1975C517");
+                .HasConstraintName("FK__Plan_Veri__Famil__1881A0DE");
 
             entity.HasOne(d => d.PieceRef).WithMany(p => p.PlanVerifMachineMatricePieces)
                 .HasForeignKey(d => d.PieceRefId)
-                .HasConstraintName("FK__Plan_Veri__Piece__1B5E0D89");
+                .HasConstraintName("FK__Plan_Veri__Piece__1A69E950");
         });
 
         modelBuilder.Entity<PosteTravail>(entity =>
         {
-            entity.HasKey(e => e.CodePoste).HasName("PK__PosteTra__4045446BAD50AC2D");
+            entity.HasKey(e => e.CodePoste).HasName("PK__PosteTra__4045446B8A9CBEA5");
 
             entity.ToTable("PosteTravail", tb => tb.HasTrigger("trg_no_del_PosteTravail"));
 
@@ -1772,7 +1772,7 @@ public partial class SopalTraceDbContext : DbContext
                         .HasConstraintName("FK__PosteTrav__CodeP__489AC854"),
                     j =>
                     {
-                        j.HasKey("CodePoste", "CodeMachine").HasName("PK__PosteTra__A548230B7102F2FB");
+                        j.HasKey("CodePoste", "CodeMachine").HasName("PK__PosteTra__A548230B9EC96813");
                         j.ToTable("PosteTravail_Machine");
                         j.IndexerProperty<string>("CodePoste")
                             .HasMaxLength(30)
@@ -1785,7 +1785,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<ProduitFini>(entity =>
         {
-            entity.HasKey(e => e.CodeArticle).HasName("PK__ProduitF__32384FB0CC4F8B7D");
+            entity.HasKey(e => e.CodeArticle).HasName("PK__ProduitF__32384FB07F3066B4");
 
             entity.ToTable("ProduitFini");
 
@@ -1818,11 +1818,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<RefFamilleCorp>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Ref_Fami__3214EC075F943768");
+            entity.HasKey(e => e.Id).HasName("PK__Ref_Fami__3214EC070B52ABE9");
 
             entity.ToTable("Ref_FamilleCorps", tb => tb.HasTrigger("trg_no_del_Ref_FamilleCorps"));
 
-            entity.HasIndex(e => e.Code, "UQ__Ref_Fami__A25C5AA76A0F9951").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__Ref_Fami__A25C5AA7C72BFA17").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1836,11 +1836,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<RefFormulaire>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Ref_Form__3214EC07D901A344");
+            entity.HasKey(e => e.Id).HasName("PK__Ref_Form__3214EC0716C72E80");
 
             entity.ToTable("Ref_Formulaire");
 
-            entity.HasIndex(e => new { e.CodeReference, e.Version }, "UQ__Ref_Form__4F92504BFFB332AA").IsUnique();
+            entity.HasIndex(e => new { e.CodeReference, e.Version }, "UQ__Ref_Form__4F92504BC6A61CF5").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CodeReference)
@@ -1863,11 +1863,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<RefMoyenDetection>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Ref_Moye__3214EC070231E4A8");
+            entity.HasKey(e => e.Id).HasName("PK__Ref_Moye__3214EC070C1F9C59");
 
             entity.ToTable("Ref_MoyenDetection", tb => tb.HasTrigger("trg_no_del_Ref_MoyenDetection"));
 
-            entity.HasIndex(e => e.Code, "UQ__Ref_Moye__A25C5AA7C43C9F6B").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__Ref_Moye__A25C5AA79AF2EF53").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1881,11 +1881,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<RefRegleEchantillonnage>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Ref_Regl__3214EC07716C08A8");
+            entity.HasKey(e => e.Id).HasName("PK__Ref_Regl__3214EC07856219F5");
 
             entity.ToTable("Ref_RegleEchantillonnage", tb => tb.HasTrigger("trg_no_del_Ref_RegleEchantillonnage"));
 
-            entity.HasIndex(e => e.Code, "UQ__Ref_Regl__A25C5AA75694DD2E").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__Ref_Regl__A25C5AA76E280410").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1899,9 +1899,9 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<RefreshToken>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__RefreshT__3214EC07FDFB08EC");
+            entity.HasKey(e => e.Id).HasName("PK__RefreshT__3214EC07099CEF39");
 
-            entity.HasIndex(e => e.Token, "UQ__RefreshT__1EB4F8175123C6D5").IsUnique();
+            entity.HasIndex(e => e.Token, "UQ__RefreshT__1EB4F8175EEA1B7C").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.DateCreation)
@@ -1923,11 +1923,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<RisqueDefaut>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__RisqueDe__3214EC0741FBAE08");
+            entity.HasKey(e => e.Id).HasName("PK__RisqueDe__3214EC07BB86AF3A");
 
             entity.ToTable("RisqueDefaut", tb => tb.HasTrigger("trg_no_del_RisqueDefaut"));
 
-            entity.HasIndex(e => e.CodeDefaut, "UQ__RisqueDe__2EF87343317DBAEC").IsUnique();
+            entity.HasIndex(e => e.CodeDefaut, "UQ__RisqueDe__2EF87343F42D9105").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1941,7 +1941,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<Sdelivery>(entity =>
         {
-            entity.HasKey(e => e.NumeroBl).HasName("PK__SDELIVER__C664DCCDC5F8C41F");
+            entity.HasKey(e => e.NumeroBl).HasName("PK__SDELIVER__C664DCCDB5AFEC08");
 
             entity.ToTable("SDELIVERY");
 
@@ -1960,11 +1960,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<TypeCaracteristique>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__TypeCara__3214EC07FFE83F0C");
+            entity.HasKey(e => e.Id).HasName("PK__TypeCara__3214EC071FBCDB5A");
 
             entity.ToTable("TypeCaracteristique", tb => tb.HasTrigger("trg_no_del_TypeCaracteristique"));
 
-            entity.HasIndex(e => e.Code, "UQ__TypeCara__A25C5AA754B16E71").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__TypeCara__A25C5AA76B740BCD").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1978,11 +1978,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<TypeControle>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__TypeCont__3214EC07F88032EE");
+            entity.HasKey(e => e.Id).HasName("PK__TypeCont__3214EC072EE16842");
 
             entity.ToTable("TypeControle", tb => tb.HasTrigger("trg_no_del_TypeControle"));
 
-            entity.HasIndex(e => e.Code, "UQ__TypeCont__A25C5AA78FDF3052").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__TypeCont__A25C5AA70EB24210").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -1996,7 +1996,7 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<TypeRobinet>(entity =>
         {
-            entity.HasKey(e => e.Code).HasName("PK__TypeRobi__A25C5AA61D1BD049");
+            entity.HasKey(e => e.Code).HasName("PK__TypeRobi__A25C5AA6E6D2553C");
 
             entity.ToTable("TypeRobinet", tb => tb.HasTrigger("trg_no_del_TypeRobinet"));
 
@@ -2011,11 +2011,11 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<TypeSection>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__TypeSect__3214EC0728E0EF27");
+            entity.HasKey(e => e.Id).HasName("PK__TypeSect__3214EC0760AF90EE");
 
             entity.ToTable("TypeSection", tb => tb.HasTrigger("trg_no_del_TypeSection"));
 
-            entity.HasIndex(e => e.Code, "UQ__TypeSect__A25C5AA70221EB08").IsUnique();
+            entity.HasIndex(e => e.Code, "UQ__TypeSect__A25C5AA713671054").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.Actif).HasDefaultValue(true);
@@ -2029,15 +2029,15 @@ public partial class SopalTraceDbContext : DbContext
 
         modelBuilder.Entity<UtilisateursApp>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Utilisat__3214EC07B1B35CE5");
+            entity.HasKey(e => e.Id).HasName("PK__Utilisat__3214EC07D51695A7");
 
             entity.ToTable("UtilisateursApp");
 
             entity.HasIndex(e => e.Matricule, "IX_UtilisateursApp_Matricule");
 
-            entity.HasIndex(e => e.Matricule, "UQ__Utilisat__0FB9FB436C33F53A").IsUnique();
+            entity.HasIndex(e => e.Matricule, "UQ__Utilisat__0FB9FB43B79166DD").IsUnique();
 
-            entity.HasIndex(e => e.Email, "UQ__Utilisat__A9D10534EA934B22").IsUnique();
+            entity.HasIndex(e => e.Email, "UQ__Utilisat__A9D1053443FFF89D").IsUnique();
 
             entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
             entity.Property(e => e.CodeRecuperation)

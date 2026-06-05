@@ -34,6 +34,10 @@ public record CreateVerifMachineModeleDto
 
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+
+
+
+
     public string ConfigurationColonnesJson { get; init; }
 
     public List<VmFamilleDto> Familles { get; init; } = new();
@@ -92,6 +96,10 @@ public record PlanVerifMachineResponseDto
 
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+
+
+
+
     public string ConfigurationColonnesJson { get; init; }
 
     public string CreePar { get; init; }

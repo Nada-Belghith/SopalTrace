@@ -44,6 +44,10 @@ public class UnitOfWork : IUnitOfWork
     public IDictionnaireQualiteRepository DictionnaireQualiteRepository
         => _dictionnaireQualiteRepository ??= new DictionnaireQualiteRepository(_context);
 
+    private IRefFormulaireRepository? _refFormulaireRepository;
+    public IRefFormulaireRepository RefFormulaireRepository
+        => _refFormulaireRepository ??= new RefFormulaireRepository(_context);
+
     public async Task BeginTransactionAsync()
     {
         _transaction = await _context.Database.BeginTransactionAsync();

@@ -41,8 +41,16 @@ namespace SopalTrace.Application.Services
             foreach (var p in plansActifs)
             {
                 p.Statut = StatutsPlan.Archive;
-                //p.ModifieLe = DateTime.UtcNow;
-                //p.ModifiePar = user;
+            }
+        }
+
+        public async Task ArchivePlanPfActifParFormulaireAsync(Guid formulaireId, string user)
+        {
+            // Archiver uniquement le plan PF actif associé à ce formulaire précis
+            var planActif = await _planPfRepository.GetPlanActifParFormulaireAsync(formulaireId);
+            if (planActif != null)
+            {
+                planActif.Statut = StatutsPlan.Archive;
             }
         }
 
@@ -60,12 +68,23 @@ namespace SopalTrace.Application.Services
 
         public async Task ArchivePlanNcActifAsync(string posteCode, string user)
         {
-            var planActif = await _planNcRepository.GetPlanActifAsync(posteCode);
+            var tousLesPlans = await _planNcRepository.GetTousLesPlansAsync();
+            var plansActifs = tousLesPlans.Where(p => p.PosteCode == posteCode && p.Statut == StatutsPlan.Actif);
+            
+            foreach (var plan in plansActifs)
+            {
+                plan.Statut = StatutsPlan.Archive;
+            }
+        }
+
+        public async Task ArchivePlanNcActifParFormulaireAsync(Guid formulaireId, string user)
+        {
+            // Archiver uniquement le plan actif associé à ce formulaire précis
+            // => PAS71 et PAS71_SOUPAPE ont des formulaireId différents, donc pas de confusion
+            var planActif = await _planNcRepository.GetPlanActifParFormulaireAsync(formulaireId);
             if (planActif != null)
             {
                 planActif.Statut = StatutsPlan.Archive;
-                //planActif.ModifiePar = user;
-                //planActif.ModifieLe = DateTime.UtcNow;
             }
         }
     }

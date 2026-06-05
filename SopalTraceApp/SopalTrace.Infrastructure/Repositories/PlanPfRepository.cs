@@ -68,6 +68,12 @@ public class PlanPfRepository : IPlanPfRepository
             .FirstOrDefaultAsync(p => p.FamilleProduitFiniCode == familleProduitFiniCode && p.Statut == StatutsPlan.Brouillon);
     }
 
+    public async Task<PlanProduitFiniEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanProduitFiniEntetes
+            .FirstOrDefaultAsync(p => p.FormulaireId == formulaireId && p.Statut == StatutsPlan.Actif);
+    }
+
     public Task AddPlanAsync(PlanProduitFiniEntete plan)
     {
         _context.PlanProduitFiniEntetes.Add(plan);

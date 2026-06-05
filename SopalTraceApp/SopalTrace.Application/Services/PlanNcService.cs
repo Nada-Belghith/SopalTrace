@@ -24,6 +24,7 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
     private readonly IPlanNcRepository _repository;
     private readonly IValidator<CreatePlanNcRequestDto> _createValidator;
     private readonly IPlanArchiverService _planArchiverService;
+    private readonly IReferentielService _referentielService;
     private readonly ILogger<PlanNcService> _logger;
 
     public PlanNcService(
@@ -31,13 +32,15 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
         IPlanNcRepository repository,
         ILogger<PlanNcService> logger,
         IValidator<CreatePlanNcRequestDto> createValidator,
-        IPlanArchiverService planArchiverService)
+        IPlanArchiverService planArchiverService,
+        IReferentielService referentielService)
         : base(unitOfWork)
     {
         _repository = repository;
         _logger = logger;
         _createValidator = createValidator;
         _planArchiverService = planArchiverService;
+        _referentielService = referentielService;
     }
 
     // ==================== HOOKS IMPLÉMENTATION ====================
@@ -69,9 +72,16 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
     /// </summary>
     protected override async Task HandleVersioningBeforeActivationAsync(PlanNonConformiteEntete plan, string user)
     {
-        // Archiver l'ancien plan actif pour ce code poste
-        var posteCode = plan.PosteCode;
-        await _planArchiverService.ArchivePlanNcActifAsync(posteCode, user);
+        // Archiver uniquement le plan actif lié au même formulaire (FE-RC-PAS71 != FE-RC-PAS71_SOUPAPE)
+        if (plan.FormulaireId.HasValue)
+        {
+            await _planArchiverService.ArchivePlanNcActifParFormulaireAsync(plan.FormulaireId.Value, user);
+        }
+        else
+        {
+            // Fallback : si pas de formulaire, archiver par poste (comportement ancien)
+            await _planArchiverService.ArchivePlanNcActifAsync(plan.PosteCode, user);
+        }
     }
 
     // ==================== ABSTRACT METHODS IMPLÉMENTATION ====================
@@ -126,19 +136,48 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
             }
         }
 
-        return new PlanNonConformiteEntete
+        var plan = new PlanNonConformiteEntete
         {
             Id = planId,
             PosteCode = dto.PosteCode,
             Nom = dto.Nom,
-            Version = 1,
+            Version = dto.VersionInitiale ?? 1,
             Statut = StatutsPlan.Actif,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
-            //Remarques = dto.Remarques,
-            //LegendeMoyens = dto.LegendeMoyens,
+            Remarques = dto.Remarques,
+            LegendeMoyens = dto.LegendeMoyens,
+            ConfigurationColonnesJson = dto.ConfigurationColonnesJson,
+            FormulaireId = dto.FormulaireId,
             PlanNonConformiteLignes = lines
         };
+
+        // Synchronisation automatique vers RefFormulaire
+        // RÈGLE CRITIQUE : utiliser le CodeReference EXACT du formulaire sélectionné par l'utilisateur.
+        // - Si FormulaireCodeReference est fourni (depuis le frontend), l'utiliser directement.
+        //   → Cela évite un GetFormulaireByIdAsync qui causerait un conflit EF Core car
+        //     le même enregistrement serait tracké deux fois dans le même DbContext.
+        // - Fallback : dériver du PosteCode (ex: FE-RC-PAS71)
+        string codeRefFormulaire = !string.IsNullOrWhiteSpace(dto.FormulaireCodeReference)
+            ? dto.FormulaireCodeReference
+            : ("FE-RC-" + plan.PosteCode);
+
+        if (!string.IsNullOrWhiteSpace(plan.PosteCode))
+        {
+            var refResult = await _referentielService.UpdateFormulaireStructureAsync(
+                "RESULTAT_CONTROLE_POSTE",
+                plan.ConfigurationColonnesJson,
+                codeRefFormulaire,
+                dto.VersionInitiale);
+            if (refResult.HasValue)
+            {
+                plan.FormulaireId = refResult.Value.Id;
+                plan.Version = refResult.Value.Version;
+            }
+        }
+
+
+        return plan;
     }
 
     protected override string GetStatutInitial() => StatutsPlan.Actif;
@@ -149,10 +188,24 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
     protected override async Task ApplierMiseAJourDraftAsync(PlanNonConformiteEntete plan, SavePlanNcDto dto, string user)
     {
         plan.Nom = dto.Nom;
-        //plan.Remarques = dto.Remarques;
-        //plan.LegendeMoyens = dto.LegendeMoyens;
-        //plan.ModifiePar = user;
-        //plan.ModifieLe = DateTime.UtcNow;
+        plan.Remarques = dto.Remarques;
+        plan.LegendeMoyens = dto.LegendeMoyens;
+        plan.ConfigurationColonnesJson = dto.ConfigurationColonnesJson;
+        plan.FormulaireId = dto.FormulaireId;
+        
+        plan.ModifiePar = user;
+        plan.ModifieLe = DateTime.UtcNow;
+
+        // Synchronisation automatique vers RefFormulaire
+        if (!string.IsNullOrWhiteSpace(plan.PosteCode))
+        {
+            var refResult = await _referentielService.UpdateFormulaireStructureAsync("RESULTAT_CONTROLE_POSTE", plan.ConfigurationColonnesJson, "FE-RC-" + plan.PosteCode);
+            if (refResult.HasValue)
+            {
+                plan.FormulaireId = refResult.Value.Id;
+                plan.Version = refResult.Value.Version;
+            }
+        }
 
         // 1. RÉSOLUTION DES DÉFAUTS (Pass 1 - Pré-résolution pour éviter les conflits FK)
         var cacheDefauts = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
@@ -284,8 +337,11 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
             Statut = StatutsPlan.Actif,
             CreePar = user,
             CreeLe = DateTime.UtcNow,
-            //Remarques = dto.Remarques,
-            //LegendeMoyens = dto.LegendeMoyens,
+            Remarques = ancienPlan.Remarques,
+            LegendeMoyens = ancienPlan.LegendeMoyens,
+            ConfigurationColonnesJson = ancienPlan.ConfigurationColonnesJson,
+            FormulaireId = ancienPlan.FormulaireId,
+            
             PlanNonConformiteLignes = lines
         };
     }
@@ -296,11 +352,11 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
     protected override async Task<PlanNonConformiteEntete?> ObtenirBrouillonExistantAsync(CreatePlanNcRequestDto dto)
     {
         var tousLesPlans = await _repository.GetTousLesPlansAsync();
-        // Pour les NC, on considère qu'il n'y a qu'un seul plan "de référence" par poste.
-        // Si un plan (Actif ou Brouillon) existe déjà pour ce poste, on le retourne pour éviter les doublons.
+        // Pour les NC, on considère qu'il n'y a qu'un seul plan brouillon par poste.
+        // Si un plan Brouillon existe déjà pour ce poste, on le retourne pour éviter les doublons.
         return tousLesPlans.FirstOrDefault(p => 
             p.PosteCode == dto.PosteCode && 
-            (p.Statut == StatutsPlan.Brouillon || p.Statut == StatutsPlan.Actif));
+            p.Statut == StatutsPlan.Brouillon);
     }
 
     // ==================== PUBLIC METHODS ====================
@@ -338,20 +394,66 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
     /// </summary>
     public async Task<Guid> MettreAJourPlanAsync(Guid planId, SavePlanNcDto request, string modifiePar)
     {
-        var plan = await _repository.GetPlanAvecRelationsAsync(planId);
-        if (plan == null) throw new KeyNotFoundException("Plan introuvable.");
+        var planActuel = await _repository.GetPlanAvecRelationsAsync(planId);
+        if (planActuel == null) throw new KeyNotFoundException("Plan introuvable.");
 
-        // On bypass UpdateDraftAsync car il refuse de modifier les plans ACTIFS.
-        // Pour les résultats de contrôle, on autorise la modification directe.
-        await ApplierMiseAJourDraftAsync(plan, request, SecuriserNomAuteur(modifiePar));
-
-        if (plan.Statut == StatutsPlan.Brouillon)
+        if (planActuel.Statut == StatutsPlan.Actif)
         {
-            plan.Statut = StatutsPlan.Actif;
-        }
+            // Création d'une nouvelle version et archivage de l'ancienne
+            var tousLesPlans = await _repository.GetTousLesPlansAsync();
+            var maxVersion = tousLesPlans
+                .Where(p => p.PosteCode == planActuel.PosteCode)
+                .Max(p => (int?)p.Version) ?? planActuel.Version;
 
-        await _unitOfWork.CommitAsync();
-        return plan.Id;
+            var nouveauPlanId = Guid.NewGuid();
+            var nouveauPlan = new PlanNonConformiteEntete
+            {
+                Id = nouveauPlanId,
+                PosteCode = planActuel.PosteCode,
+                Nom = request.Nom ?? planActuel.Nom,
+                ConfigurationColonnesJson = request.ConfigurationColonnesJson,
+                Remarques = request.Remarques,
+                LegendeMoyens = request.LegendeMoyens,
+                Version = maxVersion + 1,
+                Statut = StatutsPlan.Actif,
+                CreePar = SecuriserNomAuteur(modifiePar),
+                CreeLe = DateTime.UtcNow,
+                PlanNonConformiteLignes = request.Lignes
+                    .Where(l => l.RisqueDefautId.HasValue)
+                    .Select((l, index) => new PlanNonConformiteLigne
+                    {
+                        Id = Guid.NewGuid(),
+                        PlanNcenteteId = nouveauPlanId,
+                        OrdreAffiche = l.OrdreAffiche > 0 ? l.OrdreAffiche : index + 1,
+                        MachineCode = l.MachineCode,
+                        RisqueDefautId = l.RisqueDefautId.Value
+                    }).ToList()
+            };
+
+            planActuel.Statut = StatutsPlan.Archive;
+
+            // Synchronisation automatique vers RefFormulaire
+            if (!string.IsNullOrWhiteSpace(nouveauPlan.PosteCode))
+            {
+                var refResult = await _referentielService.UpdateFormulaireStructureAsync("RESULTAT_CONTROLE_POSTE", nouveauPlan.ConfigurationColonnesJson, "FE-RC-" + nouveauPlan.PosteCode);
+                if (refResult.HasValue)
+                {
+                    nouveauPlan.FormulaireId = refResult.Value.Id;
+                    nouveauPlan.Version = refResult.Value.Version;
+                }
+            }
+
+            await _repository.AddPlanAsync(nouveauPlan);
+            await _unitOfWork.CommitAsync();
+            return nouveauPlan.Id;
+        }
+        else
+        {
+            // Modification d'un brouillon
+            await ApplierMiseAJourDraftAsync(planActuel, request, SecuriserNomAuteur(modifiePar));
+            await _unitOfWork.CommitAsync();
+            return planActuel.Id;
+        }
     }
 
     /// <summary>
@@ -425,6 +527,9 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
             Id = Guid.NewGuid(),
             PosteCode = ancienPlan.PosteCode,
             Nom = ancienPlan.Nom,
+            ConfigurationColonnesJson = ancienPlan.ConfigurationColonnesJson,
+            Remarques = ancienPlan.Remarques,
+            LegendeMoyens = ancienPlan.LegendeMoyens,
             Version = ancienPlan.Version + 1,
             Statut = StatutsPlan.Brouillon,
             CreePar = request.ModifiePar,
@@ -477,6 +582,9 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
             Id = nouveauPlanId,
             PosteCode = planArchive.PosteCode,
             Nom = planArchive.Nom,
+            ConfigurationColonnesJson = planArchive.ConfigurationColonnesJson,
+            Remarques = planArchive.Remarques,
+            LegendeMoyens = planArchive.LegendeMoyens,
             Version = maxVersion + 1,
             Statut = StatutsPlan.Actif,
             CreePar = restaurePar,
@@ -490,6 +598,17 @@ public class PlanNcService : BasePlanLifecycleService<PlanNonConformiteEntete, C
                 RisqueDefautId = l.RisqueDefautId
             }).ToList()
         };
+
+        // Synchronisation automatique vers RefFormulaire
+        if (!string.IsNullOrWhiteSpace(nouveauPlan.PosteCode))
+        {
+            var refResult = await _referentielService.UpdateFormulaireStructureAsync("RESULTAT_CONTROLE_POSTE", nouveauPlan.ConfigurationColonnesJson, "FE-RC-" + nouveauPlan.PosteCode);
+            if (refResult.HasValue)
+            {
+                nouveauPlan.FormulaireId = refResult.Value.Id;
+                nouveauPlan.Version = refResult.Value.Version;
+            }
+        }
 
         await _repository.AddPlanAsync(nouveauPlan);
         await _repository.SaveChangesAsync();

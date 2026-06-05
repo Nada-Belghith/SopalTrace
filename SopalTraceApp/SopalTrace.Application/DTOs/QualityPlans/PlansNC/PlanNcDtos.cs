@@ -11,6 +11,16 @@ public record CreatePlanNcRequestDto
     public string Nom { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+    public string ConfigurationColonnesJson { get; init; }
+    public Guid? FormulaireId { get; init; }
+    /// <summary>
+    /// CodeReference du formulaire sélectionné (ex: FE-RC-PAS71_SOUPAPE).
+    /// Passé directement du frontend pour éviter un GetFormulaireById qui causerait
+    /// un conflit de concurrence EF Core avec UpdateFormulaireStructureAsync.
+    /// </summary>
+    public string FormulaireCodeReference { get; init; }
+    public int? VersionInitiale { get; init; }
+
     public List<LigneNcEditDto> Lignes { get; init; } = new();
     public string CommentaireVersion { get; init; }
 }
@@ -21,6 +31,13 @@ public record SavePlanNcDto
     public string Nom { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+    public string ConfigurationColonnesJson { get; init; }
+    public Guid? FormulaireId { get; init; }
+
+
+
+
+    
     public List<LigneNcEditDto> Lignes { get; init; } = new();
 }
 
@@ -52,6 +69,13 @@ public record PlanNcResponseDto
     public DateTime CreeLe { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+    public string ConfigurationColonnesJson { get; init; }
+    public Guid? FormulaireId { get; init; }
+
+
+
+
+    
     public List<LigneNcResponseDto> Lignes { get; init; } = new();
 }
 

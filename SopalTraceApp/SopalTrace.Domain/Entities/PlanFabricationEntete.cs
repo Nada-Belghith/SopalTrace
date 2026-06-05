@@ -21,8 +21,6 @@ public partial class PlanFabricationEntete
 
     public string Statut { get; set; } = null!;
 
-    public DateOnly? DateApplication { get; set; }
-
     public string? MachineDefautCode { get; set; }
 
     public Guid? FormulaireId { get; set; }

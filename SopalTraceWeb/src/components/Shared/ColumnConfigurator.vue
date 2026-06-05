@@ -25,6 +25,8 @@
               </button>
             </div>
 
+            <slot name="extra-config"></slot>
+
             <!-- FORM & LIST -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
               <!-- NOUVELLE COLONNE -->

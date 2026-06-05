@@ -127,19 +127,20 @@ public class HubService : IHubService
         // 6. RÉSULTAT CONTRÔLE
         var ncModeles = await _context.PlanNonConformiteEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
             .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RC",
-                m.Nom ?? "Fiche Sans Nom",
+                "Résultat de contrôle poste " + (m.PosteCode ?? "N/A"),
                 "POSTE",
-                "RC",
-                "CONTRÔLE",
+                null,
+                null,
                 m.PosteCode ?? "N/A",
-                m.Version,
-                m.Statut,
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Formulaire != null ? m.Formulaire.Statut : m.Statut,
                 "Fiche de contrôle par poste de travail.",
-                null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(ncModeles);
 

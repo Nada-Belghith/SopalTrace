@@ -13,6 +13,7 @@ public interface IPlanPfRepository
     
     Task<bool> ExistsActiveOrDraftPlanAsync(string familleProduitFiniCode);
     Task<PlanProduitFiniEntete?> GetDraftPlanByFamilleAsync(string familleProduitFiniCode);
+    Task<PlanProduitFiniEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId);
     
     Task AddPlanAsync(PlanProduitFiniEntete plan);
     Task<List<PlanProduitFiniEntete>> GetActivePlansByFamilleAsync(string familleProduitFiniCode);

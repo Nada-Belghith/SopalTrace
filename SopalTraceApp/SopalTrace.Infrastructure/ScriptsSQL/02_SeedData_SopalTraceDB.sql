@@ -517,7 +517,14 @@ INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut,
 (NEWID(), 'FE-VM-BEE22', 'Formulaire Verif Machine BEE22', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
 (NEWID(), 'FE-VM-BEE46', 'Formulaire Verif Machine BEE46', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
 (NEWID(), 'FE-VM-BEE47', 'Formulaire Verif Machine BEE47', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-VM-SER05', 'Formulaire Verif Machine SER05', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE');
+(NEWID(), 'FE-VM-SER05', 'Formulaire Verif Machine SER05', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-RC-PAS71', 'Formulaire Résultat Contrôle PAS71', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS72', 'Formulaire Résultat Contrôle PAS72', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS78', 'Formulaire Résultat Contrôle PAS78', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS71_SOUPAPE', 'Formulaire Résultat Contrôle PAS71 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS72_SOUPAPE', 'Formulaire Résultat Contrôle PAS72 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS78_SOUPAPE', 'Formulaire Résultat Contrôle PAS78 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS79', 'Formulaire Résultat Contrôle PAS79', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE');
 
 
 

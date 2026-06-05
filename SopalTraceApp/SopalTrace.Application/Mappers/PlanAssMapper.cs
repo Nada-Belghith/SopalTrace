@@ -30,6 +30,10 @@ public static class PlanAssMapper
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
+
+
+
+
             Remarques = string.Empty,
             ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
             Sections = plan.PlanAssemblageSections?.Select(s => new SectionAssResponseDto
@@ -88,6 +92,10 @@ public static class PlanAssMapper
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
+
+
+
+
             Notes = string.Empty,
             ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
             Sections = plan.PlanAssemblageSections?.Select(s => new ModeleSectionResponseDto
@@ -428,3 +436,4 @@ public static class PlanAssMapper
         return nouveauPlan;
     }
 }
+

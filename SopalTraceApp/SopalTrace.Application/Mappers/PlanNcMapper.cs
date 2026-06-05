@@ -18,8 +18,15 @@ public static class PlanNcMapper
             Statut = plan.Statut,
             CreePar = plan.CreePar,
             CreeLe = plan.CreeLe,
-            //Remarques = plan.Remarques,
-            //LegendeMoyens = plan.LegendeMoyens,
+            Remarques = plan.Remarques,
+            LegendeMoyens = plan.LegendeMoyens,
+
+
+
+
+            ConfigurationColonnesJson = plan.ConfigurationColonnesJson,
+            FormulaireId = plan.FormulaireId,
+            
             Lignes = plan.PlanNonConformiteLignes.Select(l => new LigneNcResponseDto
             {
                 Id = l.Id,
@@ -62,8 +69,10 @@ public static class PlanNcMapper
             Statut = "BROUILLON",
             CreePar = modifiePar,
             CreeLe = DateTime.UtcNow,
-            //Remarques = source.Remarques,
-            //LegendeMoyens = source.LegendeMoyens,
+            Remarques = source.Remarques,
+            LegendeMoyens = source.LegendeMoyens,
+            ConfigurationColonnesJson = source.ConfigurationColonnesJson,
+            FormulaireId = source.FormulaireId,
             PlanNonConformiteLignes = source.PlanNonConformiteLignes.Select(l => new PlanNonConformiteLigne
             {
                 Id = Guid.NewGuid(),

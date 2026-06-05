@@ -8,7 +8,9 @@ namespace SopalTrace.Application.Interfaces;
 public interface IPlanVerifMachineRepository
 {
     Task<bool> ExistePlanActifAsync(string machineCode);
+    Task<bool> ExistePlanActifParFormulaireAsync(Guid formulaireId);
     Task<PlanVerifMachineEntete> GetPlanActifAsync(string machineCode);
+    Task<PlanVerifMachineEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId);
     Task<PlanVerifMachineEntete> GetPlanAvecRelationsAsync(Guid planId);
     Task<List<PlanVerifMachineEntete>> GetTousLesPlanAsync();
 

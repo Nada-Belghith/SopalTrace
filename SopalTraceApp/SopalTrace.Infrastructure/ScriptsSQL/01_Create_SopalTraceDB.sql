@@ -1,4 +1,4 @@
-﻿-- ================================================================================
+-- ================================================================================
 -- SOPAL TRACE DB - SCHEMA NORMALISÉ V3.0 (ULTIME)
 -- Architecture avancée : NatureArticle & Origine (Make vs Buy)
 -- ================================================================================
@@ -366,7 +366,7 @@ CREATE TABLE dbo.Ref_Formulaire (
     UNIQUE (CodeReference, Version)
 );
 GO
-
+ 
 
 
 
@@ -438,6 +438,10 @@ CREATE TABLE dbo.Modele_Fabrication_Entete (
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     Notes NVARCHAR(MAX),
     LegendeMoyens NVARCHAR(MAX),
+
+
+
+
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     UNIQUE (Code, Libelle, Version)
@@ -497,10 +501,14 @@ CREATE TABLE dbo.Plan_Fabrication_Entete (
     OperationCode VARCHAR(20) REFERENCES dbo.Operation(Code),
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' 
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
-    DateApplication DATE,
+    
     MachineDefautCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     LegendeMoyens NVARCHAR(MAX),
+
+
+
+
     Remarques NVARCHAR(MAX),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
@@ -567,6 +575,10 @@ CREATE TABLE dbo.Plan_Assemblage_Entete (
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     LegendeMoyens NVARCHAR(MAX),
+
+
+
+
     Remarques NVARCHAR(MAX),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
@@ -634,6 +646,10 @@ CREATE TABLE dbo.Plan_ProduitFini_Entete (
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     LegendeMoyens NVARCHAR(MAX),
+
+
+
+
     Remarques NVARCHAR(MAX),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
@@ -698,7 +714,16 @@ CREATE TABLE dbo.Plan_NonConformite_Entete (
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20),
     ModifieLe DATETIME,
-    UNIQUE (PosteCode, Version)
+    ConfigurationColonnesJson NVARCHAR(MAX),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
+    Remarques NVARCHAR(MAX),
+    LegendeMoyens NVARCHAR(MAX),
+
+
+
+
+    
+    -- UNIQUE (PosteCode, Version)
 );
 GO
 
@@ -730,7 +755,11 @@ CREATE TABLE dbo.Plan_VerifMachine_Entete (
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     Remarques NVARCHAR(MAX),
     LegendeMoyens NVARCHAR(MAX),
-    UNIQUE (MachineCode, Version)
+
+
+
+
+    -- UNIQUE (MachineCode, Version)
 );
 GO
 

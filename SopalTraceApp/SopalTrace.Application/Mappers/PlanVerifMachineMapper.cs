@@ -273,3 +273,4 @@ public static class PlanVerifMachineMapper
                code.Contains("MAS22");
     }
 }
+

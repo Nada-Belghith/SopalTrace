@@ -3,6 +3,8 @@ import { ref } from 'vue';
 import { planNcService } from '@/services/planNcService';
 import { qualityPlansService } from '@/services/qualityPlansService';
 import { genererUid } from '@/utils/uuidUtils';
+import apiClient from '@/services/apiClient';
+import { parseDesignation } from '@/utils/designationParser';
 
 export const usePlanNcStore = defineStore('planNc', () => {
   // --- DICTIONNAIRES ---
@@ -17,10 +19,21 @@ export const usePlanNcStore = defineStore('planNc', () => {
     id: null,
     posteCode: '',
     nom: '',
-    version: 1,
+    version: null,
+    versionInitiale: null,
     statut: 'ACTIF',
     remarques: '',
     legendeMoyens: '',
+    formulaireId: null,
+    formulaireCodeReference: null, // ex: 'FE-RC-PAS71_SOUPAPE' - passé au backend pour éviter le lookup EF
+    isModeleTemplate: false, // flag to know if we are editing a template
+    configurationColonnes: {
+      equipes: [
+        { nom: 'Equipe 1', debut: 6, fin: 14 },
+        { nom: 'Equipe 2', debut: 14, fin: 22 }
+      ],
+      customCols: []
+    }
   });
 
   const lignes = ref([]);
@@ -54,6 +67,13 @@ export const usePlanNcStore = defineStore('planNc', () => {
       Nom: entete.value.nom,
       Remarques: entete.value.remarques || '',
       LegendeMoyens: entete.value.legendeMoyens || '',
+      ConfigurationColonnesJson: JSON.stringify(entete.value.configurationColonnes),
+      // Transmettre FormulaireId ET CodeReference pour éviter un lookup EF Core côté backend
+      // (le lookup causait un conflit de concurrence car le même enregistrement était tracké deux fois)
+      FormulaireId: entete.value.formulaireId || null,
+      FormulaireCodeReference: entete.value.formulaireCodeReference || null,
+      // Inclure versionInitiale seulement lors de la création (pas d'édition)
+      VersionInitiale: (!entete.value.id && entete.value.versionInitiale != null) ? entete.value.versionInitiale : undefined,
       Lignes: lignes.value.map((l, idx) => ({
         Id: l.id,
         MachineCode: l.machineCode,
@@ -108,9 +128,31 @@ export const usePlanNcStore = defineStore('planNc', () => {
 
   const chargerPlanNc = async (id) => {
     isLoading.value = true;
+    entete.value.isModeleTemplate = false;
+    entete.value.formulaireId = null;
+    
     try {
       const res = await planNcService.getPlanNc(id);
       const data = res.data.data;
+      
+      let configColonnes = {
+        equipes: [
+          { nom: 'Equipe 1', debut: 6, fin: 14 },
+          { nom: 'Equipe 2', debut: 14, fin: 22 }
+        ],
+        customCols: []
+      };
+      
+      if (data.configurationColonnesJson) {
+        try {
+          configColonnes = JSON.parse(data.configurationColonnesJson);
+          if (!configColonnes.equipes) configColonnes.equipes = [];
+          if (!configColonnes.customCols) configColonnes.customCols = [];
+        } catch (e) {
+          console.error('Failed to parse ConfigurationColonnesJson', e);
+        }
+      }
+      
       entete.value = {
         id: data.id,
         posteCode: data.posteCode,
@@ -119,26 +161,105 @@ export const usePlanNcStore = defineStore('planNc', () => {
         statut: data.statut,
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
+        formulaireId: null,
+        isModeleTemplate: false,
+        configurationColonnes: configColonnes
       };
       lignes.value = (data.lignes || []).map(mapperLigneDepuisServeur);
       planInitialise.value = true;
       prendreSnapshot();
+    } catch (e) {
+      // Fallback: Check if it's a generic template (RefFormulaire)
+      try {
+        const resForm = await apiClient.get(`/referentiels/modeles-generiques/${id}`);
+        const data = resForm.data.data;
+        
+        let configColonnes = { equipes: [], customCols: [] };
+        if (data.configurationStructureJson) {
+          try {
+            const parsed = JSON.parse(data.configurationStructureJson);
+            if (Array.isArray(parsed)) {
+              configColonnes.customCols = parsed;
+            } else {
+              configColonnes = parsed;
+              if (!configColonnes.equipes) configColonnes.equipes = [];
+              if (!configColonnes.customCols) configColonnes.customCols = [];
+            }
+          } catch (e) {
+            console.error("Erreur parsing configurationStructureJson", e);
+          }
+        }
+        
+        if (configColonnes.equipes.length === 0) {
+          configColonnes.equipes = [
+            { nom: 'Equipe 1', debut: 6, fin: 14 },
+            { nom: 'Equipe 2', debut: 14, fin: 22 }
+          ];
+        }
+
+        // Use parseDesignation to find the poste
+        const parsedDesignation = parseDesignation(data.designation, [], [], postes.value);
+        const codePoste = parsedDesignation.posteCode || '';
+        
+        entete.value = {
+          id: data.id,
+          posteCode: codePoste,
+          nom: data.designation, // we show designation as title
+          version: data.version,
+          statut: data.statut,
+          remarques: '',
+          legendeMoyens: '',
+          formulaireId: data.id, // we save its own ID as the template ID
+          isModeleTemplate: true, // IMPORTANT FLAG
+          configurationColonnes: configColonnes
+        };
+        
+        // Populate lines based on the poste
+        if (codePoste) {
+          // Initialize lines based on RisquesDefauts for this poste, just to show them
+          // Wait, when initialising a plan, lines are empty, the user adds them manually.
+          // BUT the user wants to see the table at the beginning! Wait, in ResultatControleForm.vue, 
+          // the table ONLY shows the lines added by the user! If `lignes` is empty, it shows an empty state!
+          lignes.value = [];
+        } else {
+          lignes.value = [];
+        }
+        
+        planInitialise.value = true;
+        prendreSnapshot();
+      } catch (err) {
+        console.error("Erreur lors du chargement (ni Plan, ni Modele)", err);
+        throw e;
+      }
     } finally {
       isLoading.value = false;
     }
   };
 
-  const initialiserNouveauPlan = (posteCode) => {
+  const initialiserNouveauPlan = (posteCode, formulaireId = null, formulaireCodeReference = null) => {
     const p = postes.value.find(x => x.code === posteCode);
     entete.value = {
       id: null,
       posteCode,
       nom: `Fiche de Contrôle - ${p?.libelle || posteCode}`,
-      version: 1,
+      version: null,
+      versionInitiale: null,
       statut: 'ACTIF',
+      remarques: '',
+      legendeMoyens: '',
+      // Conserver les infos du formulaire sélectionné (ex: FE-RC-PAS71_SOUPAPE)
+      formulaireId: formulaireId,
+      formulaireCodeReference: formulaireCodeReference,
+      isModeleTemplate: false,
+      configurationColonnes: {
+        equipes: [
+          { nom: 'Equipe 1', debut: 6, fin: 14 },
+          { nom: 'Equipe 2', debut: 14, fin: 22 }
+        ],
+        customCols: []
+      }
     };
     lignes.value = [];
-    // On ne pré-initialise plus de ligne par défaut
     planInitialise.value = true;
   };
 
@@ -163,24 +284,42 @@ export const usePlanNcStore = defineStore('planNc', () => {
 
     isLoading.value = true;
     try {
-      const payload = buildPayload();
-      
-      if (entete.value.id) {
-        // Mode Edition -> Nouvelle version
-        const res = await planNcService.mettreAJourPlan(entete.value.id, payload);
+      if (entete.value.isModeleTemplate) {
+        // Mode Template -> call nouvelle-version on referentiels
+        const payload = {
+          ancienId: entete.value.formulaireId,
+          configurationStructureJson: JSON.stringify(entete.value.configurationColonnes),
+          modifiePar: 'ADMIN',
+          motifModification: 'Mise à jour via Formulaire RC'
+        };
+        const res = await apiClient.post('/referentiels/modeles-generiques/nouvelle-version', payload);
         if (res.data.success) {
-           entete.value.id = res.data.planId;
+           entete.value.id = res.data.data.id;
+           entete.value.formulaireId = res.data.data.id;
+           entete.value.version = res.data.data.version;
            prendreSnapshot();
         }
-        return res.data;
+        return { success: true, planId: res.data.data.id, message: "Modèle générique mis à jour avec succès." };
       } else {
-        // Mode Création
-        const res = await planNcService.creerPlanNc(payload);
-        if (res.data.success) {
-          entete.value.id = res.data.planId;
-          prendreSnapshot();
+        const payload = buildPayload();
+        
+        if (entete.value.id) {
+          // Mode Edition -> Nouvelle version
+          const res = await planNcService.mettreAJourPlan(entete.value.id, payload);
+          if (res.data.success) {
+             entete.value.id = res.data.planId;
+             prendreSnapshot();
+          }
+          return res.data;
+        } else {
+          // Mode Création
+          const res = await planNcService.creerPlanNc(payload);
+          if (res.data.success) {
+            entete.value.id = res.data.planId;
+            prendreSnapshot();
+          }
+          return res.data;
         }
-        return res.data;
       }
     } finally {
       isLoading.value = false;
@@ -207,10 +346,21 @@ export const usePlanNcStore = defineStore('planNc', () => {
       id: null,
       posteCode: '',
       nom: '',
-      version: 1,
+      version: null,
+      versionInitiale: null,
       statut: 'ACTIF',
       remarques: '',
       legendeMoyens: '',
+      formulaireId: null,
+      formulaireCodeReference: null,
+      isModeleTemplate: false,
+      configurationColonnes: {
+        equipes: [
+          { nom: 'Equipe 1', debut: 6, fin: 14 },
+          { nom: 'Equipe 2', debut: 14, fin: 22 }
+        ],
+        customCols: []
+      }
     };
     lignes.value = [];
     planInitialise.value = false;

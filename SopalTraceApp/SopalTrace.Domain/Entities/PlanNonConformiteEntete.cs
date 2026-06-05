@@ -23,6 +23,16 @@ public partial class PlanNonConformiteEntete
 
     public DateTime? ModifieLe { get; set; }
 
+    public string? ConfigurationColonnesJson { get; set; }
+
+    public Guid? FormulaireId { get; set; }
+
+    public string? Remarques { get; set; }
+
+    public string? LegendeMoyens { get; set; }
+
+    public virtual RefFormulaire? Formulaire { get; set; }
+
     public virtual ICollection<PlanNonConformiteLigne> PlanNonConformiteLignes { get; set; } = new List<PlanNonConformiteLigne>();
 
     public virtual PosteTravail PosteCodeNavigation { get; set; } = null!;

@@ -200,7 +200,7 @@ public class PlanFabricationController : ControllerBase
 
     [HttpPost("import-excel")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult> ImportExcel(IFormFile file, [FromForm] string configurationColonnesJson, [FromServices] IExcelImportService excelService)
+    public async Task<ActionResult> ImportExcel(IFormFile file, [FromForm] string? configurationColonnesJson, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });

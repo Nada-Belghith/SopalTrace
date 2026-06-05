@@ -70,8 +70,21 @@ public class PlanVerifMachineService : IPlanVerifMachineService
     {
         var nouveauPlan = PlanVerifMachineMapper.ConstruireDepuisModeleDto(request, creePar);
 
-        // 1. Récupérer uniquement le plan actif actuel pour l'archiver
-        var planActif = await _unitOfWork.PlanVerifMachineRepository.GetPlanActifAsync(request.MachineCode);
+        // 1. Récupérer uniquement le plan actif lié au MÊME formulaire pour l'archiver
+        // (FE-VM-MAS20 != FE-VM-MAS22 = plans indépendants même si même machine physique)
+        PlanVerifMachineEntete? planActif = null;
+        // Chercher le formulaire actif pour ce code machine spécifique
+        var codeRefMachine = $"FE-VM-{request.MachineCode}";
+        var formActif = await _referentielService.GetFormulaireActifParCodeReferenceAsync(codeRefMachine);
+        if (formActif != null)
+        {
+            planActif = await _unitOfWork.PlanVerifMachineRepository.GetPlanActifParFormulaireAsync(formActif.Id);
+        }
+        if (planActif == null)
+        {
+            // Fallback par MachineCode
+            planActif = await _unitOfWork.PlanVerifMachineRepository.GetPlanActifAsync(request.MachineCode);
+        }
         
         if (planActif != null)
         {
@@ -260,8 +273,17 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var planArchived = await _unitOfWork.PlanVerifMachineRepository.GetPlanAvecRelationsAsync(planId);
         if (planArchived == null) throw new Exception("Plan archivé introuvable.");
 
-        // 1. Archiver le plan ACTIF actuel pour cette machine
-        var planActuel = await _unitOfWork.PlanVerifMachineRepository.GetPlanActifAsync(planArchived.MachineCode);
+        // 1. Archiver le plan ACTIF lié au même formulaire (pas à la même machine générique)
+        PlanVerifMachineEntete? planActuel = null;
+        if (planArchived.FormulaireId.HasValue)
+        {
+            planActuel = await _unitOfWork.PlanVerifMachineRepository.GetPlanActifParFormulaireAsync(planArchived.FormulaireId.Value);
+        }
+        if (planActuel == null)
+        {
+            // Fallback par MachineCode
+            planActuel = await _unitOfWork.PlanVerifMachineRepository.GetPlanActifAsync(planArchived.MachineCode);
+        }
         if (planActuel != null)
         {
             planActuel.Statut = StatutsPlan.Archive;
@@ -362,3 +384,4 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         return true;
     }
 }
+

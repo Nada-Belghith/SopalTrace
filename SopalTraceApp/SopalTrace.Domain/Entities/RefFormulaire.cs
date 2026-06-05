@@ -27,6 +27,8 @@ public partial class RefFormulaire
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 
+    public virtual ICollection<PlanNonConformiteEntete> PlanNonConformiteEntetes { get; set; } = new List<PlanNonConformiteEntete>();
+
     public virtual ICollection<PlanProduitFiniEntete> PlanProduitFiniEntetes { get; set; } = new List<PlanProduitFiniEntete>();
 
     public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();

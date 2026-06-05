@@ -279,7 +279,17 @@ public class PlanAssService : IPlanAssService
             {
                 plan.Statut = StatutsPlan.Actif;
 
-                var ancienPlanActif = await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.FamilleProduitFiniCode, plan.NatureArticleCode, plan.PosteCode);
+                // Utiliser FormulaireId en priorité pour distinguer les plans indépendants
+                PlanAssemblageEntete? ancienPlanActif = null;
+                if (plan.FormulaireId.HasValue)
+                {
+                    ancienPlanActif = await _repository.GetPlanActifParFormulaireAsync(plan.FormulaireId.Value);
+                }
+                if (ancienPlanActif == null)
+                {
+                    // Fallback : recherche par critères combinés
+                    ancienPlanActif = await _repository.GetPlanActifMaitreAsync(plan.OperationCode, plan.FamilleProduitFiniCode, plan.NatureArticleCode, plan.PosteCode);
+                }
 
                 if (ancienPlanActif is not null && ancienPlanActif.Id != plan.Id)
                 {
@@ -394,3 +404,4 @@ public class PlanAssService : IPlanAssService
         }
     }
 }
+

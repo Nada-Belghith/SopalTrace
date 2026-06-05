@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full mt-8">
+  <div class="w-full min-w-max mt-8">
     <div class="bg-slate-800 text-slate-200 border-l-4 border-rose-500 text-[11px] font-bold uppercase p-3 flex justify-between items-center rounded-t-lg">
       <span class="flex items-center gap-2"><i class="ri-error-warning-line text-rose-400 text-lg"></i> Section Risques & Défauts</span>
       <button v-if="!props.isReadOnly" @click="store.ajouterLigneRisque()" class="text-white bg-rose-600 hover:bg-rose-500 px-3 py-1.5 rounded shadow-sm transition-colors flex items-center gap-1 font-bold">
@@ -374,7 +374,11 @@ const flattenedRowsRisques = computed(() => {
       // 4. Dynamic rowspans for Custom Columns
       if (store.entete.configurationColonnes) {
         try {
-          const cCols = JSON.parse(store.entete.configurationColonnes).filter(c => c.target === 'risques');
+          let cols = store.entete.configurationColonnes;
+          if (typeof cols === 'string') {
+             cols = cols.trim() === '' ? [] : JSON.parse(cols);
+          }
+          const cCols = cols.filter(c => !c.targetTable || c.targetTable === 'all' || c.targetTable === 'risques');
           cCols.forEach(cCol => {
             let currentVal = null;
             let startIdx = 0;
@@ -396,7 +400,7 @@ const flattenedRowsRisques = computed(() => {
                 allTuples[i]['dynRowspan_' + cCol.key] = 1;
                 startIdx = i;
               } else {
-                if (val === currentVal && val !== "" && val !== undefined && val !== null) {
+                if (val === currentVal && val !== "" && val !== undefined && val !== null && !parentIsNew) {
                   allTuples[startIdx]['dynRowspan_' + cCol.key]++;
                   allTuples[i]['isDynFirst_' + cCol.key] = false;
                   allTuples[i]['dynRowspan_' + cCol.key] = 0;

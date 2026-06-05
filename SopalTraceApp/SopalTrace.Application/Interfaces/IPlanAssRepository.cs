@@ -23,6 +23,7 @@ public interface IPlanAssRepository
     // Récupération
     Task<PlanAssemblageEntete?> GetPlanAvecRelationsAsync(Guid planId);
     Task<PlanAssemblageEntete?> GetPlanActifMaitreAsync(string operationCode, string? familleCode, string? natureComposantCode, string? posteCode);
+    Task<PlanAssemblageEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId);
     Task<PlanAssemblageEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage);
     Task<PlanAssemblageEntete?> GetPlanByIdAsync(Guid planId);
     Task<List<PlanAssemblageEntete>> GetPlansActifsAsync(string operationCode, string? familleCode, string? codeArticleSage);

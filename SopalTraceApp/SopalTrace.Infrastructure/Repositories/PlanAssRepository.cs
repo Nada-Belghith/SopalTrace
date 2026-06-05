@@ -94,6 +94,14 @@ public class PlanAssRepository : IPlanAssRepository
                 p.Statut == StatutsPlan.Actif);
     }
 
+    public async Task<PlanAssemblageEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanAssemblageEntetes
+            .FirstOrDefaultAsync(p =>
+                p.FormulaireId == formulaireId &&
+                p.Statut == StatutsPlan.Actif);
+    }
+
     public async Task<PlanAssemblageEntete?> GetPlanActifExceptionAsync(string operationCode, string? familleCode, string codeArticleSage)
     {
         return await GetPlanActifMaitreAsync(operationCode, familleCode, null, null);

@@ -55,7 +55,8 @@ public class PlanPfService : IPlanPfService
     {
         var user = _currentUserService.UserInfo;
 
-        // 1. Archiver l'ancien
+        // 1. Archiver l'ancien plan actif pour cette famille
+        // (PF utilise la famille comme discriminant car pas de CodeReference distinct pour l'instant)
         await _planArchiverService.ArchivePlansPfActifsAsync(dto.FamilleProduitFiniCode ?? "", user);
 
         // 2. Créer le nouveau en ACTIF
@@ -67,6 +68,10 @@ public class PlanPfService : IPlanPfService
             CreeLe = DateTime.UtcNow,
             //Remarques = dto.Remarques,
             //LegendeMoyens = dto.LegendeMoyens,
+
+
+
+
             Statut = StatutsPlan.Actif,
             PlanProduitFiniSections = new List<PlanProduitFiniSection>()
         };
@@ -169,8 +174,31 @@ public class PlanPfService : IPlanPfService
 
         var user = _currentUserService.UserInfo;
 
-        // Archiver l'actif actuel
-        await _planArchiverService.ArchivePlansPfActifsAsync(planArchive.FamilleProduitFiniCode ?? "", user);
+        // Archiver l'actif lié au même formulaire (pas à la même famille générique)
+        if (planArchive.FormulaireId.HasValue)
+        {
+            var form = await _referentielService.GetFormulaireByIdAsync(planArchive.FormulaireId.Value);
+            if (form != null)
+            {
+                var formActif = await _referentielService.GetFormulaireActifParCodeReferenceAsync(form.CodeReference);
+                if (formActif != null)
+                {
+                    await _planArchiverService.ArchivePlanPfActifParFormulaireAsync(formActif.Id, user);
+                }
+                else
+                {
+                    await _planArchiverService.ArchivePlansPfActifsAsync(planArchive.FamilleProduitFiniCode ?? "", user);
+                }
+            }
+            else
+            {
+                await _planArchiverService.ArchivePlansPfActifsAsync(planArchive.FamilleProduitFiniCode ?? "", user);
+            }
+        }
+        else
+        {
+            await _planArchiverService.ArchivePlansPfActifsAsync(planArchive.FamilleProduitFiniCode ?? "", user);
+        }
 
         var nouvelleVersion = await CalculerNouvelleVersionAsync(planArchive.FamilleProduitFiniCode ?? "");
         Guid? newFormulaireId = null;
@@ -289,3 +317,4 @@ public class PlanPfService : IPlanPfService
         }
     }
 }
+

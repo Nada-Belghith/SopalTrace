@@ -14,6 +14,7 @@ using SopalTrace.Infrastructure.Services;
 using SopalTrace.Infrastructure.Services.Erp;
 using SopalTrace.Infrastructure.Services.Security;
 using SopalTrace.Infrastructure.UnitOfWork;
+using SopalTrace.Application.Services.QualityPlans.Referentiels;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -111,6 +112,8 @@ builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.Ex
 builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportSer05MachineService>();
 builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportDefaultMachineService>();
 builder.Services.AddScoped<IExcelImportFactory, ExcelImportFactory>();
+builder.Services.AddScoped<IRefFormulaireRepository, RefFormulaireRepository>();
+builder.Services.AddScoped<IRefFormulaireService, RefFormulaireService>();
 builder.Services.AddScoped<IReferentielService, ReferentielService>();
 builder.Services.AddScoped<IHubService, HubService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();

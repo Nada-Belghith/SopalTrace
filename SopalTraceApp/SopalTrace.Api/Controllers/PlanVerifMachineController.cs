@@ -193,7 +193,7 @@ public class PlanVerifMachineController : ControllerBase
     }
 
     [HttpPost("import-excel")]
-    public async Task<IActionResult> ImportExcel(IFormFile file, [FromForm] string configurationColonnesJson, [FromServices] IExcelImportFactory excelFactory)
+    public async Task<IActionResult> ImportExcel(IFormFile file, [FromForm] string? configurationColonnesJson, [FromServices] IExcelImportFactory excelFactory)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { success = false, message = "Veuillez sélectionner un fichier." });

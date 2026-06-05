@@ -24,10 +24,24 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
             p.Statut == "ACTIF");
     }
 
+    public async Task<bool> ExistePlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanVerifMachineEntetes.AnyAsync(p =>
+            p.FormulaireId == formulaireId &&
+            p.Statut == "ACTIF");
+    }
+
     public async Task<PlanVerifMachineEntete> GetPlanActifAsync(string machineCode)
     {
         return await _context.PlanVerifMachineEntetes.FirstOrDefaultAsync(p =>
             p.MachineCode == machineCode &&
+            p.Statut == "ACTIF");
+    }
+
+    public async Task<PlanVerifMachineEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanVerifMachineEntetes.FirstOrDefaultAsync(p =>
+            p.FormulaireId == formulaireId &&
             p.Statut == "ACTIF");
     }
 

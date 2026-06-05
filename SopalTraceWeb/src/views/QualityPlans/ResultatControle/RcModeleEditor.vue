@@ -56,7 +56,7 @@ const onVersioningConfirm = async (motif) => {
     if (res.success) {
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle restauré avec succès.', life: 3000 });
       if (res.planId) {
-          router.replace(`/dev/resultat-controle/editer/${res.planId}`);
+          router.replace('/dev/hub');
       }
     }
   } catch {

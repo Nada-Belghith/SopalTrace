@@ -23,10 +23,24 @@ public class PlanNcRepository : IPlanNcRepository
             p.Statut == "ACTIF");
     }
 
+    public async Task<bool> ExistePlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanNonConformiteEntetes.AnyAsync(p =>
+            p.FormulaireId == formulaireId &&
+            p.Statut == "ACTIF");
+    }
+
     public async Task<PlanNonConformiteEntete?> GetPlanActifAsync(string posteCode)
     {
         return await _context.PlanNonConformiteEntetes.FirstOrDefaultAsync(p =>
             p.PosteCode == posteCode &&
+            p.Statut == "ACTIF");
+    }
+
+    public async Task<PlanNonConformiteEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanNonConformiteEntetes.FirstOrDefaultAsync(p =>
+            p.FormulaireId == formulaireId &&
             p.Statut == "ACTIF");
     }
 
