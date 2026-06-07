@@ -1,3 +1,4 @@
+/* eslint-env node */
 const fs = require('fs');
 let data = fs.readFileSync('exec_view.json', 'utf8');
 if(data.charCodeAt(0) === 0xFEFF) data = data.slice(1);

@@ -427,7 +427,11 @@ const saveExecution = async () => {
   // Sync only rows that have data before saving
   store.execData.piecesTypes = piecesTypesDisplay.value
     .filter(pt => pt._isReal || pt.heureValidation || pt.resultat || pt.matriculeOperateur)
-    .map(({ _isReal, ...rest }) => rest);
+    .map(pt => {
+      const copy = { ...pt };
+      delete copy._isReal;
+      return copy;
+    });
 
   const result = await store.saveExec();
   if (result.success) {

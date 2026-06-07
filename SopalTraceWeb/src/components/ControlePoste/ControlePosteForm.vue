@@ -118,7 +118,7 @@
                                         </div>
                                     </th>
                                     <template v-else>
-                                        <th v-for="(col, i) in g.columns" :key="col.id" rowspan="2" class="p-2 border-r border-slate-300 text-center align-middle min-w-[75px] max-w-[90px] leading-snug">
+                                        <th v-for="col in g.columns" :key="col.id" rowspan="2" class="p-2 border-r border-slate-300 text-center align-middle min-w-[75px] max-w-[90px] leading-snug">
                                             {{ col.header }}
                                         </th>
                                     </template>
@@ -284,7 +284,7 @@
                             </div>
                         </th>
                         <template v-else>
-                            <th v-for="(col, i) in g.columns" :key="col.key" rowspan="2" class="p-2 border-r border-slate-300 text-center align-middle min-w-[75px] max-w-[90px] leading-snug">
+                            <th v-for="col in g.columns" :key="col.key" rowspan="2" class="p-2 border-r border-slate-300 text-center align-middle min-w-[75px] max-w-[90px] leading-snug">
                                 <span :class="col.key.startsWith('custom_') ? 'text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded border border-amber-200 inline-block' : ''">
                                     {{ col.label }} <span v-if="col.key.startsWith('custom_')">(Auto)</span>
                                 </span>
@@ -336,7 +336,6 @@ import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import { parseDesignation } from '@/utils/designationParser';
 import Dropdown from 'primevue/dropdown';
-import InputText from 'primevue/inputtext';
 
 const props = defineProps({
     isReadOnly: { type: Boolean, default: false }
@@ -350,14 +349,6 @@ const route = useRoute();
 const fileInput = ref(null);
 const refFormulaireSelected = ref('');
 const showColumnModal = ref(false);
-
-const selectedFormulaireDesignation = computed(() => {
-  if (refFormulaireSelected.value) {
-    const selected = store.formulairesReferences.find(f => f.id === refFormulaireSelected.value);
-    return selected ? selected.designation : '';
-  }
-  return '';
-});
 
 const standardColumns = computed(() => {
   const cols = [];
@@ -493,8 +484,6 @@ const getPreviewGroups = (cols) => {
 
 const hasGroups = computed(() => headerGroups.value.some(g => g.name));
 
-const emit = defineEmits(['close']);
-
 const onCancel = () => {
     router.push('/dev/hub');
 };
@@ -538,10 +527,6 @@ watch(refFormulaireSelected, (newRefId) => {
     }
   }
 });
-
-const machinesAssocieesAuPoste = computed(() => 
-  store.machines.filter(m => m.posteCode === store.entete.posteCode)
-);
 
 const onSelectionChange = () => {
   if (store.entete.posteCode) {
@@ -607,12 +592,10 @@ const handleSauvegarder = async () => {
     // 4. Confirmation d'archivage si on crée un nouveau plan et qu'un actif existe
     if (!store.entete.id) {
         // Comparer par formulaireId si disponible (FE-RC-PAS71 != FE-RC-PAS71_SOUPAPE = plans indépendants)
-        let planActif = null;
-        if (store.entete.formulaireId) {
-            planActif = store.plansExistants.find(p => p.statut === 'ACTIF' && p.formulaireId === store.entete.formulaireId);
-        } else {
-            planActif = store.plansExistants.find(p => p.statut === 'ACTIF' && p.posteCode === store.entete.posteCode && !p.formulaireId);
-        }
+        const planActif = store.entete.formulaireId
+            ? store.plansExistants.find(p => p.statut === 'ACTIF' && p.formulaireId === store.entete.formulaireId)
+            : store.plansExistants.find(p => p.statut === 'ACTIF' && p.posteCode === store.entete.posteCode && !p.formulaireId);
+        
         if (planActif) {
             const isConfirmed = await new Promise((resolve) => {
                 confirm.require({
