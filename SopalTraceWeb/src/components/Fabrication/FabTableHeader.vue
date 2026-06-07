@@ -1,6 +1,6 @@
 <template>
   <thead>
-    <tr class="bg-slate-900 text-white">
+    <tr class="bg-[#0f1923] text-white">
       <th 
         v-for="(col, idx) in columns" 
         :key="idx"

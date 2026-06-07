@@ -45,6 +45,13 @@ const router = createRouter({
           component: () => import('@/views/QualityPlans/DevPlanHub.vue'),
         },
 
+        // --- EXECUTION DES PLANS ---
+        {
+          path: 'exec/encf/:id',
+          name: 'exec-encf-form',
+          component: () => import('@/components/Execution/ExecEncfForm.vue'),
+        },
+
         // 2. ÉDITEUR FABRICATION (TRN, ESP, USI) - GABARITS
         // Gère les Corps et Volants pour les 3 premières opérations
         {
@@ -114,12 +121,24 @@ const router = createRouter({
         {
           path: 'resultat-controle/nouveau',
           name: 'dev-rc-create',
-          component: () => import('@/views/QualityPlans/ResultatControle/RcModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/ControlePoste/ControlePosteEditor.vue'),
         },
         {
           path: 'resultat-controle/editer/:id',
           name: 'dev-rc-edit',
-          component: () => import('@/views/QualityPlans/ResultatControle/RcModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/ControlePoste/ControlePosteEditor.vue'),
+        },
+
+        // NOUVEAU: RÉSULTAT CONTRÔLE C.F.
+        {
+          path: 'resultat-controle-cf/nouveau',
+          name: 'dev-rccf-create',
+          component: () => import('@/views/QualityPlans/ResultatControleCF/RccfModeleEditor.vue'),
+        },
+        {
+          path: 'resultat-controle-cf/editer/:id',
+          name: 'dev-rccf-edit',
+          component: () => import('@/views/QualityPlans/ResultatControleCF/RccfModeleEditor.vue'),
         },
 
         // 7. ÉDITEUR ÉCHANTILLONNAGE (Niveaux ISO)

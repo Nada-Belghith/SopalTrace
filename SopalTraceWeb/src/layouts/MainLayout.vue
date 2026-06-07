@@ -10,6 +10,12 @@ const isMobileMenuOpen = ref(false);
 const isDocActive = (pathPrefix, mode = null) => {
   const isPathMatch = route.path.startsWith(pathPrefix);
   if (!isPathMatch) return false;
+  
+  // Eviter la collision (ex: '/dev/resultat-controle' qui matche '/dev/resultat-controle-cf')
+  if (route.path.length > pathPrefix.length && route.path[pathPrefix.length] !== '/') {
+      return false;
+  }
+
   if (mode) {
     return route.query.mode === mode;
   }
@@ -148,6 +154,13 @@ const toggleMobileMenu = () => {
                     class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
                     :class="isDocActive('/dev/resultat-controle') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
                     <i class="pi pi-plus-circle text-red-500 text-sm"></i> Résultat Contrôle Poste
+                  </router-link>
+                </li>
+                <li>
+                  <router-link to="/dev/resultat-controle-cf/nouveau" 
+                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
+                    :class="isDocActive('/dev/resultat-controle-cf') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                    <i class="pi pi-plus-circle text-teal-500 text-sm"></i> Résultat Contrôle C.F.
                   </router-link>
                 </li>
               </ul>

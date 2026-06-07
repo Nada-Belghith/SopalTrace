@@ -31,9 +31,9 @@ public class ReferentielController : ControllerBase
     }
 
     [HttpGet("plans-nc")]
-    public async Task<IActionResult> GetDictionnairesPlanNc()
+    public async Task<IActionResult> GetDictionnairesControlePoste()
     {
-        var data = await _referentielService.GetPlanNcReferentielsAsync();
+        var data = await _referentielService.GetControlePosteReferentielsAsync();
         return Ok(new { success = true, data });
     }
 

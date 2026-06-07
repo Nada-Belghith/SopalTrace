@@ -25,9 +25,9 @@ public partial class Machine
 
     public virtual ICollection<PlanAssemblageLigne> PlanAssemblageLignes { get; set; } = new List<PlanAssemblageLigne>();
 
-    public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
+    public virtual ICollection<PlanControlePosteLigne> PlanControlePosteLignes { get; set; } = new List<PlanControlePosteLigne>();
 
-    public virtual ICollection<PlanNonConformiteLigne> PlanNonConformiteLignes { get; set; } = new List<PlanNonConformiteLigne>();
+    public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 
     public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
 

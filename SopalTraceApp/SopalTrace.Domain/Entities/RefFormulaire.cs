@@ -25,11 +25,13 @@ public partial class RefFormulaire
 
     public virtual ICollection<PlanAssemblageEntete> PlanAssemblageEntetes { get; set; } = new List<PlanAssemblageEntete>();
 
+    public virtual ICollection<PlanControlePosteEntete> PlanControlePosteEntetes { get; set; } = new List<PlanControlePosteEntete>();
+
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 
-    public virtual ICollection<PlanNonConformiteEntete> PlanNonConformiteEntetes { get; set; } = new List<PlanNonConformiteEntete>();
-
     public virtual ICollection<PlanProduitFiniEntete> PlanProduitFiniEntetes { get; set; } = new List<PlanProduitFiniEntete>();
+
+    public virtual ICollection<PlanResultatControleCfEntete> PlanResultatControleCfEntetes { get; set; } = new List<PlanResultatControleCfEntete>();
 
     public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
 }

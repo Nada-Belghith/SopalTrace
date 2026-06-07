@@ -703,7 +703,7 @@ GO
 -- PARTIE 12: PLANS DE NON-CONFORMITÉ (TALLY)
 -- ================================================================================
 
-CREATE TABLE dbo.Plan_NonConformite_Entete (
+CREATE TABLE dbo.Plan_ControlePoste_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     PosteCode VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste),
     Nom VARCHAR(150) NOT NULL,
@@ -717,23 +717,18 @@ CREATE TABLE dbo.Plan_NonConformite_Entete (
     ConfigurationColonnesJson NVARCHAR(MAX),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     Remarques NVARCHAR(MAX),
-    LegendeMoyens NVARCHAR(MAX),
-
-
-
-
-    
+    LegendeMoyens NVARCHAR(MAX)
     -- UNIQUE (PosteCode, Version)
 );
 GO
 
-CREATE TABLE dbo.Plan_NonConformite_Ligne (
+CREATE TABLE dbo.Plan_ControlePoste_Ligne (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanNCEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_NonConformite_Entete(Id) ON DELETE CASCADE,
+    ControlePosteEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ControlePoste_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL,
     MachineCode VARCHAR(30) NOT NULL REFERENCES dbo.Machine(CodeMachine),
     RisqueDefautId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.RisqueDefaut(Id),
-    UNIQUE (PlanNCEnteteId, OrdreAffiche)
+    UNIQUE (ControlePosteEnteteId, OrdreAffiche)
 );
 GO
 
@@ -965,6 +960,48 @@ GO
 CREATE TRIGGER trg_no_del_Instrument ON dbo.Instrument INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Instrument'; END;
 GO
 CREATE TRIGGER trg_no_del_PieceReference ON dbo.PieceReference INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'PieceReference'; END;
+GO
+
+-- ================================================================================
+-- PARTIE 17: RESULTATS DU CONTROLE EN COURS DE FABRICATION
+-- ================================================================================
+
+CREATE TABLE dbo.Plan_ResultatControleCF_Entete (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    PosteCode VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
+    Nom VARCHAR(150) NOT NULL,
+    Version INT NOT NULL DEFAULT 0,
+    Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE')),
+    ConfigurationJson NVARCHAR(MAX),
+    Remarques NVARCHAR(MAX),
+    CreePar VARCHAR(20) NOT NULL,
+    CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
+    ModifiePar VARCHAR(20),
+    ModifieLe DATETIME
+);
+GO
+
+CREATE TABLE dbo.Plan_ResultatControleCF_Section (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    PlanRCCFEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ResultatControleCF_Entete(Id) ON DELETE CASCADE,
+    SectionType VARCHAR(50) NOT NULL,
+    LibelleAffiche VARCHAR(200) NOT NULL,
+    OrdreAffiche INT NOT NULL DEFAULT 0
+);
+GO
+
+CREATE TABLE dbo.Plan_ResultatControleCF_Ligne (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ResultatControleCF_Section(Id) ON DELETE CASCADE,
+    Caracteristique VARCHAR(300) NOT NULL,
+    LimiteSpecTexte NVARCHAR(MAX),
+    TypeControleId UNIQUEIDENTIFIER REFERENCES dbo.TypeControle(Id),
+    MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
+    InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
+    Observations NVARCHAR(MAX),
+    OrdreAffiche INT NOT NULL DEFAULT 0
+);
 GO
 
 -- ================================================================================

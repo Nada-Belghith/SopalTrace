@@ -10,7 +10,7 @@ public interface IReferentielService
     /// <summary>Retourne les machines actives et les périodicités pour le module Vérif Machine.</summary>
     Task<VerifMachineReferentielsDto> GetVerifMachineReferentielsAsync();
     
-    Task<PlanNcReferentielsDto> GetPlanNcReferentielsAsync();
+    Task<ControlePosteReferentielsDto> GetControlePosteReferentielsAsync();
 
     Task<ArticleDto?> GetArticleInfosAsync(string codeArticle);
 

@@ -17,7 +17,9 @@ public partial class PosteTravail
 
     public virtual ICollection<PlanAssemblageEntete> PlanAssemblageEntetes { get; set; } = new List<PlanAssemblageEntete>();
 
-    public virtual ICollection<PlanNonConformiteEntete> PlanNonConformiteEntetes { get; set; } = new List<PlanNonConformiteEntete>();
+    public virtual ICollection<PlanControlePosteEntete> PlanControlePosteEntetes { get; set; } = new List<PlanControlePosteEntete>();
+
+    public virtual ICollection<PlanResultatControleCfEntete> PlanResultatControleCfEntetes { get; set; } = new List<PlanResultatControleCfEntete>();
 
     public virtual ICollection<Machine> CodeMachines { get; set; } = new List<Machine>();
 }

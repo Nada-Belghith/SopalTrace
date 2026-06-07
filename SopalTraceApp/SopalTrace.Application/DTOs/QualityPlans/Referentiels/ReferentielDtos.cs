@@ -122,7 +122,7 @@ public record MachinePosteDto(
     string? PosteCode
 );
 
-public record PlanNcReferentielsDto(
+public record ControlePosteReferentielsDto(
     List<ReferenceItemDto> Postes,
     List<MachinePosteDto> Machines,
     List<ReferenceItemDto> RisquesDefauts

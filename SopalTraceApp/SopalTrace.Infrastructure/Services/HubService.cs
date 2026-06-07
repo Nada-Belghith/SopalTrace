@@ -124,8 +124,8 @@ public class HubService : IHubService
             .ToListAsync();
         result.AddRange(pfModeles);
 
-        // 6. RÉSULTAT CONTRÔLE
-        var ncModeles = await _context.PlanNonConformiteEntetes
+        // 6. RÉSULTAT CONTRÔLE POSTE
+        var ncModeles = await _context.PlanControlePosteEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
             .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
@@ -143,6 +143,26 @@ public class HubService : IHubService
                 m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(ncModeles);
+
+        // 7. RÉSULTAT CONTRÔLE CF
+        var rccfModeles = await _context.PlanResultatControleCfEntetes
+            .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Select(m => new HubModeleDto(
+                m.Id,
+                "RCCF",
+                m.Nom ?? "Résultat Contrôle CF Sans Nom",
+                "POSTE",
+                null,
+                null,
+                m.PosteCode ?? "N/A",
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Formulaire != null ? m.Formulaire.Statut : m.Statut,
+                "Résultat Contrôle en cours de fabrication.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+            .ToListAsync();
+        result.AddRange(rccfModeles);
 
         return result;
     }
@@ -227,11 +247,18 @@ public class HubService : IHubService
             }
             case "RC":
             {
-                var m = await _context.PlanNonConformiteEntetes.FindAsync(id);
+                var m = await _context.PlanControlePosteEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
                 //m.ModifiePar = "ADMIN";
+                break;
+            }
+            case "RCCF":
+            {
+                var m = await _context.PlanResultatControleCfEntetes.FindAsync(id);
+                if (m is null) return false;
+                m.Statut = statut;
                 break;
             }
             default:
@@ -330,15 +357,35 @@ public class HubService : IHubService
             }
             case "RC":
             {
-                var plan = await _context.PlanNonConformiteEntetes
-                    .Include(p => p.PlanNonConformiteLignes)
+                var plan = await _context.PlanControlePosteEntetes
+                    .Include(p => p.PlanControlePosteLignes)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null) return false;
                 if (plan.Statut != "BROUILLON") return false;
 
-                _context.PlanNonConformiteLignes.RemoveRange(plan.PlanNonConformiteLignes);
-                _context.PlanNonConformiteEntetes.Remove(plan);
+                _context.PlanControlePosteLignes.RemoveRange(plan.PlanControlePosteLignes);
+                _context.PlanControlePosteEntetes.Remove(plan);
+
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            case "RCCF":
+            {
+                var plan = await _context.PlanResultatControleCfEntetes
+                    .Include(p => p.PlanResultatControleCfSections)
+                        .ThenInclude(s => s.PlanResultatControleCfLignes)
+                    .FirstOrDefaultAsync(p => p.Id == id);
+
+                if (plan is null) return false;
+                if (plan.Statut != "BROUILLON") return false;
+
+                foreach (var section in plan.PlanResultatControleCfSections)
+                {
+                    _context.PlanResultatControleCfLignes.RemoveRange(section.PlanResultatControleCfLignes);
+                }
+                _context.PlanResultatControleCfSections.RemoveRange(plan.PlanResultatControleCfSections);
+                _context.PlanResultatControleCfEntetes.Remove(plan);
 
                 await _context.SaveChangesAsync();
                 return true;

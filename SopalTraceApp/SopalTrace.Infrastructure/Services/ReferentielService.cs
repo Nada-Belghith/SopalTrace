@@ -151,7 +151,7 @@ public class ReferentielService : IReferentielService
         );
     }
 
-    public async Task<PlanNcReferentielsDto> GetPlanNcReferentielsAsync()
+    public async Task<ControlePosteReferentielsDto> GetControlePosteReferentielsAsync()
     {
         var postes = (await _context.PosteTravails
             .Where(p => p.Actif)
@@ -177,7 +177,7 @@ public class ReferentielService : IReferentielService
             .Select(r => new ReferenceItemDto(r.Id, r.CodeDefaut, r.LibelleDefaut, true, null))
             .ToList();
 
-        return new PlanNcReferentielsDto(postes, machines, risquesDefauts);
+        return new ControlePosteReferentielsDto(postes, machines, risquesDefauts);
     }
 
     public async Task<VerifMachineReferentielsDto> GetVerifMachineReferentielsAsync()
@@ -414,40 +414,25 @@ public class ReferentielService : IReferentielService
 
         if (formulaireActuel != null)
         {
-            if (string.IsNullOrEmpty(formulaireActuel.ConfigurationStructureJson))
-            {
-                // Si le formulaire est une coquille vide (initialisée par un script SQL),
-                // on ne l'archive pas. On le met à jour directement pour qu'il devienne la "vraie" version initiale.
-                formulaireActuel.ConfigurationStructureJson = configurationStructureJson;
-                if (versionInitiale.HasValue)
-                {
-                    formulaireActuel.Version = versionInitiale.Value;
-                }
-                nouveauFormulaireId = formulaireActuel.Id;
-                versionFinale = formulaireActuel.Version;
-            }
-            else
-            {
-                // Archiver la version actuelle active
-                formulaireActuel.Statut = "ARCHIVE";
+            // Archiver la version actuelle active
+            formulaireActuel.Statut = "ARCHIVE";
 
-                // Créer une nouvelle version active avec version+1
-                var newVersion = formulaireActuel.Version + 1;
-                var nouveauFormulaire = new RefFormulaire
-                {
-                    Id = Guid.NewGuid(),
-                    CodeReference = formulaireActuel.CodeReference,
-                    Designation = formulaireActuel.Designation,
-                    Version = newVersion,
-                    Statut = "ACTIF",
-                    CreeLe = DateTime.UtcNow,
-                    Role = role,
-                    ConfigurationStructureJson = configurationStructureJson
-                };
-                _context.RefFormulaires.Add(nouveauFormulaire);
-                nouveauFormulaireId = nouveauFormulaire.Id;
-                versionFinale = newVersion;
-            }
+            // Créer une nouvelle version active avec version+1
+            var newVersion = formulaireActuel.Version + 1;
+            var nouveauFormulaire = new RefFormulaire
+            {
+                Id = Guid.NewGuid(),
+                CodeReference = formulaireActuel.CodeReference,
+                Designation = formulaireActuel.Designation,
+                Version = newVersion,
+                Statut = "ACTIF",
+                CreeLe = DateTime.UtcNow,
+                Role = role,
+                ConfigurationStructureJson = configurationStructureJson
+            };
+            _context.RefFormulaires.Add(nouveauFormulaire);
+            nouveauFormulaireId = nouveauFormulaire.Id;
+            versionFinale = newVersion;
         }
         else
         {

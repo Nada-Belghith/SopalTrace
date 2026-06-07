@@ -30,4 +30,6 @@ public partial class Instrument
     public virtual ICollection<PlanFabricationLigne> PlanFabricationLignes { get; set; } = new List<PlanFabricationLigne>();
 
     public virtual ICollection<PlanProduitFiniLigne> PlanProduitFiniLignes { get; set; } = new List<PlanProduitFiniLigne>();
+
+    public virtual ICollection<PlanResultatControleCfLigne> PlanResultatControleCfLignes { get; set; } = new List<PlanResultatControleCfLigne>();
 }

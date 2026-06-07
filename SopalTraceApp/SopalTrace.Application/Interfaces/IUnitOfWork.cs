@@ -9,9 +9,10 @@ public interface IUnitOfWork : IAsyncDisposable
     IUserRepository UserRepository { get; }
 
     IPlanEchanRepository PlanEchanRepository { get; }
-    IPlanNcRepository PlanNcRepository { get; }
+    IControlePosteRepository ControlePosteRepository { get; }
 
     IPlanVerifMachineRepository PlanVerifMachineRepository { get; }
+    IPlanRccfRepository PlanRccfRepository { get; }
     IDictionnaireQualiteRepository DictionnaireQualiteRepository { get; }
     IRefFormulaireRepository RefFormulaireRepository { get; }
 

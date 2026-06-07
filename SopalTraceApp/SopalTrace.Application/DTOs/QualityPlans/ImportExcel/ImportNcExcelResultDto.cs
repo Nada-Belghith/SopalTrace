@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace SopalTrace.Application.DTOs.QualityPlans.ImportExcel;
 
 /// <summary>
-/// Résultat du parsing Excel pour un Plan de Résultat de Contrôle de Poste (PlanNC).
+/// Résultat du parsing Excel pour un Plan de Résultat de Contrôle de Poste (ControlePoste).
 /// Format réel du fichier Excel :
 ///   Ligne titre  : "Test de Non-conformité" (cellule fusionnée, ignorée)
 ///   Ligne en-tête: | N° | Machine / Banc d'essai | Désignation du défaut |

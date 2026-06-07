@@ -524,7 +524,12 @@ INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut,
 (NEWID(), 'FE-RC-PAS71_SOUPAPE', 'Formulaire Résultat Contrôle PAS71 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
 (NEWID(), 'FE-RC-PAS72_SOUPAPE', 'Formulaire Résultat Contrôle PAS72 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
 (NEWID(), 'FE-RC-PAS78_SOUPAPE', 'Formulaire Résultat Contrôle PAS78 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-PAS79', 'Formulaire Résultat Contrôle PAS79', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE');
+(NEWID(), 'FE-RC-PAS79', 'Formulaire Résultat Contrôle PAS79', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-ENCF', 'Résultats du contrôle en cours de fabrication (Usi/Esp/Trn)', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS', 'Résultats du contrôle en cours de fabrication Assemblage', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS71_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS71', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS72_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS72', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS78_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS78', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF');
 
 
 

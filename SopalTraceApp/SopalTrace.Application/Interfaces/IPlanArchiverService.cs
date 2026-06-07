@@ -9,7 +9,7 @@ namespace SopalTrace.Application.Interfaces
         Task ArchivePlansPfActifsAsync(string familleProduitFiniCode, string user);
         Task ArchivePlanPfActifParFormulaireAsync(Guid formulaireId, string user);
         Task ArchivePlanAssActifAsync(string operationCode, string? familleProduitFiniCode, string? natureComposantCode, string? posteCode, string user, Guid currentPlanId);
-        Task ArchivePlanNcActifAsync(string posteCode, string user);
-        Task ArchivePlanNcActifParFormulaireAsync(Guid formulaireId, string user);
+        Task ArchiveControlePosteActifAsync(string posteCode, string user);
+        Task ArchiveControlePosteActifParFormulaireAsync(Guid formulaireId, string user);
     }
 }

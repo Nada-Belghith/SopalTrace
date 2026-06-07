@@ -13,5 +13,5 @@ public partial class RisqueDefaut
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<PlanNonConformiteLigne> PlanNonConformiteLignes { get; set; } = new List<PlanNonConformiteLigne>();
+    public virtual ICollection<PlanControlePosteLigne> PlanControlePosteLignes { get; set; } = new List<PlanControlePosteLigne>();
 }

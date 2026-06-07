@@ -22,6 +22,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Enregistrement du fournisseur d'encodage pour supporter Windows-1252 (utile pour l'import Excel/CSV)
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
+// Configuration globale pour EPPlus 8+
+OfficeOpenXml.ExcelPackage.License.SetNonCommercialPersonal("SopalTrace");
+
 // Configuration de Serilog avec enrichissement de contexte
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -84,8 +87,12 @@ builder.Services.AddHealthChecks()
 
 // 2. Injection des dépendances (Clean Architecture)
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<IPlanNcRepository, PlanNcRepository>();
-builder.Services.AddScoped<IPlanNcService, PlanNcService>();
+builder.Services.AddScoped<IControlePosteRepository, ControlePosteRepository>();
+builder.Services.AddScoped<IPlanRccfService, PlanRccfService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecEncfRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfService, SopalTrace.Application.Services.ExecEncfService>();
+builder.Services.AddScoped<IExcelImportRccfService, ExcelImportRccfService>();
+builder.Services.AddScoped<IControlePosteService, ControlePosteService>();
 builder.Services.AddScoped<IErpService, SqlErpService>();
 builder.Services.AddScoped<IPlanVerifMachineRepository, PlanVerifMachineRepository>();
 builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
@@ -125,7 +132,7 @@ builder.Services.AddScoped<IPlanArchiverService>(sp =>
         sp.GetRequiredService<IPlanFabricationRepository>(),
         sp.GetRequiredService<IPlanPfRepository>(),
         sp.GetRequiredService<IPlanAssRepository>(),
-        sp.GetRequiredService<IPlanNcRepository>()
+        sp.GetRequiredService<IControlePosteRepository>()
     ));
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---

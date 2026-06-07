@@ -187,7 +187,7 @@ watch(() => newCol.value.targetTable, (newVal) => {
 
 watch(() => props.visible, (val) => {
   if (val) {
-    customColumns.value = JSON.parse(JSON.stringify(props.modelValue))
+    customColumns.value = props.modelValue ? JSON.parse(JSON.stringify(props.modelValue)) : []
     if (!newCol.value.insertAfter && props.baseColumns.length > 0) {
       newCol.value.insertAfter = props.baseColumns[props.baseColumns.length - 2].key // default to before observations
     }
