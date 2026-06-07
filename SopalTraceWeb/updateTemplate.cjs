@@ -1,4 +1,4 @@
-/* eslint-env node */
+// eslint-disable-next-line no-undef
 const fs = require('fs');
 
 let f = fs.readFileSync('src/components/ResultatControleCF/ResultatControleCfForm.vue', 'utf8');

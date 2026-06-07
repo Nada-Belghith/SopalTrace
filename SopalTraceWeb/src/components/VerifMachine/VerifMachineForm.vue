@@ -398,7 +398,6 @@ watch(isMachineSansConformite, (newVal) => {
 
 const machineStrategy = computed(() => MachineStrategyFactory.getStrategy(store.entete.machineCode, store));
 
-const isSERMachine = computed(() => machineStrategy.value.role === 'SER');
 const isArchitectureA = computed(() => machineStrategy.value.isArchitectureA);
 const isBEEMachine = computed(() => machineStrategy.value.role === 'BEE');
 const isMAS26 = computed(() => machineStrategy.value.isMAS26);
@@ -407,30 +406,6 @@ const isMAS22 = computed(() => machineStrategy.value.isMAS22);
 const isSER05 = computed(() => machineStrategy.value.isSER05);
 const hidePressionAndDp = computed(() => machineStrategy.value.hidePressionAndDp);
 
-const customColumns = computed(() => {
-  if (!store.entete.configurationColonnes) return [];
-  if (typeof store.entete.configurationColonnes === 'string') {
-    try {
-      return JSON.parse(store.entete.configurationColonnes);
-    } catch (e) {
-      return [];
-    }
-  }
-  return store.entete.configurationColonnes;
-});
-
-const totalColumns = computed(() => {
-  let count = 3; // Risque + Methode + Périodicité
-  if (store.entete.afficheMoyenDetectionRisques) count++;
-  count += hasFamilleHeaders.value ? store.familles.length : 1;
-  if (store.entete.afficheFuiteEtalon || isBEEMachine.value) count++;
-  count += hasSubHeaders.value ? 5 : 4; // Colonnes Opérateur : Pression, DP, Resultats(2), Observation
-  if (isMAS19.value) count -= 1; // MAS19 n'a pas de colonne DP
-  if (hidePressionAndDp.value) count -= 2; // MAS22 et MAS26 n'ont ni Pression ni DP
-  count += customColumns.value.length; // Colonnes personnalisées
-  if (!props.isReadOnly) count++;
-  return count;
-});
 
 const vmBaseColumns = computed(() => {
   const cols = [
@@ -471,123 +446,6 @@ const hasSubHeaders = computed(() => machineStrategy.value.hasSubHeaders);
 
 
 
-// --- Rowspan Helpers ---
-const getLigneTotalRows = (ligne) => {
-    return ligne.groups.reduce((total, group) => total + group.rows.length, 0);
-};
-
-// Helper for grouping array by key
-const groupBy = (array, keyGetter) => {
-  return array.reduce((acc, item) => {
-    const key = keyGetter(item);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
-};
-
-// --- Architecture Handling ---
-const flattenedRowsRisques = computed(() => {
-  const rows = [];
-  
-  if (isArchitectureA.value) {
-    // Architecture A: Risque -> Methode -> Periodicite (Visual grouping of Risk name only)
-    const byRisque = groupBy(store.lignesRisques, l => l.libelleRisque || '');
-    for (const [, lignes] of Object.entries(byRisque)) {
-       const allTuplesRisque = [];
-
-       lignes.forEach(ligne => {
-          let mTuples = [];
-          ligne.groups.forEach(group => {
-             group.rows.forEach(r => {
-                mTuples.push({ ligne, group, row: r });
-             });
-          });
-
-          mTuples.forEach((t, i) => {
-             t.isFirstMethode = i === 0;
-             t.rowspanMethode = i === 0 ? mTuples.length : 0;
-             allTuplesRisque.push(t);
-          });
-       });
-
-       allTuplesRisque.forEach((t, i) => {
-          t.isFirstRisque = i === 0;
-          t.rowspanRisque = i === 0 ? allTuplesRisque.length : 0;
-          
-          const groupRows = t.group.rows;
-          const rIdxInGroup = groupRows.findIndex(r => r._uid === t.row._uid);
-          t.isFirstPerio = rIdxInGroup === 0;
-          t.rowspanPerio = rIdxInGroup === 0 ? groupRows.length : 0;
-          
-          rows.push(t);
-       });
-    }
-  } else {
-    // Architecture B: Risque -> Methode -> Periodicite
-    const byRisque = groupBy(store.lignesRisques, l => l.libelleRisque || '');
-    for (const [, lignes] of Object.entries(byRisque)) {
-       const allTuplesRisque = [];
-       lignes.forEach(ligne => {
-          let mTuples = [];
-          ligne.groups.forEach(group => {
-             let gTuples = [];
-             group.rows.forEach(r => {
-                const tuple = { ligne, group, row: r };
-                gTuples.push(tuple);
-                mTuples.push(tuple);
-             });
-             gTuples.forEach((t, i) => {
-                t.isFirstPerio = i === 0;
-                t.rowspanPerio = i === 0 ? gTuples.length : 0;
-             });
-          });
-          mTuples.forEach((t, i) => {
-             t.isFirstMethode = i === 0;
-             t.rowspanMethode = i === 0 ? mTuples.length : 0;
-             allTuplesRisque.push(t);
-          });
-       });
-       allTuplesRisque.forEach((t, i) => {
-          t.isFirstRisque = i === 0;
-          t.rowspanRisque = i === 0 ? allTuplesRisque.length : 0;
-          rows.push(t);
-       });
-    }
-  }
-  return rows;
-});
-
-// --- Propagation des changements de noms pour les groupes fusionnés ---
-const onUpdateRisqueName = (oldValue, newValue) => {
-  // On met à jour toutes les lignes qui avaient l'ancien nom
-  store.lignesRisques.forEach(l => {
-    if (l.libelleRisque === oldValue) {
-      l.libelleRisque = newValue;
-    }
-  });
-  
-  // Idem pour la conformité si besoin (même si c'est plus rare)
-  store.lignesConformite.forEach(l => {
-    if (l.libelleRisque === oldValue) {
-      l.libelleRisque = newValue;
-    }
-  });
-};
-
-
-
-// --- Fuite Étalon helpers ---
-// Cherche FEC en priorité, sinon FENC (ex: FUI 24 = FEC, FUI 25 = FENC)
-const getFuiteValue = (row) => {
-  return store.getPieceValue(row, null, 'FEC') || store.getPieceValue(row, null, 'FENC');
-};
-// Détermine le rôle actuel (FEC ou FENC) pour la mise à jour
-const getFuiteRole = (row) => {
-  if (store.getPieceValue(row, null, 'FEC')) return 'FEC';
-  if (store.getPieceValue(row, null, 'FENC')) return 'FENC';
-  return 'FEC'; // Défaut pour les nouvelles sélections
-};
 const showAddPieceModal = ref(false);
 const addPieceType = ref('PRC');
 const addPieceContext = ref(null);

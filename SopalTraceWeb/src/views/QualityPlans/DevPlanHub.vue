@@ -236,8 +236,7 @@ const chargerPlans = async () => {
     isLoading.value = true;
     const response = await apiClient.get('/hub/plans');
     plans.value = response.data.data || response.data || [];
-  } catch (error) {
-    console.error(error);
+  } catch {
     toast.error('Impossible de charger les plans');
   } finally {
     isLoading.value = false;
@@ -305,7 +304,7 @@ const archiverPlan = async (plan) => {
     await apiClient.post(`/hub/plans/${plan.category}/${plan.id}/archiver`);
     plan.statut = 'ARCHIVE';
     toast.success(`Le plan a été archivé avec succès.`);
-  } catch (err) {
+  } catch {
     toast.error('L\'archivage a échoué.');
   } finally {
     isLoading.value = false;

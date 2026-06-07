@@ -221,12 +221,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import apiClient from '@/services/apiClient'
 
-const router = useRouter()
-const route = useRoute()
+const route = useRoute();
 const toast = useToast()
 
 const isSaving = ref(false)

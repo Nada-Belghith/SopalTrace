@@ -94,7 +94,7 @@ import { ref, watch, computed } from 'vue';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import { parseDesignation } from '@/utils/designationParser';
 
-const props = defineProps({
+defineProps({
   isReadOnly: { type: Boolean, default: false }
 });
 
@@ -139,7 +139,7 @@ watch(refFormulaireSelected, async (newRefId) => {
       store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
         ? JSON.parse(refObj.configurationStructureJson) 
         : refObj.configurationStructureJson;
-    } catch (e) {
+    } catch {
       store.entete.configurationColonnes = [];
     }
   } else {

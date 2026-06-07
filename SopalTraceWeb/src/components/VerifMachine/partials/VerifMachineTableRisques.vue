@@ -17,8 +17,9 @@
             <th v-for="cCol in getCustomColumnsAfter('risques', 'methode')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             <th :rowspan="hasSubHeaders ? 2 : 1" :colspan="(strategy.isMAS26 && store.entete.afficheMoyenDetectionRisques) ? 2 : 1" class="p-3 border-r border-slate-700 w-[12%]">Périodicité</th>
             <th v-for="cCol in getCustomColumnsAfter('risques', 'periodicite')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
-            <th v-if="store.entete.afficheMoyenDetectionRisques && !strategy.isMAS26" :rowspan="hasSubHeaders ? 2 : 1" class="p-3 border-r border-slate-700 w-[12%]">{{ (strategy.isArchitectureA || strategy.role === 'BEE' || strategy.isMAS19 || strategy.isSER05) ? 'Moyen de contrôle' : 'Moyen de détection' }}</th>
-            <th v-for="cCol in getCustomColumnsAfter('risques', 'moyen_detection')" :key="cCol.key" v-if="store.entete.afficheMoyenDetectionRisques && !strategy.isMAS26" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
+            <template v-if="store.entete.afficheMoyenDetectionRisques && !strategy.isMAS26">
+              <th v-for="cCol in getCustomColumnsAfter('risques', 'moyen_detection')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
+            </template>
             <template v-if="hasFamilleHeaders">
               <th :colspan="store.familles.length" class="p-2 border-b border-r border-slate-700 bg-slate-800/80">
                 {{ (strategy.role === 'BEE' || strategy.isMAS19) ? 'Numéro du moyen de contrôle' : ((strategy.isArchitectureA || strategy.isSER05) ? 'N° moyen de contrôle' : 'Numéro de la pièce de référence') }}
@@ -29,11 +30,15 @@
             </th>
             <th v-for="cCol in getCustomColumnsAfter('risques', 'piece_reference')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             <th v-if="store.entete.afficheFuiteEtalon || strategy.role === 'BEE'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[12%]">Fuite Étalon</th>
-            <th v-for="cCol in getCustomColumnsAfter('risques', 'fuite_etalon')" :key="cCol.key" v-if="store.entete.afficheFuiteEtalon || strategy.role === 'BEE'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
+            <template v-if="store.entete.afficheFuiteEtalon || strategy.role === 'BEE'">
+              <th v-for="cCol in getCustomColumnsAfter('risques', 'fuite_etalon')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
+            </template>
             <th v-if="!strategy.hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[8%] text-[10px]">Pression d'entrée affichée (en bar)</th>
             <th v-for="cCol in getCustomColumnsAfter('risques', 'pression_entree')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             <th v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[8%] text-[10px]">{{ store.entete.machineCode?.includes('BEE47') ? 'Fuite affichée (en Pa)' : 'ΔP affichée (en Pa)' }}</th>
-            <th v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp" v-for="cCol in getCustomColumnsAfter('risques', 'dp_affichee')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
+            <template v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp">
+              <th v-for="cCol in getCustomColumnsAfter('risques', 'dp_affichee')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
+            </template>
             <th :colspan="hasSubHeaders ? 2 : 1" :rowspan="1" class="p-2 border-r border-slate-700 w-[5%] text-[10px]">Résultats</th>
             <th v-for="cCol in getCustomColumnsAfter('risques', 'resultat')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             <th :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[12%] text-[10px]">{{ strategy.isSER05 ? 'Action en cas de non-conformité' : 'Observation en cas de non-conformité' }}</th>
@@ -261,9 +266,6 @@ const {
   hasSubHeaders,
   getCustomColumnsAfter,
   ensureColonnes,
-  getLigneTotalRows,
-  totalColumns,
-  onUpdateRisqueName,
   getFuiteValue,
   setFuiteValue
 } = useVerifMachineTable();
