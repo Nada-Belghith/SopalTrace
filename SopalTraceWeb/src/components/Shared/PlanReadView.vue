@@ -136,7 +136,7 @@ const computedColumns = computed(() => {
   let customCols = [];
   
   if (typeof props.configurationColonnes === 'string') {
-    try { customCols = JSON.parse(props.configurationColonnes); } catch(e){}
+    try { customCols = JSON.parse(props.configurationColonnes); } catch { /* ignore */ }
   } else {
     customCols = props.configurationColonnes || [];
   }
@@ -159,7 +159,7 @@ function resolveCustomValue(ligne, colKey) {
   try {
     const parsed = typeof dataSource === 'string' ? JSON.parse(dataSource) : dataSource;
     return parsed[colKey] || '—';
-  } catch (e) {
+  } catch {
     return '—';
   }
 }

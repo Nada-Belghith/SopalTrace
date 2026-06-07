@@ -194,19 +194,6 @@ watch(() => props.visible, (val) => {
   }
 })
 
-const addColumn = () => {
-  if (!newCol.value.label) return
-  customColumns.value.push({
-    key: `custom_${Date.now()}`,
-    label: newCol.value.label,
-    type: newCol.value.type,
-    insertAfter: newCol.value.insertAfter,
-    targetTable: newCol.value.targetTable
-  })
-  newCol.value.label = ''
-  newCol.value.targetTable = 'all'
-}
-
 const removeColumn = (col, index) => {
   if (col && col.key === 'draft_col') {
     newCol.value.label = ''

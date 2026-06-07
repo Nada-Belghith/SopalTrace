@@ -307,7 +307,7 @@ import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 
-const props = defineProps({
+defineProps({
   isReadOnly: { type: Boolean, default: false }
 });
 

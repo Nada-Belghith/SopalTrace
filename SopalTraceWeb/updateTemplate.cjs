@@ -1,3 +1,4 @@
+/* eslint-env node */
 const fs = require('fs');
 
 let f = fs.readFileSync('src/components/ResultatControleCF/ResultatControleCfForm.vue', 'utf8');

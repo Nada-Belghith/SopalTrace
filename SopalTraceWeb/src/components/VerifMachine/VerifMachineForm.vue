@@ -284,7 +284,6 @@ import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import AutoComplete from 'primevue/autocomplete';
-import apiClient from '@/services/apiClient';
 import { parseDesignation } from '@/utils/designationParser';
 import { MachineStrategyFactory } from './strategies/MachineStrategyFactory';
 import VerifMachineHeader from './partials/VerifMachineHeader.vue';
@@ -329,41 +328,7 @@ const onFamilleSelected = (event) => {
 };
 
 const showColumnModal = ref(false);
-
-// Helper : colonnes personnalisées à insérer après une colonne de base donnée
-const getCustomColumnsAfter = (targetTable, key) => {
-  const cols = store.entete.configurationColonnes || [];
-  const parsed = typeof cols === 'string' ? JSON.parse(cols) : cols;
-  return (parsed || []).filter(col => {
-    if (col.insertAfter !== key) return false;
-    if (targetTable && targetTable !== 'all' && col.targetTable && col.targetTable !== 'all') {
-      if (col.targetTable !== targetTable) return false;
-    }
-    return true;
-  });
-};
-
-// Helper : garantit que valeursColonnesSpecifiques existe sur la ligne (protection anti-crash)
-const ensureColonnes = (ligne) => {
-  if (!ligne.valeursColonnesSpecifiques) {
-    ligne.valeursColonnesSpecifiques = {};
-  }
-  return ligne.valeursColonnesSpecifiques;
-};
-
-
 const refFormulaireSelected = ref('');
-
-const hasExistingVersion = computed(() => {
-  if (!refFormulaireSelected.value) return false;
-  const refObj = store.formulairesReferences.find(r => r.id === refFormulaireSelected.value);
-  if (!refObj) return false;
-  
-  const hasVersion = refObj.version > 0 || refObj.Version > 0;
-  const hasConfig = refObj.configurationStructureJson !== null && refObj.configurationStructureJson !== undefined;
-  
-  return hasVersion || hasConfig;
-});
 
 onMounted(() => {
   if (!props.isReadOnly && !store.entete.id) {
