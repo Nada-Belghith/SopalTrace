@@ -22,10 +22,11 @@
           </div>
           <span class="text-slate-300">|</span>
           <div class="flex items-center gap-1.5">
-            <span class="text-[10px] font-black text-slate-400 uppercase">Version active :</span>
+            <span class="text-[10px] font-black text-slate-400 uppercase">Version :</span>
             <span class="font-mono font-bold text-sm text-slate-700">V{{ formVersion }}.0</span>
           </div>
-          <span class="bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-emerald-500/20">ACTIF</span>
+          <span v-if="formStatut === 'ACTIF'" class="bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-emerald-500/20">ACTIF</span>
+          <span v-else-if="formStatut === 'BROUILLON'" class="bg-slate-500/10 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-slate-500/20">BROUILLON</span>
         </div>
       </div>
 
@@ -232,8 +233,10 @@ const isSaving = ref(false)
 const isViewOnly = computed(() => route.query.view === 'true')
 const customColumns = ref([])
 const newCol = ref({ label: '', type: 'Texte', insertAfter: 'code_instrument' })
+const formId = ref('')
 const formCode = ref('')
 const formVersion = ref(0)
+const formStatut = ref('')
 
 const baseColumns = [
   { key: 'caracteristique', label: 'CARACTÉRISTIQUE CONTRÔLÉE' },
@@ -252,9 +255,11 @@ const loadStructure = async () => {
       : '/referentiels/formulaires/role/EN_COURS_DE_FABRICATION'
       
     const res = await apiClient.get(endpoint)
-    if (res.data?.success && res.data?.data) {
+      if (res.data?.success && res.data?.data) {
+      formId.value = res.data.data.id
       formCode.value = res.data.data.codeReference
       formVersion.value = res.data.data.version
+      formStatut.value = res.data.data.statut
       const configJson = res.data.data.configurationStructureJson
       if (configJson) {
         customColumns.value = JSON.parse(configJson)

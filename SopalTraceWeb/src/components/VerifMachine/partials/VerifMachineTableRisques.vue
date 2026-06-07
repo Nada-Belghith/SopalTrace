@@ -65,7 +65,7 @@
               
             <!-- NIVEAU 1 : RISQUE -->
             <td v-if="rInfo.isFirstRisque" :rowspan="rInfo.rowspanRisque" class="p-2 border-r border-slate-400 align-top bg-white border-l-4 border-l-slate-900">
-              <textarea :value="rInfo.ligne.libelleRisque" @input="updateRisqueValue($event.target.value, rInfo.rowspanRisque, rowIndex, flattenedRowsRisques)"
+              <textarea :value="rInfo.ligne.libelleRisque" @input="updateRisqueValue($event.target.value, rInfo.rowspanRisque, rIdx, flattenedRowsRisques)"
                 rows="3" :disabled="props.isReadOnly"
                 class="w-full text-xs font-bold text-slate-900 border border-slate-200 focus:border-slate-500 outline-none rounded p-1 resize-none disabled:bg-transparent disabled:border-transparent"></textarea>
             </td>
@@ -73,21 +73,21 @@
             <!-- CUSTOM COLUMNS après RISQUE -->
             <template v-for="cCol in getCustomColumnsAfter('risques', 'risque')" :key="cCol.key">
   <td v-if="rInfo[`isDynFirst_${cCol.key}`]" :rowspan="rInfo[`dynRowspan_${cCol.key}`]" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
-    <textarea v-if="!props.isReadOnly" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rowIndex, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
+    <textarea v-if="!props.isReadOnly" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rIdx, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
     <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(rInfo.ligne)[cCol.key] || '--' }}</div>
   </td>
 </template>
             
             <!-- NIVEAU 2 : METHODE -->
             <td v-if="rInfo.isFirstMethode" :rowspan="rInfo.rowspanMethode" class="p-2 border-r border-slate-400 align-top bg-white">
-              <textarea :value="rInfo.ligne.libelleMethode" @input="updateMethodeValue($event.target.value, rInfo.rowspanMethode, rowIndex, flattenedRowsRisques)" rows="3" :disabled="props.isReadOnly"
+              <textarea :value="rInfo.ligne.libelleMethode" @input="updateMethodeValue($event.target.value, rInfo.rowspanMethode, rIdx, flattenedRowsRisques)" rows="3" :disabled="props.isReadOnly"
                 class="w-full text-xs border border-slate-200 focus:border-slate-500 outline-none rounded p-1 resize-none disabled:bg-transparent disabled:border-transparent"></textarea>
             </td>
 
             <!-- CUSTOM COLUMNS après METHODE -->
             <template v-for="cCol in getCustomColumnsAfter('risques', 'methode')" :key="cCol.key">
   <td v-if="rInfo[`isDynFirst_${cCol.key}`]" :rowspan="rInfo[`dynRowspan_${cCol.key}`]" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
-    <textarea v-if="!props.isReadOnly" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rowIndex, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
+    <textarea v-if="!props.isReadOnly" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rIdx, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
     <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(rInfo.ligne)[cCol.key] || '--' }}</div>
   </td>
 </template>
@@ -428,6 +428,18 @@ const updateCustomColumnValue = (key, newValue, rowspan, startIdx, rowsArray) =>
     for (let i = 0; i < rowspan; i++) {
         const targetLigne = rowsArray[startIdx + i].ligne;
         ensureColonnes(targetLigne)[key] = newValue;
+    }
+};
+
+const updateRisqueValue = (newValue, rowspan, startIdx, rowsArray) => {
+    for (let i = 0; i < rowspan; i++) {
+        rowsArray[startIdx + i].ligne.libelleRisque = newValue;
+    }
+};
+
+const updateMethodeValue = (newValue, rowspan, startIdx, rowsArray) => {
+    for (let i = 0; i < rowspan; i++) {
+        rowsArray[startIdx + i].ligne.libelleMethode = newValue;
     }
 };
 

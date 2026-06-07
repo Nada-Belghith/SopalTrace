@@ -325,7 +325,8 @@ public class ReferentielService : IReferentielService
     {
         var formulaire = await _context.RefFormulaires
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Role == role && f.Statut == "ACTIF");
+            .OrderByDescending(f => f.Statut == "ACTIF" ? 1 : 0) // Prioritize ACTIF over BROUILLON
+            .FirstOrDefaultAsync(f => f.Role == role && (f.Statut == "ACTIF" || f.Statut == "BROUILLON"));
 
         if (formulaire == null) return null;
 
@@ -361,7 +362,8 @@ public class ReferentielService : IReferentielService
     {
         var formulaire = await _context.RefFormulaires
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.CodeReference == codeReference && f.Statut == "ACTIF");
+            .OrderByDescending(f => f.Statut == "ACTIF" ? 1 : 0)
+            .FirstOrDefaultAsync(f => f.CodeReference == codeReference && (f.Statut == "ACTIF" || f.Statut == "BROUILLON"));
 
         if (formulaire == null) return null;
 
@@ -379,7 +381,7 @@ public class ReferentielService : IReferentielService
     {
         return await _context.RefFormulaires
             .AsNoTracking()
-            .Where(f => f.Role == role && f.Statut == "ACTIF")
+            .Where(f => f.Role == role && (f.Statut == "ACTIF" || f.Statut == "BROUILLON"))
             .OrderBy(f => f.Designation)
             .Select(f => new FormulaireReferenceItemDto(
                 f.Id,
@@ -397,42 +399,53 @@ public class ReferentielService : IReferentielService
         Guid? nouveauFormulaireId = null;
         int versionFinale = 1;
 
-        // Chercher le formulaire actif par codeReference ET role (spécifique) ou par role seul (générique)
+        // Chercher le formulaire par codeReference ET role (spécifique) ou par role seul (générique)
         RefFormulaire? formulaireActuel;
         if (!string.IsNullOrWhiteSpace(codeReference))
         {
-            // Cibler le formulaire SPÉCIFIQUE sélectionné par l'utilisateur
             formulaireActuel = await _context.RefFormulaires
-                .FirstOrDefaultAsync(f => f.CodeReference == codeReference && f.Role == role && f.Statut == "ACTIF");
+                .OrderByDescending(f => f.Statut == "ACTIF" ? 1 : 0)
+                .FirstOrDefaultAsync(f => f.CodeReference == codeReference && f.Role == role && (f.Statut == "ACTIF" || f.Statut == "BROUILLON"));
         }
         else
         {
-            // Comportement générique : premier actif pour ce rôle
             formulaireActuel = await _context.RefFormulaires
-                .FirstOrDefaultAsync(f => f.Role == role && f.Statut == "ACTIF");
+                .OrderByDescending(f => f.Statut == "ACTIF" ? 1 : 0)
+                .FirstOrDefaultAsync(f => f.Role == role && (f.Statut == "ACTIF" || f.Statut == "BROUILLON"));
         }
 
         if (formulaireActuel != null)
         {
-            // Archiver la version actuelle active
-            formulaireActuel.Statut = "ARCHIVE";
-
-            // Créer une nouvelle version active avec version+1
-            var newVersion = formulaireActuel.Version + 1;
-            var nouveauFormulaire = new RefFormulaire
+            if (formulaireActuel.Statut?.Trim() == "BROUILLON")
             {
-                Id = Guid.NewGuid(),
-                CodeReference = formulaireActuel.CodeReference,
-                Designation = formulaireActuel.Designation,
-                Version = newVersion,
-                Statut = "ACTIF",
-                CreeLe = DateTime.UtcNow,
-                Role = role,
-                ConfigurationStructureJson = configurationStructureJson
-            };
-            _context.RefFormulaires.Add(nouveauFormulaire);
-            nouveauFormulaireId = nouveauFormulaire.Id;
-            versionFinale = newVersion;
+                // Si c'est un brouillon, on l'active directement en V0 (on met juste à jour le JSON et le statut)
+                formulaireActuel.Statut = "ACTIF";
+                formulaireActuel.ConfigurationStructureJson = configurationStructureJson;
+                nouveauFormulaireId = formulaireActuel.Id;
+                versionFinale = formulaireActuel.Version;
+            }
+            else
+            {
+                // Archiver la version actuelle active
+                formulaireActuel.Statut = "ARCHIVE";
+
+                // Créer une nouvelle version active avec version+1
+                var newVersion = formulaireActuel.Version + 1;
+                var nouveauFormulaire = new RefFormulaire
+                {
+                    Id = Guid.NewGuid(),
+                    CodeReference = formulaireActuel.CodeReference,
+                    Designation = formulaireActuel.Designation,
+                    Version = newVersion,
+                    Statut = "ACTIF",
+                    CreeLe = DateTime.UtcNow,
+                    Role = role,
+                    ConfigurationStructureJson = configurationStructureJson
+                };
+                _context.RefFormulaires.Add(nouveauFormulaire);
+                nouveauFormulaireId = nouveauFormulaire.Id;
+                versionFinale = newVersion;
+            }
         }
         else
         {
@@ -454,8 +467,24 @@ public class ReferentielService : IReferentielService
             versionFinale = 1;
         }
 
-        // ✅ PAS de SaveChangesAsync ici — le contexte est partagé avec l'UnitOfWork du service appelant.
-        // Le commit est fait UNE SEULE FOIS par l'appelant (CommitAsync), garantissant l'atomicité.
+        // Appel explicite de SaveChangesAsync pour s'assurer que la modification est enregistrée
+        await _context.SaveChangesAsync();
+        
         return nouveauFormulaireId.HasValue ? (nouveauFormulaireId.Value, versionFinale) : null;
+    }
+
+    public async Task<bool> ActiverFormulaireAsync(Guid id)
+    {
+        var formulaire = await _context.RefFormulaires.FindAsync(id);
+        if (formulaire == null || formulaire.Statut != "BROUILLON")
+            return false;
+
+        formulaire.Statut = "ACTIF";
+        // On suppose que l'UnitOfWork s'occupera du SaveChangesAsync ou que le contrôleur le gère.
+        // Mais puisque c'est une méthode ajoutée, il se peut qu'il n'y ait pas de UnitOfWork externe pour Ref_Formulaire.
+        // On va appeler SaveChangesAsync explicitement ici pour assurer que ça s'enregistre, 
+        // comme dans CreateCaracteristiqueAsync.
+        await _context.SaveChangesAsync();
+        return true;
     }
 }

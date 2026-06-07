@@ -29,4 +29,5 @@ public interface IReferentielService
     /// Si codeReference est null, utilise le role pour trouver le formulaire actif (comportement générique).
     /// </summary>
     Task<(Guid Id, int Version)?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null, int? versionInitiale = null);
+    Task<bool> ActiverFormulaireAsync(Guid id);
 }

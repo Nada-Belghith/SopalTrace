@@ -138,6 +138,11 @@
         </div>
 
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end" v-if="!isForcedView">
+          <button v-if="statut === 'BROUILLON' && isEditMode" @click="activerPlanCourant" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-md transition-all active:scale-95 flex items-center gap-2 mr-4" :disabled="store.isLoading">
+            <i v-if="store.isLoading" class="pi pi-spin pi-spinner"></i>
+            <i v-else class="pi pi-check-circle"></i>
+            Activer le modèle
+          </button>
           <EditorActions 
             :label="actionButtonLabel"
             :icon="actionButtonIcon"
@@ -702,13 +707,46 @@ const onEditorSubmitClick = () => {
   }
 };
 
-const onEditorSubmit = () => {
+const onEditorSubmit = async () => {
   if (isArchived.value) {
     versioningMode.value = 'restore';
     showVersioningDialog.value = true;
   } else if (statut.value === 'ACTIF') {
     versioningMode.value = 'new-version';
     showVersioningDialog.value = true;
+  } else {
+    // Si c'est en BROUILLON, on met directement à jour
+    if (!validerSaisieValeurs()) return;
+    if (!validerLegendeMoyens()) return;
+
+    try {
+      await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
+      toast.add({ severity: 'success', summary: 'Succès', detail: 'Brouillon mis à jour avec succès', life: 3000 });
+      initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
+    } catch (error) {
+      toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la mise à jour', life: 6000 });
+    }
+  }
+};
+
+const activerPlanCourant = async () => {
+  if (!validerSaisieValeurs()) return;
+  if (!validerLegendeMoyens()) return;
+
+  try {
+    // Toujours sauvegarder la dernière version du brouillon avant activation
+    await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
+    
+    // Ensuite on active le modèle
+    await store.activerModeleDraft(modeleEditionId.value);
+    
+    toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });
+    
+    // Mettre à jour l'état local
+    statut.value = 'ACTIF';
+    initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de l\'activation', life: 6000 });
   }
 };
 

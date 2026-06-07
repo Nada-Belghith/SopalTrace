@@ -206,6 +206,28 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     }
   };
 
+  const updateModele = async (id, legendeMoyens = '') => {
+    isLoading.value = true;
+    try {
+      const payload = mapPayload(legendeMoyens);
+      // Ensure we send sections and other required fields properly for PUT
+      const res = await fabPlanService.updateModeleValeurs(id, payload);
+      return res.data;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const activerModeleDraft = async (id) => {
+    isLoading.value = true;
+    try {
+      const res = await fabPlanService.activerModele(id);
+      return res.data;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     operations, typesRobinet, naturesComposant,
     typesCaracteristique, typesControle, moyensControle,
@@ -223,7 +245,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion,
+    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft,
     isBeingLoaded
   };
 });

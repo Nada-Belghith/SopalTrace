@@ -103,4 +103,12 @@ public class ReferentielController : ControllerBase
         if (newId == null) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
         return Ok(new { success = true, message = "Structure du formulaire mise a jour avec succes.", newId = newId });
     }
+
+    [HttpPost("formulaires/{id}/activer")]
+    public async Task<IActionResult> ActiverFormulaire(Guid id)
+    {
+        var result = await _referentielService.ActiverFormulaireAsync(id);
+        if (!result) return NotFound(new { success = false, message = "Formulaire introuvable ou n'est pas en statut BROUILLON." });
+        return Ok(new { success = true, message = "Formulaire activé avec succès." });
+    }
 }
