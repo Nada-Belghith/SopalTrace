@@ -1,4 +1,4 @@
-﻿-- ================================================================================
+-- ================================================================================
 -- SOPAL TRACE DB - SCHEMA NORMALISÉ V3.0 (ULTIME)
 -- Architecture avancée : NatureArticle & Origine (Make vs Buy)
 -- ================================================================================
@@ -297,10 +297,10 @@ CREATE TABLE dbo.MFGHEAD_OrdreFabrication (
     QuantitePrevue FLOAT NOT NULL,
     QuantiteLancee FLOAT NOT NULL DEFAULT 0,
     QuantiteReelle FLOAT NOT NULL DEFAULT 0,
-    StatutOF INT NOT NULL,
+    StatutOF VARCHAR(20) NOT NULL,
     DateDebut DATETIME,
     DateFin DATETIME,
-    CONSTRAINT CK_OF_OFStatusValid CHECK (StatutOF IN (1, 2, 3, 4))
+    CONSTRAINT CK_OF_OFStatusValid CHECK (StatutOF IN ('EN_COURS', 'PLANIFIE', 'TERMINE', 'ANNULE'))
 );
 GO
 
@@ -356,19 +356,25 @@ GO
 
 CREATE TABLE dbo.Ref_Formulaire (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    CodeReference VARCHAR(30) NOT NULL UNIQUE,
+    CodeReference VARCHAR(30) NOT NULL,
     Designation VARCHAR(150) NOT NULL,
     Version INT NOT NULL DEFAULT 0,
-    Statut BIT NOT NULL DEFAULT 1,
-    CreeLe DATETIME NOT NULL DEFAULT GETDATE()
+    Statut VARCHAR(20) NOT NULL DEFAULT 'ACTIF',
+    CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
+    Role VARCHAR(50) NULL,
+    ConfigurationStructureJson NVARCHAR(MAX) NULL,
+    UNIQUE (CodeReference, Version)
 );
 GO
+ 
+
+
 
 CREATE TABLE dbo.OutilControle (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     Code VARCHAR(40) NOT NULL UNIQUE,
     Libelle VARCHAR(150) NOT NULL,
-    TypeControleId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeControle(Id),
+    TypeControleId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeControle(Id),
     TypeCaracteristiqueId UNIQUEIDENTIFIER REFERENCES dbo.TypeCaracteristique(Id),
     MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
     PeriodiciteDefautId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id),
@@ -419,27 +425,32 @@ GO
 -- PARTIE 8: MODÈLES DE FABRICATION (USINAGE - BASE)
 -- ================================================================================
 
-CREATE TABLE dbo.Modele_Fab_Entete (
+CREATE TABLE dbo.Modele_Fabrication_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     Code VARCHAR(60) NOT NULL,
     Libelle VARCHAR(150) NOT NULL,
     NatureArticleCode VARCHAR(20) NOT NULL REFERENCES dbo.NatureArticle(Code),
     OperationCode VARCHAR(20) NOT NULL REFERENCES dbo.Operation(Code),
+    FamilleProduitFiniCode VARCHAR(30) REFERENCES dbo.FamilleProduitFini(Code),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     Version INT NOT NULL DEFAULT 0,
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' 
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     Notes NVARCHAR(MAX),
     LegendeMoyens NVARCHAR(MAX),
+
+
+
+
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     UNIQUE (Code, Libelle, Version)
 );
 GO
 
-CREATE TABLE dbo.Modele_Fab_Section (
+CREATE TABLE dbo.Modele_Fabrication_Section (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    ModeleEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Modele_Fab_Entete(Id) ON DELETE CASCADE,
+    ModeleEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Modele_Fabrication_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
     LibelleSection VARCHAR(200) NOT NULL,
     TypeSectionId UNIQUEIDENTIFIER REFERENCES dbo.TypeSection(Id),
@@ -448,24 +459,27 @@ CREATE TABLE dbo.Modele_Fab_Section (
 );
 GO
 
-CREATE TABLE dbo.Modele_Fab_Ligne (
+CREATE TABLE dbo.Modele_Fabrication_Ligne (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Modele_Fab_Section(Id) ON DELETE CASCADE,
+    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Modele_Fabrication_Section(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
-    TypeCaracteristiqueId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeCaracteristique(Id),
+    TypeCaracteristiqueId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeCaracteristique(Id),
     LibelleAffiche VARCHAR(200),
     LimiteSpecTexte VARCHAR(100),
-    TypeControleId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeControle(Id),
+    TypeControleId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeControle(Id),
     InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id),
     Instruction NVARCHAR(MAX),
     EstCritique BIT NOT NULL DEFAULT 0,
     MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
-    MoyenTexteLibre VARCHAR(100)
+    MoyenTexteLibre VARCHAR(100),
+    Observations NVARCHAR(MAX) NULL,
+    ColonnesSupplementaires NVARCHAR(MAX) NULL,
+    ImageBase64 VARCHAR(MAX) NULL
 );
 GO
 
-ALTER TABLE dbo.Modele_Fab_Ligne
+ALTER TABLE dbo.Modele_Fabrication_Ligne
 ADD CONSTRAINT CK_ModeleFab_Ligne_Moyen_XOR CHECK (
     (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NULL)
     OR
@@ -477,9 +491,9 @@ GO
 -- PARTIE 9: PLANS DE FABRICATION (USINAGE - INSTANCES)
 -- ================================================================================
 
-CREATE TABLE dbo.Plan_Fab_Entete (
+CREATE TABLE dbo.Plan_Fabrication_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    ModeleSourceId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fab_Entete(Id),
+    ModeleSourceId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fabrication_Entete(Id),
     CodeArticleSage VARCHAR(30) NOT NULL REFERENCES dbo.Article(CodeArticle),
     Designation VARCHAR(200),
     Nom VARCHAR(150) NOT NULL,
@@ -487,22 +501,26 @@ CREATE TABLE dbo.Plan_Fab_Entete (
     OperationCode VARCHAR(20) REFERENCES dbo.Operation(Code),
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' 
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
-    DateApplication DATE,
+    
     MachineDefautCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     LegendeMoyens NVARCHAR(MAX),
+
+
+
+
+    Remarques NVARCHAR(MAX),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20),
-    ModifieLe DATETIME,
-    UNIQUE (CodeArticleSage, OperationCode, Version)
+    ModifieLe DATETIME
 );
 GO
 
-CREATE TABLE dbo.Plan_Fab_Section (
+CREATE TABLE dbo.Plan_Fabrication_Section (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fab_Entete(Id) ON DELETE CASCADE,
-    ModeleSectionId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fab_Section(Id),
+    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fabrication_Entete(Id) ON DELETE CASCADE,
+    ModeleSectionId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fabrication_Section(Id),
     OrdreAffiche INT NOT NULL DEFAULT 0,
     LibelleSection VARCHAR(300) NOT NULL,
     TypeSectionId UNIQUEIDENTIFIER REFERENCES dbo.TypeSection(Id),
@@ -511,15 +529,15 @@ CREATE TABLE dbo.Plan_Fab_Section (
 );
 GO
 
-CREATE TABLE dbo.Plan_Fab_Ligne (
+CREATE TABLE dbo.Plan_Fabrication_Ligne (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fab_Entete(Id),
-    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fab_Section(Id) ON DELETE CASCADE,
-    ModeleLigneSourceId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fab_Ligne(Id),
+    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fabrication_Entete(Id),
+    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fabrication_Section(Id) ON DELETE CASCADE,
+    ModeleLigneSourceId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fabrication_Ligne(Id),
     OrdreAffiche INT NOT NULL DEFAULT 0,
-    TypeCaracteristiqueId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeCaracteristique(Id),
+    TypeCaracteristiqueId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeCaracteristique(Id),
     LibelleAffiche VARCHAR(200),
-    TypeControleId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeControle(Id),
+    TypeControleId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeControle(Id),
     InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id),
     LimiteSpecTexte VARCHAR(100),
@@ -527,11 +545,13 @@ CREATE TABLE dbo.Plan_Fab_Ligne (
     Instruction NVARCHAR(MAX),
     EstCritique BIT NOT NULL DEFAULT 0,
     MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
-    MoyenTexteLibre VARCHAR(100)
+    MoyenTexteLibre VARCHAR(100),
+    ColonnesSupplementaires NVARCHAR(MAX) NULL,
+    ImageBase64 VARCHAR(MAX) NULL
 );
 GO
 
-ALTER TABLE dbo.Plan_Fab_Ligne
+ALTER TABLE dbo.Plan_Fabrication_Ligne
 ADD CONSTRAINT CK_PlanFab_Ligne_Moyen_XOR CHECK (
     (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NULL)
     OR
@@ -543,7 +563,7 @@ GO
 -- PARTIE 10: PLANS D'ASSEMBLAGE (AVEC FAMILLE)
 -- ================================================================================
 
-CREATE TABLE dbo.Plan_Ass_Entete (
+CREATE TABLE dbo.Plan_Assemblage_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     OperationCode VARCHAR(20) NOT NULL REFERENCES dbo.Operation(Code),
     FamilleProduitFiniCode VARCHAR(30) REFERENCES dbo.FamilleProduitFini(Code),
@@ -555,17 +575,21 @@ CREATE TABLE dbo.Plan_Ass_Entete (
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
     LegendeMoyens NVARCHAR(MAX),
+
+
+
+
+    Remarques NVARCHAR(MAX),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
     ModifiePar VARCHAR(20),
-    ModifieLe DATETIME,
-    UNIQUE (OperationCode, FamilleProduitFiniCode, NatureArticleCode, PosteCode, Version)
+    ModifieLe DATETIME
 );
 GO
 
-CREATE TABLE dbo.Plan_Ass_Section (
+CREATE TABLE dbo.Plan_Assemblage_Section (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Ass_Entete(Id) ON DELETE CASCADE,
+    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Assemblage_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
     TypeSectionId UNIQUEIDENTIFIER REFERENCES dbo.TypeSection(Id),
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id),
@@ -577,14 +601,14 @@ CREATE TABLE dbo.Plan_Ass_Section (
 );
 GO
 
-CREATE TABLE dbo.Plan_Ass_Ligne (
+CREATE TABLE dbo.Plan_Assemblage_Ligne (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Ass_Entete(Id),
-    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Ass_Section(Id) ON DELETE CASCADE,
+    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Assemblage_Entete(Id),
+    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Assemblage_Section(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
-    TypeCaracteristiqueId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeCaracteristique(Id),
+    TypeCaracteristiqueId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeCaracteristique(Id),
     LibelleAffiche VARCHAR(250),
-    TypeControleId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeControle(Id),
+    TypeControleId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeControle(Id),
     MachineCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
     InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
     PeriodiciteId UNIQUEIDENTIFIER REFERENCES dbo.Periodicite(Id),
@@ -596,11 +620,13 @@ CREATE TABLE dbo.Plan_Ass_Ligne (
     Observations NVARCHAR(MAX),
     EstCritique BIT NOT NULL DEFAULT 0,
     MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
-    MoyenTexteLibre VARCHAR(100)
+    MoyenTexteLibre VARCHAR(100),
+    ColonnesSupplementaires NVARCHAR(MAX) NULL,
+    ImageBase64 VARCHAR(MAX) NULL
 );
 GO
 
-ALTER TABLE dbo.Plan_Ass_Ligne
+ALTER TABLE dbo.Plan_Assemblage_Ligne
 ADD CONSTRAINT CK_PlanAss_Ligne_Moyen_XOR CHECK (
     (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NULL)
     OR
@@ -612,21 +638,30 @@ GO
 -- PARTIE 11: PLAN PRODUIT FINI
 -- ================================================================================
 
-CREATE TABLE dbo.Plan_PF_Entete (
+CREATE TABLE dbo.Plan_ProduitFini_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     FamilleProduitFiniCode VARCHAR(30) NOT NULL REFERENCES dbo.FamilleProduitFini(Code),
     Version INT NOT NULL DEFAULT 0,
     Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' 
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
+    LegendeMoyens NVARCHAR(MAX),
+
+
+
+
+    Remarques NVARCHAR(MAX),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
+    ModifiePar VARCHAR(20),
+    ModifieLe DATETIME,
     UNIQUE (FamilleProduitFiniCode, Version)
 );
 GO
 
-CREATE TABLE dbo.Plan_PF_Section (
+CREATE TABLE dbo.Plan_ProduitFini_Section (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_PF_Entete(Id) ON DELETE CASCADE,
+    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ProduitFini_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
     TypeSectionId UNIQUEIDENTIFIER REFERENCES dbo.TypeSection(Id),
     LibelleSection VARCHAR(300) NOT NULL,
@@ -636,25 +671,27 @@ CREATE TABLE dbo.Plan_PF_Section (
 );
 GO
 
-CREATE TABLE dbo.Plan_PF_Ligne (
+CREATE TABLE dbo.Plan_ProduitFini_Ligne (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_PF_Entete(Id),
-    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_PF_Section(Id) ON DELETE CASCADE,
+    PlanEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ProduitFini_Entete(Id),
+    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ProduitFini_Section(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL DEFAULT 0,
-    TypeCaracteristiqueId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeCaracteristique(Id),
+    TypeCaracteristiqueId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeCaracteristique(Id),
     LibelleAffiche VARCHAR(250),
-    TypeControleId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.TypeControle(Id),
+    TypeControleId UNIQUEIDENTIFIER NULL REFERENCES dbo.TypeControle(Id),
     InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
-    LimiteSpecTexte VARCHAR(100) NOT NULL,
+    LimiteSpecTexte VARCHAR(100) NULL,
     DefauthequeId UNIQUEIDENTIFIER REFERENCES dbo.Defautheque(Id),
     Instruction NVARCHAR(MAX),
     Observations NVARCHAR(MAX),
     MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
-    MoyenTexteLibre VARCHAR(100)
+    MoyenTexteLibre VARCHAR(100),
+    ColonnesSupplementaires NVARCHAR(MAX) NULL,
+    ImageBase64 VARCHAR(MAX) NULL
 );
 GO
 
-ALTER TABLE dbo.Plan_PF_Ligne
+ALTER TABLE dbo.Plan_ProduitFini_Ligne
 ADD CONSTRAINT CK_PlanPF_Ligne_Moyen_XOR CHECK (
     (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NULL)
     OR
@@ -666,7 +703,7 @@ GO
 -- PARTIE 12: PLANS DE NON-CONFORMITÉ (TALLY)
 -- ================================================================================
 
-CREATE TABLE dbo.Plan_NC_Entete (
+CREATE TABLE dbo.Plan_ControlePoste_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     PosteCode VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste),
     Nom VARCHAR(150) NOT NULL,
@@ -675,17 +712,23 @@ CREATE TABLE dbo.Plan_NC_Entete (
         CHECK (Statut IN ('BROUILLON','ACTIF','ARCHIVE','OBSOLETE')),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
-    UNIQUE (PosteCode, Version)
+    ModifiePar VARCHAR(20),
+    ModifieLe DATETIME,
+    ConfigurationColonnesJson NVARCHAR(MAX),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
+    Remarques NVARCHAR(MAX),
+    LegendeMoyens NVARCHAR(MAX)
+    -- UNIQUE (PosteCode, Version)
 );
 GO
 
-CREATE TABLE dbo.Plan_NC_Ligne (
+CREATE TABLE dbo.Plan_ControlePoste_Ligne (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanNCEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_NC_Entete(Id) ON DELETE CASCADE,
+    ControlePosteEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ControlePoste_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche INT NOT NULL,
     MachineCode VARCHAR(30) NOT NULL REFERENCES dbo.Machine(CodeMachine),
     RisqueDefautId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.RisqueDefaut(Id),
-    UNIQUE (PlanNCEnteteId, OrdreAffiche)
+    UNIQUE (ControlePosteEnteteId, OrdreAffiche)
 );
 GO
 
@@ -701,7 +744,17 @@ CREATE TABLE dbo.Plan_VerifMachine_Entete (
     Statut VARCHAR(20) DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE')),
     CreePar VARCHAR(20) NOT NULL,
     CreeLe DATETIME DEFAULT GETDATE(),
-    UNIQUE (MachineCode, Version)
+    ModifiePar VARCHAR(20),
+    ModifieLe DATETIME,
+    ConfigurationColonnesJson NVARCHAR(MAX),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
+    Remarques NVARCHAR(MAX),
+    LegendeMoyens NVARCHAR(MAX),
+
+
+
+
+    -- UNIQUE (MachineCode, Version)
 );
 GO
 
@@ -720,7 +773,8 @@ CREATE TABLE dbo.Plan_VerifMachine_Ligne (
     OrdreAffiche INT NOT NULL,
     TypeLigne VARCHAR(20) DEFAULT 'RISQUE' CHECK (TypeLigne IN ('CONFORMITE', 'RISQUE')),
     LibelleRisque VARCHAR(250) NOT NULL,
-    LibelleMethode VARCHAR(250)
+    LibelleMethode VARCHAR(250),
+    ColonnesSupplementaires NVARCHAR(MAX)
 );
 GO
 
@@ -750,8 +804,8 @@ GO
 CREATE TABLE dbo.Mag_PreparationOF (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     NumeroOF VARCHAR(30) NOT NULL REFERENCES dbo.MFGHEAD_OrdreFabrication(NumeroOF),
-    MatriculeMagasinier VARCHAR(20) NOT NULL REFERENCES dbo.UtilisateursApp(Matricule),
-    Statut VARCHAR(20) NOT NULL DEFAULT 'EN_COURS' CHECK (Statut IN ('EN_COURS', 'TERMINE')),
+    MatriculeMagasinier VARCHAR(20) NOT NULL,
+    Statut VARCHAR(20) NOT NULL DEFAULT 'EN_COURS' CHECK (Statut IN ('EN_COURS', 'PLANIFIE', 'TERMINE', 'ANNULE')),
     DateDebut DATETIME DEFAULT GETDATE(),
     DateFin DATETIME
 );
@@ -779,7 +833,7 @@ GO
 CREATE TABLE dbo.Mag_ExpeditionBL (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     NumeroBL VARCHAR(30) NOT NULL REFERENCES dbo.SDELIVERY(NumeroBL),
-    MatriculeMagasinier VARCHAR(20) NOT NULL REFERENCES dbo.UtilisateursApp(Matricule),
+    MatriculeMagasinier VARCHAR(20) NOT NULL,
     Statut VARCHAR(20) NOT NULL DEFAULT 'EN_COURS' CHECK (Statut IN ('EN_COURS', 'TERMINE')),
     DateDebut DATETIME DEFAULT GETDATE(),
     DateFin DATETIME
@@ -795,7 +849,71 @@ CREATE TABLE dbo.Mag_ExpeditionBL_ScanOF (
 GO
 
 -- ================================================================================
--- PARTIE 15: TRIGGERS ISO 9001 (PROTECTION CONTRE SUPPRESSIONS)
+-- PARTIE 15: EXÉCUTION DES CONTRÔLES (OPÉRATEUR)
+-- ================================================================================
+
+CREATE TABLE dbo.Exec_ControleOF (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    NumeroOF VARCHAR(30) NOT NULL REFERENCES dbo.MFGHEAD_OrdreFabrication(NumeroOF),
+    OperationCode VARCHAR(20) NOT NULL REFERENCES dbo.Operation(Code),
+    MachineCodePrevu VARCHAR(30) REFERENCES dbo.Machine(CodeMachine), -- Poste prévu
+    PosteCodePrevu VARCHAR(30) REFERENCES dbo.PosteTravail(CodePoste),  -- Poste prévu (si type POSTE)
+    MachineCode VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),    -- Poste réel choisi
+    PosteCode VARCHAR(30) REFERENCES dbo.PosteTravail(CodePoste),   -- Poste réel (si type POSTE)
+    NumEquipe INT NOT NULL DEFAULT 1,                               -- Eq (Equipe 1, 2...)
+    PlanSourceId UNIQUEIDENTIFIER NOT NULL,
+    TypePlan VARCHAR(10) NOT NULL CHECK (TypePlan IN ('FAB', 'ASS')),
+    Statut VARCHAR(20) NOT NULL DEFAULT 'EN_COURS' CHECK (Statut IN ('EN_COURS', 'CLOTURE')),
+    DateDebut DATETIME NOT NULL DEFAULT GETDATE(),
+    DateFin DATETIME
+);
+GO
+
+CREATE TABLE dbo.Exec_PieceType (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ExecControleOFId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
+    HeureValidation DATETIME NOT NULL DEFAULT GETDATE(),
+    Resultat VARCHAR(2) NOT NULL CHECK (Resultat IN ('C', 'NC')),
+    Remarque VARCHAR(500),
+    MatriculeOperateur VARCHAR(20) NOT NULL
+);
+GO
+
+CREATE TABLE dbo.Exec_ControleTranche (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ExecControleOFId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
+    TrancheHoraire VARCHAR(20) NOT NULL,
+    HeureDebut DATETIME NOT NULL,
+    HeureFin DATETIME NOT NULL,
+    ResultatFinal VARCHAR(2) CHECK (ResultatFinal IN ('C', 'NC')),
+    DetailsNC VARCHAR(500),
+    ActionsCorrection VARCHAR(500),
+    MatriculeApprobateur VARCHAR(20)
+);
+GO
+
+CREATE TABLE dbo.Exec_Prelevement (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ExecControleTrancheId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleTranche(Id) ON DELETE CASCADE,
+    HeurePrevue DATETIME NOT NULL,
+    HeureSaisie DATETIME,
+    ResultatGlobal VARCHAR(2) CHECK (ResultatGlobal IN ('C', 'NC')),
+    MatriculeOperateur VARCHAR(20)
+);
+GO
+
+CREATE TABLE dbo.Exec_Prelevement_Ligne (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    PrelevementId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_Prelevement(Id) ON DELETE CASCADE,
+    LignePlanId UNIQUEIDENTIFIER NOT NULL,
+    Resultat VARCHAR(2) CHECK (Resultat IN ('C', 'NC')),
+    ValeurMesuree FLOAT,
+    Remarque VARCHAR(500)
+);
+GO
+
+-- ================================================================================
+-- PARTIE 16: TRIGGERS ISO 9001 (PROTECTION CONTRE SUPPRESSIONS)
 -- ================================================================================
 
 CREATE OR ALTER PROCEDURE dbo.sp_RaiseDeleteError (@TableName VARCHAR(100))
@@ -845,6 +963,48 @@ CREATE TRIGGER trg_no_del_PieceReference ON dbo.PieceReference INSTEAD OF DELETE
 GO
 
 -- ================================================================================
+-- PARTIE 17: RESULTATS DU CONTROLE EN COURS DE FABRICATION
+-- ================================================================================
+
+CREATE TABLE dbo.Plan_ResultatControleCF_Entete (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    PosteCode VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste),
+    FormulaireId UNIQUEIDENTIFIER REFERENCES dbo.Ref_Formulaire(Id),
+    Nom VARCHAR(150) NOT NULL,
+    Version INT NOT NULL DEFAULT 0,
+    Statut VARCHAR(20) NOT NULL DEFAULT 'BROUILLON' CHECK (Statut IN ('BROUILLON', 'ACTIF', 'ARCHIVE')),
+    ConfigurationJson NVARCHAR(MAX),
+    Remarques NVARCHAR(MAX),
+    CreePar VARCHAR(20) NOT NULL,
+    CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
+    ModifiePar VARCHAR(20),
+    ModifieLe DATETIME
+);
+GO
+
+CREATE TABLE dbo.Plan_ResultatControleCF_Section (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    PlanRCCFEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ResultatControleCF_Entete(Id) ON DELETE CASCADE,
+    SectionType VARCHAR(50) NOT NULL,
+    LibelleAffiche VARCHAR(200) NOT NULL,
+    OrdreAffiche INT NOT NULL DEFAULT 0
+);
+GO
+
+CREATE TABLE dbo.Plan_ResultatControleCF_Ligne (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SectionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_ResultatControleCF_Section(Id) ON DELETE CASCADE,
+    Caracteristique VARCHAR(300) NOT NULL,
+    LimiteSpecTexte NVARCHAR(MAX),
+    TypeControleId UNIQUEIDENTIFIER REFERENCES dbo.TypeControle(Id),
+    MoyenControleId UNIQUEIDENTIFIER REFERENCES dbo.MoyenControle(Id),
+    InstrumentCode VARCHAR(40) REFERENCES dbo.Instrument(CodeInstrument),
+    Observations NVARCHAR(MAX),
+    OrdreAffiche INT NOT NULL DEFAULT 0
+);
+GO
+
+-- ================================================================================
 -- INDEXES POUR PERFORMANCE
 -- ================================================================================
 
@@ -854,9 +1014,10 @@ CREATE INDEX IX_ProduitFini_FamilleCode ON dbo.ProduitFini(FamilleProduitFiniCod
 CREATE INDEX IX_BOMD_Parent ON dbo.BOMD_Nomenclature(ArticleParent);
 CREATE INDEX IX_BOMD_Composant ON dbo.BOMD_Nomenclature(CodeComposant);
 CREATE INDEX IX_MFGHEAD_CodeArticle ON dbo.MFGHEAD_OrdreFabrication(CodeArticle);
-CREATE INDEX IX_PlanFab_CodeArticle ON dbo.Plan_Fab_Entete(CodeArticleSage);
-CREATE INDEX IX_PlanFab_Statut ON dbo.Plan_Fab_Entete(Statut);
+CREATE INDEX IX_PlanFab_CodeArticle ON dbo.Plan_Fabrication_Entete(CodeArticleSage);
+CREATE INDEX IX_PlanFab_Statut ON dbo.Plan_Fabrication_Entete(Statut);
 CREATE INDEX IX_Machine_Operation ON dbo.Machine(OperationCode);
 GO
 
 PRINT '✅ Base normalisée créée avec succès (V3.0)!';
+

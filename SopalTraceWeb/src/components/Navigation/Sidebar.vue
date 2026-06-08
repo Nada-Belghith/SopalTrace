@@ -98,7 +98,14 @@ const toggleSidebar = () => {
 }
 
 const isActive = (path) => {
-  return router.currentRoute.value.path === path
+  const currentPath = router.currentRoute.value.path;
+  if (currentPath === path) return true;
+  
+  if (path.startsWith('/dev/produit-fini') && currentPath.startsWith('/dev/produit-fini')) return true;
+  if (path.startsWith('/dev/verif-machine') && currentPath.startsWith('/dev/verif-machine')) return true;
+  if (path.startsWith('/dev/resultat-controle') && currentPath.startsWith('/dev/resultat-controle')) return true;
+  
+  return false;
 }
 </script>
 

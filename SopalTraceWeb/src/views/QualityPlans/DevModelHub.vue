@@ -4,7 +4,7 @@
     <ConfirmDialog></ConfirmDialog>
 
     <div class="mb-10">
-      <h1 class="text-3xl font-black text-slate-900 tracking-tight">Plans Génériques</h1>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">DOCUMENTS GÉNÉRIQUES</h1>
       <p class="text-slate-500 mt-1 font-medium text-sm">Visualisez et gérez vos plans de contrôle génériques existants.</p>
     </div>
 
@@ -131,6 +131,11 @@
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded">
               <i class="pi pi-map-marker text-[9px]"></i> {{ plan.poste }}
             </span>
+            <!-- Badge RefFormulaire -->
+            <span v-if="plan.codeReferenceFormulaire"
+              class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded">
+              <i class="pi pi-file text-[9px]"></i> {{ plan.codeReferenceFormulaire }}
+            </span>
           </div>
 
           <!-- Footer Card: Version + Actions -->
@@ -151,7 +156,9 @@
                  <i class="pi pi-box"></i>
                </button>
 
-               <i class="pi pi-eye text-slate-300 ml-1 transition-colors text-sm" :class="categoryStyles[plan.category]?.textClass || 'group-hover:text-blue-500'"></i>
+               <button @click.stop="consulter(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Visualiser">
+                 <i class="pi pi-eye"></i>
+               </button>
             </div>
           </div>
         </div>
@@ -218,6 +225,7 @@ const tabs = [
   { id: 'ASS', label: 'Assemblage', short: 'Ass', icon: 'pi pi-sitemap' },
   { id: 'VM', label: 'Vérif Machine', short: 'Vérif', icon: 'pi pi-desktop' },
   { id: 'RC', label: 'Résultat Contrôle', short: 'Contrôle', icon: 'pi pi-list' },
+  { id: 'RCCF', label: 'Résultat Contrôle CF', short: 'Contrôle CF', icon: 'pi pi-check-circle' },
   { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
   { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
 ];
@@ -227,6 +235,7 @@ const categoryStyles = {
   ASS: { label: 'Assemblage', icon: 'pi pi-sitemap', colorClass: 'bg-indigo-500', textClass: 'text-indigo-500', hoverClass: 'hover:border-indigo-300', titleHoverClass: 'group-hover:text-indigo-600' },
   VM: { label: 'Vérif Machine', icon: 'pi pi-desktop', colorClass: 'bg-emerald-500', textClass: 'text-emerald-500', hoverClass: 'hover:border-emerald-300', titleHoverClass: 'group-hover:text-emerald-600' },
   RC: { label: 'Résultat Contrôle', icon: 'pi pi-list', colorClass: 'bg-teal-500', textClass: 'text-teal-500', hoverClass: 'hover:border-teal-300', titleHoverClass: 'group-hover:text-teal-600' },
+  RCCF: { label: 'Résultat Contrôle CF', icon: 'pi pi-check-circle', colorClass: 'bg-cyan-500', textClass: 'text-cyan-500', hoverClass: 'hover:border-cyan-300', titleHoverClass: 'group-hover:text-cyan-600' },
   ECH: { label: 'Échantillonnage', icon: 'pi pi-check-square', colorClass: 'bg-purple-500', textClass: 'text-purple-500', hoverClass: 'hover:border-purple-300', titleHoverClass: 'group-hover:text-purple-600' },
   PF: { label: 'Produit Fini', icon: 'pi pi-box', colorClass: 'bg-blue-500', textClass: 'text-blue-500', hoverClass: 'hover:border-blue-300', titleHoverClass: 'group-hover:text-blue-600' }
 };
@@ -328,6 +337,7 @@ const editer = (category, id) => {
     'ASS': `/dev/fab/editer/${id}`,
     'VM': `/dev/verif-machine/editer/${id}`,
     'RC': `/dev/resultat-controle/editer/${id}`,
+    'RCCF': `/dev/resultat-controle-cf/editer/${id}`,
     'ECH': `/dev/echantillonnage/editer/${id}`,
     'PF': `/dev/produit-fini/editer/${id}`
   };
@@ -340,6 +350,7 @@ const consulter = (category, id) => {
     'ASS': { path: `/dev/fab/editer/${id}`, query: { view: 'true' } },
     'VM': { path: `/dev/verif-machine/editer/${id}`, query: { view: 'true' } },
     'RC': { path: `/dev/resultat-controle/editer/${id}`, query: { view: 'true' } },
+    'RCCF': { path: `/dev/resultat-controle-cf/editer/${id}`, query: { view: 'true' } },
     'ECH': { path: `/dev/echantillonnage/editer/${id}`, query: { view: 'true' } },
     'PF': { path: `/dev/produit-fini/editer/${id}`, query: { view: 'true' } }
   };

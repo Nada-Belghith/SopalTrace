@@ -14,12 +14,16 @@ using SopalTrace.Infrastructure.Services;
 using SopalTrace.Infrastructure.Services.Erp;
 using SopalTrace.Infrastructure.Services.Security;
 using SopalTrace.Infrastructure.UnitOfWork;
+using SopalTrace.Application.Services.QualityPlans.Referentiels;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Enregistrement du fournisseur d'encodage pour supporter Windows-1252 (utile pour l'import Excel/CSV)
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+// Configuration globale pour EPPlus 8+
+OfficeOpenXml.ExcelPackage.License.SetNonCommercialPersonal("SopalTrace");
 
 // Configuration de Serilog avec enrichissement de contexte
 Log.Logger = new LoggerConfiguration()
@@ -83,11 +87,19 @@ builder.Services.AddHealthChecks()
 
 // 2. Injection des dépendances (Clean Architecture)
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<IPlanNcRepository, PlanNcRepository>();
-builder.Services.AddScoped<IPlanNcService, PlanNcService>();
+builder.Services.AddScoped<IControlePosteRepository, ControlePosteRepository>();
+builder.Services.AddScoped<IPlanRccfService, PlanRccfService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecEncfRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfService, SopalTrace.Application.Services.ExecEncfService>();
+builder.Services.AddScoped<IExcelImportRccfService, ExcelImportRccfService>();
+builder.Services.AddScoped<IControlePosteService, ControlePosteService>();
 builder.Services.AddScoped<IErpService, SqlErpService>();
 builder.Services.AddScoped<IPlanVerifMachineRepository, PlanVerifMachineRepository>();
 builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
+builder.Services.AddScoped<IPlanVerifMachineService, SopalTrace.Application.Services.PlanBeeMachineService>();
+builder.Services.AddScoped<IPlanVerifMachineService, SopalTrace.Application.Services.PlanMasMachineService>();
+builder.Services.AddScoped<IPlanVerifMachineService, SopalTrace.Application.Services.PlanSer05MachineService>();
+builder.Services.AddScoped<IPlanMachineFactory, SopalTrace.Application.Services.PlanMachineFactory>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
@@ -102,6 +114,13 @@ builder.Services.AddScoped<IPlanEchanRepository, PlanEchanRepository>();
 builder.Services.AddScoped<IPlanEchanService, PlanEchanService>();
 builder.Services.AddScoped<IFrequencyParserService, FrequencyParserService>();
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
+builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportBeeMachineService>();
+builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportMasMachineService>();
+builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportSer05MachineService>();
+builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportDefaultMachineService>();
+builder.Services.AddScoped<IExcelImportFactory, ExcelImportFactory>();
+builder.Services.AddScoped<IRefFormulaireRepository, RefFormulaireRepository>();
+builder.Services.AddScoped<IRefFormulaireService, RefFormulaireService>();
 builder.Services.AddScoped<IReferentielService, ReferentielService>();
 builder.Services.AddScoped<IHubService, HubService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
@@ -113,7 +132,7 @@ builder.Services.AddScoped<IPlanArchiverService>(sp =>
         sp.GetRequiredService<IPlanFabricationRepository>(),
         sp.GetRequiredService<IPlanPfRepository>(),
         sp.GetRequiredService<IPlanAssRepository>(),
-        sp.GetRequiredService<IPlanNcRepository>()
+        sp.GetRequiredService<IControlePosteRepository>()
     ));
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---

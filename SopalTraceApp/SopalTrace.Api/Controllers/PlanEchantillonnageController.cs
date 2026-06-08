@@ -21,7 +21,8 @@ public class PlanEchantillonnageController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreatePlanEchanRequestDto request)
     {
         var id = await _service.CreerPlanAsync(request, "ADMIN");
-        return Ok(new { success = true, planId = id, message = "Profil d'échantillonnage créé et ACTIF." });
+        var data = await _service.GetPlanByIdAsync(id);
+        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Profil d'échantillonnage créé et ACTIF." });
     }
 
     [HttpGet("{id}")]
@@ -44,21 +45,24 @@ public class PlanEchantillonnageController : ControllerBase
     {
         var success = await _service.MettreAJourPlanAsync(id, request);
         if (!success) return NotFound(new { success = false, message = "Plan introuvable." });
-
-        return Ok(new { success = true, message = "Plan mis à jour et activé avec succès. L'ancienne version a été archivée." });
+        
+        var data = await _service.GetPlanByIdAsync(id);
+        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Plan mis à jour et activé avec succès. L'ancienne version a été archivée." });
     }
 
     [HttpPost("nouvelle-version")]
     public async Task<IActionResult> CreerVersion([FromBody] NouvelleVersionEchanRequestDto request)
     {
         var id = await _service.CreerNouvelleVersionAsync(request);
-        return Ok(new { success = true, planId = id, message = "Nouvelle version générée et activée avec succès." });
+        var data = await _service.GetPlanByIdAsync(id);
+        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Nouvelle version générée et activée avec succès." });
     }
 
     [HttpPost("restaurer")]
     public async Task<IActionResult> Restaurer([FromBody] RestaurerEchanRequestDto request)
     {
         var id = await _service.RestaurerPlanAsync(request);
-        return Ok(new { success = true, planId = id, message = "Plan restauré et activé avec succès." });
+        var data = await _service.GetPlanByIdAsync(id);
+        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Plan restauré et activé avec succès." });
     }
 }

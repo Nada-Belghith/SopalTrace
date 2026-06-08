@@ -8,7 +8,7 @@ public static class LineCleanupHelper
     /// <summary>
     /// Cleans up a model fabrication line by removing empty GUIDs and whitespace strings
     /// </summary>
-    public static void CleanupModeleFabLine(SopalTrace.Domain.Entities.ModeleFabLigne ligne)
+    public static void CleanupModeleFabLine(SopalTrace.Domain.Entities.ModeleFabricationLigne ligne)
     {
         if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
         if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;
@@ -41,7 +41,7 @@ public static class LineCleanupHelper
     /// <summary>
     /// Cleans up a plan assemblage line by removing empty GUIDs and whitespace strings
     /// </summary>
-    public static void CleanupPlanAssLine(SopalTrace.Domain.Entities.PlanAssLigne ligne)
+    public static void CleanupPlanAssLine(SopalTrace.Domain.Entities.PlanAssemblageLigne ligne)
     {
         if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
         if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;
@@ -74,7 +74,7 @@ public static class LineCleanupHelper
     /// <summary>
     /// Cleans up a plan fabrication line by removing empty GUIDs and whitespace strings
     /// </summary>
-    public static void CleanupPlanFabLine(SopalTrace.Domain.Entities.PlanFabLigne ligne)
+    public static void CleanupPlanFabLine(SopalTrace.Domain.Entities.PlanFabricationLigne ligne)
     {
         if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
         if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;
@@ -107,7 +107,7 @@ public static class LineCleanupHelper
     /// <summary>
     /// Cleans up a plan produit fini line by removing empty GUIDs and whitespace strings
     /// </summary>
-    public static void CleanupPlanPfLine(SopalTrace.Domain.Entities.PlanPfLigne ligne)
+    public static void CleanupPlanPfLine(SopalTrace.Domain.Entities.PlanProduitFiniLigne ligne)
     {
         if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
         if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;

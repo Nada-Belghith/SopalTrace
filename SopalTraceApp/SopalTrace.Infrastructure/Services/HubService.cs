@@ -23,8 +23,10 @@ public class HubService : IHubService
         var result = new List<HubModeleDto>();
 
         // 1. FABRICATION (Modèles uniquement)
-        var fabModeles = await _context.ModeleFabEntetes
+        var fabModeles = await _context.ModeleFabricationEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "FAB",
@@ -35,15 +37,18 @@ public class HubService : IHubService
                 "GEN",
                 m.OperationCode ?? "N/A",
                 "N/A",
-                m.Version,
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,
                 m.Statut ?? "ACTIF",
-                "Gabarit de fabrication générique."))
+                "Gabarit de fabrication générique.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(fabModeles);
 
         // 2. ASSEMBLAGE
-        var assModeles = await _context.PlanAssEntetes
+        var assModeles = await _context.PlanAssemblageEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "ASS",
@@ -54,15 +59,18 @@ public class HubService : IHubService
                 m.FamilleProduitFiniCode ?? "N/A",
                 m.OperationCode ?? "N/A",
                 m.PosteCode ?? "N/A",
-                m.Version,
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,  // Version du RefFormulaire (source de vérité)
                 m.Statut ?? "ACTIF",
-                "Plan Maître d'assemblage."))
+                "Plan Maître d'assemblage.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(assModeles);
 
         // 3. VÉRIF MACHINE
         var vmModeles = await _context.PlanVerifMachineEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "VM",
@@ -71,9 +79,10 @@ public class HubService : IHubService
                 "VM",
                 "VÉRIF",
                 m.MachineCode ?? "N/A",
-                m.Version ?? 1,
+                m.Formulaire != null ? m.Formulaire.Version : (m.Version ?? 1),
                 m.Statut ?? "ACTIF",
-                "Vérification des étalons machines."))
+                "Vérification des étalons machines.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(vmModeles);
 
@@ -90,14 +99,16 @@ public class HubService : IHubService
                 n.ValeurNqa.ToString(),
                 m.Version,
                 m.Statut ?? "ACTIF",
-                "Niveau de contrôle: " + m.NiveauControle))
+                "Niveau de contrôle: " + m.NiveauControle,
+                null))
             .ToListAsync();
         result.AddRange(echModeles);
 
         // 5. PRODUIT FINI
-        var pfModeles = await _context.PlanPfEntetes
+        var pfModeles = await _context.PlanProduitFiniEntetes
             .AsNoTracking()
-            .Where(m => m.Statut == "ACTIF")
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "PF",
@@ -108,26 +119,50 @@ public class HubService : IHubService
                 "N/A",
                 m.Version,
                 m.Statut ?? "ACTIF",
-                "Gabarit de controle final."))
+                "Gabarit de controle final.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(pfModeles);
 
-        // 6. RÉSULTAT CONTRÔLE
-        var ncModeles = await _context.PlanNcEntetes
+        // 6. RÉSULTAT CONTRÔLE POSTE
+        var ncModeles = await _context.PlanControlePosteEntetes
             .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RC",
-                m.Nom ?? "Fiche Sans Nom",
+                "Résultat de contrôle poste " + (m.PosteCode ?? "N/A"),
                 "POSTE",
-                "RC",
-                "CONTRÔLE",
+                null,
+                null,
                 m.PosteCode ?? "N/A",
-                m.Version,
-                m.Statut,
-                "Fiche de contrôle par poste de travail."))
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Formulaire != null ? m.Formulaire.Statut : m.Statut,
+                "Fiche de contrôle par poste de travail.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
             .ToListAsync();
         result.AddRange(ncModeles);
+
+        // 7. RÉSULTAT CONTRÔLE CF
+        var rccfModeles = await _context.PlanResultatControleCfEntetes
+            .AsNoTracking()
+            .Include(m => m.Formulaire)
+            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Select(m => new HubModeleDto(
+                m.Id,
+                "RCCF",
+                m.Nom ?? "Résultat Contrôle CF Sans Nom",
+                "POSTE",
+                null,
+                null,
+                m.PosteCode ?? "N/A",
+                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Formulaire != null ? m.Formulaire.Statut : m.Statut,
+                "Résultat Contrôle en cours de fabrication.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+            .ToListAsync();
+        result.AddRange(rccfModeles);
 
         return result;
     }
@@ -135,58 +170,29 @@ public class HubService : IHubService
     public async Task<IReadOnlyList<HubPlanDto>> GetTousLesPlansAsync()
     {
         var result = new List<HubPlanDto>();
- 
-        // 1. PLANS DE FABRICATION
-        var fabPlans = await _context.PlanFabEntetes
+
+        // 1. STRUCTURES GENERIQUES (REF FORMULAIRES PRC)
+        var prcStructures = await _context.RefFormulaires
             .AsNoTracking()
-            .Include(p => p.ModeleSource)
-            .Select(p => new HubPlanDto(
-                p.Id,
-                "FAB",
-                // ✅ Priorité au Nom stocké, SAUF si c'est un nom technique hérité
-                !string.IsNullOrWhiteSpace(p.Nom) && !p.Nom.StartsWith("Modèle ") && !p.Nom.StartsWith("PC-") ? p.Nom :
-                (p.ModeleSource != null && p.ModeleSource.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
-                (p.ModeleSource != null && p.ModeleSource.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
-                $"Plan {p.CodeArticleSage}",
-                p.ModeleSource != null ? p.ModeleSource.NatureArticleCode : "N/A",
-                p.CodeArticleSageNavigation.ProduitFini != null ? p.CodeArticleSageNavigation.ProduitFini.FamilleProduitFiniCode : "FAB",
-                p.ModeleSource != null ? (p.ModeleSource.OperationCode ?? "N/A") : (p.OperationCode ?? "N/A"),
+            .Where(f => f.Role == "EN_COURS_DE_FABRICATION")
+            .Where(f => f.Statut == "ACTIF" || f.Statut == "ARCHIVE")
+            .Select(f => new HubPlanDto(
+                f.Id,
+                "PRC_STRUCT",
+                "Structure PRC",
                 "N/A",
-                p.Version,
-                p.Statut,
-                $"Plan article {p.CodeArticleSage}",
-                p.CodeArticleSage,
-                p.Designation))
-            .ToListAsync();
-        result.AddRange(fabPlans);
-  
-        // 2. PLANS D'ASSEMBLAGE (PISTON / PF : plans article, non modèles)
-        // Plans ASS : PISTON, PF, ou ceux avec nature NULL (créés via un bug de routing)
-        var assPlans = await _context.PlanAssEntetes
-            .AsNoTracking()
-            .Where(p => p.NatureArticleCode == "PISTON" || p.NatureArticleCode == "PF" || p.NatureArticleCode == null)
-            .Where(p => p.OperationCode == "ASS") // Exclure les modèles génériques
-            .Select(p => new HubPlanDto(
-                p.Id,
-                "FAB",
-                // ✅ Nom : ignorer les noms techniques ("Modèle ...", "PC-..."), inférer depuis la nature
-                (!string.IsNullOrWhiteSpace(p.Designation) && !p.Designation.StartsWith("Modèle ") && !p.Designation.StartsWith("PC-")) ? p.Designation :
-                (p.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
-                (p.NatureArticleCode == "PF") ? "Plan en cours de fabrication produit fini" :
-                // Nature NULL : essayer de deviner depuis la Designation
-                (!string.IsNullOrWhiteSpace(p.Designation) && p.Designation.ToLower().Contains("piston")) ? "Plan de contrôle en cours de fabrication piston" :
-                "Plan Assemblage",
-                p.NatureArticleCode ?? "N/A",
-                p.FamilleProduitFiniCode ?? "ASS",
-                p.OperationCode ?? "N/A",
-                p.PosteCode ?? "N/A",
-                p.Version,
-                p.Statut ?? "BROUILLON",
-                $"Plan assemblage {p.NatureArticleCode ?? "ASS"}",
+                "N/A",
+                "N/A",
+                "N/A",
+                f.Version,
+                f.Statut,
+                $"Structure de référence des plans en cours de fabrication",
                 null,
-                p.Designation))
+                $"Structure de référence",
+                f.CodeReference
+            ))
             .ToListAsync();
-        result.AddRange(assPlans);
+        result.AddRange(prcStructures);
 
         return result;
     }
@@ -198,7 +204,7 @@ public class HubService : IHubService
         {
             case "FAB":
             {
-                var m = await _context.ModeleFabEntetes.FindAsync(id);
+                var m = await _context.ModeleFabricationEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ArchiveLe = statut == "ARCHIVE" ? DateTime.UtcNow : null;
@@ -207,7 +213,7 @@ public class HubService : IHubService
             }
             case "ASS":
             {
-                var m = await _context.PlanAssEntetes.FindAsync(id);
+                var m = await _context.PlanAssemblageEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
@@ -232,7 +238,7 @@ public class HubService : IHubService
             }
             case "PF":
             {
-                var m = await _context.PlanPfEntetes.FindAsync(id);
+                var m = await _context.PlanProduitFiniEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
@@ -241,11 +247,18 @@ public class HubService : IHubService
             }
             case "RC":
             {
-                var m = await _context.PlanNcEntetes.FindAsync(id);
+                var m = await _context.PlanControlePosteEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
                 //m.ModifiePar = "ADMIN";
+                break;
+            }
+            case "RCCF":
+            {
+                var m = await _context.PlanResultatControleCfEntetes.FindAsync(id);
+                if (m is null) return false;
+                m.Statut = statut;
                 break;
             }
             default:
@@ -262,10 +275,10 @@ public class HubService : IHubService
         {
             case "FAB":
             {
-                var p = await _context.PlanFabEntetes.FindAsync(id);
+                var p = await _context.PlanFabricationEntetes.FindAsync(id);
                 if (p is null)
                 {
-                    var assPlan = await _context.PlanAssEntetes.FindAsync(id);
+                    var assPlan = await _context.PlanAssemblageEntetes.FindAsync(id);
                     if (assPlan is null) return false;
 
                     if (statut == "ARCHIVE" && assPlan.Statut == "BROUILLON")
@@ -301,28 +314,28 @@ public class HubService : IHubService
         {
             case "FAB":
             {
-                var plan = await _context.PlanFabEntetes
-                    .Include(p => p.PlanFabSections)
-                        .ThenInclude(s => s.PlanFabLignes)
+                var plan = await _context.PlanFabricationEntetes
+                    .Include(p => p.PlanFabricationSections)
+                        .ThenInclude(s => s.PlanFabricationLignes)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null)
                 {
-                    var assPlan = await _context.PlanAssEntetes
-                        .Include(p => p.PlanAssSections)
-                            .ThenInclude(s => s.PlanAssLignes)
+                    var assPlan = await _context.PlanAssemblageEntetes
+                        .Include(p => p.PlanAssemblageSections)
+                            .ThenInclude(s => s.PlanAssemblageLignes)
                         .FirstOrDefaultAsync(p => p.Id == id);
 
                     if (assPlan is null) return false;
                     if (assPlan.Statut != "BROUILLON") return false;
 
-                    foreach (var section in assPlan.PlanAssSections)
+                    foreach (var section in assPlan.PlanAssemblageSections)
                     {
-                        _context.PlanAssLignes.RemoveRange(section.PlanAssLignes);
+                        _context.PlanAssemblageLignes.RemoveRange(section.PlanAssemblageLignes);
                     }
 
-                    _context.PlanAssSections.RemoveRange(assPlan.PlanAssSections);
-                    _context.PlanAssEntetes.Remove(assPlan);
+                    _context.PlanAssemblageSections.RemoveRange(assPlan.PlanAssemblageSections);
+                    _context.PlanAssemblageEntetes.Remove(assPlan);
 
                     await _context.SaveChangesAsync();
                     return true;
@@ -331,28 +344,48 @@ public class HubService : IHubService
                 if (plan.Statut != "BROUILLON") return false;
 
                 // Suppression complète : sections + lignes + entête
-                foreach (var section in plan.PlanFabSections)
+                foreach (var section in plan.PlanFabricationSections)
                 {
-                    _context.PlanFabLignes.RemoveRange(section.PlanFabLignes);
+                    _context.PlanFabricationLignes.RemoveRange(section.PlanFabricationLignes);
                 }
 
-                _context.PlanFabSections.RemoveRange(plan.PlanFabSections);
-                _context.PlanFabEntetes.Remove(plan);
+                _context.PlanFabricationSections.RemoveRange(plan.PlanFabricationSections);
+                _context.PlanFabricationEntetes.Remove(plan);
 
                 await _context.SaveChangesAsync();
                 return true;
             }
             case "RC":
             {
-                var plan = await _context.PlanNcEntetes
-                    .Include(p => p.PlanNcLignes)
+                var plan = await _context.PlanControlePosteEntetes
+                    .Include(p => p.PlanControlePosteLignes)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null) return false;
                 if (plan.Statut != "BROUILLON") return false;
 
-                _context.PlanNcLignes.RemoveRange(plan.PlanNcLignes);
-                _context.PlanNcEntetes.Remove(plan);
+                _context.PlanControlePosteLignes.RemoveRange(plan.PlanControlePosteLignes);
+                _context.PlanControlePosteEntetes.Remove(plan);
+
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            case "RCCF":
+            {
+                var plan = await _context.PlanResultatControleCfEntetes
+                    .Include(p => p.PlanResultatControleCfSections)
+                        .ThenInclude(s => s.PlanResultatControleCfLignes)
+                    .FirstOrDefaultAsync(p => p.Id == id);
+
+                if (plan is null) return false;
+                if (plan.Statut != "BROUILLON") return false;
+
+                foreach (var section in plan.PlanResultatControleCfSections)
+                {
+                    _context.PlanResultatControleCfLignes.RemoveRange(section.PlanResultatControleCfLignes);
+                }
+                _context.PlanResultatControleCfSections.RemoveRange(plan.PlanResultatControleCfSections);
+                _context.PlanResultatControleCfEntetes.Remove(plan);
 
                 await _context.SaveChangesAsync();
                 return true;

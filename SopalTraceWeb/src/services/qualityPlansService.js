@@ -6,6 +6,10 @@ export const qualityPlansService = {
     return apiClient.get('/referentiels/fabrication');
   },
 
+  getFormulairesListByRole(role) {
+    return apiClient.get(`/referentiels/formulaires/liste/${role}`);
+  },
+
   // --- Modèles de fabrication ---
   createModele(payload) {
     return apiClient.post('/modeles-fabrication', payload);
@@ -109,12 +113,13 @@ export const qualityPlansService = {
     return apiClient.get(`/referentiels/article/${codeArticle}`);
   },
 
-  getModelesByFilters(typeRobinetCode, natureComposantCode, operationCode, posteCode = null) {
+  getModelesByFilters(typeRobinetCode, natureComposantCode, operationCode, posteCode = null, familleProduitCode = null) {
     const params = new URLSearchParams();
     if (typeRobinetCode) params.append('typeRobinet', typeRobinetCode);
     if (natureComposantCode) params.append('natureComposant', natureComposantCode);
     if (operationCode) params.append('operation', operationCode); 
     if (posteCode) params.append('poste', posteCode);
+    if (familleProduitCode) params.append('familleProduit', familleProduitCode);
     
     return apiClient.get(`/modeles-fabrication/liste?${params.toString()}`);
   },

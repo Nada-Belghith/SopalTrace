@@ -16,7 +16,7 @@ export function useModelManagement(modelType = 'fabrication') {
   const modeleData = ref(null);
   const codeOriginal = ref('');
   const statut = ref('BROUILLON');
-  const version = ref(1);
+  const version = ref(0);
 
   const { creerNouvelleVersionModele, restaurerModele } = useModeleVersioning();
 

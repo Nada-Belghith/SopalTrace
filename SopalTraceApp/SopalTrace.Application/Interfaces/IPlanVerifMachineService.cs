@@ -8,6 +8,8 @@ namespace SopalTrace.Application.Interfaces;
 
 public interface IPlanVerifMachineService
 {
+    string Role { get; }
+
     /// <summary>
     /// Création unifiée d'un plan de vérification machine.
     /// Reçoit le payload complet (flags + familles + lignes + échéances + pièces).

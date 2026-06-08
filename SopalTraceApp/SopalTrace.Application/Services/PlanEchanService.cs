@@ -64,6 +64,10 @@ public class PlanEchanService : BasePlanLifecycleService<PlanEchantillonnageEnte
             plan.NqaId = dto.NqaId.Value;
         plan.Remarques = dto.Remarques;
         plan.LegendeMoyens = dto.LegendeMoyens;
+
+
+
+
         plan.ModifiePar = user;
         plan.ModifieLe = DateTime.UtcNow;
         if (dto.Regles != null)
@@ -174,3 +178,4 @@ public class PlanEchanService : BasePlanLifecycleService<PlanEchantillonnageEnte
         return nouveauPlanActif.Id;
     }
 }
+

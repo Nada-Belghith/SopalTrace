@@ -19,6 +19,7 @@ public record CreatePlanAssDto
     public string? CreePar { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
     public string? Remarques { get; init; } = null;
+    public int? VersionInitiale { get; init; } = null;
     public List<SectionAssEditDto> Sections { get; init; } = new();
 }
 
@@ -60,6 +61,7 @@ public record LigneAssEditDto
     public string? Observations { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
     public required bool EstCritique { get; init; }
+    public string? ColonnesSupplementaires { get; init; } = null;
 }
 
 // --- ACTIONS MÉTIER ---
@@ -90,6 +92,7 @@ public record NouvelleVersionAssRequestDto
     public string? MotifModification { get; init; }
     public string? LegendeMoyens { get; init; }
     public string? Remarques { get; init; }
+    public int? VersionInitiale { get; init; }
 }
 
 // --- LECTURE ---
@@ -114,6 +117,7 @@ public record PlanAssResponseDto
     public required DateTime CreeLe { get; init; }
     public string? ModifiePar { get; init; }
     public DateTime? ModifieLe { get; init; }
+    public string? ConfigurationColonnesJson { get; init; }
     public List<SectionAssResponseDto> Sections { get; init; } = new();
 }
 
@@ -152,4 +156,5 @@ public record LigneAssResponseDto
     public string? Instruction { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
     public required bool EstCritique { get; init; }
+    public string? ColonnesSupplementaires { get; init; }
 }

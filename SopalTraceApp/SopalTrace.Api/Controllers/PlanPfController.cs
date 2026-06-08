@@ -40,7 +40,8 @@ public class PlanPfController : ControllerBase
         try
         {
             var planId = await _planPfService.CreateGenericPlanAsync(dto, "Admin"); // TODO: Use real user
-            return Ok(new { message = "Plan créé avec succès.", planId });
+            var data = await _planPfService.GetPlanByIdAsync(planId);
+            return Ok(new { message = "Plan créé avec succès.", planId, version = data?.Version ?? 0 });
         }
         catch (InvalidOperationException ex)
         {
@@ -76,7 +77,8 @@ public class PlanPfController : ControllerBase
             if (id != request.AncienId) return BadRequest("L'ID de l'URL ne correspond pas à l'ancien ID du plan.");
 
             var newPlanId = await _planPfService.CreerNouvelleVersionAsync(request);
-            return Ok(new { message = "Nouvelle version créée.", planId = newPlanId });
+            var data = await _planPfService.GetPlanByIdAsync(newPlanId);
+            return Ok(new { message = "Nouvelle version créée.", planId = newPlanId, version = data?.Version ?? 0 });
         }
         catch (KeyNotFoundException ex)
         {
@@ -99,7 +101,8 @@ public class PlanPfController : ControllerBase
         try
         {
             var planId = await _planPfService.RestaurerPlanArchiveAsync(request);
-            return Ok(new { message = "Plan restauré et activé avec succès.", planId });
+            var data = await _planPfService.GetPlanByIdAsync(planId);
+            return Ok(new { message = "Plan restauré et activé avec succès.", planId, version = data?.Version ?? 0 });
         }
         catch (KeyNotFoundException ex)
         {
@@ -119,7 +122,7 @@ public class PlanPfController : ControllerBase
 
     [HttpPost("import-excel")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
+    public async Task<ActionResult> ImportExcel(IFormFile file, [FromForm] string? configurationColonnesJson, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });
@@ -130,7 +133,7 @@ public class PlanPfController : ControllerBase
         try
         {
             using var stream = file.OpenReadStream();
-            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName);
+            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName, configurationColonnesJson);
             return Ok(new { message = "Import réussi", data = parsedData });
         }
         catch (Exception ex)

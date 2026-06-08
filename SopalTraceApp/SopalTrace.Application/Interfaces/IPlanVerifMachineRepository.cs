@@ -8,7 +8,9 @@ namespace SopalTrace.Application.Interfaces;
 public interface IPlanVerifMachineRepository
 {
     Task<bool> ExistePlanActifAsync(string machineCode);
+    Task<bool> ExistePlanActifParFormulaireAsync(Guid formulaireId);
     Task<PlanVerifMachineEntete> GetPlanActifAsync(string machineCode);
+    Task<PlanVerifMachineEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId);
     Task<PlanVerifMachineEntete> GetPlanAvecRelationsAsync(Guid planId);
     Task<List<PlanVerifMachineEntete>> GetTousLesPlanAsync();
 
@@ -16,6 +18,7 @@ public interface IPlanVerifMachineRepository
 
     /// <summary>Retourne les familles de corps configurées pour une machine dans Machine_FamilleCorps.</summary>
     Task<List<RefFamilleCorp>> GetFamillesParMachineAsync(string machineCode);
+    Task SyncMachineFamillesAsync(string machineCode, List<Guid> refFamilleCorpsIds);
 
     Task AddPlanAsync(PlanVerifMachineEntete plan);
 

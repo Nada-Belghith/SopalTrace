@@ -74,14 +74,14 @@ public class PlanFabricationController : ControllerBase
         {
             if (isAss)
             {
-                opCode = await _context.PlanAssEntetes
+                opCode = await _context.PlanAssemblageEntetes
                     .Where(m => m.Id == modeleId.Value)
                     .Select(m => m.OperationCode)
                     .FirstOrDefaultAsync();
             }
             else
             {
-                opCode = await _context.ModeleFabEntetes
+                opCode = await _context.ModeleFabricationEntetes
                     .Where(m => m.Id == modeleId.Value)
                     .Select(m => m.OperationCode)
                     .FirstOrDefaultAsync();
@@ -90,8 +90,8 @@ public class PlanFabricationController : ControllerBase
 
         if (isAss)
         {
-            // PlanAssEntete n'a pas de CodeArticleSage : c'est un modèle générique filtré par opération/famille
-            var planQuery = _context.PlanAssEntetes.AsQueryable();
+            // PlanAssemblageEntete n'a pas de CodeArticleSage : c'est un modèle générique filtré par opération/famille
+            var planQuery = _context.PlanAssemblageEntetes.AsQueryable();
 
             var brouillonQuery = planQuery.Where(p => p.Statut == "BROUILLON");
             if (!string.IsNullOrWhiteSpace(typeRobinetCode)) brouillonQuery = brouillonQuery.Where(p => p.FamilleProduitFiniCode == typeRobinetCode);
@@ -110,7 +110,7 @@ public class PlanFabricationController : ControllerBase
         }
         else
         {
-            var planQuery = _context.PlanFabEntetes.Where(p => p.CodeArticleSage == articleCode);
+            var planQuery = _context.PlanFabricationEntetes.Where(p => p.CodeArticleSage == articleCode);
 
 
 
@@ -200,7 +200,7 @@ public class PlanFabricationController : ControllerBase
 
     [HttpPost("import-excel")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult> ImportExcel(IFormFile file, [FromServices] IExcelImportService excelService)
+    public async Task<ActionResult> ImportExcel(IFormFile file, [FromForm] string? configurationColonnesJson, [FromServices] IExcelImportService excelService)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Aucun fichier sélectionné ou fichier vide." });
@@ -211,7 +211,7 @@ public class PlanFabricationController : ControllerBase
         try
         {
             using var stream = file.OpenReadStream();
-            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName);
+            var parsedData = await excelService.ParsePlanExcelAsync(stream, file.FileName, configurationColonnesJson);
             return Ok(new { message = "Import réussi", data = parsedData });
         }
         catch (Exception ex)

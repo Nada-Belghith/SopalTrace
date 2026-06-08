@@ -31,9 +31,9 @@ public class ReferentielController : ControllerBase
     }
 
     [HttpGet("plans-nc")]
-    public async Task<IActionResult> GetDictionnairesPlanNc()
+    public async Task<IActionResult> GetDictionnairesControlePoste()
     {
-        var data = await _referentielService.GetPlanNcReferentielsAsync();
+        var data = await _referentielService.GetControlePosteReferentielsAsync();
         return Ok(new { success = true, data });
     }
 
@@ -71,5 +71,36 @@ public class ReferentielController : ControllerBase
         {
             return BadRequest(new { success = false, message = ex.Message });
         }
+    }
+
+    [HttpGet("formulaires/role/{role}")]
+    public async Task<IActionResult> GetFormulaireByRole(string role)
+    {
+        var result = await _referentielService.GetFormulaireByRoleAsync(role);
+        if (result == null) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
+        return Ok(new { success = true, data = result });
+    }
+
+    [HttpGet("formulaires/{id}")]
+    public async Task<IActionResult> GetFormulaireById(Guid id)
+    {
+        var result = await _referentielService.GetFormulaireByIdAsync(id);
+        if (result == null) return NotFound(new { success = false, message = $"Formulaire {id} introuvable." });
+        return Ok(new { success = true, data = result });
+    }
+
+    [HttpGet("formulaires/liste/{role}")]
+    public async Task<IActionResult> GetFormulairesListByRole(string role)
+    {
+        var result = await _referentielService.GetFormulairesListByRoleAsync(role);
+        return Ok(new { success = true, data = result });
+    }
+
+    [HttpPut("formulaires/role/{role}")]
+    public async Task<IActionResult> UpdateFormulaireStructure(string role, [FromBody] UpdateFormulaireStructureDto request)
+    {
+        var newId = await _referentielService.UpdateFormulaireStructureAsync(role, request.ConfigurationStructureJson, null, request.VersionInitiale);
+        if (newId == null) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
+        return Ok(new { success = true, message = "Structure du formulaire mise a jour avec succes.", newId = newId });
     }
 }

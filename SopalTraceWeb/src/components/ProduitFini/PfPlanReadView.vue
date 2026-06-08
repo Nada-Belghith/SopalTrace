@@ -4,6 +4,7 @@
     :sections="sections"
     :remarques="remarques"
     :legende-moyens="legendeMoyens"
+    :configuration-colonnes="store.entete?.configurationColonnes || []"
     :types-section="store.typesSection || []"
     :types-caracteristique="store.typesCaracteristique || []"
     :types-controle="store.typesControle || []"

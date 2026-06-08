@@ -23,6 +23,7 @@ public class ModeleFabricationService : IModeleFabricationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPlanFabricationRepository _fabRepository;
     private readonly IPlanAssRepository _assRepository;
+    private readonly IReferentielService _referentielService;
     private readonly IValidator<CreateModeleRequestDto> _modeleValidator;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ModeleFabricationService> _logger;
@@ -31,6 +32,7 @@ public class ModeleFabricationService : IModeleFabricationService
         IUnitOfWork unitOfWork,
         IPlanFabricationRepository fabRepository,
         IPlanAssRepository assRepository,
+        IReferentielService referentielService,
         IValidator<CreateModeleRequestDto> modeleValidator,
         ICurrentUserService currentUserService,
         ILogger<ModeleFabricationService> logger)
@@ -38,6 +40,7 @@ public class ModeleFabricationService : IModeleFabricationService
         _unitOfWork = unitOfWork;
         _fabRepository = fabRepository;
         _assRepository = assRepository;
+        _referentielService = referentielService;
         _modeleValidator = modeleValidator;
         _currentUserService = currentUserService;
         _logger = logger;
@@ -74,14 +77,27 @@ public class ModeleFabricationService : IModeleFabricationService
 
             var modele = PlanAssMapper.MapperModeleVersEntite(request, user);
             modele.Statut = StatutsPlan.Actif;
-            modele.Version = 0; // Commencer par Version 0
+            modele.Version = request.VersionInitiale ?? 0; // Commencer par Version Initiale ou 0
+
+            if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+            {
+                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                    "EN_COURS_DE_ASSEMBLAGE",
+                    request.ConfigurationColonnesJson,
+                    request.RefFormulaireCodeReference,
+                    request.VersionInitiale);
+                if (formResult.HasValue)
+                {
+                    modele.FormulaireId = formResult.Value.Id;
+                }
+            }
 
             await SmartDictionaryPassAssAsync(modele);
 
             // Nettoyage final des GUIDs vides pour éviter les erreurs de clés étrangères
-            foreach (var s in modele.PlanAssSections)
+            foreach (var s in modele.PlanAssemblageSections)
             {
-                foreach (var l in s.PlanAssLignes)
+                foreach (var l in s.PlanAssemblageLignes)
                 {
                     LineCleanupHelper.CleanupPlanAssLine(l);
                 }
@@ -109,14 +125,27 @@ public class ModeleFabricationService : IModeleFabricationService
             var modele = ModeleFabricationMapper.ConstruireEntiteModeleAPartirDeDto(request);
             modele.CreePar = user; // Forcer l'utilisateur connecté
             modele.Statut = StatutsPlan.Actif;
-            modele.Version = 0; // Commencer par Version 0
+            modele.Version = request.VersionInitiale ?? 0; // Commencer par Version Initiale ou 0
+
+            if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
+            {
+                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                    "EN_COURS_DE_FABRICATION",
+                    request.ConfigurationColonnesJson,
+                    request.RefFormulaireCodeReference,
+                    request.VersionInitiale);
+                if (formResult.HasValue)
+                {
+                    modele.FormulaireId = formResult.Value.Id;
+                }
+            }
 
             await SmartDictionaryPassAsync(modele);
 
             // Nettoyage final des GUIDs vides pour éviter les erreurs de clés étrangères
-            foreach (var s in modele.ModeleFabSections)
+            foreach (var s in modele.ModeleFabricationSections)
             {
-                foreach (var l in s.ModeleFabLignes)
+                foreach (var l in s.ModeleFabricationLignes)
                 {
                     LineCleanupHelper.CleanupModeleFabLine(l);
                 }
@@ -128,15 +157,15 @@ public class ModeleFabricationService : IModeleFabricationService
         }
     }
 
-    private async Task SmartDictionaryPassAsync(ModeleFabEntete modele)
+    private async Task SmartDictionaryPassAsync(ModeleFabricationEntete modele)
     {
         var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sec in modele.ModeleFabSections)
+        foreach (var sec in modele.ModeleFabricationSections)
         {
-            foreach (var ligne in sec.ModeleFabLignes)
+            foreach (var ligne in sec.ModeleFabricationLignes)
             {
                 // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
                 //if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
@@ -218,15 +247,15 @@ public class ModeleFabricationService : IModeleFabricationService
         }
     }
 
-    private async Task SmartDictionaryPassAssAsync(PlanAssEntete modele)
+    private async Task SmartDictionaryPassAssAsync(PlanAssemblageEntete modele)
     {
         var addedCaracs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedInstruments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var addedMoyens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sec in modele.PlanAssSections)
+        foreach (var sec in modele.PlanAssemblageSections)
         {
-            foreach (var ligne in sec.PlanAssLignes)
+            foreach (var ligne in sec.PlanAssemblageLignes)
             {
                 // Nettoyage des GUIDs et chaînes vides pour éviter les erreurs de clés étrangères
                 //if (ligne.TypeCaracteristiqueId == Guid.Empty) ligne.TypeCaracteristiqueId = null;
@@ -327,7 +356,7 @@ public class ModeleFabricationService : IModeleFabricationService
         throw new ModeleIntrouvableException(modeleId);
     }
 
-    public async Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode, string? posteCode = null)
+    public async Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? typeRobinetCode, string? natureComposantCode, string? operationCode, string? posteCode = null, string? familleProduitCode = null)
     {
         var result = new List<ModeleResponseDto>();
 
@@ -336,7 +365,7 @@ public class ModeleFabricationService : IModeleFabricationService
         // Si l'opération est ASS, PISTON, PF ou non spécifiée, on cherche dans l'assemblage
         if (string.IsNullOrEmpty(operationCode) || isAss)
         {
-            var assModeles = await _assRepository.GetModelesParFiltresAsync(natureComposantCode, operationCode, posteCode, null);
+            var assModeles = await _assRepository.GetModelesParFiltresAsync(natureComposantCode, operationCode, posteCode, familleProduitCode);
             result.AddRange(assModeles.Select(PlanAssMapper.MapperEntiteVersModeleDto));
         }
 
@@ -372,11 +401,34 @@ public class ModeleFabricationService : IModeleFabricationService
                 //planActifActuel.ArchivePar = user;
             }
 
-            var nouvelleVersion = await _assRepository.GetDerniereVersionParCodeAsync(assModele.Designation ?? string.Empty) + 1;
+            var nouvelleVersion = await _assRepository.GetDerniereVersionAsync(assModele.OperationCode ?? string.Empty, assModele.FamilleProduitFiniCode, assModele.NatureArticleCode) + 1;
+            Guid? newFormulaireId = null;
+
+            var role = assModele.OperationCode == "ASS" ? "EN_COURS_DE_ASSEMBLAGE" : "EN_COURS_DE_FABRICATION";
+            var jsonToUse = request.ConfigurationColonnesJson;
+            if (string.IsNullOrEmpty(jsonToUse) && assModele.FormulaireId.HasValue)
+            {
+                var oldForm = await _referentielService.GetFormulaireByIdAsync(assModele.FormulaireId.Value);
+                if (oldForm != null) jsonToUse = oldForm.ConfigurationStructureJson;
+            }
+
+            if (!string.IsNullOrEmpty(jsonToUse) || assModele.FormulaireId.HasValue)
+            {
+                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                    role,
+                    jsonToUse,
+                    request.RefFormulaireCodeReference);
+                if (formResult.HasValue)
+                {
+                    newFormulaireId = formResult.Value.Id;
+                    nouvelleVersion = formResult.Value.Version;
+                }
+            }
 
             var nouveauPlan = PlanAssMapper.ConstruireNouvelleVersionModele(assModele, request, user, nouvelleVersion);
             nouveauPlan.Statut = StatutsPlan.Actif;
-            
+            if (newFormulaireId.HasValue) nouveauPlan.FormulaireId = newFormulaireId.Value;
+
             await SmartDictionaryPassAssAsync(nouveauPlan);
 
             await _assRepository.AddPlanAsync(nouveauPlan);
@@ -395,9 +447,32 @@ public class ModeleFabricationService : IModeleFabricationService
                 //fabModele.ArchivePar = user;
             }
 
-            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleParCodeAsync(fabModele.Code) + 1;
+            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleAsync(fabModele.NatureArticleCode, fabModele.OperationCode) + 1;
+            Guid? newFormulaireId = null;
+
+            var jsonToUse = request.ConfigurationColonnesJson;
+            if (string.IsNullOrEmpty(jsonToUse) && fabModele.FormulaireId.HasValue)
+            {
+                var oldForm = await _referentielService.GetFormulaireByIdAsync(fabModele.FormulaireId.Value);
+                if (oldForm != null) jsonToUse = oldForm.ConfigurationStructureJson;
+            }
+
+            if (!string.IsNullOrEmpty(jsonToUse) || fabModele.FormulaireId.HasValue)
+            {
+                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                    "EN_COURS_DE_FABRICATION",
+                    jsonToUse,
+                    request.RefFormulaireCodeReference);
+                if (formResult.HasValue)
+                {
+                    newFormulaireId = formResult.Value.Id;
+                    nouvelleVersion = formResult.Value.Version;
+                }
+            }
+
             var nouveauModele = ModeleFabricationMapper.ConstruireNouvelleVersionModele(fabModele, request, user, nouvelleVersion);
             nouveauModele.Statut = StatutsPlan.Actif;
+            if (newFormulaireId.HasValue) nouveauModele.FormulaireId = newFormulaireId.Value;
 
             await SmartDictionaryPassAsync(nouveauModele);
 
@@ -426,7 +501,26 @@ public class ModeleFabricationService : IModeleFabricationService
             var nouveauPlan = PlanAssMapper.DupliquerEntitePlan(assModele, true, null, null, user, $"[Restauré] {request.MotifRestoration}");
             nouveauPlan.Statut = StatutsPlan.Actif;
             
-            nouveauPlan.Version = await _assRepository.GetDerniereVersionParCodeAsync(assModele.Designation ?? string.Empty) + 1;
+            nouveauPlan.Version = await _assRepository.GetDerniereVersionAsync(assModele.OperationCode ?? string.Empty, assModele.FamilleProduitFiniCode, assModele.NatureArticleCode) + 1;
+
+            if (assModele.FormulaireId.HasValue)
+            {
+                var oldForm = await _referentielService.GetFormulaireByIdAsync(assModele.FormulaireId.Value);
+                if (oldForm != null)
+                {
+                    var role = assModele.OperationCode == "ASS" ? "EN_COURS_DE_ASSEMBLAGE" : "EN_COURS_DE_FABRICATION";
+                    var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                        role,
+                        oldForm.ConfigurationStructureJson,
+                        oldForm.CodeReference);
+                    
+                    if (formResult.HasValue)
+                    {
+                        nouveauPlan.FormulaireId = formResult.Value.Id;
+                        nouveauPlan.Version = formResult.Value.Version;
+                    }
+                }
+            }
 
             await SmartDictionaryPassAssAsync(nouveauPlan);
 
@@ -447,8 +541,29 @@ public class ModeleFabricationService : IModeleFabricationService
                 //actif.ArchivePar = user;
             }
 
-            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleParCodeAsync(fabModele.Code) + 1;
+            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleAsync(fabModele.NatureArticleCode, fabModele.OperationCode) + 1;
+            Guid? newFormulaireId = null;
+
+            if (fabModele.FormulaireId.HasValue)
+            {
+                var oldForm = await _referentielService.GetFormulaireByIdAsync(fabModele.FormulaireId.Value);
+                if (oldForm != null)
+                {
+                    var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                        "EN_COURS_DE_FABRICATION",
+                        oldForm.ConfigurationStructureJson,
+                        oldForm.CodeReference);
+                    
+                    if (formResult.HasValue)
+                    {
+                        newFormulaireId = formResult.Value.Id;
+                        nouvelleVersion = formResult.Value.Version;
+                    }
+                }
+            }
+
             var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(fabModele, user, request.MotifRestoration, nouvelleVersion);
+            if (newFormulaireId.HasValue) nouveauModele.FormulaireId = newFormulaireId.Value;
             
             await SmartDictionaryPassAsync(nouveauModele);
 

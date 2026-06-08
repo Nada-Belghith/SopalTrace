@@ -1,6 +1,6 @@
 <template>
   <tr class="bg-[#f1f5f9] border-t-4 border-slate-300">
-    <td :colspan="colspan" class="p-3 px-4 relative">
+    <td colspan="100" class="p-3 px-4 relative">
       <div class="flex flex-col gap-3 pr-40">
         
         <!-- LIGNE D'INPUTS -->
@@ -166,27 +166,27 @@ const est100Pourcent = computed(() => {
 });
 
 const titreCalcule = computed(() => {
-  const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
-  const baseTitle = typeSec 
-    ? `${props.defaultTitle} ${typeSec.libelle}`
-    : (localSection.value.libelleSection || props.defaultTitle);
-
+  // 1. Si l'utilisateur a saisi un texte personnalisé, on l'utilise EXACTEMENT tel quel
+  // (sans forcer le préfixe par défaut, pour permettre une personnalisation totale)
   if (localSection.value.nom) {
     const cleanNom = localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
-    if (!cleanNom) return baseTitle;
-
-    // Si le suffixe/nom est déjà identique au titre de base, on ne duplique pas
-    if (cleanNom.toLowerCase() === baseTitle.toLowerCase()) {
-      return baseTitle;
+    if (cleanNom) {
+      return cleanNom;
     }
-    
-    // Si le titre de base contient déjà ce suffixe, on le renvoie tel quel
-    if (baseTitle.toLowerCase().includes(cleanNom.toLowerCase())) {
-      return baseTitle;
-    }
+  }
 
-    // Sinon, on combine les deux (ex: "Caractéristiques à contrôler aux réglages test")
-    return `${baseTitle} ${cleanNom}`;
+  // 2. Sinon, on génère le titre par défaut
+  const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
+  let baseTitle = localSection.value.libelleSection || props.defaultTitle;
+  if (typeSec) {
+    // Eviter la duplication si le typeSec.libelle inclut déjà le defaultTitle
+    if (typeSec.libelle.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
+      baseTitle = typeSec.libelle;
+    } else if (props.defaultTitle.toLowerCase().includes(typeSec.libelle.toLowerCase())) {
+      baseTitle = props.defaultTitle;
+    } else {
+      baseTitle = `${props.defaultTitle} ${typeSec.libelle}`;
+    }
   }
 
   return baseTitle;

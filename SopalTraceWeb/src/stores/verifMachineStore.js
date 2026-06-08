@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { verifMachineService } from '@/services/verifMachineService';
+import { qualityPlansService } from '@/services/qualityPlansService';
 import { genererUid } from '@/utils/uuidUtils';
 
 /**
@@ -16,6 +17,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   const moyensDetection = ref([]);
   const piecesReference = ref([]);
   const fuitesEtalon = ref([]);
+  const formulairesReferences = ref([]);
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU PLAN ---
@@ -27,7 +29,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     afficheMoyenDetectionRisques: true,
     afficheFamilles: true,
     afficheFuiteEtalon: false,
-    version: 1,
+    version: 0,
     statut: 'ACTIF',
     remarques: '',
     legendeMoyens: '',
@@ -71,16 +73,17 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     _uid: genererUid(),
     libelleRisque: '',
     libelleMethode: '',
+    valeursColonnesSpecifiques: {},
     groups: [creerGroupVide()],
   });
 
   // --- MAPPING VERS LE FORMAT BACKEND (APLATISSEMENT) ---
   const buildPayload = () => {
     const code = entete.value.machineCode?.toUpperCase().replace('-', '').replace(' ', '').trim() || '';
-    const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
-                                 code.startsWith('SER') || code.includes('MAS19');
-    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
-                                    code.includes('MAS22');
+    const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
+      code.startsWith('SER') || code.includes('MAS19');
+    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
+      code.includes('MAS22');
 
     const finalAfficheConformite = isSansConformiteAuto ? false : entete.value.afficheConformite;
     const finalAfficheFuiteEtalon = hasFuiteEtalonByDefault ? true : entete.value.afficheFuiteEtalon;
@@ -88,12 +91,14 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     return {
       Nom: entete.value.nom,
       MachineCode: entete.value.machineCode,
+      VersionInitiale: entete.value.versionInitiale,
       AfficheConformite: finalAfficheConformite,
       AfficheMoyenDetectionRisques: entete.value.afficheMoyenDetectionRisques,
       AfficheFamilles: entete.value.afficheFamilles,
       AfficheFuiteEtalon: finalAfficheFuiteEtalon,
       Remarques: entete.value.remarques || '',
       LegendeMoyens: entete.value.legendeMoyens || '',
+      ConfigurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
       Familles: familles.value
         .filter((f, idx, self) => self.findIndex(t => t.refFamilleCorpsId === f.refFamilleCorpsId) === idx)
         .map((f, idx) => ({
@@ -129,7 +134,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       } else {
         const existing = mergedMap.get(key);
         ech.MatricePieces.forEach(mp => {
-          const mpExists = existing.MatricePieces.some(em => 
+          const mpExists = existing.MatricePieces.some(em =>
             em.FamilleId === mp.FamilleId && em.RoleVerif === mp.RoleVerif && em.PieceRefId === mp.PieceRefId
           );
           if (!mpExists) existing.MatricePieces.push(mp);
@@ -142,6 +147,9 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       TypeLigne: typeLigne,
       LibelleRisque: ligne.libelleRisque,
       LibelleMethode: ligne.libelleMethode,
+      ColonnesSupplementaires: ligne.valeursColonnesSpecifiques && Object.keys(ligne.valeursColonnesSpecifiques).length > 0
+        ? JSON.stringify(ligne.valeursColonnesSpecifiques)
+        : null,
       Echeances: Array.from(mergedMap.values()).map((ech, idx) => ({
         ...ech,
         OrdreAffiche: idx + 1
@@ -160,8 +168,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     entete.value.afficheFuiteEtalon = false;
 
     const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-    const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
-                                 code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
+    const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
+      code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
     const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47');
 
     if (isSansConformiteAuto) {
@@ -177,7 +185,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     try {
       const response = await verifMachineService.getFamillesParMachine(machineCode);
       const dataArray = response.data?.data; // Car l'API renvoie { success, data: [] }
-      
+
       if (dataArray && dataArray.length > 0) {
         familles.value = dataArray.map(f => ({
           id: genererUid(),
@@ -201,20 +209,21 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const resetPlan = () => {
-    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 1, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
+    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, versionInitiale: null, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
     familles.value = [];
     lignesConformite.value = [];
     lignesRisques.value = [];
     planInitialise.value = false;
+    plansExistants.value = [];
     snapshotOriginal.value = null;
   };
 
   const ajouterFamille = (refFamilleCorpsId) => {
     if (!refFamilleCorpsId) return;
-    
+
     // On cherche d'abord dans les familles de corps
     let itemRef = famillesCorps.value.find(f => f.id === refFamilleCorpsId);
-    
+
     // Si non trouvé, on cherche dans les pièces de référence (PRC/PRNC)
     if (!itemRef) {
       const pieceRef = piecesReference.value.find(p => p.id === refFamilleCorpsId);
@@ -228,6 +237,10 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
     if (!itemRef) return;
     if (familles.value.some(f => f.refFamilleCorpsId === refFamilleCorpsId)) return;
+
+    // Éviter les doublons de nom (ex: Excel importe une pièce avec un ID différent mais le même libellé)
+    const norm = s => s?.replace(/\s+/g, '').toUpperCase() || '';
+    if (familles.value.some(f => norm(f.libelle) === norm(itemRef.libelle))) return;
 
     familles.value.push({
       id: genererUid(),
@@ -314,6 +327,15 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     }
   };
 
+  const fetchFormulairesReferences = async (role) => {
+    try {
+      const response = await qualityPlansService.getFormulairesListByRole(role);
+      formulairesReferences.value = response.data?.data || [];
+    } catch (e) {
+      console.error("Erreur fetch formulaires:", e);
+    }
+  };
+
   const fetchTousLesPlans = async () => {
     try {
       const response = await verifMachineService.getTousLesPlans();
@@ -337,10 +359,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         afficheMoyenDetectionRisques: data.afficheMoyenDetectionRisques,
         afficheFamilles: data.afficheFamilles,
         afficheFuiteEtalon: data.afficheFuiteEtalon,
-        version: data.version || 1,
+        version: data.version ?? 0,
         statut: data.statut || 'ACTIF',
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
+        configurationColonnes: data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [],
       };
 
       familles.value = (data.familles || []).map(f => {
@@ -392,6 +415,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       _uid: genererUid(),
       libelleRisque: ligne.libelleRisque || '',
       libelleMethode: ligne.libelleMethode || '',
+      valeursColonnesSpecifiques: ligne.colonnesSupplementaires ? (typeof ligne.colonnesSupplementaires === 'string' ? JSON.parse(ligne.colonnesSupplementaires) : ligne.colonnesSupplementaires) : {},
       groups: groups.length > 0 ? groups : [creerGroupVide()],
     };
   };
@@ -409,14 +433,14 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         const newId = response.data.planId || response.data.id;
         entete.value.id = newId;
         prendreSnapshot();
-        return { id: newId, noChanges: false };
+        return { id: newId, noChanges: false, version: response.data.version };
       } else {
         const response = await verifMachineService.creerPlanVerif(payload);
         const newId = response.data.planId || response.data.id;
         entete.value.id = newId;
         prendreSnapshot();
         await fetchTousLesPlans();
-        return { id: newId, noChanges: false };
+        return { id: newId, noChanges: false, version: response.data.version, isNew: true };
       }
     } finally {
       isLoading.value = false;
@@ -441,24 +465,40 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   const importerDepuisExcel = async (file) => {
     isLoading.value = true;
     try {
-      const response = await verifMachineService.importExcel(file);
+      const configColonnesJson = typeof entete.value.configurationColonnes === 'string'
+        ? entete.value.configurationColonnes
+        : JSON.stringify(entete.value.configurationColonnes || []);
+
+      const response = await verifMachineService.importExcel(file, configColonnesJson);
       const data = response.data.data;
 
       // ✅ REFRESH DICTIONARIES (Backend might have created new families/pieces)
       await fetchDictionnaires(true);
 
-      // On réinitialise avec le code machine détecté ou actuel
-      await initialiserPlan(data.machineCode || entete.value.machineCode);
+      const targetMachineCode = data.machineCode || entete.value.machineCode;
+
+      if (targetMachineCode !== entete.value.machineCode || !planInitialise.value) {
+        // Si on change de machine ou que le plan n'était pas initialisé, on recharge complètement
+        await initialiserPlan(targetMachineCode);
+      } else {
+        // Sinon, on garde les familles telles qu'elles sont à l'écran (avec les suppressions manuelles !)
+        // On vide simplement les lignes pour les remplacer par l'Excel
+        lignesConformite.value = [];
+        lignesRisques.value = [];
+      }
+
+      // Re-charger les dictionnaires pour inclure les éventuelles nouvelles pièces créées par le backend
+      await fetchDictionnaires(true);
 
       // ✅ IMPORT DES FAMILLES DÉTECTÉES DANS L'EXCEL
-      if (data.familles?.length > 0) {
-        // On vide les familles par défaut (BEE46...) pour mettre celles de l'Excel
-        familles.value = [];
+      // On importe les familles de l'Excel UNIQUEMENT si la machine n'a pas déjà de familles configurées.
+      if (data.familles?.length > 0 && familles.value.length === 0) {
+        // On ne vide plus les familles existantes pour préserver les ajouts manuels
         const normalizeStr = s => s?.replace(/\s+/g, '').toUpperCase() || '';
         data.familles.forEach(fStr => {
           const normFStr = normalizeStr(fStr);
           // On cherche dans les dicos fraîchement mis à jour
-          const famRef = famillesCorps.value.find(fc => 
+          const famRef = famillesCorps.value.find(fc =>
             normalizeStr(fc.libelle) === normFStr ||
             normalizeStr(fc.code) === normFStr ||
             fStr.includes(`(${fc.libelle})`)
@@ -468,7 +508,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
             ajouterFamille(famRef.id);
           } else {
             // C'est peut-être une pièce de référence directe
-            const pRef = piecesReference.value.find(pr => 
+            const pRef = piecesReference.value.find(pr =>
               normalizeStr(pr.code) === normFStr
             );
             if (pRef) ajouterFamille(pRef.id);
@@ -486,27 +526,33 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
           _uid: genererUid(),
           libelleRisque: li.libelleRisque,
           libelleMethode: li.libelleMethode,
+          valeursColonnesSpecifiques: li.colonnesSupplementaires || {},
           groups: li.echeances.map(ech => ({
             _uid: genererUid(),
             periodiciteId: ech.periodiciteId || '',
             // 🟢 NOUVEAU : Mapper chaque Row (moyen) sous la périodicité
             rows: (ech.rows || []).map(rowItem => ({
               _uid: genererUid(),
-              refMoyenDetectionId: moyensDetection.value.find(m => 
+              refMoyenDetectionId: moyensDetection.value.find(m =>
                 m.libelle?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase() ||
                 m.code?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase()
               )?.id || '',
               matricePieces: (() => {
                 const pieces = (rowItem.matricePieces || []).map(mp => {
-                  const pieceRef = piecesReference.value.find(p => p.code === mp.pieceRefCode) 
-                                 || fuitesEtalon.value.find(p => p.code === mp.pieceRefCode);
+                  const pieceRef = piecesReference.value.find(p => p.code === mp.pieceRefCode)
+                    || fuitesEtalon.value.find(p => p.code === mp.pieceRefCode);
 
                   let matchingFamId = null;
                   if (mp.familleCode) {
-                    const normMpFam = mp.familleCode.replace(/\s+/g, '').toUpperCase();
+                    // Correction des fautes de frappe courantes dans les fichiers Excel
+                    let correctedFamCode = mp.familleCode
+                      .replace('2580A01', '25B0A01')
+                      .replace('25AUA01', '25UA01');
+                    
+                    const normMpFam = correctedFamCode.replace(/\s+/g, '').toUpperCase();
                     const importedFam = familles.value.find(f => {
-                       const normFLib = f.libelle?.replace(/\s+/g, '').toUpperCase() || '';
-                       return normFLib === normMpFam || mp.familleCode.includes(`(${f.libelle})`);
+                      const normFLib = f.libelle?.replace(/\s+/g, '').toUpperCase() || '';
+                      return normFLib === normMpFam || correctedFamCode.includes(`(${f.libelle})`);
                     });
                     if (importedFam) matchingFamId = importedFam.refFamilleCorpsId;
                   }
@@ -533,16 +579,28 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         }));
       };
 
-      if (data.lignesConformite?.length > 0) {
-        lignesConformite.value = mapLignes(data.lignesConformite);
-        entete.value.afficheConformite = true;
-      }
-      if (data.lignesRisques?.length > 0) {
-        lignesRisques.value = mapLignes(data.lignesRisques);
-      }
+      const checkMachineSansConformite = (machineCode) => {
+        if (!machineCode) return false;
+        const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
+        return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
+               code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
+      };
 
-      // Re-charger les dictionnaires pour inclure les éventuelles nouvelles pièces créées
-      await fetchDictionnaires(true); // Passer true pour forcer le rechargement
+      if (checkMachineSansConformite(entete.value.machineCode)) {
+        // Force all lines into Risques if the machine doesn't support Conformite
+        const combinedLines = [...(data.lignesConformite || []), ...(data.lignesRisques || [])];
+        if (combinedLines.length > 0) {
+          lignesRisques.value = mapLignes(combinedLines);
+        }
+      } else {
+        if (data.lignesConformite?.length > 0) {
+          lignesConformite.value = mapLignes(data.lignesConformite);
+          entete.value.afficheConformite = true;
+        }
+        if (data.lignesRisques?.length > 0) {
+          lignesRisques.value = mapLignes(data.lignesRisques);
+        }
+      }
 
       return { success: true };
     } finally {
@@ -551,7 +609,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   return {
-    machines, periodicites, famillesCorps, moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded,
+    machines, periodicites, famillesCorps, moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded, formulairesReferences,
     entete, familles, lignesConformite, lignesRisques,
     isLoading, planInitialise, plansExistants,
     genererUid, creerGroupVide, creerLigneVide,
@@ -560,7 +618,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,
     ajouterGroupPeriodicite, supprimerGroupPeriodicite, ajouterRowDetail, supprimerRowDetail,
     getPieceValue, setPieceValue,
-    fetchDictionnaires, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications,
+    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications,
     restaurerPlanVerif, importerDepuisExcel
   };
 });

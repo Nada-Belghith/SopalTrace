@@ -1,0 +1,2 @@
+"using System;\nusing SopalTrace.Domain.Interfaces;\n\nnamespace SopalTrace.Domain.Entities;\n\npublic abstract class BasePlanEntete : AuditableEntity, IPlanEntete\n{\n    public string Statut { get; set; } = null!;\n    public int Version { get; set; }\n}
+<truncated 3 bytes>

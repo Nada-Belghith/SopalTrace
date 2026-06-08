@@ -20,6 +20,10 @@ public record CreatePlanEchanRequestDto
     public string CommentaireVersion { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+
+
+
+
     public List<PlanEchanRegleDto> Regles { get; init; } = new();
 }
 
@@ -69,6 +73,10 @@ public record UpdatePlanEchanRequestDto
     
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+
+
+
+
     public string ModifiePar { get; init; }
     public List<PlanEchanRegleDto> Regles { get; init; } = new();
 }
@@ -96,5 +104,9 @@ public record PlanEchanResponseDto
     public string CommentaireVersion { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+
+
+
+
     public List<PlanEchanRegleDto> Regles { get; init; } = new();
 }

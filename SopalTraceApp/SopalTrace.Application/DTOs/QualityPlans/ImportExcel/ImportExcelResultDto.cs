@@ -39,4 +39,5 @@ public class ImportExcelLigneDto
     public string LimiteSpecTexte { get; set; } = string.Empty;
     public string Observations { get; set; } = string.Empty;
     public bool EstCritique { get; set; } = false;
+    public Dictionary<string, string> ColonnesSupplementaires { get; set; } = new();
 }

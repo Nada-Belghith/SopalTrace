@@ -23,8 +23,8 @@ public class GenericSmartDictionaryService
     /// <summary>
     /// Executes smart dictionary pass for any plan section collection
     /// </summary>
-    /// <typeparam name="TSection">Section entity type (PlanFabSection, PlanPfSection, PlanAssSection, etc.)</typeparam>
-    /// <typeparam name="TLine">Line entity type (PlanFabLigne, PlanPfLigne, PlanAssLigne, etc.)</typeparam>
+    /// <typeparam name="TSection">Section entity type (PlanFabricationSection, PlanProduitFiniSection, PlanAssemblageSection, etc.)</typeparam>
+    /// <typeparam name="TLine">Line entity type (PlanFabricationLigne, PlanProduitFiniLigne, PlanAssemblageLigne, etc.)</typeparam>
     /// <param name="sections">Collection of sections to process</param>
     /// <param name="repo">Dictionary repository for lookups and creation</param>
     /// <param name="lineExtractor">Function to extract line collection from section</param>

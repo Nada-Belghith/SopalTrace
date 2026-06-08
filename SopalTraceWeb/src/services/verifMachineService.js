@@ -19,9 +19,12 @@ export const verifMachineService = {
 
   restaurerPlanVerif: (payload) => apiClient.post('/plans-verif-machine/restaurer', payload),
   
-  importExcel: (file) => {
+  importExcel: (file, configurationColonnesJson) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (configurationColonnesJson) {
+      formData.append('configurationColonnesJson', configurationColonnesJson);
+    }
     return apiClient.post('/plans-verif-machine/import-excel', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });

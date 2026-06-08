@@ -15,8 +15,9 @@ public class UnitOfWork : IUnitOfWork
 
     private IPlanAssRepository? _planAssRepository;
     private IUserRepository? _userRepository;
-    private IPlanNcRepository? _planNcRepository;
+    private IControlePosteRepository? _ControlePosteRepository;
     private IPlanVerifMachineRepository? _planVerifMachineRepository;
+    private IPlanRccfRepository? _planRccfRepository;
     private IPlanEchanRepository? _planEchanRepository;
 
 
@@ -31,11 +32,14 @@ public class UnitOfWork : IUnitOfWork
     public IUserRepository UserRepository
         => _userRepository ??= new UserRepository(_context);
 
-    public IPlanNcRepository PlanNcRepository
-        => _planNcRepository ??= new PlanNcRepository(_context);
+    public IControlePosteRepository ControlePosteRepository
+        => _ControlePosteRepository ??= new ControlePosteRepository(_context);
 
     public IPlanVerifMachineRepository PlanVerifMachineRepository
         => _planVerifMachineRepository ??= new PlanVerifMachineRepository(_context);
+
+    public IPlanRccfRepository PlanRccfRepository
+        => _planRccfRepository ??= new PlanRccfRepository(_context);
 
     public IPlanEchanRepository PlanEchanRepository
         => _planEchanRepository ??= new PlanEchanRepository(_context);
@@ -43,6 +47,10 @@ public class UnitOfWork : IUnitOfWork
     private IDictionnaireQualiteRepository? _dictionnaireQualiteRepository;
     public IDictionnaireQualiteRepository DictionnaireQualiteRepository
         => _dictionnaireQualiteRepository ??= new DictionnaireQualiteRepository(_context);
+
+    private IRefFormulaireRepository? _refFormulaireRepository;
+    public IRefFormulaireRepository RefFormulaireRepository
+        => _refFormulaireRepository ??= new RefFormulaireRepository(_context);
 
     public async Task BeginTransactionAsync()
     {

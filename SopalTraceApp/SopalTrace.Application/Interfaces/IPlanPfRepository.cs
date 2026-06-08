@@ -7,19 +7,20 @@ namespace SopalTrace.Application.Interfaces;
 
 public interface IPlanPfRepository
 {
-    Task<List<PlanPfEntete>> GetGenericPlansAsync();
-    Task<PlanPfEntete?> GetPlanByIdAsync(Guid id);
-    Task<PlanPfEntete?> GetPlanPourArchivageAsync(Guid id);
+    Task<List<PlanProduitFiniEntete>> GetGenericPlansAsync();
+    Task<PlanProduitFiniEntete?> GetPlanByIdAsync(Guid id);
+    Task<PlanProduitFiniEntete?> GetPlanPourArchivageAsync(Guid id);
     
     Task<bool> ExistsActiveOrDraftPlanAsync(string familleProduitFiniCode);
-    Task<PlanPfEntete?> GetDraftPlanByFamilleAsync(string familleProduitFiniCode);
+    Task<PlanProduitFiniEntete?> GetDraftPlanByFamilleAsync(string familleProduitFiniCode);
+    Task<PlanProduitFiniEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId);
     
-    Task AddPlanAsync(PlanPfEntete plan);
-    Task<List<PlanPfEntete>> GetActivePlansByFamilleAsync(string familleProduitFiniCode);
-    Task UpdatePlanAsync(PlanPfEntete plan);
+    Task AddPlanAsync(PlanProduitFiniEntete plan);
+    Task<List<PlanProduitFiniEntete>> GetActivePlansByFamilleAsync(string familleProduitFiniCode);
+    Task UpdatePlanAsync(PlanProduitFiniEntete plan);
     Task<int> GetDerniereVersionPlanAsync(string familleProduitFiniCode);
     
     Task SaveChangesAsync();
     void ClearTracking();
-    void DeletePlan(PlanPfEntete plan);
+    void DeletePlan(PlanProduitFiniEntete plan);
 }

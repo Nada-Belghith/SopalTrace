@@ -14,6 +14,8 @@ public record CreatePlanPfRequestDto
     public string? FamilleProduitFiniCode { get; init; }
     public string? Remarques { get; init; }
     public string? LegendeMoyens { get; init; }
+    public string? ConfigurationColonnesJson { get; init; }
+    public int? VersionInitiale { get; init; }
     public List<SectionPfEditDto> Sections { get; init; } = new();
 }
 
@@ -25,6 +27,8 @@ public record NouvelleVersionPfRequestDto
     public string? MotifModification { get; init; }
     public string? Remarques { get; init; }
     public string? LegendeMoyens { get; init; }
+    public string? ConfigurationColonnesJson { get; init; }
+    public int? VersionInitiale { get; init; }
     public List<SectionPfEditDto> Sections { get; init; } = new();
 }
 
@@ -73,6 +77,7 @@ public record LignePfEditDto
     public string? Instruction { get; init; }
     public string? Observations { get; init; }
     public bool EstCritique { get; init; }
+    public string? ColonnesSupplementaires { get; init; }
 }
 
 // ====================================================================
@@ -92,6 +97,7 @@ public record PlanPfEnteteDto
     public DateTime? ModifieLe { get; set; }
     public string Remarques { get; set; } = string.Empty;
     public string LegendeMoyens { get; set; } = string.Empty;
+    public string? ConfigurationColonnesJson { get; set; }
 
     public List<PlanPfSectionDto> Sections { get; set; } = new();
 }
@@ -131,4 +137,5 @@ public record PlanPfLigneDto
     public string Instruction { get; set; } = string.Empty;
     public string Observations { get; set; } = string.Empty;
     public bool EstCritique { get; set; }
+    public string? ColonnesSupplementaires { get; set; }
 }

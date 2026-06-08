@@ -24,6 +24,13 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
             p.Statut == "ACTIF");
     }
 
+    public async Task<bool> ExistePlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanVerifMachineEntetes.AnyAsync(p =>
+            p.FormulaireId == formulaireId &&
+            p.Statut == "ACTIF");
+    }
+
     public async Task<PlanVerifMachineEntete> GetPlanActifAsync(string machineCode)
     {
         return await _context.PlanVerifMachineEntetes.FirstOrDefaultAsync(p =>
@@ -31,10 +38,18 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
             p.Statut == "ACTIF");
     }
 
+    public async Task<PlanVerifMachineEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
+    {
+        return await _context.PlanVerifMachineEntetes.FirstOrDefaultAsync(p =>
+            p.FormulaireId == formulaireId &&
+            p.Statut == "ACTIF");
+    }
+
     public async Task<PlanVerifMachineEntete> GetPlanAvecRelationsAsync(Guid planId)
     {
         // 4 niveaux d'Include pour ramener l'arbre complet
         return await _context.PlanVerifMachineEntetes
+            .Include(p => p.Formulaire)
             .Include(p => p.PlanVerifMachineFamilles)
             .Include(p => p.PlanVerifMachineLignes)
                 .ThenInclude(l => l.PlanVerifMachineEcheances)
@@ -83,6 +98,26 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
             .FirstOrDefaultAsync(m => m.CodeMachine == machineCode);
 
         return machine?.RefFamilleCorps?.ToList() ?? new List<RefFamilleCorp>();
+    }
+
+    public async Task SyncMachineFamillesAsync(string machineCode, List<Guid> refFamilleCorpsIds)
+    {
+        var machine = await _context.Machines
+            .Include(m => m.RefFamilleCorps)
+            .FirstOrDefaultAsync(m => m.CodeMachine == machineCode);
+
+        if (machine != null)
+        {
+            machine.RefFamilleCorps.Clear();
+            foreach (var id in refFamilleCorpsIds)
+            {
+                var refFam = await _context.RefFamilleCorps.FindAsync(id);
+                if (refFam != null)
+                {
+                    machine.RefFamilleCorps.Add(refFam);
+                }
+            }
+        }
     }
 
     public void RemoveLigne(PlanVerifMachineLigne ligne) => _context.PlanVerifMachineLignes.Remove(ligne);

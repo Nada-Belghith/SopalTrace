@@ -3,6 +3,7 @@ using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Infrastructure.Data;
+using SopalTrace.Domain.Entities;
 
 namespace SopalTrace.Infrastructure.Services;
 
@@ -150,7 +151,7 @@ public class ReferentielService : IReferentielService
         );
     }
 
-    public async Task<PlanNcReferentielsDto> GetPlanNcReferentielsAsync()
+    public async Task<ControlePosteReferentielsDto> GetControlePosteReferentielsAsync()
     {
         var postes = (await _context.PosteTravails
             .Where(p => p.Actif)
@@ -176,7 +177,7 @@ public class ReferentielService : IReferentielService
             .Select(r => new ReferenceItemDto(r.Id, r.CodeDefaut, r.LibelleDefaut, true, null))
             .ToList();
 
-        return new PlanNcReferentielsDto(postes, machines, risquesDefauts);
+        return new ControlePosteReferentielsDto(postes, machines, risquesDefauts);
     }
 
     public async Task<VerifMachineReferentielsDto> GetVerifMachineReferentielsAsync()
@@ -233,9 +234,9 @@ public class ReferentielService : IReferentielService
         // Security check: Only allow fabricated articles
         if (article.NatureArticleCodeNavigation.Origine != "FABRIQUE") return null;
 
-        var validOps = await _context.ModeleFabEntetes
+        var validOps = await _context.ModeleFabricationEntetes
             .AsNoTracking()
-            .Where(m => m.NatureArticleCode == article.NatureArticleCode && m.Statut == "ACTIF")
+            .Where(m => EF.Property<string>(m, "NatureArticleCode") == article.NatureArticleCode && EF.Property<string>(m, "Statut") == "ACTIF")
             .Select(m => m.OperationCode)
             .Distinct()
             .ToListAsync();
@@ -318,5 +319,143 @@ public class ReferentielService : IReferentielService
         await _context.SaveChangesAsync();
 
         return new PieceRefDto(entite.Id, entite.Code, entite.Designation, entite.FamilleDesc, entite.TypePiece);
+    }
+
+    public async Task<FormulaireStructureDto?> GetFormulaireByRoleAsync(string role)
+    {
+        var formulaire = await _context.RefFormulaires
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Role == role && f.Statut == "ACTIF");
+
+        if (formulaire == null) return null;
+
+        return new FormulaireStructureDto(
+            formulaire.Id,
+            formulaire.CodeReference,
+            formulaire.Designation,
+            formulaire.ConfigurationStructureJson,
+            formulaire.Role ?? string.Empty,
+            formulaire.Version
+        );
+    }
+
+    public async Task<FormulaireStructureDto?> GetFormulaireByIdAsync(Guid id)
+    {
+        var formulaire = await _context.RefFormulaires
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == id);
+
+        if (formulaire == null) return null;
+
+        return new FormulaireStructureDto(
+            formulaire.Id,
+            formulaire.CodeReference,
+            formulaire.Designation,
+            formulaire.ConfigurationStructureJson,
+            formulaire.Role ?? string.Empty,
+            formulaire.Version
+        );
+    }
+
+    public async Task<FormulaireStructureDto?> GetFormulaireActifParCodeReferenceAsync(string codeReference)
+    {
+        var formulaire = await _context.RefFormulaires
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.CodeReference == codeReference && f.Statut == "ACTIF");
+
+        if (formulaire == null) return null;
+
+        return new FormulaireStructureDto(
+            formulaire.Id,
+            formulaire.CodeReference,
+            formulaire.Designation,
+            formulaire.ConfigurationStructureJson,
+            formulaire.Role ?? string.Empty,
+            formulaire.Version
+        );
+    }
+
+    public async Task<IEnumerable<FormulaireReferenceItemDto>> GetFormulairesListByRoleAsync(string role)
+    {
+        return await _context.RefFormulaires
+            .AsNoTracking()
+            .Where(f => f.Role == role && f.Statut == "ACTIF")
+            .OrderBy(f => f.Designation)
+            .Select(f => new FormulaireReferenceItemDto(
+                f.Id,
+                f.CodeReference,
+                f.Designation,
+                f.Role ?? string.Empty,
+                f.Version,
+                f.ConfigurationStructureJson
+            ))
+            .ToListAsync();
+    }
+
+    public async Task<(Guid Id, int Version)?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null, int? versionInitiale = null)
+    {
+        Guid? nouveauFormulaireId = null;
+        int versionFinale = 1;
+
+        // Chercher le formulaire actif par codeReference ET role (spécifique) ou par role seul (générique)
+        RefFormulaire? formulaireActuel;
+        if (!string.IsNullOrWhiteSpace(codeReference))
+        {
+            // Cibler le formulaire SPÉCIFIQUE sélectionné par l'utilisateur
+            formulaireActuel = await _context.RefFormulaires
+                .FirstOrDefaultAsync(f => f.CodeReference == codeReference && f.Role == role && f.Statut == "ACTIF");
+        }
+        else
+        {
+            // Comportement générique : premier actif pour ce rôle
+            formulaireActuel = await _context.RefFormulaires
+                .FirstOrDefaultAsync(f => f.Role == role && f.Statut == "ACTIF");
+        }
+
+        if (formulaireActuel != null)
+        {
+            // Archiver la version actuelle active
+            formulaireActuel.Statut = "ARCHIVE";
+
+            // Créer une nouvelle version active avec version+1
+            var newVersion = formulaireActuel.Version + 1;
+            var nouveauFormulaire = new RefFormulaire
+            {
+                Id = Guid.NewGuid(),
+                CodeReference = formulaireActuel.CodeReference,
+                Designation = formulaireActuel.Designation,
+                Version = newVersion,
+                Statut = "ACTIF",
+                CreeLe = DateTime.UtcNow,
+                Role = role,
+                ConfigurationStructureJson = configurationStructureJson
+            };
+            _context.RefFormulaires.Add(nouveauFormulaire);
+            nouveauFormulaireId = nouveauFormulaire.Id;
+            versionFinale = newVersion;
+        }
+        else
+        {
+            // Fallback : aucune version active trouvée → créer une nouvelle entrée
+            var code = !string.IsNullOrWhiteSpace(codeReference) ? codeReference : role;
+            var nouveauFormulaire = new RefFormulaire
+            {
+                Id = Guid.NewGuid(),
+                CodeReference = code,
+                Designation = $"Formulaire {code}",
+                Version = 1,
+                Statut = "ACTIF",
+                CreeLe = DateTime.UtcNow,
+                Role = role,
+                ConfigurationStructureJson = configurationStructureJson
+            };
+            _context.RefFormulaires.Add(nouveauFormulaire);
+            nouveauFormulaireId = nouveauFormulaire.Id;
+            versionFinale = 1;
+        }
+
+        // ✅ PAS de SaveChangesAsync ici — le contexte est partagé avec l'UnitOfWork du service appelant.
+        // Le commit est fait UNE SEULE FOIS par l'appelant (CommitAsync), garantissant l'atomicité.
+        return nouveauFormulaireId.HasValue ? (nouveauFormulaireId.Value, versionFinale) : null;
     }
 }

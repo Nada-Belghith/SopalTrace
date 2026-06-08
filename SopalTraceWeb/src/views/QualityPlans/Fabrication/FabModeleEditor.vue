@@ -57,10 +57,16 @@
                 <span>Importer la structure Excel</span>
               </button>
             </div>
+            
+            <div v-if="!isReadOnly" class="ml-4 shrink-0 flex items-center">
+              <button @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors h-10 shadow-md">
+                <i class="pi pi-sliders-h"></i> Configurer Colonnes
+              </button>
+            </div>
           </div>
 
-          <div class="mb-4">
-            <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrôle</h3>
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrle</h3>
           </div>
 
           <template v-if="groupes.length === 0">
@@ -75,6 +81,7 @@
               :sections="groupes"
               :remarques="store.entete.notes"
               :legende-moyens="store.entete.legendeMoyens"
+              :configuration-colonnes="store.entete.configurationColonnes"
               :types-section="store.typesSection || []"
               :types-caracteristique="store.typesCaracteristique || []"
               :types-controle="store.typesControle || []"
@@ -102,6 +109,7 @@
                   v-for="ligne in groupe.lignes" 
                   :key="ligne.id" 
                   :ligne="ligne"
+                  :columns="modeleColumns"
                   :is-read-only="isReadOnly"
                   :operation-code="store.entete?.operationCode"
                   @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
@@ -141,6 +149,12 @@
         </div>
       </div>
     </div>
+    
+    <!-- MODAL DE CONFIGURATION DES COLONNES -->
+    <ColumnConfigurator 
+      v-model:visible="showColumnModal"
+      v-model="store.entete.configurationColonnes"
+    />
   </div>
 </template>
 
@@ -165,6 +179,7 @@ import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import FabSectionCard from '@/components/Fabrication/FabSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 import { useEditorSections } from '@/composables/useEditorSections';
@@ -190,8 +205,9 @@ const {
 const modeleEditionId = ref(null);
 const codeOriginal = ref('');
 const statut = ref('BROUILLON');
-const version = ref(1);
+const version = ref(0);
 const showVersioningDialog = ref(false);
+const showColumnModal = ref(false);
 const versioningMode = ref('FAB');
 const isAutoVersioning = ref(false);
 
@@ -203,7 +219,7 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerModele, creerNouvelleVersionModele } = useModeleVersioning();
+const { restaurerModele } = useModeleVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -222,17 +238,36 @@ watch(
 );
 
 // ============================================================================
-// COLONNES RÉUTILISABLES
+// COLONNES RÉUTILISABLES ET DYNAMIQUES
 // ============================================================================
-const modeleColumns = [
-  { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Observations', width: 'flex-1' },
-  { label: '', width: 'w-12', textAlign: 'center' }
+const baseModeleColumns = [
+  { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
+  { key: 'limite_spec', label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
+  { key: 'type_controle', label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'code_instrument', label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'observations', label: 'Observations', width: 'flex-1' }
 ];
+
+const modeleColumns = computed(() => {
+  let cols = [...baseModeleColumns];
+  const customCols = store.entete.configurationColonnes || [];
+  
+  customCols.forEach(cc => {
+    const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
+    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', textAlign: 'center', isCustom: true };
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, newCol);
+    } else {
+      cols.push(newCol);
+    }
+  });
+
+  // Always add the actions column at the end
+  cols.push({ key: 'actions', label: '', width: 'w-12', textAlign: 'center' });
+  
+  return cols;
+});
 
 const isLoading = computed(() => store.isLoading);
 const isEditMode = computed(() => !!modeleEditionId.value);
@@ -334,6 +369,12 @@ const onFileSelected = async (event) => {
 
   const formData = new FormData();
   formData.append('file', file);
+  if (store.entete.configurationColonnes) {
+    const configJson = typeof store.entete.configurationColonnes === 'string'
+      ? store.entete.configurationColonnes
+      : JSON.stringify(store.entete.configurationColonnes);
+    formData.append('configurationColonnesJson', configJson);
+  }
 
   try {
     store.isLoading = true;
@@ -381,7 +422,8 @@ const onFileSelected = async (event) => {
                     observations: lig.observations || '',
                     instruction: lig.instruction || '',
                     estCritique: lig.estCritique || false,
-                    libelleAffiche: lig.libelleAffiche || ''
+                    libelleAffiche: lig.libelleAffiche || '',
+                    valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
                   }))
                 : [] // ✅ Sections sans lignes (complexes) restent vides pour édition
             };
@@ -436,6 +478,9 @@ const onFileSelected = async (event) => {
 onMounted(async () => {
   try {
     await store.fetchDictionnaires();
+    if (route.query.mode === 'assembly') {
+      await store.fetchFormulairesReferences('EN_COURS_DE_ASSEMBLAGE');
+    }
     
     if (route.params.id && route.params.id !== 'nouveau') {
       await chargerModelePourEdition(route.params.id);
@@ -450,6 +495,7 @@ onMounted(async () => {
 
 const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
+  store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
     const res = await qualityPlansService.getModeleById(id);
     const data = res.data.data || res.data;
@@ -468,6 +514,7 @@ const chargerModelePourEdition = async (id) => {
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitCode || '';
+    store.entete.configurationColonnes = data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [];
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
       (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -536,7 +583,8 @@ const chargerModelePourEdition = async (id) => {
           unite: lig.unite || '',
           limiteSpecTexte: lig.limiteSpecTexte || '',
           observations: lig.observations || '',
-          moyenTexteLibre: lig.moyenTexteLibre || ''
+          moyenTexteLibre: lig.moyenTexteLibre || '',
+          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
         }))
       };
     });
@@ -553,8 +601,10 @@ const chargerModelePourEdition = async (id) => {
     router.push('/dev/hub');
   } finally {
     store.isLoading = false;
+    store.isBeingLoaded = false;  // ✅ Réactive les watchers après le chargement
   }
 };
+
 
 
 const preparerDonneesEtFrequences = async () => {
@@ -583,7 +633,8 @@ const sauvegarderDirectement = async () => {
       null, // typeRobinet (optionnel)
       store.entete.natureComposantCode,
       store.entete.operationCode,
-      store.entete.posteCode
+      store.entete.posteCode,
+      store.entete.familleProduitCode  // ✅ filtre par famille pour éviter d'archiver BAC01 quand on crée BAC02
     );
 
     const activeModel = (resExist.data?.data || []).find(m => m.statut === 'ACTIF');
@@ -600,9 +651,9 @@ const sauvegarderDirectement = async () => {
     }
 
     store.sections = await preparerDonneesEtFrequences();
-    await store.saveModele(store.entete.legendeMoyens);
+    const resData = await store.saveModele(store.entete.legendeMoyens);
     
-    toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle créé et activé !', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle (V${resData?.version ?? 0}) créé et activé !`, life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
@@ -616,52 +667,10 @@ const sauvegarderV2 = async (motif) => {
   store.isLoading = true;
   try {
     const sectionsPrepared = await preparerDonneesEtFrequences();
+    store.sections = sectionsPrepared;
 
-    const sectionsForPayload = sectionsPrepared.map((s, idx) => ({
-      id: s.id,
-      ordreAffiche: idx + 1,
-      typeSectionId: s.typeSectionId,
-      periodiciteId: s.periodiciteId,
-      libelleSection: s.libelleSection || 'SECTION SANS NOM',
-      frequenceLibelle: s.frequenceLibelle || '',
-      notes: s.notes || '',
-      lignes: (s.lignes || []).map((l, lIdx) => ({
-        id: l.id,
-        ordreAffiche: l.ordreAffiche ?? (lIdx + 1),
-        typeCaracteristiqueId: l.typeCaracteristiqueId,
-        libelleAffiche: l.libelleAffiche,
-        typeControleId: l.typeControleId,
-        moyenControleId: l.moyenControleId,
-        instrumentCode: l.instrumentCode,
-        periodiciteId: l.periodiciteId,
-        instruction: l.instruction,
-        estCritique: l.estCritique,
-        unite: l.unite || '',
-        limiteSpecTexte: l.limiteSpecTexte || '',
-        observations: l.observations || '',
-        moyenTexteLibre: l.moyenTexteLibre || ''
-      }))
-    }));
-
-    const payloadV2 = {
-      ancienId: modeleEditionId.value,
-      modifiePar: 'ADMIN_QUALITE',
-      motifModification: motif || 'Création d\'une nouvelle version',
-      libelle: store.entete.libelle || `Modèle ${store.codeModeleAuto} V${version.value + 1}`,
-      notes: store.entete.notes || '',
-      legendeMoyens: store.entete.legendeMoyens || '',
-
-      natureComposantCode: store.entete.natureComposantCode || null,
-      typeRobinetCode: store.entete.typeRobinetCode || null,
-      operationCode: store.entete.operationCode || null,
-      code: store.entete.code || store.codeModeleAuto,
-      posteCode: store.entete.posteCode || null,
-      familleProduitCode: (store.entete.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (store.entete.familleProduitCode || null),
-      sections: sectionsForPayload
-    };
-
-    await creerNouvelleVersionModele(payloadV2);
-    toast.add({ severity: 'success', summary: `V${version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
+    const resData = await store.creerNouvelleVersion(modeleEditionId.value, motif, store.entete.legendeMoyens);
+    toast.add({ severity: 'success', summary: `V${resData?.version ?? version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
@@ -676,7 +685,7 @@ const restaurerArchive = async (motif) => {
   try {
     const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
     await restaurerModele(payloadRestore);
-    toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: 'L\'archive a été réactivée en tant que nouvelle version.', life: 4000 });
+    toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
     setTimeout(() => router.push('/dev/hub'), 1500);
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur de restauration', detail: error.message, life: 6000 });

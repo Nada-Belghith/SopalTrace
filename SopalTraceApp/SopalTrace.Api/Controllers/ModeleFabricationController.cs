@@ -22,9 +22,10 @@ public class ModeleFabricationController : ControllerBase
         [FromQuery] string? typeRobinet, 
         [FromQuery] string? natureComposant, 
         [FromQuery] string? operation,
-        [FromQuery] string? poste)
+        [FromQuery] string? poste,
+        [FromQuery] string? familleProduit)
     {
-        var data = await _modeleService.GetModelesByFiltersAsync(typeRobinet, natureComposant, operation, poste);
+        var data = await _modeleService.GetModelesByFiltersAsync(typeRobinet, natureComposant, operation, poste, familleProduit);
         return Ok(new { success = true, data });
     }
 
@@ -32,7 +33,8 @@ public class ModeleFabricationController : ControllerBase
     public async Task<IActionResult> CreerModele([FromBody] CreateModeleRequestDto request)
     {
         var id = await _modeleService.CreerModeleAsync(request);
-        return Ok(new { success = true, modeleId = id, message = "Modèle créé et activé avec succès." });
+        var data = await _modeleService.GetModeleByIdAsync(id);
+        return Ok(new { success = true, modeleId = id, version = data?.Version ?? 0, message = "Modèle créé et activé avec succès." });
     }
 
     [HttpDelete("{id}")]
@@ -54,7 +56,8 @@ public class ModeleFabricationController : ControllerBase
     public async Task<IActionResult> CreerVersionModele([FromBody] NouvelleVersionModeleRequestDto request)
     {
         var id = await _modeleService.CreerNouvelleVersionModeleAsync(request);
-        return Ok(new { success = true, modeleId = id, message = "V2 du modèle générée avec succès." });
+        var data = await _modeleService.GetModeleByIdAsync(id);
+        return Ok(new { success = true, modeleId = id, version = data?.Version ?? 0, message = $"V{data?.Version ?? 0} du modèle générée avec succès." });
     }
 
     [HttpPost("restaurer")]
@@ -63,7 +66,8 @@ public class ModeleFabricationController : ControllerBase
         try
         {
             var id = await _modeleService.RestaurerModeleArchiveAsync(request);
-            return Ok(new { success = true, modeleId = id, message = "Modèle restauré et activé avec succès." });
+            var data = await _modeleService.GetModeleByIdAsync(id);
+            return Ok(new { success = true, modeleId = id, version = data?.Version ?? 0, message = "Modèle restauré et activé avec succès." });
         }
         catch (Exception ex)
         {

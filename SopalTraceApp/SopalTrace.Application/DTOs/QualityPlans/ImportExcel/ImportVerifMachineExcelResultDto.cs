@@ -19,6 +19,7 @@ public class ImportVerifMachineLigneDto
     public Guid Id { get; set; } = Guid.NewGuid();
     public string LibelleRisque { get; set; } = string.Empty;
     public string LibelleMethode { get; set; } = string.Empty;
+    public Dictionary<string, string> ColonnesSupplementaires { get; set; } = new();
     public List<ImportVerifMachineEcheanceDto> Echeances { get; set; } = new();
 }
 

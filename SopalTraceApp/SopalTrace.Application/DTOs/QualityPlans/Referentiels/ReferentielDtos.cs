@@ -122,8 +122,32 @@ public record MachinePosteDto(
     string? PosteCode
 );
 
-public record PlanNcReferentielsDto(
+public record ControlePosteReferentielsDto(
     List<ReferenceItemDto> Postes,
     List<MachinePosteDto> Machines,
     List<ReferenceItemDto> RisquesDefauts
 );
+
+public record FormulaireStructureDto(
+    Guid Id,
+    string CodeReference,
+    string Designation,
+    string? ConfigurationStructureJson,
+    string Role,
+    int Version
+);
+
+public record FormulaireReferenceItemDto(
+    Guid Id,
+    string CodeReference,
+    string Designation,
+    string Role,
+    int Version,
+    string? ConfigurationStructureJson
+);
+
+public record UpdateFormulaireStructureDto(
+    string? ConfigurationStructureJson,
+    int? VersionInitiale
+);
+

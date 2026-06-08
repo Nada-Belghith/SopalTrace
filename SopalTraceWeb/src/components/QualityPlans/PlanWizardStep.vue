@@ -178,7 +178,7 @@
         <!-- Méthodes principales: 3 options -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
 
-          <!-- Option 1: From Template (Modèle) -->
+          <!-- Option 1: From Template  -->
           <label
             @click="handleModeleCardClick"
             :class="[

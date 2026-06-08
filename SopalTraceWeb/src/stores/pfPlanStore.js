@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { pfPlanService } from '@/services/pfPlanService';
+import { qualityPlansService } from '@/services/qualityPlansService';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
 export const usePfPlanStore = defineStore('pfPlan', () => {
@@ -15,6 +16,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   const instruments = ref([]); 
   const postes = ref([]);
   const reglesEchantillonnage = ref([]);
+  const formulairesReferences = ref([]);
   const isDicosLoaded = ref(false);
 
   // --- ÉTAT DU PLAN ---
@@ -22,6 +24,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     id: null,
     familleProduitFiniCode: '',
     familleProduitFiniLibelle: '',
+    versionInitiale: null,
     version: 1,
     statut: 'ACTIF',
     dateApplication: null,
@@ -56,7 +59,10 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         limiteSpecTexte: l.limiteSpecTexte || null,
         defauthequeId: l.defauthequeId || null,
         instruction: l.instruction || null,
-        observations: l.observations || null
+        observations: l.observations || null,
+        colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 
+          ? JSON.stringify(l.valeursColonnesSpecifiques) 
+          : null
       }))
     }));
   };
@@ -85,6 +91,15 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     }
   };
 
+  const fetchFormulairesReferences = async (role) => {
+    try {
+      const response = await qualityPlansService.getFormulairesListByRole(role);
+      formulairesReferences.value = response.data?.data || [];
+    } catch (e) {
+      console.error("Erreur fetch formulaires:", e);
+    }
+  };
+
   const getPlan = async (id) => {
     isLoading.value = true;
     try {
@@ -102,6 +117,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         creeLe: data.creeLe,
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
+        configurationColonnes: data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [],
       };
 
       sections.value = (data.sections || []).map(s => {
@@ -124,6 +140,13 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
           hydrated.modeFreq = 'SANS';
         }
         
+        if (hydrated.lignes) {
+          hydrated.lignes = hydrated.lignes.map(l => ({
+            ...l,
+            valeursColonnesSpecifiques: l.colonnesSupplementaires ? (typeof l.colonnesSupplementaires === 'string' ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires) : {}
+          }));
+        }
+        
         return hydrated;
       });
     } finally {
@@ -138,6 +161,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         familleProduitFiniCode: entete.value.familleProduitFiniCode,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
+        versionInitiale: entete.value.versionInitiale,
+        configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
         sections: mapSectionsForBackend()
       };
 
@@ -170,6 +195,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         motifModification: motif,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
+        versionInitiale: entete.value.versionInitiale,
+        configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
         sections: mapSectionsForBackend()
       };
       const response = await pfPlanService.creerNouvelleVersion(entete.value.id, payload);
@@ -198,7 +225,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   return {
     typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle, 
     periodicites, typesSection, instruments, postes, isDicosLoaded, 
-    entete, sections, isLoading, reglesEchantillonnage,
-    fetchDictionnaires, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan
+    entete, sections, isLoading, reglesEchantillonnage, formulairesReferences,
+    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan
   };
 });

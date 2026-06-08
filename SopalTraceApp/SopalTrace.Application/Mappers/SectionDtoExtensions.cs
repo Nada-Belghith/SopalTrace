@@ -15,11 +15,11 @@ namespace SopalTrace.Application.Mappers;
 public static class SectionDtoExtensions
 {
     /// <summary>
-    /// Converts a PlanFabSection entity (with all its lines) to a SectionEditDto
+    /// Converts a PlanFabricationSection entity (with all its lines) to a SectionEditDto
     /// Used in restoration, duplication, and versioning workflows where entities need to be converted back to editable DTOs
     /// Automatically assigns null IDs to force creation of new entities
     /// </summary>
-    public static SectionEditDto ConvertFabricationSectionEntityToEditableDto(this PlanFabSection section)
+    public static SectionEditDto ConvertFabricationSectionEntityToEditableDto(this PlanFabricationSection section)
     {
         if (section == null) throw new ArgumentNullException(nameof(section));
 
@@ -32,7 +32,7 @@ public static class SectionDtoExtensions
             OrdreAffiche = section.OrdreAffiche,
             RegleEchantillonnageId = section.RegleEchantillonnageId,
             RegleEchantillonnageLibelle = section.RegleEchantillonnageLibelle ?? string.Empty,
-            Lignes = section.PlanFabLignes
+            Lignes = section.PlanFabricationLignes
                 .OrderBy(l => l.OrdreAffiche)
                 .Select(l => l.ConvertFabricationLineEntityToEditableDto())
                 .ToList()
@@ -40,11 +40,11 @@ public static class SectionDtoExtensions
     }
 
     /// <summary>
-    /// Converts a PlanFabLigne entity to a LigneEditDto for editing
+    /// Converts a PlanFabricationLigne entity to a LigneEditDto for editing
     /// Used internally by section conversion and in individual line updates
     /// Nullifies empty strings and forces new ID assignment
     /// </summary>
-    public static LigneEditDto ConvertFabricationLineEntityToEditableDto(this PlanFabLigne ligne)
+    public static LigneEditDto ConvertFabricationLineEntityToEditableDto(this PlanFabricationLigne ligne)
     {
         if (ligne == null) throw new ArgumentNullException(nameof(ligne));
 
@@ -66,11 +66,11 @@ public static class SectionDtoExtensions
     }
 
     /// <summary>
-    /// Converts a PlanPfSection entity (with all its lines) to a SectionPfEditDto
+    /// Converts a PlanProduitFiniSection entity (with all its lines) to a SectionPfEditDto
     /// Used in restoration, duplication, and versioning workflows where entities need to be converted back to editable DTOs
     /// Automatically assigns null IDs to force creation of new entities
     /// </summary>
-    public static SectionPfEditDto ConvertProduitFiniSectionEntityToEditableDto(this PlanPfSection section)
+    public static SectionPfEditDto ConvertProduitFiniSectionEntityToEditableDto(this PlanProduitFiniSection section)
     {
         if (section == null) throw new ArgumentNullException(nameof(section));
 
@@ -81,7 +81,7 @@ public static class SectionDtoExtensions
             LibelleSection = section.LibelleSection ?? string.Empty,
             Notes = section.Notes ?? string.Empty,
             OrdreAffiche = section.OrdreAffiche,
-            Lignes = section.PlanPfLignes
+            Lignes = section.PlanProduitFiniLignes
                 .OrderBy(l => l.OrdreAffiche)
                 .Select(l => l.ConvertProduitFiniLineEntityToEditableDto())
                 .ToList()
@@ -89,11 +89,11 @@ public static class SectionDtoExtensions
     }
 
     /// <summary>
-    /// Converts a PlanPfLigne entity to a LignePfEditDto for editing
+    /// Converts a PlanProduitFiniLigne entity to a LignePfEditDto for editing
     /// Used internally by section conversion and in individual line updates
     /// Nullifies empty strings and forces new ID assignment
     /// </summary>
-    public static LignePfEditDto ConvertProduitFiniLineEntityToEditableDto(this PlanPfLigne ligne)
+    public static LignePfEditDto ConvertProduitFiniLineEntityToEditableDto(this PlanProduitFiniLigne ligne)
     {
         if (ligne == null) throw new ArgumentNullException(nameof(ligne));
 

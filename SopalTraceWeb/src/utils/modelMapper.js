@@ -60,7 +60,8 @@ export function mapBackendLigneToEditor(ligne) {
     unite: ligne.unite || '',
     limiteSpecTexte: ligne.limiteSpecTexte || '',
     observations: ligne.observations || '',
-    moyenTexteLibre: ligne.moyenTexteLibre || ''
+    moyenTexteLibre: ligne.moyenTexteLibre || '',
+    valeursColonnesSpecifiques: ligne.colonnesSupplementaires ? (typeof ligne.colonnesSupplementaires === 'string' ? JSON.parse(ligne.colonnesSupplementaires) : ligne.colonnesSupplementaires) : {}
   };
 }
 
@@ -96,7 +97,8 @@ export function prepareModelePayload(entete, sections) {
         unite: l.unite || '',
         limiteSpecTexte: l.limiteSpecTexte || '',
         observations: l.observations || '',
-        moyenTexteLibre: l.moyenTexteLibre || ''
+        moyenTexteLibre: l.moyenTexteLibre || '',
+        colonnesSupplementaires: Object.keys(l.valeursColonnesSpecifiques || {}).length > 0 ? JSON.stringify(l.valeursColonnesSpecifiques) : null
       }))
     }))
   };
@@ -112,7 +114,8 @@ export function createModeleSnapshot(entete, sections) {
       natureComposantCode: entete.natureComposantCode,
       typeRobinetCode: entete.typeRobinetCode,
       libelle: entete.libelle,
-      notes: entete.notes
+      notes: entete.notes,
+      configurationColonnes: typeof entete.configurationColonnes === 'string' ? JSON.parse(entete.configurationColonnes || '[]') : (entete.configurationColonnes || [])
     },
     sections: sections.map(s => ({
       typeSectionId: s.typeSectionId,
@@ -134,7 +137,8 @@ export function createModeleSnapshot(entete, sections) {
         unite: l.unite,
         limiteSpecTexte: l.limiteSpecTexte,
         observations: l.observations,
-        moyenTexteLibre: l.moyenTexteLibre
+        moyenTexteLibre: l.moyenTexteLibre,
+        valeursColonnesSpecifiques: l.valeursColonnesSpecifiques || {}
       }))
     }))
   });
@@ -236,7 +240,8 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
       unite: l.unite || '',
       limiteSpecTexte: l.limiteSpecTexte || '',
       observations: l.observations || '',
-      moyenTexteLibre: l.moyenTexteLibre || ''
+      moyenTexteLibre: l.moyenTexteLibre || '',
+      valeursColonnesSpecifiques: l.valeursColonnesSpecifiques || {}
     }))
   }));
 }

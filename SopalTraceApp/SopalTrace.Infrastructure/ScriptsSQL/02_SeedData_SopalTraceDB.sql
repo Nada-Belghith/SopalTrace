@@ -62,15 +62,15 @@ INSERT INTO dbo.PosteTravail (CodePoste, Libelle) VALUES
 ('PAS79', 'Assemblage Sopal Gaz');
 
 -- 5. MACHINES
-INSERT INTO dbo.Machine (CodeMachine, Libelle, OperationCode, RoleMachine) VALUES 
-('MAS19', 'Machine 19', 'ASS', 'MAS_ASS'), 
-('MAS20', 'Machine 20', 'ASS', 'MAS_ASS'), 
-('MAS22', 'Machine 22', 'ASS', 'MAS_ASS'), 
-('MAS26', 'Machine 26', 'ASS', 'MAS_ASS'),
-('BEE22', 'Banc 22', 'ASS', 'BEE'), 
-('BEE46', 'Banc 46', 'ASS', 'BEE'), 
-('BEE47', 'Banc 47', 'ASS', 'BEE'),
-('SER05', 'Marquage 05', 'ASS', 'MARQUAGE');
+INSERT INTO dbo.Machine (CodeMachine, Libelle, OperationCode, RoleMachine, TypeAffectation) VALUES 
+('MAS19', 'Machine 19', 'ASS', 'MAS_ASS', 'POSTE'), 
+('MAS20', 'Machine 20', 'ASS', 'MAS_ASS', 'INDEPENDANTE'), 
+('MAS22', 'Machine 22', 'ASS', 'MAS_ASS', 'POSTE'), 
+('MAS26', 'Machine 26', 'ASS', 'MAS_ASS', 'POSTE'),
+('BEE22', 'Banc 22', 'ASS', 'BEE', 'INDEPENDANTE'), 
+('BEE46', 'Banc 46', 'ASS', 'BEE', 'POSTE'), 
+('BEE47', 'Banc 47', 'ASS', 'BEE', 'POSTE'),
+('SER05', 'Marquage 05', 'ASS', 'MARQUAGE', 'POSTE');
 
 -- 6. LIAISON : POSTES <-> MACHINES
 INSERT INTO dbo.PosteTravail_Machine (CodePoste, CodeMachine) VALUES 
@@ -101,7 +101,11 @@ INSERT INTO dbo.Ref_FamilleCorps (Code, Designation) VALUES
 ('C_25B0A01', 'Corps (25B0A01)'), 
 ('C_25AXA01', 'Corps (25AXA01)'), 
 ('C_25AWA01', 'Corps (25AWA01)'), 
-('C_25UA01', 'Corps (25UA01)');
+('C_25UA01', 'Corps (25UA01)'),
+('C_25A8A01', 'Corps (25A8A01)'),
+('C_2588A01', 'Corps (2588A01)'),
+('C_2576A01', 'Corps (2576A01)'),
+('C_2519A01', 'Corps (2519A01)');
 
 INSERT INTO dbo.Ref_MoyenDetection (Code, Designation) VALUES 
 ('PRC', 'PRC'), 
@@ -199,12 +203,14 @@ INSERT INTO dbo.Article (CodeArticle, Designation, NatureArticleCode, Statut, Ty
 ('25B7A01-1-1', 'Robinet gaz auto G3/4"', 'PF', 'ACTIF', 'PF'),
 ('25B0A01-1-2', 'Robinet gaz auto M23.2', 'PF', 'ACTIF', 'PF'),
 ('2552A01-1-E', 'Robinet de gaz M26.2 x2 con10% "SNDP" Agilgaz', 'PF', 'ACTIF', 'PF'),
+('2552A01-1', 'Robinet de gaz manuelle 2552A01-1', 'PF', 'ACTIF', 'PF'),
 
 -- Semi-finis (Physiquement CORPS, VOLANT, PISTON, mais en prod ce sont des SF)
 ('2903201-1', 'Article Semi-Fini 2903', 'CORPS', 'ACTIF', 'SF'),
 ('2903202-1', 'Corps Semi-Fini Soupape', 'CORPS', 'ACTIF', 'SF'),
 ('3028S01-1', 'Article Semi-Fini 3028', 'VOLANT', 'ACTIF', 'SF'),
 ('P-25B0A01', 'Piston laiton Asil', 'PISTON', 'ACTIF', 'SF'),
+('31B5201-1', 'VOLANT ROBINET DE GAZ PETROM', 'VOLANT', 'ACTIF', 'SF'),
 
 -- Composants / Matières / Consommables (TypeArticle = COMPOSANT)
 ('C-25B0A01', 'Corps laiton brut (Soupape)', 'CORPS', 'ACTIF', 'COMPOSANT'),
@@ -237,7 +243,9 @@ INSERT INTO dbo.Article (CodeArticle, Designation, NatureArticleCode, Statut, Ty
 ('3261501-1', 'ECROU 3/4 RACCORD TC P5 SONEDE', 'MATIERE', 'ACTIF', 'COMPOSANT'),
 ('3580000-1', 'ANNEAU EXPANSIF TYPE A 22 A2 DIN7993', 'GOUPILLE', 'ACTIF', 'COMPOSANT'),
 ('E105000', 'CARTON 295 X 210 X 145', 'CARTON', 'ACTIF', 'COMPOSANT'),
-('E329000', 'SACHET EN PLASTIQUE 13x18 IMP (12/100)', 'NOTICE', 'ACTIF', 'COMPOSANT');
+('E329000', 'SACHET EN PLASTIQUE 13x18 IMP (12/100)', 'NOTICE', 'ACTIF', 'COMPOSANT'),
+('2630201.1.9', 'Corps r-gaz moyenne carotte goupille carrée', 'CORPS', 'ACTIF', 'SF'),
+('M1180RP', 'Laiton Ø 18 (suivant EN12165 CW617N) LONGUEUR', 'MATIERE', 'ACTIF', 'COMPOSANT');
 
 -- SPÉCIALISATION : Produit Fini (Famille et TypeRobinet obligatoires)
 INSERT INTO dbo.ProduitFini (CodeArticle, FamilleProduitFiniCode, TypeRobinetCode) VALUES 
@@ -260,6 +268,7 @@ INSERT INTO dbo.ProduitFini (CodeArticle, FamilleProduitFiniCode, TypeRobinetCod
 ('25B7A01-1-1', 'RBGFA_SOUPAPE', 'SOUP'),
 ('25B0A01-1-2', 'RBGFA_SOUPAPE', 'SOUP'),
 ('2552A01-1-E', 'RBGFA-BAC-01', 'AUTO'),
+('2552A01-1', 'RBGFM', 'MAN'),
 ('13NMA01-1', 'RBGFA', 'AUTO');
 
 -- REMARQUE : Plus d'insertion dans dbo.Composant car la table n'existe plus !
@@ -294,6 +303,8 @@ INSERT INTO dbo.BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative
 ('25B0A01-1', '2903201-1', 1, 1),
 ('25B2A01-1-1', '2903202-1', 1, 1),
 ('25A8B01-1', '3028S01-1', 1, 1),
+('25B0A01-1', '31B5201-1', 1, 1), -- Lie le Volant 31B5201-1 au parent Produit Fini pour hériter de sa famille de robinet
+('2552A01-1', '2630201.1.9', 1, 1), -- Lie le Corps 2630201.1.9 au parent Produit Fini Manuelle
 -- Nomenclature de l'exemple "Bon de Sortie"
 ('13NMA01-1', '3801007-1', 1, 27.720),
 ('13NMA01-1', '1501013-1', 1, 27.720),
@@ -305,15 +316,16 @@ INSERT INTO dbo.BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative
 -- =================================================================================
 -- 16. INSERTION DES ORDRES DE FABRICATION (Image 2 : MFGHEAD)
 -- =================================================================================
-INSERT INTO dbo.MFGHEAD_OrdreFabrication --statut : 1 = En cours, 2 = Planifié, 3 = Terminé, 4 = Annulé
+INSERT INTO dbo.MFGHEAD_OrdreFabrication --statut : EN_COURS, PLANIFIE, TERMINE, ANNULE
 (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF, DateDebut, DateFin) 
 VALUES 
-('OF26080157', '2903201-1', 100000, 100000, 99850, 1, '2026-07-30', '2026-08-28'),
-('OF26050439', '3028S01-1', 4400, 4400, 0, 2, '2026-06-01', '2026-06-01'),
-('OF26041131', '2511A01-1', 3000, 3000, 3000, 1, '2026-04-06', '2026-04-06'),
-('OF25120735', '2903201-1', 200000, 180000, 0, 1, '2026-04-30', '2026-05-29'),
-('OF26011015', '13NMA01-1', 27720, 27720, 0, 1, '2026-03-02', '2026-03-02'),
-('OF26022552', '2552A01-1-E', 5000, 5000, 0, 1, '2026-05-18', '2026-05-18');
+('OF26080157', '2903201-1', 100000, 100000, 99850, 'EN_COURS', '2026-07-30', '2026-08-28'),
+('OF26050439', '3028S01-1', 4400, 4400, 0, 'PLANIFIE', '2026-06-01', '2026-06-01'),
+('OF26041131', '2511A01-1', 3000, 3000, 3000, 'EN_COURS', '2026-04-06', '2026-04-06'),
+('OF25120735', '2903201-1', 200000, 180000, 0, 'EN_COURS', '2026-04-30', '2026-05-29'),
+('OF26011015', '13NMA01-1', 27720, 27720, 0, 'EN_COURS', '2026-03-02', '2026-03-02'),
+('OF26022552', '2552A01-1-E', 5000, 5000, 0, 'EN_COURS', '2026-05-18', '2026-05-18'),
+('OF24120004', '2630201.1.9', 1000, 1000, 0, 'EN_COURS', '2024-12-09', '2024-12-09');
 
 -- =================================================================================
 -- 17. INSERTION DES BESOINS SPÉCIFIQUES DES OF (MFGMAT)
@@ -345,6 +357,7 @@ INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, Quantit
 -- Matières premières requises pour les OF de Semi-Finis (Corps, Volant, Piston)
 ('OF26080157', 'M1150RP', 2500, 0),
 ('OF25120735', 'M1150RP', 5000, 0),
+('OF24120004', 'M1180RP', 1000, 0),
 ('OF26050439', 'M405S00', 440, 0); 
 
 -- =================================================================================
@@ -352,16 +365,20 @@ INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, Quantit
 -- =================================================================================
 
 INSERT INTO dbo.AUTILIS (USR_0, INTUSR_0, ENAFLG_0, CODMET_0, ADDEML_0) VALUES 
-('12345', 'Nada Belghith', 2, 'ADMIN', 'nada.belghith@enis.tn'),
-('OP001', 'Operateur Test', 2, 'OPERATEUR', 'operateur@sopal.com'),
-('QA001', 'Qualite Test', 2, 'QUALITE', 'qualite@sopal.com'),
-('23456', 'Magasinier Test', 2, 'MAGASINIER', 'magasinier@sopal.com');
+('11111', 'Nada Belghith', 2, 'RESPONSABLE_DI', 'nada.belghith@enis.tn'),
+('22222', 'Res Qualite Test', 2, 'RESPONSABLE_QUALITE', 'resqualite@sopal.com'),
+('55555', 'Operateur Test', 2, 'OPERATEUR', 'operateur@sopal.com'),
+('33333', 'Magasinier Test', 2, 'MAGASINIER', 'magasinier@sopal.com'),
+('44444', 'Superviseur Test', 2, 'SUPERVISEUR_QUALITE', 'superviseur@sopal.com'),
+('66666', 'Admin Doc', 2, 'ADMIN', 'admin@sopal.com');
 
 INSERT INTO dbo.ATEXTRA (CODFIC_0, ZONE_0, IDENT1_0, LANGUE_0, TEXTE_0) VALUES 
-('AUTILIS', 'INTUSR', '12345', 'FRA', 'Nada Belghith'),
-('AUTILIS', 'INTUSR', 'OP001', 'FRA', 'Operateur Test'),
-('AUTILIS', 'INTUSR', 'QA001', 'FRA', 'Qualite Test'),
-('AUTILIS', 'INTUSR', 'MAG01', 'FRA', 'Magasinier Test');
+('AUTILIS', 'INTUSR', '11111', 'FRA', 'Nada Belghith'),
+('AUTILIS', 'INTUSR', '22222', 'FRA', 'Res Qualite Test'),
+('AUTILIS', 'INTUSR', '55555', 'FRA', 'Operateur Test'),
+('AUTILIS', 'INTUSR', '33333', 'FRA', 'Magasinier Test'),
+('AUTILIS', 'INTUSR', '44444', 'FRA', 'Superviseur Test'),
+('AUTILIS', 'INTUSR', '66666', 'FRA', 'Admin Doc');
 
 
 
@@ -376,17 +393,148 @@ INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
 SELECT 'MAS22', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('F_30_35', 'F_23', 'FAM_40_43_44', 'FAM_49');
 
 INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
-SELECT 'BEE46', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
+SELECT 'BEE46', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25A8A01', 'C_2588A01', 'C_2576A01', 'C_2519A01');
+
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'BEE47', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('F_30_35', 'F_23', 'FAM_40_43_44', 'FAM_49');
 
 INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
 SELECT 'BEE22', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
+
+INSERT INTO dbo.Machine_FamilleCorps (MachineCode, RefFamilleCorpsId)
+SELECT 'MAS19', Id FROM dbo.Ref_FamilleCorps WHERE Code IN ('C_25B0A01', 'C_25AXA01', 'C_25AWA01', 'C_25UA01');
 
 -- =================================================================================
 -- 20. TEST DE VOTRE NOUVELLE LOGIQUE MAGASINIER / QUICK CONTROL
 -- =================================================================================
 
 
+
+-- =================================================================================
+-- 21. OPÉRATIONS DE FABRICATION RÉELLES (Source : Fiche Suiveuse)
+-- =================================================================================
+-- La fiche suiveuse (image) montre pour VOLANT ROBINET DE GAZ PETROM :
+--   Op  5 → Poste prévu : TRN26 (Tournage)
+--   Op 10 → Poste prévu : PRS04 (Pressage)
+--   Op 15 → Poste prévu : GRN08 (Grenaillage)
+--   Op 20 → Poste prévu : TRF14 (Traitement de surface)
+--   Op 25 → Poste prévu : LAV08 (Lavage)
+-- Le "Poste réel" sera enregistré dans Exec_ControleOF.MachineCode lors du démarrage.
+
+-- Nouvelles opérations granulaires (fabrication semi-finis)
+UPDATE dbo.Operation SET OrdreProcess = 5, Actif = 1 WHERE Code = 'TRONC';
+UPDATE dbo.Operation SET OrdreProcess = 10, Actif = 1 WHERE Code = 'ESTOMP';
+UPDATE dbo.Operation SET OrdreProcess = 15, Actif = 1 WHERE Code = 'USINAG';
+
+-- Mise à jour de la gamme VOLANT : remplacement par la gamme réelle
+DELETE FROM dbo.NatureArticle_Operation WHERE NatureArticleCode = 'VOLANT';
+INSERT INTO dbo.NatureArticle_Operation (NatureArticleCode, OperationCode, OrdreGamme, EstObligatoire) VALUES
+('VOLANT', 'TRONC', 5,  1),   -- Op  5 : Tronçonnage  (obligatoire)
+('VOLANT', 'ESTOMP', 10, 1),   -- Op 10 : Estampage    (obligatoire)
+('VOLANT', 'USINAG', 15, 1);   -- Op 15 : Usinage      (obligatoire)
+
+-- Mise à jour de la gamme CORPS : opérations granulaires
+DELETE FROM dbo.NatureArticle_Operation WHERE NatureArticleCode = 'CORPS';
+INSERT INTO dbo.NatureArticle_Operation (NatureArticleCode, OperationCode, OrdreGamme, EstObligatoire) VALUES
+('CORPS', 'TRONC', 5,  1),
+('CORPS', 'ESTOMP', 10, 1),
+('CORPS', 'USINAG', 15, 1);
+
+-- Machines = Postes de travail prévus (un poste par machine INDEPENDANTE)
+-- Chaque machine est affectée à une opération → c'est le "Poste prévu" de la gamme
+INSERT INTO dbo.Machine (CodeMachine, Libelle, OperationCode, TypeAffectation, Actif, RoleMachine) VALUES
+-- Tronçonnage
+('TRN26', 'TRN26','TRONC', 'INDEPENDANTE', 1, 'TRONC'),
+-- Estampage
+('PRS04', 'PRS04','ESTOMP', 'INDEPENDANTE', 1, 'ESTOMP'),
+-- Usinage
+('TRF14', 'TRF14','USINAG', 'INDEPENDANTE', 1, 'USINAG');
+
+-- =================================================================================
+-- 22. ARTICLE ET OF DE LA FICHE SUIVEUSE (Test d'intégration complet)
+-- =================================================================================
+
+-- OF26021488 tel que visible sur la fiche (StatutOF = 1 = En Cours)
+INSERT INTO dbo.MFGHEAD_OrdreFabrication 
+    (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF, DateDebut, DateFin)
+VALUES 
+    ('OF26021488', '31B5201-1', 20006, 20006, 0, 'EN_COURS', '2026-02-03', '2026-02-26');
+
+-- Préparation Magasinier → rend l'OF visible dans le tableau de bord Opérateur
+INSERT INTO dbo.Mag_PreparationOF (Id, NumeroOF, MatriculeMagasinier, Statut, DateDebut, DateFin)
+VALUES 
+    (NEWID(), 'OF26021488', '23456', 'EN_COURS', '2026-02-03', '2026-02-03');
+
+-- NOUVEL OF POUR CORPS : OF26029030 pour Corps Semi-Fini (2903201-1)
+INSERT INTO dbo.MFGHEAD_OrdreFabrication 
+    (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF, DateDebut, DateFin)
+VALUES 
+    ('OF26029030', '2903201-1', 15000, 15000, 0, 'EN_COURS', '2026-05-19', '2026-05-19');
+
+-- Préparation Magasinier pour l'OF du Corps → le rend visible dans le tableau de bord Opérateur
+INSERT INTO dbo.Mag_PreparationOF (Id, NumeroOF, MatriculeMagasinier, Statut, DateDebut, DateFin)
+VALUES 
+    (NEWID(), 'OF26029030', '23456', 'EN_COURS', '2026-05-19', '2026-05-19');
+
+-- NOUVEL OF EXEMPLE : OF24120004 pour Corps r-gaz moyenne carotte (2630201.1.9)
+DECLARE @PrepId2412 UNIQUEIDENTIFIER = NEWID();
+INSERT INTO dbo.Mag_PreparationOF (Id, NumeroOF, MatriculeMagasinier, Statut, DateDebut, DateFin)
+VALUES 
+    (@PrepId2412, 'OF24120004', '23456', 'EN_COURS', '2024-12-09', '2024-12-09');
+
+-- Enregistrement du Lot scanné par le magasinier pour la nomenclature M1180RP
+INSERT INTO dbo.Mag_PreparationOF_Lot (Id, PreparationOFId, CodeArticle, NumeroLotScanne, Quantite, DateScan)
+VALUES 
+    (NEWID(), @PrepId2412, 'M1180RP', '24120004', 1000, '2024-12-09');
+
+-- Enregistrement du N° Rapport de contrôle (Quick Control)
+INSERT INTO dbo.Mag_QuickControl_Rapport (Id, NumeroOF, CodeArticle, NumeroRapportQC, DateScan)
+VALUES 
+    (NEWID(), 'OF24120004', 'M1180RP', '61946', '2024-12-09');
+
+-- =================================================================================
+-- 23. SEED DATA - FORMULAIRES DE REFERENCE
+-- =================================================================================
+-- Formulaire commun pour Semi-Finis (Corps, Volant, Piston)
+INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut, CreeLe, Role) VALUES
+('D3C2A4F4-1B0A-4F9E-B4FF-67E97A135593', 'PRC', 'Formulaire PRC', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_FABRICATION'),
+('A1B2C3D4-1111-4444-5555-666677778888', 'FE-ASS-PISTON', 'Plan Ass Piston', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
+('B2C3D4E5-2222-4444-5555-666677778888', 'FE-ASS-MANU', 'Plan Ass PF Manu', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
+(NEWID(), 'FE-ASS-RBGFA-BAC-01', 'Plan ASS RBGFA-BAC-01', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
+(NEWID(), 'FE-ASS-RBGFA-BAC-02', 'Plan ASS RBGFA-BAC-02', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS71', 'Plan PF RBGFA_SOUPAPE PAS71 ', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS72', 'Plan PF RBGFA_SOUPAPE PAS72 ', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS78', 'Plan PF RBGFA_SOUPAPE PAS78 ', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE', 'Plan PF RBGFA_SOUPAPE', 0, 'ACTIF', GETDATE(), 'PRODUIT_FINI'),
+(NEWID(), 'FE-PF-RBGFA', 'Plan PF RBGFA', 0, 'ACTIF', GETDATE(), 'PRODUIT_FINI'),
+(NEWID(), 'FE-PF-RBGFA-BAC-01', 'Plan PF RBGFA-BAC-01', 0, 'ACTIF', GETDATE(), 'PRODUIT_FINI'),
+(NEWID(), 'FE-PF-RBGFA-BAC-02', 'Plan PF RBGFA-BAC-02', 0, 'ACTIF', GETDATE(), 'PRODUIT_FINI'),
+(NEWID(), 'FE-PF-RBGFM', 'Plan PF RBGFM', 0, 'ACTIF', GETDATE(), 'PRODUIT_FINI'),
+(NEWID(), 'FE-VM-MAS19', 'Formulaire Verif Machine MAS19', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-VM-MAS20', 'Formulaire Verif Machine MAS20', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-VM-MAS22', 'Formulaire Verif Machine MAS22', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-VM-MAS26', 'Formulaire Verif Machine MAS26', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-VM-BEE22', 'Formulaire Verif Machine BEE22', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-VM-BEE46', 'Formulaire Verif Machine BEE46', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-VM-BEE47', 'Formulaire Verif Machine BEE47', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-VM-SER05', 'Formulaire Verif Machine SER05', 0, 'ACTIF', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-RC-PAS71', 'Formulaire Résultat Contrôle PAS71', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS72', 'Formulaire Résultat Contrôle PAS72', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS78', 'Formulaire Résultat Contrôle PAS78', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS71_SOUPAPE', 'Formulaire Résultat Contrôle PAS71 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS72_SOUPAPE', 'Formulaire Résultat Contrôle PAS72 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS78_SOUPAPE', 'Formulaire Résultat Contrôle PAS78 Soupape', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-PAS79', 'Formulaire Résultat Contrôle PAS79', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
+(NEWID(), 'FE-RC-ENCF', 'Résultats du contrôle en cours de fabrication (Usi/Esp/Trn)', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS', 'Résultats du contrôle en cours de fabrication Assemblage', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS71_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS71', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS72_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS72', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF'),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS78_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS78', 0, 'ACTIF', GETDATE(), 'RESULTAT_CONTROLE_CF');
+
+
+
 GO
+
 PRINT '=================================================================';
-PRINT ' LA BASE SOPALTRACE V7.0 (AVEC MODULE MAGASINIER) EST GÉNÉRÉE !  ';
+PRINT '  LA BASE SOPALTRACE V7.1 (MODULE EXÉCUTION OPÉRATEUR) EST OK !  ';
 PRINT '=================================================================';

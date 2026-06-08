@@ -10,7 +10,7 @@ namespace SopalTrace.Application.Mappers;
 
 public static class PlanAssMapper
 {
-    public static PlanAssResponseDto MapperEntitePlanVersDto(PlanAssEntete plan)
+    public static PlanAssResponseDto MapperEntitePlanVersDto(PlanAssemblageEntete plan)
     {
         return new PlanAssResponseDto
         {
@@ -30,8 +30,13 @@ public static class PlanAssMapper
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
+
+
+
+
             Remarques = string.Empty,
-            Sections = plan.PlanAssSections?.Select(s => new SectionAssResponseDto
+            ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
+            Sections = plan.PlanAssemblageSections?.Select(s => new SectionAssResponseDto
             {
                 Id = s.Id,
                 TypeSectionId = s.TypeSectionId,
@@ -49,30 +54,31 @@ public static class PlanAssMapper
                 FreqNum = s.Periodicite?.FrequenceNum ?? 1,
                 TypeVariable = s.Periodicite?.FrequenceUnite ?? "HEURE",
                 FreqHours = (s.Periodicite?.FrequenceUnite == "1_HEURE" || s.Periodicite?.FrequenceUnite == "PCT_HEURE") ? 1 : 1,
-                Lignes = s.PlanAssLignes?.Select(l => new LigneAssResponseDto
+                Lignes = s.PlanAssemblageLignes?.Select(l => new LigneAssResponseDto
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
                     LibelleAffiche = l.LibelleAffiche ?? string.Empty,
-                    TypeControleId = l.TypeControleId ,
+                    TypeControleId = l.TypeControleId ?? Guid.Empty,
                     MoyenControleId = l.MoyenControleId,
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
                     Observations = l.Observations,
                     Instruction = l.Instruction,
-                    EstCritique = l.EstCritique
+                    EstCritique = l.EstCritique,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 }).ToList() ?? new List<LigneAssResponseDto>()
             }).ToList() ?? new List<SectionAssResponseDto>()
         };
     }
 
-    public static ModeleResponseDto MapperEntiteVersModeleDto(PlanAssEntete plan)
+    public static ModeleResponseDto MapperEntiteVersModeleDto(PlanAssemblageEntete plan)
     {
         return new ModeleResponseDto
         {
             Id = plan.Id,
-            OperationCode = plan.OperationCode,
+            OperationCode = plan.OperationCode ?? "ASS",  // Fallback: ASS plans must always have an OperationCode
             Code = plan.Designation ?? "ASS",
             Libelle = plan.Designation ?? "Plan Assemblage",
             TypeRobinetCode = plan.FamilleProduitFiniCode ?? string.Empty,
@@ -86,8 +92,13 @@ public static class PlanAssMapper
             ModifiePar = plan.ModifiePar,
             ModifieLe = plan.ModifieLe,
             LegendeMoyens = plan.LegendeMoyens,
+
+
+
+
             Notes = string.Empty,
-            Sections = plan.PlanAssSections?.Select(s => new ModeleSectionResponseDto
+            ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
+            Sections = plan.PlanAssemblageSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id,
                 OrdreAffiche = s.OrdreAffiche,
@@ -97,7 +108,7 @@ public static class PlanAssMapper
 
                 RegleEchantillonnageId = s.RegleEchantillonnageId,
                 RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
-                Lignes = s.PlanAssLignes?.Select(l => new ModeleLigneResponseDto
+                Lignes = s.PlanAssemblageLignes?.Select(l => new ModeleLigneResponseDto
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
@@ -110,16 +121,17 @@ public static class PlanAssMapper
                     Observations = l.Observations,
                     Instruction = l.Instruction,
                     EstCritique = l.EstCritique,
-                    MoyenTexteLibre = l.MoyenTexteLibre
+                    MoyenTexteLibre = l.MoyenTexteLibre,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 }).ToList() ?? new List<ModeleLigneResponseDto>()
             }).ToList() ?? new List<ModeleSectionResponseDto>()
         };
     }
 
-    public static PlanAssEntete MapperModeleVersEntite(CreateModeleRequestDto request, string user)
+    public static PlanAssemblageEntete MapperModeleVersEntite(CreateModeleRequestDto request, string user)
     {
         var planId = Guid.NewGuid();
-        var entete = new PlanAssEntete
+        var entete = new PlanAssemblageEntete
         {
             Id = planId,
             OperationCode = request.OperationCode,
@@ -133,13 +145,13 @@ public static class PlanAssMapper
             CreeLe = DateTime.UtcNow,
             //Remarques = request.Notes,
             LegendeMoyens = request.LegendeMoyens,
-            PlanAssSections = new List<PlanAssSection>()
+            PlanAssemblageSections = new List<PlanAssemblageSection>()
         };
 
         foreach (var s in request.Sections)
         {
             var sectionId = Guid.NewGuid();
-            var section = new PlanAssSection
+            var section = new PlanAssemblageSection
             {
                 Id = sectionId,
                 PlanEnteteId = planId,
@@ -151,38 +163,39 @@ public static class PlanAssMapper
                 RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
                 OrdreAffiche = s.OrdreAffiche,
                 Notes = s.Notes,
-                PlanAssLignes = new List<PlanAssLigne>()
+                PlanAssemblageLignes = new List<PlanAssemblageLigne>()
             };
 
             foreach (var l in s.Lignes)
             {
-                section.PlanAssLignes.Add(new PlanAssLigne
+                section.PlanAssemblageLignes.Add(new PlanAssemblageLigne
                 {
                     Id = Guid.NewGuid(),
                     PlanEnteteId = planId,
                     SectionId = sectionId,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                     LibelleAffiche = l.LibelleAffiche,
-                    TypeControleId = l.TypeControleId ?? Guid.Empty,
+                    TypeControleId = l.TypeControleId,
                     MoyenControleId = l.MoyenControleId,
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
                     Observations = l.Observations,
                     Instruction = l.Instruction,
                     EstCritique = l.EstCritique,
-                    MoyenTexteLibre = l.MoyenTexteLibre
+                    MoyenTexteLibre = l.MoyenTexteLibre,
+                    ColonnesSupplementaires = l.ColonnesSupplementaires
                 });
             }
-            entete.PlanAssSections.Add(section);
+            entete.PlanAssemblageSections.Add(section);
         }
 
         return entete;
     }
 
-    public static PlanAssSection ConstruireNouvelleSection(Guid planId, SectionAssEditDto dto)
+    public static PlanAssemblageSection ConstruireNouvelleSection(Guid planId, SectionAssEditDto dto)
     {
-        return new PlanAssSection
+        return new PlanAssemblageSection
         {
             PlanEnteteId = planId,
             TypeSectionId = (dto.TypeSectionId == null || dto.TypeSectionId == Guid.Empty) ? null : dto.TypeSectionId,
@@ -194,13 +207,13 @@ public static class PlanAssMapper
             Notes = dto.Notes,
             RegleEchantillonnageId = dto.RegleEchantillonnageId,
             RegleEchantillonnageLibelle = dto.RegleEchantillonnageLibelle,
-            PlanAssLignes = new List<PlanAssLigne>()
+            PlanAssemblageLignes = new List<PlanAssemblageLigne>()
         };
     }
 
-    public static PlanAssLigne ConstruireNouvelleLigne(Guid planId, Guid sectionId, LigneAssEditDto dto)
+    public static PlanAssemblageLigne ConstruireNouvelleLigne(Guid planId, Guid sectionId, LigneAssEditDto dto)
     {
-        return new PlanAssLigne
+        return new PlanAssemblageLigne
         {
             PlanEnteteId = planId,
             SectionId = sectionId,
@@ -213,11 +226,12 @@ public static class PlanAssMapper
             LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte,
             Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations,
             Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction,
-            EstCritique = dto.EstCritique
+            EstCritique = dto.EstCritique,
+            ColonnesSupplementaires = dto.ColonnesSupplementaires
         };
     }
 
-    public static void MettreAJourEntiteLigne(PlanAssLigne ligne, LigneAssEditDto dto)
+    public static void MettreAJourEntiteLigne(PlanAssemblageLigne ligne, LigneAssEditDto dto)
     {
         ligne.OrdreAffiche = dto.OrdreAffiche;
         ligne.TypeCaracteristiqueId = dto.TypeCaracteristiqueId;
@@ -229,12 +243,13 @@ public static class PlanAssMapper
         ligne.Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations;
         ligne.Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction;
         ligne.EstCritique = dto.EstCritique;
+        ligne.ColonnesSupplementaires = dto.ColonnesSupplementaires;
     }
 
-    public static PlanAssEntete DupliquerEntitePlan(PlanAssEntete source, bool estModele, string? nouveauCodeArticle, string? nouvelleDesig, string creePar, string? motif)
+    public static PlanAssemblageEntete DupliquerEntitePlan(PlanAssemblageEntete source, bool estModele, string? nouveauCodeArticle, string? nouvelleDesig, string creePar, string? motif)
     {
         var planId = Guid.NewGuid();
-        var plan = new PlanAssEntete
+        var plan = new PlanAssemblageEntete
         {
             Id = planId,
             OperationCode = source.OperationCode,
@@ -248,13 +263,13 @@ public static class PlanAssMapper
             CreeLe = DateTime.UtcNow,
             LegendeMoyens = source.LegendeMoyens,
             //Remarques = source.Remarques,
-            PlanAssSections = new List<PlanAssSection>()
+            PlanAssemblageSections = new List<PlanAssemblageSection>()
         };
 
-        foreach (var sourceSection in source.PlanAssSections ?? Enumerable.Empty<PlanAssSection>())
+        foreach (var sourceSection in source.PlanAssemblageSections ?? Enumerable.Empty<PlanAssemblageSection>())
         {
             var sectionId = Guid.NewGuid();
-            var section = new PlanAssSection
+            var section = new PlanAssemblageSection
             {
                 Id = sectionId,
                 PlanEnteteId = planId,
@@ -267,12 +282,12 @@ public static class PlanAssMapper
                 Notes = sourceSection.Notes,
                 RegleEchantillonnageId = sourceSection.RegleEchantillonnageId,
                 RegleEchantillonnageLibelle = sourceSection.RegleEchantillonnageLibelle,
-                PlanAssLignes = new List<PlanAssLigne>()
+                PlanAssemblageLignes = new List<PlanAssemblageLigne>()
             };
 
-            foreach (var sourceLigne in sourceSection.PlanAssLignes ?? Enumerable.Empty<PlanAssLigne>())
+            foreach (var sourceLigne in sourceSection.PlanAssemblageLignes ?? Enumerable.Empty<PlanAssemblageLigne>())
             {
-                section.PlanAssLignes.Add(new PlanAssLigne
+                section.PlanAssemblageLignes.Add(new PlanAssemblageLigne
                 {
                     Id = Guid.NewGuid(),
                     PlanEnteteId = planId,
@@ -286,10 +301,11 @@ public static class PlanAssMapper
                     LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
                     Observations = sourceLigne.Observations,
                     Instruction = sourceLigne.Instruction,
-                    EstCritique = sourceLigne.EstCritique
+                    EstCritique = sourceLigne.EstCritique,
+                    ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
                 });
             }
-            plan.PlanAssSections.Add(section);
+            plan.PlanAssemblageSections.Add(section);
         }
         return plan;
     }
@@ -299,7 +315,7 @@ public static class PlanAssMapper
         if (string.IsNullOrWhiteSpace(original)) return original;
         var regex = new System.Text.RegularExpressions.Regex(@"-[Vv]\d+$");
 
-        if (nouvelleVersion == 1)
+        if (nouvelleVersion == 0)
         {
             return regex.IsMatch(original) ? regex.Replace(original, "") : original;
         }
@@ -308,15 +324,19 @@ public static class PlanAssMapper
         return $"{original}-V{nouvelleVersion}";
     }
 
-    public static PlanAssEntete ConstruireNouvelleVersionModele(PlanAssEntete ancienModele, NouvelleVersionModeleRequestDto request, string auteur, int nouvelleVersion)
+    public static PlanAssemblageEntete ConstruireNouvelleVersionModele(PlanAssemblageEntete ancienModele, NouvelleVersionModeleRequestDto request, string auteur, int nouvelleVersion)
     {
         var planId = Guid.NewGuid();
-        var nouveauPlan = new PlanAssEntete
+        var nouveauPlan = new PlanAssemblageEntete
         {
             Id = planId,
-            OperationCode = request.OperationCode ?? ancienModele.OperationCode,
+            OperationCode = string.IsNullOrWhiteSpace(request.OperationCode)
+                ? (ancienModele.OperationCode ?? "ASS")     // Fallback si frontend envoie "" ou null
+                : request.OperationCode,
             FamilleProduitFiniCode = request.FamilleProduitCode ?? ancienModele.FamilleProduitFiniCode,
-            NatureArticleCode = request.NatureComposantCode ?? ancienModele.NatureArticleCode,
+            NatureArticleCode = string.IsNullOrWhiteSpace(request.NatureComposantCode)
+                ? (ancienModele.NatureArticleCode ?? "PF")  // Fallback si frontend envoie "" ou null
+                : request.NatureComposantCode,
             PosteCode = request.PosteCode ?? ancienModele.PosteCode,
             Designation = IncrementerSuffixeVersion(request.Libelle ?? ancienModele.Designation ?? "Plan Assemblage", nouvelleVersion),
             Version = nouvelleVersion,
@@ -325,7 +345,7 @@ public static class PlanAssMapper
             CreeLe = DateTime.UtcNow,
             //Remarques = request.Notes ?? ancienModele.Remarques,
             LegendeMoyens = request.LegendeMoyens ?? ancienModele.LegendeMoyens,
-            PlanAssSections = new List<PlanAssSection>()
+            PlanAssemblageSections = new List<PlanAssemblageSection>()
         };
 
         if (request.Sections?.Any() == true)
@@ -333,7 +353,7 @@ public static class PlanAssMapper
             foreach (var s in request.Sections)
             {
                 var sectionId = Guid.NewGuid();
-                var section = new PlanAssSection
+                var section = new PlanAssemblageSection
                 {
                     Id = sectionId,
                     PlanEnteteId = planId,
@@ -345,39 +365,40 @@ public static class PlanAssMapper
                     RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
                     OrdreAffiche = s.OrdreAffiche,
                     Notes = s.Notes,
-                    PlanAssLignes = new List<PlanAssLigne>()
+                    PlanAssemblageLignes = new List<PlanAssemblageLigne>()
                 };
 
                 foreach (var l in s.Lignes)
                 {
-                    section.PlanAssLignes.Add(new PlanAssLigne
+                    section.PlanAssemblageLignes.Add(new PlanAssemblageLigne
                     {
                         Id = Guid.NewGuid(),
                         PlanEnteteId = planId,
                         SectionId = sectionId,
                         OrdreAffiche = l.OrdreAffiche,
-                        TypeCaracteristiqueId = l.TypeCaracteristiqueId ?? Guid.Empty,
+                        TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                         LibelleAffiche = l.LibelleAffiche,
-                        TypeControleId = l.TypeControleId ?? Guid.Empty,
+                        TypeControleId = l.TypeControleId,
                         MoyenControleId = l.MoyenControleId,
                         InstrumentCode = l.InstrumentCode,
                         LimiteSpecTexte = l.LimiteSpecTexte,
                         Observations = l.Observations,
                         Instruction = l.Instruction,
                         EstCritique = l.EstCritique,
-                        MoyenTexteLibre = l.MoyenTexteLibre
+                        MoyenTexteLibre = l.MoyenTexteLibre,
+                        ColonnesSupplementaires = l.ColonnesSupplementaires
                     });
                 }
-                nouveauPlan.PlanAssSections.Add(section);
+                nouveauPlan.PlanAssemblageSections.Add(section);
             }
         }
         else
         {
             // Si pas de sections dans la requête, on duplique celles de l'ancien (cas rare mais possible)
-            foreach (var sourceSection in ancienModele.PlanAssSections ?? Enumerable.Empty<PlanAssSection>())
+            foreach (var sourceSection in ancienModele.PlanAssemblageSections ?? Enumerable.Empty<PlanAssemblageSection>())
             {
                 var sectionId = Guid.NewGuid();
-                var section = new PlanAssSection
+                var section = new PlanAssemblageSection
                 {
                     Id = sectionId,
                     PlanEnteteId = planId,
@@ -385,12 +406,12 @@ public static class PlanAssMapper
                     LibelleSection = sourceSection.LibelleSection,
                     OrdreAffiche = sourceSection.OrdreAffiche,
                     Notes = sourceSection.Notes,
-                    PlanAssLignes = new List<PlanAssLigne>()
+                    PlanAssemblageLignes = new List<PlanAssemblageLigne>()
                 };
 
-                foreach (var sourceLigne in sourceSection.PlanAssLignes ?? Enumerable.Empty<PlanAssLigne>())
+                foreach (var sourceLigne in sourceSection.PlanAssemblageLignes ?? Enumerable.Empty<PlanAssemblageLigne>())
                 {
-                    section.PlanAssLignes.Add(new PlanAssLigne
+                    section.PlanAssemblageLignes.Add(new PlanAssemblageLigne
                     {
                         Id = Guid.NewGuid(),
                         PlanEnteteId = planId,
@@ -404,13 +425,15 @@ public static class PlanAssMapper
                         LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
                         Observations = sourceLigne.Observations,
                         Instruction = sourceLigne.Instruction,
-                        EstCritique = sourceLigne.EstCritique
+                        EstCritique = sourceLigne.EstCritique,
+                        ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
                     });
                 }
-                nouveauPlan.PlanAssSections.Add(section);
+                nouveauPlan.PlanAssemblageSections.Add(section);
             }
         }
 
         return nouveauPlan;
     }
 }
+

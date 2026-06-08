@@ -40,7 +40,7 @@
                 <PfHeader :is-read-only="isReadOnly" />
               </div>
 
-              <div v-if="!isReadOnly" class="ml-8 shrink-0 flex items-center">
+              <div v-if="!isReadOnly" class="ml-8 shrink-0 flex items-center gap-3">
                 <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.csv" class="hidden" />
                 <button @click="$refs.fileInput.click()" 
                   class="h-10 px-5 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
@@ -48,6 +48,11 @@
                   <i v-if="!isLoadingData" class="ri-file-excel-2-line text-xl"></i>
                   <i v-else class="ri-loader-4-line animate-spin text-xl"></i>
                   <span>Importer la structure Excel</span>
+                </button>
+
+                <button @click="showColumnModal = true" 
+                  class="h-10 px-5 flex items-center gap-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95">
+                  <i class="pi pi-sliders-h text-lg"></i> Configurer Colonnes
                 </button>
               </div>
             </div>
@@ -101,6 +106,7 @@
                     v-for="ligne in section.lignes" 
                     :key="ligne.id" 
                     :ligne="ligne"
+                    :columns="modeleColumns"
                     :is-read-only="isReadOnly"
                     :operation-code="'PF'"
                     @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
@@ -142,6 +148,12 @@
 
       </div>
     </div>
+    
+    <!-- MODAL DE CONFIGURATION DES COLONNES -->
+    <ColumnConfigurator 
+      v-model:visible="showColumnModal"
+      v-model="store.entete.configurationColonnes"
+    />
   </div>
 </template>
 
@@ -164,6 +176,7 @@ import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import Toast from 'primevue/toast';
 import { pfPlanService } from '@/services/pfPlanService';
 
@@ -178,6 +191,7 @@ const isLoadingData = ref(false);
 const isSaving = ref(false);
 const isVersioningSaving = ref(false);
 const showVersioningDialog = ref(false);
+const showColumnModal = ref(false);
 const versioningMode = ref('PF');
 const fileInput = ref(null);
 
@@ -204,6 +218,12 @@ const onFileSelected = async (event) => {
 
   const formData = new FormData();
   formData.append('file', file);
+  if (store.entete.configurationColonnes) {
+    const configJson = typeof store.entete.configurationColonnes === 'string'
+      ? store.entete.configurationColonnes
+      : JSON.stringify(store.entete.configurationColonnes);
+    formData.append('configurationColonnesJson', configJson);
+  }
 
   try {
     isLoadingData.value = true;
@@ -286,7 +306,8 @@ const onFileSelected = async (event) => {
               limiteSpecTexte: lig.limiteSpecTexte,
               observations: lig.observations,
               estCritique: lig.estCritique,
-              libelleAffiche: lig.libelleAffiche
+              libelleAffiche: lig.libelleAffiche,
+              valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
             }))
           };
         });
@@ -306,17 +327,36 @@ const onFileSelected = async (event) => {
 };
 
 // ============================================================================
-// COLONNES RÉUTILISABLES
+// COLONNES RÉUTILISABLES ET DYNAMIQUES
 // ============================================================================
-const modeleColumns = [
-  { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
-  { label: 'Observations', width: 'flex-1' },
-  { label: '', width: 'w-12', textAlign: 'center' }
+const baseModeleColumns = [
+  { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
+  { key: 'limite_spec', label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
+  { key: 'type_controle', label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'code_instrument', label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
+  { key: 'observations', label: 'Observations', width: 'flex-1' }
 ];
+
+const modeleColumns = computed(() => {
+  let cols = [...baseModeleColumns];
+  const customCols = store.entete.configurationColonnes || [];
+  
+  customCols.forEach(cc => {
+    const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
+    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', textAlign: 'center', isCustom: true };
+    if (insertIdx !== -1) {
+      cols.splice(insertIdx + 1, 0, newCol);
+    } else {
+      cols.push(newCol);
+    }
+  });
+
+  // Always add the actions column at the end
+  cols.push({ key: 'actions', label: '', width: 'w-12', textAlign: 'center' });
+  
+  return cols;
+});
 
 const isEditMode = computed(() => !!planId.value);
 const isArchived = computed(() => store.entete?.statut === 'ARCHIVE');
@@ -328,7 +368,7 @@ const statut = computed(() => {
 });
 
 const codeAffiche = computed(() => {
-  const v = isEditMode.value ? (store.entete.version + 1) : (store.entete?.version || 1);
+  const v = (isEditMode.value && !isReadOnly.value) ? (store.entete.version + 1) : (store.entete?.version || 1);
   
   if (store.entete?.familleProduitFiniCode) {
     return `${store.entete.familleProduitFiniCode}-PF-V${v}`;
