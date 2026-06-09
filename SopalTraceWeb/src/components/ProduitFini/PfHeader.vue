@@ -1,5 +1,26 @@
 <template>
   <div class="mb-10">
+    <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">1. Informations générales</h3>
+    <!-- NOUVEAU DESIGN POUR REF FORMULAIRE -->
+    <div v-if="!isReadOnly && !isEditMode" class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col md:flex-row gap-4 mb-6 shadow-inner">
+      <div class="flex items-center text-blue-800 font-black tracking-widest text-xs min-w-[150px]">
+        <i class="pi pi-file-import mr-2 text-lg text-blue-600"></i> RÉF. FORMULAIRE *
+      </div>
+      <div class="flex-1 flex gap-4 items-center relative">
+        <select 
+          v-model="refFormulaireSelected" 
+          class="w-full md:w-1/2 rounded-lg px-4 py-2 text-sm font-bold shadow-sm focus:ring-2 focus:ring-blue-400 outline-none transition-shadow bg-white border border-blue-200 text-blue-900 cursor-pointer">
+          <option value="">-- Choisir un formulaire générique --</option>
+          <option v-for="ref in store.formulairesReferences" :key="ref.id" :value="ref.id">
+            {{ ref.codeReference }} - {{ ref.designation }}
+          </option>
+        </select>
+        <span class="text-xs font-bold text-blue-500 italic hidden md:block">
+          La sélection du formulaire remplira automatiquement les champs suivants.
+        </span>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-1 gap-8 bg-slate-50/50 p-6 rounded-xl border border-slate-100">
       
       <!-- FAMILLE PRODUIT (Obligatoire) -->
@@ -63,7 +84,7 @@ onMounted(() => {
   }
 });
 
-watch(() => store.entete.formulaireId, (newRefId) => {
+watch(refFormulaireSelected, (newRefId) => {
   if (!newRefId) return;
   const refObj = store.formulairesReferences.find(r => r.id === newRefId);
   if (!refObj) return;

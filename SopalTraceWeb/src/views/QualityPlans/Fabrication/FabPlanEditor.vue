@@ -73,7 +73,7 @@
               :sections="sections"
               :remarques="remarques"
               :legende-moyens="legendeMoyens"
-              :configuration-colonnes="plan?.configurationColonnesJson ? (typeof plan.configurationColonnesJson === 'string' ? JSON.parse(plan.configurationColonnesJson) : plan.configurationColonnesJson) : []"
+              :configuration-colonnes="planConfigurationColonnes"
               :types-section="store.typesSection || []"
               :types-caracteristique="store.typesCaracteristique || []"
               :types-controle="store.typesControle || []"
@@ -236,6 +236,25 @@
 
   const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
 
+  const planConfigurationColonnes = computed(() => {
+    if (store.effectiveConfigurationColonnes?.length) return store.effectiveConfigurationColonnes;
+    if (plan.value?.configurationColonnesJson) {
+      return typeof plan.value.configurationColonnesJson === 'string'
+        ? JSON.parse(plan.value.configurationColonnesJson)
+        : plan.value.configurationColonnesJson;
+    }
+    return [];
+  });
+
+  const syncPlanFormulaireConfig = (codeRef = null) => {
+    const code = codeRef || wizard.refFormulaireCodeReference?.value || plan.value?.codeReferenceFormulaire || 'PRC';
+    store.applyFormulaireConfiguration(code);
+    if (plan.value) {
+      plan.value.configurationColonnesJson = store.effectiveConfigurationColonnes;
+      plan.value.codeReferenceFormulaire = code;
+    }
+  };
+
   const editorLabel = computed(() => {
     if (!isEditMode.value) return 'Générer le Plan';
     if (isArchived.value) return 'Restaurer ce Plan';
@@ -317,6 +336,13 @@
 
   onMounted(async () => {
     if (!store.isDicosLoaded) await store.fetchDictionnaires();
+    if (!store.formulairesReferences?.length) {
+      await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
+    }
+    if (!wizard.refFormulaireCodeReference?.value) {
+      wizard.refFormulaireCodeReference.value = 'PRC';
+    }
+    syncPlanFormulaireConfig();
     if (planId.value && planId.value !== 'nouveau') await chargerPlan(planId.value);
     startAutoSave();
   });
@@ -337,13 +363,20 @@
       operationCode: data.operationCode,
       posteCode: wizard.posteCode.value || null
     };
+    syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
     planCreationPayload.value = {
       modeleSourceId: modeleId,
       codeArticleSage: codeArticle,
       operationCode: data.operationCode,
       posteCode: wizard.posteCode.value || null,
       designation: wizard.designationArticle.value,
+      refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
       creePar: 'ADMIN_QUALITE'
+    };
+    plan.value = {
+      ...plan.value,
+      configurationColonnesJson: store.effectiveConfigurationColonnes,
+      codeReferenceFormulaire: wizard.refFormulaireCodeReference?.value || 'PRC'
     };
     sections.value = mapModeleDataToSections(data);
     isFromWizard.value = true;
@@ -471,11 +504,13 @@
         isFromWizard.value = true;
         
         // Préparer le payload pour la future création lors du clic Enregistrer
+        syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
         planCreationPayload.value = {
             codeArticleSage: plan.value.codeArticleSage,
             designation: plan.value.designation,
             operationCode: plan.value.operationCode,
             posteCode: plan.value.posteCode,
+            refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
             creePar: 'ADMIN_QUALITE',
             sections: sections.value.map((s, idx) => ({
               ordreAffiche: idx + 1,
@@ -505,6 +540,31 @@
         };
 
         toast.add({ severity: 'success', summary: 'Succès', detail: 'Structure clonée chargée en mémoire.', life: 3000 });
+      } else if (sourceType === 'VIERGE') {
+        syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
+        plan.value = {
+          statut: 'BROUILLON',
+          codeArticleSage: codeArticle,
+          designation: wizard.designationArticle.value,
+          version: 1,
+          operationCode: wizard.operationCode.value,
+          posteCode: wizard.posteCode.value || null,
+          configurationColonnesJson: store.effectiveConfigurationColonnes,
+          codeReferenceFormulaire: wizard.refFormulaireCodeReference?.value || 'PRC'
+        };
+        planCreationPayload.value = {
+          modeleSourceId: null,
+          codeArticleSage: codeArticle,
+          operationCode: wizard.operationCode.value,
+          posteCode: wizard.posteCode.value || null,
+          designation: wizard.designationArticle.value,
+          refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
+          creePar: 'ADMIN_QUALITE'
+        };
+        sections.value = [];
+        isFromWizard.value = true;
+        planId.value = 'nouveau';
+        toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan vierge prêt à éditer.', life: 3000 });
       } else {
         // Nouveau depuis Modèle
         if (!sourceId) {
@@ -562,11 +622,11 @@
 
     const formData = new FormData();
     formData.append('file', file);
-    if (plan.value?.configurationColonnesJson) {
-      const configJson = typeof plan.value.configurationColonnesJson === 'string'
-        ? plan.value.configurationColonnesJson
-        : JSON.stringify(plan.value.configurationColonnesJson);
-      formData.append('configurationColonnesJson', configJson);
+    const configCols = store.effectiveConfigurationColonnes?.length
+      ? store.effectiveConfigurationColonnes
+      : (plan.value?.configurationColonnesJson || []);
+    if (configCols?.length) {
+      formData.append('configurationColonnesJson', JSON.stringify(configCols));
     }
 
     try {
@@ -881,6 +941,11 @@
         plan.value = data;
         legendeMoyens.value = data.legendeMoyens || '';
         remarques.value = data.remarques || '';
+        const codeRef = data.codeReferenceFormulaire || wizard.refFormulaireCodeReference?.value || 'PRC';
+        if (wizard.refFormulaireCodeReference) wizard.refFormulaireCodeReference.value = codeRef;
+        syncPlanFormulaireConfig(codeRef);
+      } else if (data.codeReferenceFormulaire) {
+        syncPlanFormulaireConfig(data.codeReferenceFormulaire);
       }
 
       const sectionsTriees = [...(data.sections || [])].sort((a, b) =>

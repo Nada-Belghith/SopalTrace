@@ -303,6 +303,10 @@ INSERT INTO dbo.BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative
 ('25B2A01-1-1', '2903202-1', 1, 1),
 ('25A8B01-1', '3028S01-1', 1, 1),
 ('25B0A01-1', '31B5201-1', 1, 1), -- Lie le Volant 31B5201-1 au parent Produit Fini pour hériter de sa famille de robinet
+('25B0A01-1', 'C-25B0A01', 1, 1),
+('25B0A01-1', 'b-25B0A01', 1, 1),
+('25B0A01-1', 'n-25B0A01', 1, 1),
+('25B0A01-1', 'm-25B0A01', 1, 1),
 ('2552A01-1', '2630201.1.9', 1, 1), -- Lie le Corps 2630201.1.9 au parent Produit Fini Manuelle
 -- Nomenclature de l'exemple "Bon de Sortie"
 ('13NMA01-1', '3801007-1', 1, 27.720),

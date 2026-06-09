@@ -70,11 +70,28 @@ public class PlanFabricationRepository : IPlanFabricationRepository
             .AnyAsync(m => m.NatureArticleCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
     }
 
-    public async Task<IReadOnlyList<ModeleFabricationEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode)
+    public async Task<IReadOnlyList<ModeleFabricationEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode, string? typeRobinetCode = null, string? posteCode = null, string? familleProduitCode = null)
     {
-        var query = _context.ModeleFabricationEntetes.Include(m => m.Formulaire).AsQueryable();
-        if (!string.IsNullOrEmpty(natureCode)) query = query.Where(m => m.NatureArticleCode == natureCode);
-        if (!string.IsNullOrEmpty(operationCode)) query = query.Where(m => m.OperationCode == operationCode);
+        var query = _context.ModeleFabricationEntetes
+            .Include(m => m.Formulaire)
+            .Include(m => m.FamilleProduitFiniCodeNavigation)
+            .Where(m => m.Statut == "ACTIF")
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(natureCode))
+            query = query.Where(m => m.NatureArticleCode == natureCode);
+        if (!string.IsNullOrEmpty(operationCode))
+            query = query.Where(m => m.OperationCode == operationCode);
+
+        if (!string.IsNullOrEmpty(familleProduitCode))
+            query = query.Where(m => m.FamilleProduitFiniCode == familleProduitCode);
+
+        // Filtre par typeRobinetCode via la famille du modèle
+        if (!string.IsNullOrEmpty(typeRobinetCode))
+            query = query.Where(m =>
+                m.FamilleProduitFiniCode == null ||
+                m.FamilleProduitFiniCodeNavigation!.TypeRobinetCode == typeRobinetCode);
+
         return await query.ToListAsync();
     }
 
@@ -192,6 +209,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     public async Task<PlanFabricationEntete?> GetPlanAvecRelationsAsync(Guid planId)
     {
         return await _context.PlanFabricationEntetes
+            .Include(p => p.Formulaire)
             .Include(p => p.PlanFabricationSections)
                 .ThenInclude(s => s.PlanFabricationLignes)
             .Include(p => p.PlanFabricationSections)
@@ -202,6 +220,7 @@ public class PlanFabricationRepository : IPlanFabricationRepository
     public async Task<PlanFabricationEntete?> GetPlanCompletPourMiseAJourAsync(Guid planId)
     {
         return await _context.PlanFabricationEntetes
+            .Include(p => p.Formulaire)
             .Include(p => p.PlanFabricationSections)
                 .ThenInclude(s => s.PlanFabricationLignes)
             .Include(p => p.PlanFabricationSections)
@@ -289,10 +308,13 @@ public class PlanFabricationRepository : IPlanFabricationRepository
             .FirstOrDefaultAsync(m => m.NatureArticleCode == natureCode && m.OperationCode == operationCode && m.Statut == "ACTIF");
     }
 
-    public async Task<ModeleFabricationEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode)
+    public async Task<ModeleFabricationEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode, string? posteCode, string? familleProduitCode)
     {
         return await _context.ModeleFabricationEntetes
-            .FirstOrDefaultAsync(m => m.NatureArticleCode == natureComposantCode && m.OperationCode == opCode && m.Statut == "ACTIF");
+            .FirstOrDefaultAsync(m => m.NatureArticleCode == natureComposantCode && 
+                                      m.OperationCode == opCode && 
+                                      m.FamilleProduitFiniCode == familleProduitCode &&
+                                      m.Statut == "ACTIF");
     }
 
     public async Task<ModeleFabricationEntete?> GetModeleActifParCodeEtLibelleAsync(string code, string libelle)

@@ -210,5 +210,37 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
     public async Task<System.Collections.Generic.List<RefFamilleCorp>> GetAllFamilleCorpsAsync() => await _context.RefFamilleCorps.ToListAsync();
     public async Task<System.Collections.Generic.List<RefMoyenDetection>> GetAllMoyenDetectionsAsync() => await _context.RefMoyenDetections.ToListAsync();
     public async Task<Article?> GetArticleByCodeNormaliseAsync(string codeNormalise) => await _context.Articles.FirstOrDefaultAsync(x => x.CodeArticle == codeNormalise);
-    public async Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise) => await _context.ProduitFinis.Where(x => x.CodeArticle == codeNormalise).Select(x => x.TypeRobinetCode).FirstOrDefaultAsync();
+    public async Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise)
+    {
+        var typeRobinet = await _context.ProduitFinis
+            .Where(x => x.CodeArticle == codeNormalise)
+            .Select(x => x.TypeRobinetCode)
+            .FirstOrDefaultAsync();
+
+        if (string.IsNullOrEmpty(typeRobinet))
+        {
+            typeRobinet = await _context.BomdNomenclatures
+                .Where(n => n.CodeComposant == codeNormalise)
+                .Join(_context.ProduitFinis,
+                      n => n.ArticleParent,
+                      p => p.CodeArticle,
+                      (n, p) => p.TypeRobinetCode)
+                .FirstOrDefaultAsync();
+        }
+
+        return typeRobinet;
+    }
+
+    public async Task<System.Collections.Generic.IReadOnlyList<Article>> SearchArticlesSfAsync(string query, int maxResults = 15)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new System.Collections.Generic.List<Article>();
+
+        var q = query.Trim().ToUpperInvariant();
+
+        return await _context.Articles
+            .Where(a => a.CodeArticle.Contains(q) && a.NatureArticleCode != "PISTON" && a.NatureArticleCode != "PF")
+            .Take(maxResults)
+            .ToListAsync();
+    }
 }

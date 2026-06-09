@@ -15,7 +15,7 @@ public interface IPlanFabricationRepository
 
     // Modèles
     Task<bool> ExisteModeleActifAsync(string natureCode, string? operationCode);
-    Task<IReadOnlyList<ModeleFabricationEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode);
+    Task<IReadOnlyList<ModeleFabricationEntete>> GetModelesParFiltresAsync(string? natureCode, string? operationCode, string? typeRobinetCode = null, string? posteCode = null, string? familleProduitCode = null);
     Task<ModeleFabricationEntete?> GetModeleActifAvecRelationsAsync(Guid modeleId);
     Task<ModeleFabricationEntete?> GetModeleAvecRelationsAsync(Guid modeleId);
     Task<ModeleFabricationEntete?> GetModelePourArchivageAsync(Guid modeleId);
@@ -53,7 +53,7 @@ public interface IPlanFabricationRepository
     Task SaveChangesAsync();
     Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null);
     Task<ModeleFabricationEntete?> GetModeleActifParCriteresAsync(string natureCode, string operationCode);
-    Task<ModeleFabricationEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode);
+    Task<ModeleFabricationEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode, string? posteCode, string? familleProduitCode);
     Task<ModeleFabricationEntete?> GetModeleActifParCodeEtLibelleAsync(string code, string libelle);
 
     Task DeletePlanWithChildrenAsync(Guid planId);

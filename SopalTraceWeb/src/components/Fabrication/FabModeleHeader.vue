@@ -137,9 +137,24 @@ const hasExistingVersion = computed(() => {
     }
   }, { immediate: true });
 
+  const pickFormulaireActif = (refs, selectedId) => {
+    const selected = refs.find(r => r.id === selectedId);
+    if (!selected) return null;
+    const code = (selected.codeReference || '').trim();
+    if (!code) return selected;
+    return refs
+      .filter(r => (r.codeReference || '').trim() === code)
+      .sort((a, b) => {
+        const statutA = String(a.statut || a.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        const statutB = String(b.statut || b.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        if (statutA !== statutB) return statutA - statutB;
+        return (b.version ?? b.Version ?? 0) - (a.version ?? a.Version ?? 0);
+      })[0] || selected;
+  };
+
   watch(refFormulaireSelected, async (newRefId) => {
   if (!newRefId) return;
-  const refObj = formulairesReferences.value.find(r => r.id === newRefId);
+  const refObj = pickFormulaireActif(formulairesReferences.value, newRefId);
   if (!refObj) return;
 
   const designation = refObj.designation || '';
@@ -157,22 +172,8 @@ const hasExistingVersion = computed(() => {
   // DO NOT overwrite libelle with the designation of the reference form
   // The user should type their own libelle for the model (e.g. Modèle MOD-TRONC-CORPS V1)
 
-  // ✅ Mémoriser le codeReference du formulaire sélectionné pour le versioning ciblé
-  store.entete.refFormulaireCodeReference = refObj.codeReference || '';
-  
-  // Appliquer la configuration des colonnes du formulaire sélectionné
-  if (refObj.configurationStructureJson) {
-    try {
-      store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
-        ? JSON.parse(refObj.configurationStructureJson) 
-        : refObj.configurationStructureJson;
-    } catch (e) {
-      console.error("Erreur parsing configuration colonnes:", e);
-      store.entete.configurationColonnes = [];
-    }
-  } else {
-    store.entete.configurationColonnes = [];
-  }
+  // Appliquer la dernière version ACTIF du formulaire (colonnes PRC incluses)
+  store.applyFormulaireConfiguration(refObj.codeReference || '');
 
   // Libérer le flag après la propagation de la réactivité
   setTimeout(() => {

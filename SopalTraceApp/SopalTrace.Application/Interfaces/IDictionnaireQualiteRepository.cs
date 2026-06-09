@@ -60,5 +60,6 @@ public interface IDictionnaireQualiteRepository
     Task<System.Collections.Generic.List<RefFamilleCorp>> GetAllFamilleCorpsAsync();
     Task<System.Collections.Generic.List<RefMoyenDetection>> GetAllMoyenDetectionsAsync();
     Task<Article?> GetArticleByCodeNormaliseAsync(string codeNormalise);
+    Task<System.Collections.Generic.IReadOnlyList<Article>> SearchArticlesSfAsync(string query, int maxResults = 15);
     Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise);
 }

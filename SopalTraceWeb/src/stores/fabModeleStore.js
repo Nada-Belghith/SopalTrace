@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { fabPlanService } from '@/services/fabPlanService';
 import { qualityPlansService } from '@/services/qualityPlansService';
+import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
   // --- DICTIONNAIRES ---
@@ -33,7 +34,101 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     posteCode: '',
     familleProduitCode: '',
     versionInitiale: null,
-    refFormulaireCodeReference: ''  // Code du formulaire ref sélectionné (ex: FE-ASS-PISTON)
+    refFormulaireCodeReference: '',  // Code du formulaire ref sélectionné (ex: PRC)
+    configurationColonnes: []
+  });
+
+  const getFormulaireConfigJson = (ref) =>
+    ref?.configurationStructureJson ?? ref?.ConfigurationStructureJson ?? null;
+
+  const parseConfigurationColonnes = (configJson) => {
+    if (!configJson) return [];
+    try {
+      return typeof configJson === 'string' ? JSON.parse(configJson) : configJson;
+    } catch {
+      return [];
+    }
+  };
+
+  const findFormulaireActif = (codeReference) => {
+    if (!codeReference) return null;
+    const refs = formulairesReferences.value || [];
+    return refs
+      .filter(r => (r.codeReference || '').trim() === codeReference.trim())
+      .sort((a, b) => {
+        const statutA = String(a.statut || a.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        const statutB = String(b.statut || b.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        if (statutA !== statutB) return statutA - statutB;
+        return (b.version ?? b.Version ?? 0) - (a.version ?? a.Version ?? 0);
+      })[0] || null;
+  };
+
+  const applyFormulaireConfiguration = (codeReference = null) => {
+    const refs = formulairesReferences.value || [];
+    if (!refs.length) return;
+
+    const codeRef = (codeReference || entete.value.refFormulaireCodeReference || refs[0]?.codeReference || '').trim();
+    const refObj = findFormulaireActif(codeRef) || refs[0];
+    if (!refObj) return;
+
+    entete.value.refFormulaireCodeReference = refObj.codeReference || '';
+    entete.value.configurationColonnes = parseConfigurationColonnes(getFormulaireConfigJson(refObj));
+  };
+
+  const syncConfigurationFromFormulaire = () => {
+    applyFormulaireConfiguration();
+  };
+
+  /** Colonnes PRC/PRNC : toujours lire la dernière version ACTIF du formulaire référencé */
+  const effectiveConfigurationColonnes = computed(() => {
+    const codeRef = (entete.value.refFormulaireCodeReference || '').trim();
+    if (codeRef) {
+      const refObj = findFormulaireActif(codeRef);
+      const cols = parseConfigurationColonnes(getFormulaireConfigJson(refObj));
+      if (cols.length > 0) return cols;
+    }
+
+    const refs = formulairesReferences.value || [];
+    if (refs.length > 0) {
+      const latest = [...refs].sort((a, b) => {
+        const statutA = String(a.statut || a.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        const statutB = String(b.statut || b.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        if (statutA !== statutB) return statutA - statutB;
+        return (b.version ?? b.Version ?? 0) - (a.version ?? a.Version ?? 0);
+      })[0];
+      const cols = parseConfigurationColonnes(getFormulaireConfigJson(latest));
+      if (cols.length > 0) return cols;
+    }
+
+    return entete.value.configurationColonnes || [];
+  });
+
+  const baseTableColumns = [
+    { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
+    { key: 'limite_spec', label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
+    { key: 'type_controle', label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
+    { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
+    { key: 'code_instrument', label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
+    { key: 'observations', label: 'Observations', width: 'flex-1' }
+  ];
+
+  const tableColumns = computed(() => {
+    let cols = [...baseTableColumns];
+    (effectiveConfigurationColonnes.value || []).forEach((cc) => {
+      const insertIdx = cols.findIndex((c) => c.key === cc.insertAfter);
+      const newCol = {
+        key: cc.key,
+        label: cc.label,
+        type: cc.type,
+        width: 'w-[12%]',
+        textAlign: 'center',
+        isCustom: true
+      };
+      if (insertIdx !== -1) cols.splice(insertIdx + 1, 0, newCol);
+      else cols.push(newCol);
+    });
+    cols.push({ key: 'actions', label: '', width: 'w-12', textAlign: 'center' });
+    return cols;
   });
 
   const sections = ref([]);
@@ -86,6 +181,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     try {
       const response = await qualityPlansService.getFormulairesListByRole(role);
       formulairesReferences.value = response.data?.data || [];
+      applyFormulaireConfiguration();
     } catch (e) {
       console.error("Erreur fetch formulaires:", e);
     }
@@ -139,7 +235,21 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     }
   };
 
-  const mapPayload = (legendeMoyens = '') => ({
+  const syncSectionLibellesFromTypes = () => {
+    sections.value.forEach((section) => {
+      if (!section.typeSectionId) return;
+      section.libelleSection = resolveSectionDisplayTitle(section, typesSection.value);
+    });
+  };
+
+  const mapPayload = (legendeMoyens = '') => {
+    syncConfigurationFromFormulaire();
+    syncSectionLibellesFromTypes();
+
+    const configCols = effectiveConfigurationColonnes.value || [];
+    const codeRef = entete.value.refFormulaireCodeReference || null;
+
+    return {
     code: entete.value.code || codeModeleAuto.value,
     libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
     typeRobinetCode: entete.value.typeRobinetCode || null,
@@ -150,14 +260,14 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     notes: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
     versionInitiale: entete.value.versionInitiale,
-    configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
-    refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
+    configurationColonnesJson: typeof configCols === 'string' ? configCols : JSON.stringify(configCols),
+    refFormulaireCodeReference: codeRef,
     sections: sections.value.map(s => ({
       ordreAffiche: s.ordreAffiche,
-      typeSectionId: s.typeSectionId,
+      typeSectionId: (s.typeSectionId && s.typeSectionId !== '') ? s.typeSectionId : null,
       periodiciteId: s.periodiciteId,
       regleEchantillonnageId: s.regleEchantillonnageId, // Ajouté ici
-      libelleSection: s.libelleSection || 'SECTION SANS NOM',
+      libelleSection: s.libelleSection || resolveSectionDisplayTitle(s, typesSection.value) || 'SECTION SANS NOM',
       frequenceLibelle: s.frequenceLibelle,
       notes: s.notes,
       lignes: s.lignes.map(l => ({
@@ -178,7 +288,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
           : null
       }))
     }))
-  });
+  };
+  };
 
   const saveModele = async (legendeMoyens = '') => {
     isLoading.value = true;
@@ -241,10 +352,11 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     isDicosLoaded,
     
     // État Modèle
-    entete, sections, isLoading, version, codeModeleAuto,    
+    entete, sections, isLoading, version, codeModeleAuto, effectiveConfigurationColonnes, tableColumns,
     // Actions
     fetchDictionnaires,
     fetchFormulairesReferences,
+    applyFormulaireConfiguration,
     addSection,
     removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft,
     isBeingLoaded

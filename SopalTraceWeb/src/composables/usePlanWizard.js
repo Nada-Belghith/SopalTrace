@@ -14,12 +14,33 @@ export function usePlanWizard() {
   // ============================================================================
   // STATE
   // ============================================================================
-  const codeArticleSage = ref('');
+  const codeArticleSage = ref(''); // Peut être un objet si sélectionné depuis AutoComplete
   const designationArticle = ref('');
   const typeRobinetCode = ref('');
   const natureComposantCode = ref('');
   const isArticleValid = ref(false);
   const isCheckingArticle = ref(false);
+
+  const filteredArticles = ref([]);
+  const isSearchingArticles = ref(false);
+
+  const searchArticles = async (event) => {
+    try {
+      const query = event.query;
+      if (!query || query.trim().length === 0) {
+        filteredArticles.value = [];
+        return;
+      }
+      isSearchingArticles.value = true;
+      const res = await qualityPlansService.searchArticlesSf(query);
+      filteredArticles.value = res.data || [];
+    } catch (e) {
+      console.error(e);
+      filteredArticles.value = [];
+    } finally {
+      isSearchingArticles.value = false;
+    }
+  };
 
   // Utilisation stricte de 1 ou 0
   const isGenerique = ref(0);
@@ -37,6 +58,7 @@ export function usePlanWizard() {
 
   const sourceType = ref('MODELE');
   const selectedSourceId = ref(null);
+  const refFormulaireCodeReference = ref('PRC');
   const isGenerating = ref(false);
 
   // Listes et état de chargement pour les sources
@@ -73,9 +95,18 @@ export function usePlanWizard() {
   const verifierArticleERP = async () => {
     if (!codeArticleSage.value) return;
 
+    // Extraire le code si l'utilisateur a sélectionné un objet depuis l'AutoComplete
+    let codeStr = codeArticleSage.value;
+    if (typeof codeArticleSage.value === 'object' && codeArticleSage.value !== null) {
+      codeStr = codeArticleSage.value.codeArticle;
+      codeArticleSage.value = codeStr; // On remet en chaîne pour l'affichage
+    }
+
+    if (!codeStr) return;
+
     isCheckingArticle.value = true;
     try {
-      const response = await qualityPlansService.getArticleFromERP(codeArticleSage.value);
+      const response = await qualityPlansService.getArticleFromERP(codeStr);
       // Correction: le backend renvoie { success: true, data: { ... } }
       const articleData = response.data?.data || response.data || response;
 
@@ -342,6 +373,7 @@ export function usePlanWizard() {
           natureComposantCode: natureComposantCode.value,
           posteCode: posteCode.value || null,
           familleCode: familleCode.value || null,
+          refFormulaireCodeReference: refFormulaireCodeReference.value || 'PRC',
           nom: `PC-${codeArticleSage.value}${posteCode.value ? '-P' + posteCode.value : ''}`,
           creePar: 'ADMIN_QUALITE'
         };
@@ -386,15 +418,17 @@ export function usePlanWizard() {
     isGenerique.value = 0;
     sourceType.value = 'MODELE';
     selectedSourceId.value = null;
+    refFormulaireCodeReference.value = 'PRC';
     availableModeles.value = [];
     availablePlans.value = [];
   };
 
   return {
     codeArticleSage, designationArticle, typeRobinetCode, natureComposantCode, operationCode, posteCode,
-    isArticleValid, isCheckingArticle, isGenerique, sourceType, selectedSourceId, isGenerating, isLoadingSources,
+    isArticleValid, isCheckingArticle, isGenerique, sourceType, selectedSourceId, refFormulaireCodeReference, isGenerating, isLoadingSources,
     availableModeles, availablePlans, operationsFiltrees, debugInfo,
     requiertPoste, postesDisponibles, requiertFamille, famillesFiltrees, familleCode, isPlanCreationBlocked,
+    filteredArticles, isSearchingArticles, searchArticles,
     verifierArticleERP, genererPlan, canGeneratePlan, reset,
     getLibelleType, getLibelleNature, chargerPlansFiltrés
   };

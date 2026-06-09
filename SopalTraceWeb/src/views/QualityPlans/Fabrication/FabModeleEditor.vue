@@ -73,7 +73,7 @@
               :sections="groupes"
               :remarques="store.entete.notes"
               :legende-moyens="store.entete.legendeMoyens"
-              :configuration-colonnes="store.entete.configurationColonnes"
+              :configuration-colonnes="store.effectiveConfigurationColonnes"
               :types-section="store.typesSection || []"
               :types-caracteristique="store.typesCaracteristique || []"
               :types-controle="store.typesControle || []"
@@ -168,6 +168,11 @@ import { useModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
+import {
+  extractNomFromLibelle,
+  normalizeTypeSectionId,
+  resolveSectionDisplayTitle
+} from '@/utils/sectionTitleUtils';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
@@ -241,56 +246,24 @@ watch(
 
 // ============================================================================
 // COLONNES RÉUTILISABLES ET DYNAMIQUES
+// Délégation au store : store.tableColumns est un computed réactif qui lit
+// toujours la dernière version ACTIF du formulaire de référence (rôle
+// EN_COURS_DE_FABRICATION), indépendamment du codeReference ("PRC" ou autre).
 // ============================================================================
-const baseModeleColumns = [
-  { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { key: 'limite_spec', label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
-  { key: 'type_controle', label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
-  { key: 'code_instrument', label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
-  { key: 'observations', label: 'Observations', width: 'flex-1' }
-];
 
+// Structure valide si le store a chargé au moins un formulaire actif
+// pour le rôle EN_COURS_DE_FABRICATION (pas de dépendance au nom "PRC")
 const hasValidStructure = computed(() => {
-  const codeRef = store.entete.refFormulaireCodeReference;
-  if (!codeRef) return false;
-
-  const formulaires = store.formulairesReferences || [];
-  const refObj = formulaires.find(r => r.codeReference === codeRef);
-
-  if (refObj) {
-    const s = typeof refObj.statut === 'string' ? refObj.statut.trim().toUpperCase() : refObj.statut;
-    const S = typeof refObj.Statut === 'string' ? refObj.Statut.trim().toUpperCase() : refObj.Statut;
-    if (s === 'ACTIF' || s === 1 || S === 'ACTIF' || S === 1) {
-      return true;
-    }
-  }
-
-  const configCols = store.entete.configurationColonnes;
-  if (configCols && configCols.length > 0) return true;
-
-  return false;
-});
-
-const modeleColumns = computed(() => {
-  let cols = [...baseModeleColumns];
-  const customCols = store.entete.configurationColonnes || [];
-  
-  customCols.forEach(cc => {
-    const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
-    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', textAlign: 'center', isCustom: true };
-    if (insertIdx !== -1) {
-      cols.splice(insertIdx + 1, 0, newCol);
-    } else {
-      cols.push(newCol);
-    }
+  const refs = store.formulairesReferences || [];
+  if (refs.length === 0) return false;
+  return refs.some(r => {
+    const s = String(r.statut || r.Statut || '').trim().toUpperCase();
+    return s === 'ACTIF';
   });
-
-  // Always add the actions column at the end
-  cols.push({ key: 'actions', label: '', width: 'w-12', textAlign: 'center' });
-  
-  return cols;
 });
+
+// Colonnes réactives : toujours à jour avec la dernière version du formulaire
+const modeleColumns = computed(() => store.tableColumns);
 
 const isLoading = computed(() => store.isLoading);
 const isEditMode = computed(() => !!modeleEditionId.value);
@@ -422,8 +395,13 @@ const chargerModelePourEdition = async (id) => {
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitCode || '';
-    store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || '';
-    store.entete.configurationColonnes = data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [];
+    store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || 'PRC';
+    store.applyFormulaireConfiguration(store.entete.refFormulaireCodeReference);
+    if (!store.effectiveConfigurationColonnes?.length && data.configurationColonnesJson) {
+      store.entete.configurationColonnes = typeof data.configurationColonnesJson === 'string'
+        ? JSON.parse(data.configurationColonnesJson)
+        : data.configurationColonnesJson;
+    }
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
       (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -445,7 +423,7 @@ const chargerModelePourEdition = async (id) => {
         if (sec.regleEchantillonnageId) freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
       }
 
-      let typeSectionId = sec.typeSectionId || '';
+      let typeSectionId = normalizeTypeSectionId(sec.typeSectionId || '', store.typesSection);
       if (!typeSectionId && sec.libelleSection) {
         const secLib = sec.libelleSection.trim().toLowerCase();
         let bestMatch = null;
@@ -466,7 +444,17 @@ const chargerModelePourEdition = async (id) => {
         if (bestMatch) {
           typeSectionId = bestMatch.id;
         }
-      } 
+      }
+
+      const libelleSection = resolveSectionDisplayTitle(
+        { typeSectionId, libelleSection: sec.libelleSection, nom: sec.nom },
+        store.typesSection
+      );
+      const nom = extractNomFromLibelle(
+        sec.libelleSection || libelleSection,
+        typeSectionId,
+        store.typesSection
+      );
 
       const lignesTriees = [...(sec.lignes || [])].sort((a, b) =>
         (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -476,9 +464,10 @@ const chargerModelePourEdition = async (id) => {
         id: sec.id,
         isFromDb: true,
         typeSectionId,
+        nom,
         ...freqData,
         isNewFreq: false,
-        libelleSection: sec.libelleSection,
+        libelleSection,
         lignes: lignesTriees.map(lig => ({ 
           id: lig.id,
           isFromDb: true,
@@ -686,6 +675,9 @@ const resetForNewModele = () => {
   codeOriginal.value = '';
   statut.value = 'BROUILLON';
   version.value = 0;
+  const preservedRef = store.entete.refFormulaireCodeReference;
+  const preservedCols = store.entete.configurationColonnes;
+
   store.entete = { 
     ...store.entete,
     operationCode: '', 
@@ -695,9 +687,13 @@ const resetForNewModele = () => {
     notes: '', 
     legendeMoyens: '', 
     posteCode: '',
-    familleProduitCode: '' 
+    familleProduitCode: '',
+    refFormulaireCodeReference: preservedRef || '',
+    configurationColonnes: preservedCols || []
   };
   groupes.value = [];
+
+  store.applyFormulaireConfiguration();
   
   // Initialiser le snapshot pour un nouveau modèle (état vide)
   setTimeout(() => {

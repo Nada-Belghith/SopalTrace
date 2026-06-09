@@ -30,6 +30,7 @@
     :key="ligne.id"
     :ligne="ligne"
     :section="localSection"
+    :columns="planColumns"
     :is-archived="isArchived"
     :operation-code="operationCode"
     @remove="(id) => { localSection.lignes = localSection.lignes.filter(l => l.id !== id); emit('remove-ligne', id); }"
@@ -81,17 +82,9 @@ import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { genererUid } from '@/utils/uuidUtils';
 
 const store = useFabModeleStore();
-const planColumns = computed(() => [
-  { label: 'Caractéristique contrôlée', width: 'w-[22%]' },
-  { label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Type de contrôle', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Moyen de contrôle', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Code instrument', width: 'w-[12%]', textAlign: 'center' },
-  { label: 'Observations', width: 'flex-1' },
-  { label: '', width: 'w-8', textAlign: 'center' }
-]);
+const planColumns = computed(() => store.tableColumns);
 
-const currentColspan = computed(() => 7);
+const currentColspan = computed(() => planColumns.value.length);
 
 // Helper to generate an id that works in all environments
 const generateId = () => {
@@ -99,7 +92,7 @@ const generateId = () => {
 };
 
 const addLigneLocal = () => {
-  const nouvelleLigne = { id: generateId(), typeCaracteristiqueId: null, typeControleId: null, moyenControleId: null, moyenTexteLibre: '', instrumentCode: null, limiteSpecTexte: '', instruction: '', observations: '', estCritique: false };
+  const nouvelleLigne = { id: generateId(), typeCaracteristiqueId: null, typeControleId: null, moyenControleId: null, moyenTexteLibre: '', instrumentCode: null, limiteSpecTexte: '', instruction: '', observations: '', estCritique: false, valeursColonnesSpecifiques: {} };
   localSection.value.lignes = [ ...(localSection.value.lignes || []), nouvelleLigne ];
   emit('update:section', { ...localSection.value });
 };

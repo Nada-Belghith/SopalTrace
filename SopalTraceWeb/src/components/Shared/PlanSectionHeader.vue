@@ -101,6 +101,7 @@
 
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue';
+import { findTypeSection, normalizeTypeSectionId } from '@/utils/sectionTitleUtils';
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -127,6 +128,13 @@ watch(() => props.section, (newSection) => {
   if (sourceSource !== sourceLocale) {
     isSyncingFromParent.value = true;
     localSection.value = JSON.parse(sourceSource);
+
+    if (localSection.value.typeSectionId) {
+      localSection.value.typeSectionId = normalizeTypeSectionId(
+        localSection.value.typeSectionId,
+        props.typesSection
+      );
+    }
     
     // Auto-populate 'nom' from 'libelleSection' for custom sections
     if (!localSection.value.typeSectionId && !localSection.value.nom && localSection.value.libelleSection) {
@@ -149,7 +157,7 @@ watch(localSection, (newVal) => {
 // --- PROPRIÉTÉS CALCULÉES (Logique Métier Unifiée) ---
 
 const est100Pourcent = computed(() => {
-  const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
+  const typeSec = findTypeSection(props.typesSection, localSection.value.typeSectionId);
   if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) return true;
 
   const libFreq = (localSection.value.frequenceLibelle || '').toLowerCase();
@@ -176,7 +184,7 @@ const titreCalcule = computed(() => {
   }
 
   // 2. Sinon, on génère le titre par défaut
-  const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
+  const typeSec = findTypeSection(props.typesSection, localSection.value.typeSectionId);
   let baseTitle = localSection.value.libelleSection || props.defaultTitle;
   if (typeSec) {
     // Eviter la duplication si le typeSec.libelle inclut déjà le defaultTitle
@@ -306,7 +314,7 @@ watch(() => localSection.value.typeSectionId, (newId) => {
     localSection.value.typeSectionId = null;
     return;
   }
-  const typeSec = (props.typesSection || []).find(ts => ts.id === newId);
+  const typeSec = findTypeSection(props.typesSection, newId);
   if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) {
     localSection.value.modeFreq = 'VARIABLE';
     localSection.value.freqNum = 100;

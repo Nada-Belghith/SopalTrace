@@ -191,6 +191,17 @@ public class CatalogueReferentielService : ICatalogueReferentielService
         );
     }
 
+    public async Task<IReadOnlyList<ArticleDto>> SearchArticlesSfAsync(string query, int maxResults = 15)
+    {
+        var articles = await _repository.SearchArticlesSfAsync(query, maxResults);
+        return articles.Select(a => new ArticleDto(
+            a.CodeArticle,
+            a.Designation,
+            null, // typeRobinetCode non nécessaire pour l'autocomplete
+            a.NatureArticleCode
+        )).ToList();
+    }
+
     public async Task<Guid> CreatePeriodiciteAsync(CreatePeriodiciteDto request)
     {
         var existing = await _repository.GetPeriodiciteByLibelleAsync(request.Code);

@@ -216,6 +216,8 @@ public static class PlanFabricationMapper
             CreeLe = plan.CreeLe,
             //ModifiePar = plan.ModifiePar ?? string.Empty,
             //ModifieLe = plan.ModifieLe,
+            ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
+            CodeReferenceFormulaire = plan.Formulaire?.CodeReference,
             Sections = plan.PlanFabricationSections?.Select(s => new PlanSectionResponseDto
             {
                 Id = s.Id,

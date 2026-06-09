@@ -59,11 +59,20 @@ public class RefFormulaireRepository : IRefFormulaireRepository
     public async Task<System.Collections.Generic.IEnumerable<RefFormulaire>> GetFormulairesByRoleAsync(string role)
     {
         var roleTrimmed = role?.Trim();
-        return await _context.RefFormulaires
+        var formulaires = await _context.RefFormulaires
             .AsNoTracking()
             .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed) && (f.Statut != null && (f.Statut.Trim() == "ACTIF" || f.Statut.Trim() == "BROUILLON")))
-            .OrderBy(f => f.Designation)
             .ToListAsync();
+
+        // Une seule entrée par codeReference : priorité ACTIF, puis version la plus élevée
+        return formulaires
+            .GroupBy(f => f.CodeReference?.Trim() ?? string.Empty)
+            .Select(g => g
+                .OrderBy(f => f.Statut!.Trim() == "ACTIF" ? 0 : 1)
+                .ThenByDescending(f => f.Version)
+                .First())
+            .OrderBy(f => f.Designation)
+            .ToList();
     }
 
     public async Task<int> GetMaxVersionByCodeReferenceAsync(string codeReference)

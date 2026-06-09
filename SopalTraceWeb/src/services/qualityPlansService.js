@@ -132,6 +132,10 @@ export const qualityPlansService = {
     return apiClient.get(`/referentiels/article/${codeArticle}`);
   },
 
+  searchArticlesSf(query) {
+    return apiClient.get(`/referentiels/articles-sf/search`, { params: { q: query } });
+  },
+
   getModelesByFilters(typeRobinetCode, natureComposantCode, operationCode, posteCode = null, familleProduitCode = null) {
     const params = new URLSearchParams();
     if (typeRobinetCode) params.append('typeRobinet', typeRobinetCode);

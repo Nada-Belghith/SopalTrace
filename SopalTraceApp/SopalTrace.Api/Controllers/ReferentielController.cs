@@ -53,6 +53,16 @@ public class ReferentielController : ControllerBase
         return Ok(article);
     }
 
+    [HttpGet("articles-sf/search")]
+    public async Task<IActionResult> SearchArticlesSf([FromQuery] string q)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+            return BadRequest("La requête de recherche est requise.");
+
+        var articles = await _referentielService.SearchArticlesSfAsync(q);
+        return Ok(articles);
+    }
+
     /// <summary>
     /// Cree une nouvelle piece de reference (PRC, PRNC) ou un etalon fuite (FEC, FENC)
     /// directement depuis le formulaire Verification Machine.

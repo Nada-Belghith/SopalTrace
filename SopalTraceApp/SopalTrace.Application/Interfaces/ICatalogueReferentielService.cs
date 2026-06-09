@@ -15,6 +15,9 @@ public interface ICatalogueReferentielService
 
     Task<ArticleDto?> GetArticleInfosAsync(string codeArticle);
 
+    /// <summary>Autocomplete : articles SF (hors PISTON) dont le code contient la query.</summary>
+    Task<IReadOnlyList<ArticleDto>> SearchArticlesSfAsync(string query, int maxResults = 15);
+
     Task<Guid> CreatePeriodiciteAsync(CreatePeriodiciteDto request);
 
     Task<Guid> CreateCaracteristiqueAsync(CreateCaracteristiqueDto request);

@@ -82,7 +82,8 @@ const ajouterLigne = () => {
     unite: '',          
     instruction: '',
     observations: '',
-    estCritique: false
+    estCritique: false,
+    valeursColonnesSpecifiques: {}
   };
   
   localGroupe.value.lignes = [...(localGroupe.value.lignes || []), nouvelleLigne];

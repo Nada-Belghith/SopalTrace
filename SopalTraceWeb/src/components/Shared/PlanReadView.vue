@@ -106,6 +106,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
 
 const props = defineProps({
   sections:       { type: Array,  default: () => [] },
@@ -167,22 +168,7 @@ function resolveCustomValue(ligne, colKey) {
 // ─── Résolution des libellés ───
 
 function buildSectionTitle(section) {
-  // 1. Priorité absolue au libellé complet enregistré en base de données
-  let titre = section.libelleSection || section.nom || '';
-
-  // 2. Si vraiment vide, on utilise le type par défaut
-  if (!titre || titre.toLowerCase() === 'section sans nom') {
-    const ts = props.typesSection.find(t => t.id === section.typeSectionId);
-    titre = ts ? ts.libelle : 'Section sans nom';
-    
-    // Si on a dû utiliser le type, on s'assure du préfixe
-    if (!titre.toLowerCase().includes('caractéristiques')) {
-        titre = `Caractéristiques à contrôler ${titre}`;
-    }
-  }
-
-  // NOTE : On ne concatène plus rien ici car le libellé est déjà complet en base.
-  return titre;
+  return resolveSectionDisplayTitle(section, props.typesSection);
 }
 
 function resolveLibelle(ligne) {
