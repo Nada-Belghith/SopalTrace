@@ -6,8 +6,8 @@ namespace SopalTrace.Application.Services;
 
 public class PlanBeeMachineService : PlanVerifMachineService
 {
-    public PlanBeeMachineService(IUnitOfWork unitOfWork, IValidator<CreatePlanVerifMachineDto> createValidator, IReferentielService referentielService) 
-        : base(unitOfWork, createValidator, referentielService)
+    public PlanBeeMachineService(IUnitOfWork unitOfWork, IValidator<CreatePlanVerifMachineDto> createValidator, ICatalogueReferentielService referentielService, IFormulairePrcService formulaireService) 
+        : base(unitOfWork, createValidator, referentielService, formulaireService)
     {
     }
 

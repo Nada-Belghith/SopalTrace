@@ -54,6 +54,7 @@ public interface IPlanFabricationRepository
     Task<int> GetDerniereVersionPlanAsync(string codeArticleSage, string? operationCode = null);
     Task<ModeleFabricationEntete?> GetModeleActifParCriteresAsync(string natureCode, string operationCode);
     Task<ModeleFabricationEntete?> GetModeleActifPourFamilleAsync(string? natureComposantCode, string? opCode);
+    Task<ModeleFabricationEntete?> GetModeleActifParCodeEtLibelleAsync(string code, string libelle);
 
     Task DeletePlanWithChildrenAsync(Guid planId);
 }

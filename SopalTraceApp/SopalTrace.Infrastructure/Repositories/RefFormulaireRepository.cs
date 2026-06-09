@@ -31,4 +31,46 @@ public class RefFormulaireRepository : IRefFormulaireRepository
     {
         await _context.RefFormulaires.AddAsync(entity);
     }
+
+    public async Task<RefFormulaire?> GetFormulaireActifByRoleAsync(string role)
+    {
+        var roleTrimmed = role?.Trim();
+        // Priorité : ACTIF d'abord, puis BROUILLON si pas encore activé
+        return await _context.RefFormulaires
+            .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed)
+                     && (f.Statut != null && (f.Statut.Trim() == "ACTIF" || f.Statut.Trim() == "BROUILLON")))
+            .OrderBy(f => f.Statut!.Trim() == "ACTIF" ? 0 : 1) // ACTIF en premier
+            .ThenByDescending(f => f.Version)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<RefFormulaire?> GetFormulaireActifByCodeReferenceAsync(string codeReference)
+    {
+        var codeRefTrimmed = codeReference?.Trim();
+        // Priorité : ACTIF d'abord, puis BROUILLON si pas encore activé
+        return await _context.RefFormulaires
+            .Where(f => (f.CodeReference != null && f.CodeReference.Trim() == codeRefTrimmed)
+                     && (f.Statut != null && (f.Statut.Trim() == "ACTIF" || f.Statut.Trim() == "BROUILLON")))
+            .OrderBy(f => f.Statut!.Trim() == "ACTIF" ? 0 : 1) // ACTIF en premier
+            .ThenByDescending(f => f.Version)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<System.Collections.Generic.IEnumerable<RefFormulaire>> GetFormulairesByRoleAsync(string role)
+    {
+        var roleTrimmed = role?.Trim();
+        return await _context.RefFormulaires
+            .AsNoTracking()
+            .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed) && (f.Statut != null && (f.Statut.Trim() == "ACTIF" || f.Statut.Trim() == "BROUILLON")))
+            .OrderBy(f => f.Designation)
+            .ToListAsync();
+    }
+
+    public async Task<int> GetMaxVersionByCodeReferenceAsync(string codeReference)
+    {
+        var codeRefTrimmed = codeReference?.Trim();
+        return await _context.RefFormulaires
+            .Where(f => f.CodeReference != null && f.CodeReference.Trim() == codeRefTrimmed)
+            .MaxAsync(f => (int?)f.Version) ?? 0;
+    }
 }

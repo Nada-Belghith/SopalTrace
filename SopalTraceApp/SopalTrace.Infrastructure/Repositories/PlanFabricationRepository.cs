@@ -295,6 +295,12 @@ public class PlanFabricationRepository : IPlanFabricationRepository
             .FirstOrDefaultAsync(m => m.NatureArticleCode == natureComposantCode && m.OperationCode == opCode && m.Statut == "ACTIF");
     }
 
+    public async Task<ModeleFabricationEntete?> GetModeleActifParCodeEtLibelleAsync(string code, string libelle)
+    {
+        return await _context.ModeleFabricationEntetes
+            .FirstOrDefaultAsync(m => m.Code == code && m.Libelle == libelle && m.Statut == "ACTIF");
+    }
+
     public async Task DeletePlanWithChildrenAsync(Guid planId)
     {
         var plan = await _context.PlanFabricationEntetes

@@ -23,7 +23,7 @@ public class ModeleFabricationService : IModeleFabricationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPlanFabricationRepository _fabRepository;
     private readonly IPlanAssRepository _assRepository;
-    private readonly IReferentielService _referentielService;
+    private readonly IFormulairePrcService _referentielService;
     private readonly IValidator<CreateModeleRequestDto> _modeleValidator;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ModeleFabricationService> _logger;
@@ -32,7 +32,7 @@ public class ModeleFabricationService : IModeleFabricationService
         IUnitOfWork unitOfWork,
         IPlanFabricationRepository fabRepository,
         IPlanAssRepository assRepository,
-        IReferentielService referentielService,
+        IFormulairePrcService referentielService,
         IValidator<CreateModeleRequestDto> modeleValidator,
         ICurrentUserService currentUserService,
         ILogger<ModeleFabricationService> logger)
@@ -81,14 +81,11 @@ public class ModeleFabricationService : IModeleFabricationService
 
             if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
             {
-                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
-                    "EN_COURS_DE_ASSEMBLAGE",
-                    request.ConfigurationColonnesJson,
-                    request.RefFormulaireCodeReference,
-                    request.VersionInitiale);
-                if (formResult.HasValue)
+                var formResult = await _referentielService.GetFormulaireActifParCodeReferenceAsync(request.RefFormulaireCodeReference);
+                if (formResult != null)
                 {
-                    modele.FormulaireId = formResult.Value.Id;
+                    modele.FormulaireId = formResult.Id;
+
                 }
             }
 
@@ -129,14 +126,11 @@ public class ModeleFabricationService : IModeleFabricationService
 
             if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
             {
-                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
-                    "EN_COURS_DE_FABRICATION",
-                    request.ConfigurationColonnesJson,
-                    request.RefFormulaireCodeReference,
-                    request.VersionInitiale);
-                if (formResult.HasValue)
+                var formResult = await _referentielService.GetFormulaireActifParCodeReferenceAsync(request.RefFormulaireCodeReference);
+                if (formResult != null)
                 {
-                    modele.FormulaireId = formResult.Value.Id;
+                    modele.FormulaireId = formResult.Id;
+
                 }
             }
 
@@ -414,14 +408,11 @@ public class ModeleFabricationService : IModeleFabricationService
 
             if (!string.IsNullOrEmpty(jsonToUse) || assModele.FormulaireId.HasValue)
             {
-                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
-                    role,
-                    jsonToUse,
-                    request.RefFormulaireCodeReference);
-                if (formResult.HasValue)
+                var formResult = await _referentielService.GetFormulaireActifParCodeReferenceAsync(request.RefFormulaireCodeReference);
+                if (formResult != null)
                 {
-                    newFormulaireId = formResult.Value.Id;
-                    nouvelleVersion = formResult.Value.Version;
+                    newFormulaireId = formResult.Id;
+
                 }
             }
 
@@ -459,14 +450,11 @@ public class ModeleFabricationService : IModeleFabricationService
 
             if (!string.IsNullOrEmpty(jsonToUse) || fabModele.FormulaireId.HasValue)
             {
-                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
-                    "EN_COURS_DE_FABRICATION",
-                    jsonToUse,
-                    request.RefFormulaireCodeReference);
-                if (formResult.HasValue)
+                var formResult = await _referentielService.GetFormulaireActifParCodeReferenceAsync(request.RefFormulaireCodeReference);
+                if (formResult != null)
                 {
-                    newFormulaireId = formResult.Value.Id;
-                    nouvelleVersion = formResult.Value.Version;
+                    newFormulaireId = formResult.Id;
+
                 }
             }
 
@@ -509,15 +497,11 @@ public class ModeleFabricationService : IModeleFabricationService
                 if (oldForm != null)
                 {
                     var role = assModele.OperationCode == "ASS" ? "EN_COURS_DE_ASSEMBLAGE" : "EN_COURS_DE_FABRICATION";
-                    var formResult = await _referentielService.UpdateFormulaireStructureAsync(
-                        role,
-                        oldForm.ConfigurationStructureJson,
-                        oldForm.CodeReference);
+                    var formResult = await _referentielService.GetFormulaireActifParCodeReferenceAsync(oldForm.CodeReference);
                     
-                    if (formResult.HasValue)
+                    if (formResult != null)
                     {
-                        nouveauPlan.FormulaireId = formResult.Value.Id;
-                        nouveauPlan.Version = formResult.Value.Version;
+                        nouveauPlan.FormulaireId = formResult.Id;
                     }
                 }
             }
@@ -549,15 +533,11 @@ public class ModeleFabricationService : IModeleFabricationService
                 var oldForm = await _referentielService.GetFormulaireByIdAsync(fabModele.FormulaireId.Value);
                 if (oldForm != null)
                 {
-                    var formResult = await _referentielService.UpdateFormulaireStructureAsync(
-                        "EN_COURS_DE_FABRICATION",
-                        oldForm.ConfigurationStructureJson,
-                        oldForm.CodeReference);
+                    var formResult = await _referentielService.GetFormulaireActifParCodeReferenceAsync(oldForm.CodeReference);
                     
-                    if (formResult.HasValue)
+                    if (formResult != null)
                     {
-                        newFormulaireId = formResult.Value.Id;
-                        nouvelleVersion = formResult.Value.Version;
+                        newFormulaireId = formResult.Id;
                     }
                 }
             }

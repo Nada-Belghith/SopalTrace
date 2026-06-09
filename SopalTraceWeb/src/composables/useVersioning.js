@@ -1,8 +1,8 @@
 import { qualityPlansService } from '@/services/qualityPlansService';
 
 export function useModeleVersioning() {
-  const creerNouvelleVersionModele = (payload) => qualityPlansService.newModeleVersion(payload);
-  const restaurerModele = (payload) => qualityPlansService.restoreModele(payload);
+  const creerNouvelleVersionModele = (payload, type = null) => qualityPlansService.newModeleVersion(payload, type);
+  const restaurerModele = (payload, type = null) => qualityPlansService.restoreModele(payload, type);
 
   return { creerNouvelleVersionModele, restaurerModele };
 }

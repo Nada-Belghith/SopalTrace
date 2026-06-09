@@ -44,10 +44,10 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const codeModeleAuto = computed(() => {
     const op = entete.value.operationCode || 'XXX';
     const nat = entete.value.natureComposantCode || 'XXX';
-    const fam = entete.value.natureComposantCode === 'PF' && entete.value.familleProduitCode ? `-${entete.value.familleProduitCode}` : '';
+    const fam = entete.value.familleProduitCode ? `-${entete.value.familleProduitCode}` : '';
     const poste = entete.value.posteCode ? `P${entete.value.posteCode}` : '';
 
-    const prefix = (nat === 'PF' || nat === 'PISTON') ? 'PLAN' : 'MOD';
+    const prefix = (nat === 'PF') ? 'PLAN' : 'MOD';
     return `${prefix}-${op}-${nat}${fam}-${poste}`.toUpperCase();
   });
 
@@ -126,7 +126,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       instruction: '',
       observations: '',
       estCritique: false,
-      limiteSpecTexte: ''
+      limiteSpecTexte: '',
+      valeursColonnesSpecifiques: {}
     });
   };
 
@@ -145,7 +146,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     natureComposantCode: entete.value.natureComposantCode || '',
     operationCode: entete.value.operationCode || '',
     posteCode: entete.value.posteCode || null,
-    familleProduitCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
+    familleProduitCode: entete.value.familleProduitCode || null,
     notes: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
     versionInitiale: entete.value.versionInitiale,

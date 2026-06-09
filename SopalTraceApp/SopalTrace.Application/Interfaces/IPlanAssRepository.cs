@@ -31,5 +31,6 @@ public interface IPlanAssRepository
 
     // Persistance
     Task AddPlanAsync(PlanAssemblageEntete plan);
+    void DeletePlan(PlanAssemblageEntete plan);
     Task SaveChangesAsync();
 }

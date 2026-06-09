@@ -121,9 +121,11 @@ builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.Ex
 builder.Services.AddScoped<IExcelImportFactory, ExcelImportFactory>();
 builder.Services.AddScoped<IRefFormulaireRepository, RefFormulaireRepository>();
 builder.Services.AddScoped<IRefFormulaireService, RefFormulaireService>();
-builder.Services.AddScoped<IReferentielService, ReferentielService>();
+builder.Services.AddScoped<IFormulairePrcService, FormulairePrcService>();
+builder.Services.AddScoped<ICatalogueReferentielService, CatalogueReferentielService>();
 builder.Services.AddScoped<IHubService, HubService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
+builder.Services.AddScoped<IModeleAssemblageService, ModeleAssemblageService>();
 builder.Services.AddScoped<IPlanPfRepository, PlanPfRepository>();
 builder.Services.AddScoped<IPlanPfService, PlanPfService>();
 builder.Services.AddScoped<IDictionnaireQualiteRepository, DictionnaireQualiteRepository>();

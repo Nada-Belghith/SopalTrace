@@ -36,40 +36,32 @@
             {{ isReadOnly ? 'Visualisation du modèle' : 'Éditeur de Structure' }}
             <span v-if="isForcedView" class="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-xs ml-2 uppercase tracking-widest border border-blue-400/30">Mode Lecture</span>
           </div>
-          <button @click="$router.push('/dev/hub')" class="text-slate-400 hover:text-white transition-colors">
+          <button @click="$router.push(returnUrl)" class="text-slate-400 hover:text-white transition-colors">
             <i class="pi pi-times text-lg"></i>
           </button>
         </div>
 
         <div class="p-6 md:p-8">
-          <div class="flex justify-between items-start mb-6">
-            <div class="flex-1">
+          <div class="flex flex-col md:flex-row items-center justify-between p-6 bg-slate-50 border-b border-slate-200">
+            <div class="flex-1 w-full md:w-auto">
               <FabModeleHeader :is-edit-mode="isEditMode" :is-read-only="isReadOnly" />
-            </div>
-
-            <div v-if="!isReadOnly && (store.entete.natureComposantCode === 'PISTON' || (store.entete.operationCode === 'ASS' && store.entete.natureComposantCode === 'PF'))" class="ml-8 shrink-0 flex items-center">
-              <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.csv" class="hidden" />
-              <button @click="$refs.fileInput.click()" 
-                class="h-10 px-5 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
-                :disabled="isLoading">
-                <i v-if="!isLoading" class="ri-file-excel-2-line text-xl"></i>
-                <i v-else class="ri-loader-4-line animate-spin text-xl"></i>
-                <span>Importer la structure Excel</span>
-              </button>
-            </div>
-            
-            <div v-if="!isReadOnly" class="ml-4 shrink-0 flex items-center">
-              <button @click="showColumnModal = true" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors h-10 shadow-md">
-                <i class="pi pi-sliders-h"></i> Configurer Colonnes
-              </button>
             </div>
           </div>
 
-          <div class="mb-4 flex items-center justify-between">
+          <div class="mb-4 mt-6 flex items-center justify-between">
             <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrle</h3>
           </div>
 
-          <template v-if="groupes.length === 0">
+          <template v-if="!hasValidStructure">
+            <div class="p-8 text-center bg-amber-50 rounded-lg border border-amber-200 mb-6 flex flex-col items-center justify-center">
+              <i class="pi pi-file-excel text-amber-500 text-4xl mb-3"></i>
+              <h4 class="text-sm font-bold text-amber-800 mb-1">Structure PRC non définie</h4>
+              <p class="text-sm text-amber-700 max-w-lg">Le formulaire sélectionné est à l'état de brouillon. Le Superviseur Qualité doit définir la structure du plan avant que vous puissiez créer des modèles ou des plans par article.</p>
+            </div>
+          </template>
+          
+          <template v-else>
+            <template v-if="groupes.length === 0">
             <div class="p-8 text-center text-slate-400 text-sm italic bg-slate-50 rounded-lg border border-slate-200 mb-6">
               Cliquez sur "Créer une nouvelle section" pour commencer.
             </div>
@@ -118,12 +110,13 @@
               </FabSectionCard>
             </table>
           </div>
-          
-          <div class="mt-2" v-if="!isReadOnly">
-            <button @click="ajouterGroupe" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
-              <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
-            </button>
-          </div>
+            
+            <div class="mt-2" v-if="!isReadOnly">
+              <button @click="ajouterGroupe" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
+              </button>
+            </div>
+          </template>
 
           <!-- Notes & Légende en mode éditeur uniquement -->
           <div v-if="!isReadOnly" class="mt-2">
@@ -149,7 +142,7 @@
             :variant="actionButtonVariant"
             :is-loading="isLoading"
             @submit="onEditorSubmitClick"
-            @cancel="() => $router.push('/dev/hub')"
+            @cancel="() => $router.push(returnUrl)"
           />
         </div>
       </div>
@@ -167,6 +160,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'primevue/usetoast';
 
 import { qualityPlansService } from '@/services/qualityPlansService';
@@ -191,9 +185,12 @@ import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
 
 const store = useFabModeleStore();
+const roleStore = useAuthStore();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
+
+const returnUrl = computed(() => '/dev/fab/modeles');
 
 // ============================================================================
 // ÉTAT LOCAL (Métier)
@@ -254,6 +251,27 @@ const baseModeleColumns = [
   { key: 'observations', label: 'Observations', width: 'flex-1' }
 ];
 
+const hasValidStructure = computed(() => {
+  const codeRef = store.entete.refFormulaireCodeReference;
+  if (!codeRef) return false;
+
+  const formulaires = store.formulairesReferences || [];
+  const refObj = formulaires.find(r => r.codeReference === codeRef);
+
+  if (refObj) {
+    const s = typeof refObj.statut === 'string' ? refObj.statut.trim().toUpperCase() : refObj.statut;
+    const S = typeof refObj.Statut === 'string' ? refObj.Statut.trim().toUpperCase() : refObj.Statut;
+    if (s === 'ACTIF' || s === 1 || S === 'ACTIF' || S === 1) {
+      return true;
+    }
+  }
+
+  const configCols = store.entete.configurationColonnes;
+  if (configCols && configCols.length > 0) return true;
+
+  return false;
+});
+
 const modeleColumns = computed(() => {
   let cols = [...baseModeleColumns];
   const customCols = store.entete.configurationColonnes || [];
@@ -288,7 +306,7 @@ const codeAffiche = computed(() => {
     if (isReadOnly.value) return codeOriginal.value;
     
     // Si on est en train d'éditer pour une nouvelle version, on affiche ce que sera le prochain code
-    return `${codeOriginal.value.replace(/-V\d+$/i, '')}-V${version.value + 1}`;
+    return `${codeOriginal.value.replace(/(?:[-\s]+V\d+)+$/i, '')}-V${version.value + 1}`;
   }
   return store.entete.code || store.codeModeleAuto;
 });
@@ -366,126 +384,10 @@ const actionButtonVariant = computed(() => {
   return 'primary';
 });
 
-const fileInput = ref(null);
-
-const onFileSelected = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const formData = new FormData();
-  formData.append('file', file);
-  if (store.entete.configurationColonnes) {
-    const configJson = typeof store.entete.configurationColonnes === 'string'
-      ? store.entete.configurationColonnes
-      : JSON.stringify(store.entete.configurationColonnes);
-    formData.append('configurationColonnesJson', configJson);
-  }
-
-  try {
-    store.isLoading = true;
-    const response = await qualityPlansService.importExcel(formData);
-    const parsedData = response.data.data;
-
-    if (parsedData) {
-      // Ajouter les remarques du fichier
-      if (parsedData.remarques && parsedData.remarques.trim() !== '') {
-        store.entete.notes = (store.entete.notes ? store.entete.notes + '\n' : '') + parsedData.remarques.trim();
-      }
-
-      // Ajouter les sections
-      if (parsedData.sections && parsedData.sections.length > 0) {
-        // Afficher un aperçu avant d'importer
-        const sectionsApercu = parsedData.sections
-          .filter(sec => sec && sec.nom) // Sections valides uniquement
-          .map(sec => {
-            const hasLines = sec.lignes && sec.lignes.length > 0;
-
-            return {
-              id: sec.id || crypto.randomUUID(),
-              isFromDb: false,
-              nom: sec.nom || '',  // Texte brut Excel (nature personnalisée si typeSectionId est null)
-              libelleSection: sec.nom,
-              typeSectionId: sec.typeSectionId || null,  // null si non trouvé en base
-              notes: sec.notes || '',
-              modeFreq: sec.modeFreq || 'SANS',
-              periodiciteId: sec.periodiciteId || null,
-              freqNum: sec.freqNum || 0,
-              typeVariable: sec.typeVariable || '',
-              freqHours: sec.freqHours || 1,
-              regleEchantillonnageId: sec.regleEchantillonnageId || null,  // ✅ NULL si pas trouvé
-              frequenceLibelle: sec.frequenceLibelle || null,
-              lignes: hasLines 
-                ? sec.lignes.map(lig => ({
-                    id: lig.id || crypto.randomUUID(),
-                    isFromDb: false,
-                    typeCaracteristiqueId: lig.typeCaracteristiqueId || null,
-                    typeControleId: lig.typeControleId || null,
-                    moyenControleId: lig.moyenControleId || null,
-                    instrumentCode: lig.instrumentCode || '',
-                    unite: lig.unite || '',
-                    limiteSpecTexte: lig.limiteSpecTexte || '',
-                    observations: lig.observations || '',
-                    instruction: lig.instruction || '',
-                    estCritique: lig.estCritique || false,
-                    libelleAffiche: lig.libelleAffiche || '',
-                    valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
-                  }))
-                : [] // ✅ Sections sans lignes (complexes) restent vides pour édition
-            };
-          });
-
-        // Remplacer les groupes par les sections importées
-        groupes.value = sectionsApercu;
-
-        // Afficher détails de l'import
-        const totalSections = sectionsApercu.length;
-        const sectionsAvecLignes = sectionsApercu.filter(s => s.lignes.length > 0).length;
-        const sectionsSansLignes = totalSections - sectionsAvecLignes;
-
-        let detailMessage = `${totalSections} section(s) importée(s)`;
-        if (sectionsSansLignes > 0) {
-          detailMessage += ` (${sectionsAvecLignes} avec lignes, ${sectionsSansLignes} pour aperçu)`;
-        }
-
-        toast.add({
-          severity: 'success',
-          summary: 'Import réussi',
-          detail: detailMessage,
-          life: 5000
-        });
-      } else {
-        toast.add({
-          severity: 'warn',
-          summary: 'Import terminé',
-          detail: 'Aucune section n\'a été trouvée dans le fichier.',
-          life: 4000
-        });
-      }
-
-      await store.fetchDictionnaires();
-    }
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Erreur d\'import',
-      detail: error.response?.data?.message || 'Impossible de lire le fichier.',
-      life: 4000
-    });
-  } finally {
-    store.isLoading = false;
-    if (fileInput.value) fileInput.value.value = '';
-    
-    // Réinitialiser le snapshot après l'import pour que isDirty passe à true
-    updateCurrentSnapshot(createModeleSnapshot(store.entete, groupes.value));
-  }
-};
-
 onMounted(async () => {
   try {
     await store.fetchDictionnaires();
-    if (route.query.mode === 'assembly') {
-      await store.fetchFormulairesReferences('EN_COURS_DE_ASSEMBLAGE');
-    }
+    await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
     
     if (route.params.id && route.params.id !== 'nouveau') {
       await chargerModelePourEdition(route.params.id);
@@ -502,7 +404,8 @@ const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
-    const res = await qualityPlansService.getModeleById(id);
+    const type = route.query.type || null;
+    const res = await qualityPlansService.getModeleById(id, type);
     const data = res.data.data || res.data;
     
     modeleEditionId.value = data.id;
@@ -519,6 +422,7 @@ const chargerModelePourEdition = async (id) => {
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitCode || '';
+    store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || '';
     store.entete.configurationColonnes = data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [];
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
@@ -541,8 +445,8 @@ const chargerModelePourEdition = async (id) => {
         if (sec.regleEchantillonnageId) freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
       }
 
-      let typeSectionId = '';
-      if (sec.libelleSection) {
+      let typeSectionId = sec.typeSectionId || '';
+      if (!typeSectionId && sec.libelleSection) {
         const secLib = sec.libelleSection.trim().toLowerCase();
         let bestMatch = null;
         let maxLength = -1;
@@ -603,7 +507,7 @@ const chargerModelePourEdition = async (id) => {
   } catch (e) {
     console.error(e);
     toast.add({ severity: 'error', summary: 'Introuvable', detail: 'Modèle introuvable.', life: 5000 });
-    router.push('/dev/hub');
+    router.push(returnUrl.value);
   } finally {
     store.isLoading = false;
     store.isBeingLoaded = false;  // ✅ Réactive les watchers après le chargement
@@ -617,7 +521,8 @@ const preparerDonneesEtFrequences = async () => {
     groupes.value,
     store.periodicites,
     async (payloadFreq) => {
-      const res = await qualityPlansService.createPeriodicite(payloadFreq);
+      const type = route.query.type || null;
+      const res = await qualityPlansService.createPeriodicite(payloadFreq, type);
       store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
       return res;
     }
@@ -659,7 +564,7 @@ const sauvegarderDirectement = async () => {
     const resData = await store.saveModele(store.entete.legendeMoyens);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle (V${resData?.version ?? 0}) créé et activé !`, life: 3000 });
-    setTimeout(() => router.push('/dev/hub'), 1500);
+    setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
     toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 6000 });
@@ -676,7 +581,7 @@ const sauvegarderV2 = async (motif) => {
 
     const resData = await store.creerNouvelleVersion(modeleEditionId.value, motif, store.entete.legendeMoyens);
     toast.add({ severity: 'success', summary: `V${resData?.version ?? version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
-    setTimeout(() => router.push('/dev/hub'), 1500);
+    setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
     toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 6000 });
@@ -688,10 +593,11 @@ const sauvegarderV2 = async (motif) => {
 const restaurerArchive = async (motif) => {
   store.isLoading = true;
   try {
+    const type = route.query.type || null;
     const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
-    await restaurerModele(payloadRestore);
+    await restaurerModele(payloadRestore, type);
     toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
-    setTimeout(() => router.push('/dev/hub'), 1500);
+    setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur de restauration', detail: error.message, life: 6000 });
   } finally {
@@ -723,6 +629,7 @@ const onEditorSubmit = async () => {
       await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Brouillon mis à jour avec succès', life: 3000 });
       initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
+      setTimeout(() => router.push(returnUrl.value), 1500);
     } catch (error) {
       toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la mise à jour', life: 6000 });
     }
@@ -738,13 +645,16 @@ const activerPlanCourant = async () => {
     await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
     
     // Ensuite on active le modèle
-    await store.activerModeleDraft(modeleEditionId.value);
+    const type = route.query.type || null;
+    await qualityPlansService.activerModele(modeleEditionId.value, type);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });
     
     // Mettre à jour l'état local
     statut.value = 'ACTIF';
     initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
+    
+    setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de l\'activation', life: 6000 });
   }
@@ -777,6 +687,7 @@ const resetForNewModele = () => {
   statut.value = 'BROUILLON';
   version.value = 0;
   store.entete = { 
+    ...store.entete,
     operationCode: '', 
     natureComposantCode: '', 
     typeRobinetCode: '', 

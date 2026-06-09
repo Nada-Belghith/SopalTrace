@@ -94,6 +94,7 @@ public class PlanAssRepository : IPlanAssRepository
                 p.Statut == StatutsPlan.Actif);
     }
 
+
     public async Task<PlanAssemblageEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
     {
         return await _context.PlanAssemblageEntetes
@@ -143,6 +144,11 @@ public class PlanAssRepository : IPlanAssRepository
     public async Task AddPlanAsync(PlanAssemblageEntete plan)
     {
         await _context.PlanAssemblageEntetes.AddAsync(plan);
+    }
+
+    public void DeletePlan(PlanAssemblageEntete plan)
+    {
+        _context.PlanAssemblageEntetes.Remove(plan);
     }
 
     public async Task SaveChangesAsync()

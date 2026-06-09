@@ -4,10 +4,10 @@ export const fabPlanService = {
   // Récupérer les dictionnaires (wrapping for backward compatibility)
   getDictionnaires: (...args) => qualityPlansService.getDictionnaires(...args),
 
-  // Modèles (compat wrapper)
-  creerModele: (...args) => qualityPlansService.createModele(...args),
-  getModeleById: (...args) => qualityPlansService.getModeleById(...args),
-  nouvelleVersionModele: (...args) => qualityPlansService.newModeleVersion(...args),
-  updateModeleValeurs: (...args) => qualityPlansService.updateModeleValeurs(...args),
-  activerModele: (...args) => qualityPlansService.activerModele(...args)
+  // Modèles (on force isAssExplicit à false et type à 'FAB')
+  creerModele: (payload) => qualityPlansService.createModele(payload, false),
+  getModeleById: (id) => qualityPlansService.getModeleById(id, 'FAB'),
+  nouvelleVersionModele: (payload) => qualityPlansService.newModeleVersion(payload, false),
+  updateModeleValeurs: (id, payload) => qualityPlansService.updateModeleValeurs(id, payload, false),
+  activerModele: (id) => qualityPlansService.activerModele(id, 'FAB')
 };

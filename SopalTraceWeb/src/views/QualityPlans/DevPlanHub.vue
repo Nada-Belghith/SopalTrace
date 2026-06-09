@@ -287,7 +287,7 @@ watch([activeTab, searchQuery, selectedOperation, vueActuelle], () => {
 });
 
 const confirmArchivage = (plan) => {
-  confirm.require({
+  confirm.ask({
     message: `Voulez-vous vraiment archiver "${plan.libelle || plan.codeArticleSage}" ?`,
     header: 'Confirmation d\'archivage',
     icon: 'pi pi-exclamation-triangle',
@@ -301,7 +301,7 @@ const confirmArchivage = (plan) => {
 const archiverPlan = async (plan) => {
   try {
     isLoading.value = true;
-    await apiClient.post(`/hub/plans/${plan.category}/${plan.id}/archiver`);
+    await apiClient.put(`/hub/plans/${plan.category}/${plan.id}/statut?statut=ARCHIVE`);
     plan.statut = 'ARCHIVE';
     toast.success(`Le plan a été archivé avec succès.`);
   } catch {

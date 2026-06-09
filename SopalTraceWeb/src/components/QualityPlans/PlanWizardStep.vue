@@ -235,7 +235,7 @@
           <div v-if="wizard.availableModeles.value.length === 0" class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
             <i class="pi pi-info-circle mr-1.5"></i>
             <span v-if="!wizard.isArticleValid.value">Veuillez d'abord vérifier l'article.</span>
-            <span v-else>Aucun modèle disponible pour cette combinaison article.</span>
+            <span v-else>Aucun modèle disponible. Veuillez contacter le Superviseur Qualité pour qu'il crée d'abord un modèle lié à un PRC actif pour cette opération/nature.</span>
           </div>
 
           <div v-else-if="wizard.availableModeles.value.length === 1" class="px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 shadow-sm h-[42px] flex items-center">

@@ -11,28 +11,47 @@ export const qualityPlansService = {
   },
 
   // --- Modèles de fabrication ---
-  createModele(payload) {
-    return apiClient.post('/modeles-fabrication', payload);
+  _isAss(payload) {
+    if (payload?.operationCode === 'ASS') return true;
+    const n = payload?.natureComposantCode?.trim().toUpperCase();
+    if (n === 'PISTON' || n === 'PF') return true;
+    const t = payload?.typeRobinetCode?.trim().toUpperCase();
+    if (t === 'PISTON') return true;
+    return false;
   },
 
-  getModeleById(id) {
-    return apiClient.get(`/modeles-fabrication/${id}`);
+  createModele(payload, isAssExplicit = null) {
+    const isAss = isAssExplicit !== null ? isAssExplicit : this._isAss(payload);
+    const route = isAss ? '/modeles-assemblage' : '/modeles-fabrication';
+    return apiClient.post(route, payload);
   },
 
-  updateModeleValeurs(id, payload) {
-    return apiClient.put(`/modeles-fabrication/${id}/valeurs`, payload);
+  getModeleById(id, type = null) {
+    const route = type === 'ASS' ? '/modeles-assemblage' : '/modeles-fabrication';
+    return apiClient.get(`${route}/${id}`);
   },
 
-  activerModele(id) {
-    return apiClient.post(`/modeles-fabrication/${id}/activer`);
+  updateModeleValeurs(id, payload, isAssExplicit = null) {
+    const isAss = isAssExplicit !== null ? isAssExplicit : this._isAss(payload);
+    const route = isAss ? '/modeles-assemblage' : '/modeles-fabrication';
+    return apiClient.put(`${route}/${id}/valeurs`, payload);
   },
 
-  newModeleVersion(payload) {
-    return apiClient.post('/modeles-fabrication/nouvelle-version', payload);
+  activerModele(id, type = null) {
+    const route = type === 'ASS' ? '/modeles-assemblage' : '/modeles-fabrication';
+    return apiClient.post(`${route}/${id}/activer`);
   },
 
-  restoreModele(payload) {
-    return apiClient.post('/modeles-fabrication/restaurer', payload);
+  newModeleVersion(payload, isAssExplicit = null) {
+    const isAss = isAssExplicit !== null ? isAssExplicit : this._isAss(payload);
+    const route = isAss ? '/modeles-assemblage' : '/modeles-fabrication';
+    return apiClient.post(`${route}/nouvelle-version`, payload);
+  },
+
+  restoreModele(payload, isAssExplicit = null) {
+    const isAss = isAssExplicit !== null ? isAssExplicit : this._isAss(payload);
+    const route = isAss ? '/modeles-assemblage' : '/modeles-fabrication';
+    return apiClient.post(`${route}/restaurer`, payload);
   },
 
   // --- Périodicités liés aux plans ---
@@ -121,7 +140,14 @@ export const qualityPlansService = {
     if (posteCode) params.append('poste', posteCode);
     if (familleProduitCode) params.append('familleProduit', familleProduitCode);
     
-    return apiClient.get(`/modeles-fabrication/liste?${params.toString()}`);
+    // Fallback to FAB list, wait: DevModelHub actually relies on ModeleFabricationController
+    // returning BOTH ass and fab if operationCode is not provided.
+    // So for 'liste', maybe we still want to call a unified endpoint, OR
+    // we just use the backend logic in `qualityPlansService.js` to call both and merge.
+    const isAss = this._isAss({ operationCode, natureComposantCode, typeRobinetCode });
+    const route = (operationCode && isAss) ? '/modeles-assemblage' : '/modeles-fabrication';
+    
+    return apiClient.get(`${route}/liste?${params.toString()}`);
   },
 
   getPlansByFilters(typeRobinetCode, natureComposantCode, operationCode, posteCode = null) {

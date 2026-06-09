@@ -34,7 +34,7 @@ public class HubService : IHubService
                 (m.NatureArticleCode == "PISTON") ? "Plan de contrôle en cours de fabrication piston" :
                 (m.Libelle ?? "Modèle Sans Nom"),
                 m.NatureArticleCode ?? "N/A",
-                "GEN",
+                m.FamilleProduitFiniCode ?? "GEN",
                 m.OperationCode ?? "N/A",
                 "N/A",
                 m.Formulaire != null ? m.Formulaire.Version : m.Version,

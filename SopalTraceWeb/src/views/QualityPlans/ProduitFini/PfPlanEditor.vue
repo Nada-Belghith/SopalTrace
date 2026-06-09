@@ -35,12 +35,10 @@
 
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-6">
           <div class="p-6 md:p-8">
-            <div class="flex justify-between items-start mb-6">
-              <div class="flex-1">
-                <PfHeader :is-read-only="isReadOnly" />
-              </div>
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+              <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Informations générales</h3>
 
-              <div v-if="!isReadOnly" class="ml-8 shrink-0 flex items-center gap-3">
+              <div v-if="!isReadOnly" class="shrink-0 flex items-center gap-3">
                 <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.csv" class="hidden" />
                 <button @click="$refs.fileInput.click()" 
                   class="h-10 px-5 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
@@ -55,6 +53,18 @@
                   <i class="pi pi-sliders-h text-lg"></i> Configurer Colonnes
                 </button>
               </div>
+            </div>
+
+            <RefFormulaireBanner 
+              v-model="store.entete.formulaireId" 
+              :formulairesReferences="store.formulairesReferences"
+              :isEditMode="isEditMode"
+              :isReadOnly="isReadOnly"
+              :showBanner="!isReadOnly && !isEditMode"
+            />
+
+            <div class="flex-1">
+              <PfHeader :is-read-only="isReadOnly" />
             </div>
           </div>
         </div>
@@ -171,6 +181,7 @@ import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import PfHeader from '@/components/ProduitFini/PfHeader.vue';
 import PfSectionCard from '@/components/ProduitFini/PfSectionCard.vue';
 import PfPlanReadView from '@/components/ProduitFini/PfPlanReadView.vue';
+import RefFormulaireBanner from '@/components/Shared/RefFormulaireBanner.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';

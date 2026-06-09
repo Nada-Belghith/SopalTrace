@@ -29,7 +29,10 @@ export const useAuthStore = defineStore('auth', {
     
     // Vérification de permissions spécifiques
     isAdmin: (state) => state.user?.role === 'ADMIN',
-    isResponsable: (state) => ['ADMIN', 'RESPONSABLE'].includes(state.user?.role),
+    isResponsable: (state) => {
+      const role = state.user?.role || '';
+      return role === 'ADMIN' || role.includes('RESPONSABLE');
+    },
     isOperateur: (state) => state.user?.role === 'OPERATEUR'
   },
 
@@ -91,8 +94,13 @@ export const useAuthStore = defineStore('auth', {
      */
     hasAccess(requiredRoles) {
       if (!requiredRoles || requiredRoles.length === 0) return true;
-      if (!this.user) return false;
-      return requiredRoles.includes(this.user.role);
+      if (!this.user || !this.user.role) return false;
+      
+      const userRole = this.user.role;
+      return requiredRoles.some(role => 
+        userRole === role || 
+        (role === 'RESPONSABLE' && userRole.includes('RESPONSABLE'))
+      );
     },
 
     async forgotPassword(email) {

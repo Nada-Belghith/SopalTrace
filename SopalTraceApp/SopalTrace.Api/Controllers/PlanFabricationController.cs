@@ -18,10 +18,10 @@ namespace SopalTrace.Api.Controllers;
 public class PlanFabricationController : ControllerBase
 {
     private readonly IPlanFabricationService _planService;
-    private readonly IReferentielService _referentielService;
+    private readonly ICatalogueReferentielService _referentielService;
     private readonly SopalTraceDbContext _context;
 
-    public PlanFabricationController(IPlanFabricationService planService, IReferentielService referentielService, SopalTraceDbContext context)
+    public PlanFabricationController(IPlanFabricationService planService, ICatalogueReferentielService referentielService, SopalTraceDbContext context)
     {
         _planService = planService;
         _referentielService = referentielService;

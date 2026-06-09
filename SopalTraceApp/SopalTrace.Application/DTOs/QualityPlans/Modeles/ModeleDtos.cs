@@ -131,6 +131,8 @@ public record ModeleResponseDto
     public string? ArchivePar { get; init; }
     public DateTime? ArchiveLe { get; init; }
     public string? ConfigurationColonnesJson { get; init; }
+    public string? CodeReferenceFormulaire { get; init; }
+    public int? FormulaireVersion { get; init; }
     public List<ModeleSectionResponseDto> Sections { get; init; } = new();
 }
 

@@ -9,11 +9,13 @@ namespace SopalTrace.Api.Controllers;
 [ApiController]
 public class ReferentielController : ControllerBase
 {
-    private readonly IReferentielService _referentielService;
+    private readonly ICatalogueReferentielService _referentielService;
+    private readonly IFormulairePrcService _formulaireService;
 
-    public ReferentielController(IReferentielService referentielService)
+    public ReferentielController(ICatalogueReferentielService referentielService, IFormulairePrcService formulaireService)
     {
         _referentielService = referentielService;
+        _formulaireService = formulaireService;
     }
 
     [HttpGet("fabrication")]
@@ -76,7 +78,7 @@ public class ReferentielController : ControllerBase
     [HttpGet("formulaires/role/{role}")]
     public async Task<IActionResult> GetFormulaireByRole(string role)
     {
-        var result = await _referentielService.GetFormulaireByRoleAsync(role);
+        var result = await _formulaireService.GetFormulaireByRoleAsync(role);
         if (result == null) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
         return Ok(new { success = true, data = result });
     }
@@ -84,7 +86,7 @@ public class ReferentielController : ControllerBase
     [HttpGet("formulaires/{id}")]
     public async Task<IActionResult> GetFormulaireById(Guid id)
     {
-        var result = await _referentielService.GetFormulaireByIdAsync(id);
+        var result = await _formulaireService.GetFormulaireByIdAsync(id);
         if (result == null) return NotFound(new { success = false, message = $"Formulaire {id} introuvable." });
         return Ok(new { success = true, data = result });
     }
@@ -92,14 +94,14 @@ public class ReferentielController : ControllerBase
     [HttpGet("formulaires/liste/{role}")]
     public async Task<IActionResult> GetFormulairesListByRole(string role)
     {
-        var result = await _referentielService.GetFormulairesListByRoleAsync(role);
+        var result = await _formulaireService.GetFormulairesListByRoleAsync(role);
         return Ok(new { success = true, data = result });
     }
 
     [HttpPut("formulaires/role/{role}")]
     public async Task<IActionResult> UpdateFormulaireStructure(string role, [FromBody] UpdateFormulaireStructureDto request)
     {
-        var newId = await _referentielService.UpdateFormulaireStructureAsync(role, request.ConfigurationStructureJson, null, request.VersionInitiale);
+        var newId = await _formulaireService.UpdateFormulaireStructureAsync(role, request.ConfigurationStructureJson, null, request.VersionInitiale);
         if (newId == null) return NotFound(new { success = false, message = $"Formulaire avec le role {role} introuvable ou inactif." });
         return Ok(new { success = true, message = "Structure du formulaire mise a jour avec succes.", newId = newId });
     }
@@ -107,7 +109,7 @@ public class ReferentielController : ControllerBase
     [HttpPost("formulaires/{id}/activer")]
     public async Task<IActionResult> ActiverFormulaire(Guid id)
     {
-        var result = await _referentielService.ActiverFormulaireAsync(id);
+        var result = await _formulaireService.ActiverFormulaireAsync(id);
         if (!result) return NotFound(new { success = false, message = "Formulaire introuvable ou n'est pas en statut BROUILLON." });
         return Ok(new { success = true, message = "Formulaire activé avec succès." });
     }
