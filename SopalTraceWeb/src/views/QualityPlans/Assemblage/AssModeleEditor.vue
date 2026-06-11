@@ -174,7 +174,6 @@ import Toast from 'primevue/toast';
 import { assModeleService } from '@/services/assModeleService';
 import { fabPlanService } from '@/services/fabPlanService';
 import { useAssModeleVersioning } from '@/composables/useVersioning';
-const { creerNouvelleVersionModele } = useAssModeleVersioning();
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
@@ -194,7 +193,6 @@ import { useEditorValidation } from '@/composables/useEditorValidation';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 
 const store = useAssModeleStore();
-const roleStore = useAuthStore();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
@@ -455,7 +453,6 @@ const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
-    const type = route.query.type || null;
     const res = await assModeleService.getModeleById(id);
     const data = res.data.data || res.data;
     
@@ -578,7 +575,6 @@ const preparerDonneesEtFrequences = async () => {
     groupes.value,
     store.periodicites,
     async (payloadFreq) => {
-      const type = route.query.type || null;
       const res = await fabPlanService.createPeriodicite(payloadFreq);
       store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
       return res;
@@ -702,7 +698,6 @@ const activerPlanCourant = async () => {
     await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
     
     // Ensuite on active le modèle
-    const type = route.query.type || null;
     await assModeleService.activerModele(modeleEditionId.value);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });

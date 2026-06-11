@@ -103,8 +103,6 @@ import { useAuthStore } from '@/stores/authStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 const store = useFabModeleStore();
-const roleStore = useAuthStore();
-const route = useRoute();
 const props = defineProps({
   isEditMode: {
     type: Boolean,
@@ -119,17 +117,6 @@ const props = defineProps({
 const formulairesReferences = computed(() => store.formulairesReferences || []);
 const refFormulaireSelected = ref('');
 const isAutoFilling = ref(false);
-
-const hasExistingVersion = computed(() => {
-  if (!refFormulaireSelected.value) return false;
-  const refObj = formulairesReferences.value.find(r => r.id === refFormulaireSelected.value);
-  if (!refObj) return false;
-  
-  const hasVersion = refObj.version > 0 || refObj.Version > 0;
-  const hasConfig = refObj.configurationStructureJson !== null && refObj.configurationStructureJson !== undefined;
-  
-  return hasVersion || hasConfig;
-});
 
   watch(formulairesReferences, (newRefs) => {
     if (newRefs && newRefs.length > 0 && !refFormulaireSelected.value && !props.isEditMode) {
