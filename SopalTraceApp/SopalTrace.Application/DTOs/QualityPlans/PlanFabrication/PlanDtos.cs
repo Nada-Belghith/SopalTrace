@@ -23,6 +23,7 @@ public record CreatePlanRequestDto
     public string LegendeMoyens { get; init; } 
     public string Remarques { get; init; }
     public int? VersionInitiale { get; init; }
+    public string? RefFormulaireCodeReference { get; init; }
     public List<SectionEditDto> Sections { get; init; } = new(); // Pour l'import direct
 }
 
@@ -105,6 +106,7 @@ public record LigneEditDto
     public string Instruction { get; init; }
     public bool EstCritique { get; init; } = false;
     public string ColonnesSupplementaires { get; init; }
+    public string? ImageBase64 { get; init; } = null;
 }
 
 // ====================================================================
@@ -130,6 +132,8 @@ public record PlanResponseDto
     public DateTime CreeLe { get; init; }
     public string ModifiePar { get; init; }
     public DateTime? ModifieLe { get; init; }
+    public string? ConfigurationColonnesJson { get; init; }
+    public string? CodeReferenceFormulaire { get; init; }
     public List<PlanSectionResponseDto> Sections { get; init; } = new();
 }
 
@@ -165,6 +169,7 @@ public record PlanLigneResponseDto
     public string Instruction { get; set; }
     public bool EstCritique { get; init; }
     public string ColonnesSupplementaires { get; set; }
+    public string? ImageBase64 { get; set; } = null;
 }
 
 public record RestaurerPlanRequestDto(

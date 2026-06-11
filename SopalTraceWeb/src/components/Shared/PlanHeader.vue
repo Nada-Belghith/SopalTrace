@@ -37,7 +37,7 @@
               :disabled="isRestoring"
               class="ml-2 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-lg shadow-md flex items-center gap-2 transition-all disabled:opacity-50 ring-1 ring-amber-600/50">
         <i class="pi pi-history" :class="{'pi-spin': isRestoring}"></i> 
-        Restaurer
+        Mettre à jour
       </button>
 
       <slot name="actions"></slot>

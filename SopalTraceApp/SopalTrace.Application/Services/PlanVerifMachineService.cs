@@ -15,13 +15,15 @@ public class PlanVerifMachineService : IPlanVerifMachineService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidator<CreatePlanVerifMachineDto> _createValidator;
-    private readonly IReferentielService _referentielService;
+    private readonly ICatalogueReferentielService _referentielService;
+    private readonly IFormulairePrcService _formulaireService;
 
-    public PlanVerifMachineService(IUnitOfWork unitOfWork, IValidator<CreatePlanVerifMachineDto> createValidator, IReferentielService referentielService)
+    public PlanVerifMachineService(IUnitOfWork unitOfWork, IValidator<CreatePlanVerifMachineDto> createValidator, ICatalogueReferentielService referentielService, IFormulairePrcService formulaireService)
     {
         _unitOfWork = unitOfWork;
         _createValidator = createValidator;
         _referentielService = referentielService;
+        _formulaireService = formulaireService;
     }
 
     public virtual string Role => "DEFAULT";
@@ -75,7 +77,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         PlanVerifMachineEntete? planActif = null;
         // Chercher le formulaire actif pour ce code machine spécifique
         var codeRefMachine = $"FE-VM-{request.MachineCode}";
-        var formActif = await _referentielService.GetFormulaireActifParCodeReferenceAsync(codeRefMachine);
+        var formActif = await _formulaireService.GetFormulaireActifParCodeReferenceAsync(codeRefMachine);
         if (formActif != null)
         {
             planActif = await _unitOfWork.PlanVerifMachineRepository.GetPlanActifParFormulaireAsync(formActif.Id);
@@ -107,10 +109,11 @@ public class PlanVerifMachineService : IPlanVerifMachineService
 
         if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
         {
-            var formResult = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson, $"FE-VM-{request.MachineCode}", request.VersionInitiale);
+            var formResult = await _formulaireService.UpdateFormulaireStructureAsync("VERIF_MACHINE", request.ConfigurationColonnesJson, $"FE-VM-{request.MachineCode}", request.VersionInitiale);
             if (formResult.HasValue)
             {
                 nouveauPlan.FormulaireId = formResult.Value.Id;
+                nouveauPlan.Version = formResult.Value.Version;
             }
         }
 
@@ -178,13 +181,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var jsonToUse = request.ConfigurationColonnesJson;
         if (string.IsNullOrEmpty(jsonToUse) && planActuel.FormulaireId.HasValue)
         {
-            var oldForm = await _referentielService.GetFormulaireByIdAsync(planActuel.FormulaireId.Value);
+            var oldForm = await _formulaireService.GetFormulaireByIdAsync(planActuel.FormulaireId.Value);
             if (oldForm != null) jsonToUse = oldForm.ConfigurationStructureJson;
         }
 
         if (!string.IsNullOrEmpty(jsonToUse) || planActuel.FormulaireId.HasValue)
         {
-            var formResult = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", jsonToUse, $"FE-VM-{planActuel.MachineCode}", request.VersionInitiale);
+            var formResult = await _formulaireService.UpdateFormulaireStructureAsync("VERIF_MACHINE", jsonToUse, $"FE-VM-{planActuel.MachineCode}", request.VersionInitiale);
             if (formResult.HasValue)
             {
                 nouveauPlan.FormulaireId = formResult.Value.Id;
@@ -232,13 +235,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var jsonToUse = request.ConfigurationColonnesJson;
         if (string.IsNullOrEmpty(jsonToUse) && ancienPlan.FormulaireId.HasValue)
         {
-            var oldForm = await _referentielService.GetFormulaireByIdAsync(ancienPlan.FormulaireId.Value);
+            var oldForm = await _formulaireService.GetFormulaireByIdAsync(ancienPlan.FormulaireId.Value);
             if (oldForm != null) jsonToUse = oldForm.ConfigurationStructureJson;
         }
 
         if (!string.IsNullOrEmpty(jsonToUse) || ancienPlan.FormulaireId.HasValue)
         {
-            var formResult = await _referentielService.UpdateFormulaireStructureAsync("VERIF_MACHINE", jsonToUse, $"FE-VM-{ancienPlan.MachineCode}");
+            var formResult = await _formulaireService.UpdateFormulaireStructureAsync("VERIF_MACHINE", jsonToUse, $"FE-VM-{ancienPlan.MachineCode}");
             if (formResult.HasValue)
             {
                 nouveauPlan.FormulaireId = formResult.Value.Id;
@@ -303,10 +306,10 @@ public class PlanVerifMachineService : IPlanVerifMachineService
 
         if (planArchived.FormulaireId.HasValue)
         {
-            var oldForm = await _referentielService.GetFormulaireByIdAsync(planArchived.FormulaireId.Value);
+            var oldForm = await _formulaireService.GetFormulaireByIdAsync(planArchived.FormulaireId.Value);
             if (oldForm != null)
             {
-                var formResult = await _referentielService.UpdateFormulaireStructureAsync(
+                var formResult = await _formulaireService.UpdateFormulaireStructureAsync(
                     "VERIF_MACHINE",
                     oldForm.ConfigurationStructureJson,
                     oldForm.CodeReference);

@@ -55,70 +55,99 @@
           </div>
 
           <div v-else class="p-6 md:p-8">
-            <!-- CONFIGURATION DU PLAN -->
-            <div v-if="!isReadOnly && planId === 'nouveau'" class="mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-              <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">Configuration du plan</h3>
-              <div class="w-1/3">
-                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.1em] mb-2">Version de départ</label>
-                <input v-model.number="versionInitiale" type="number" min="0" placeholder="0"
-                  class="w-full bg-white border-2 border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all">
-                <p class="text-[10px] text-slate-400 mt-1 italic">Définit la version initiale de ce plan.</p>
-              </div>
-            </div>
+            <!-- Removed Configuration du plan pour versionInitiale -->
 
             <div class="mb-4">
               <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">Structure des lignes de contrôle</h3>
             </div>
 
-            <template v-if="sections.length === 0">
-              <div class="p-8 text-center text-slate-400 text-sm italic bg-slate-50 rounded-lg border border-slate-200 mb-6">
-                Cliquez sur "Créer une nouvelle section" pour commencer.
+            <template v-if="!hasValidStructure">
+              <div class="p-8 text-center bg-amber-50 rounded-lg border border-amber-200 mb-6 flex flex-col items-center justify-center">
+                <i class="pi pi-file-excel text-amber-500 text-4xl mb-3"></i>
+                <h4 class="text-sm font-bold text-amber-800 mb-1">Structure PRC non définie</h4>
+                <p class="text-sm text-amber-700 max-w-lg">Le formulaire sélectionné est à l'état de brouillon. Le Superviseur Qualité doit définir la structure du plan avant que vous puissiez créer des modèles ou des plans par article.</p>
               </div>
             </template>
 
-            <!-- Mode LECTURE -->
-            <div v-if="isReadOnly" class="p-4 md:p-6">
-            <PlanReadView
-              :sections="sections"
-              :remarques="remarques"
-              :legende-moyens="legendeMoyens"
-              :configuration-colonnes="plan?.configurationColonnesJson ? (typeof plan.configurationColonnesJson === 'string' ? JSON.parse(plan.configurationColonnesJson) : plan.configurationColonnesJson) : []"
-              :types-section="store.typesSection || []"
-              :types-caracteristique="store.typesCaracteristique || []"
-              :types-controle="store.typesControle || []"
-              :moyens-controle="store.moyensControle || []"
-              :periodicites="store.periodicites || []"
-            />
-            </div>
+            <template v-else>
+              <template v-if="sections.length === 0">
+                <div class="p-8 text-center text-slate-400 text-sm italic bg-slate-50 rounded-lg border border-slate-200 mb-6">
+                  Cliquez sur "Créer une nouvelle section" pour commencer.
+                </div>
+              </template>
 
-            <!-- Mode EDITION -->
-            <FabPlanSectionCard v-else v-for="(section, index) in sections"
-                    :key="section.id"
-                    :section="section"
-                    :index="index"
-                    :periodicites="store.periodicites"
-                    :is-archived="isReadOnly"
-                    :operation-code="plan?.operationCode || wizard.operationCode.value"
-                    @add-ligne="ajouterLigneASection(index)"
-                    @remove="supprimerSection(section.id)"
-                    @remove-ligne="(ligneId) => supprimerLigneASection(index, ligneId)"
-                    @update:section="(updatedSection) => mettreAJourSection(index, updatedSection)" />
-
-            <div class="mt-2" v-if="!isReadOnly">
-              <button @click="ajouterSection" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
-                <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
-              </button>
-            </div>
-
-            <div v-if="!isReadOnly">
-              <RemarquesLegendeBox 
-                v-model:remarques="remarques"
-                v-model:legendeMoyens="legendeMoyens"
-                :show-validation="showLegendValidation"
-                :has-custom-instruments="hasCustomInstrumentsGlobal"
-                :is-read-only="isReadOnly"
+              <!-- Mode LECTURE -->
+              <div v-if="isReadOnly" class="p-4 md:p-6">
+              <PlanReadView
+                :sections="sections"
+                :remarques="remarques"
+                :legende-moyens="legendeMoyens"
+                :configuration-colonnes="planConfigurationColonnes"
+                :types-section="store.typesSection || []"
+                :types-caracteristique="store.typesCaracteristique || []"
+                :types-controle="store.typesControle || []"
+                :moyens-controle="store.moyensControle || []"
+                :periodicites="store.periodicites || []"
               />
-            </div>
+              </div>
+
+              <!-- Mode EDITION -->
+              <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
+                <table class="w-full text-left border-collapse min-w-[1200px]">
+                  <FabTableHeader :columns="planColumns" />
+                  
+                  <SharedSectionCard 
+                    v-for="(section, index) in sections"
+                    :key="section.id"
+                    :groupe="section"
+                    :index="index"
+                    :is-read-only="isReadOnly"
+                    :typesSection="store.typesSection"
+                    :periodicites="store.periodicites"
+                    :reglesEchantillonnage="store.reglesEchantillonnage"
+                    :operationCode="plan?.operationCode || wizard.operationCode.value"
+                    defaultTitle="Caractéristiques à contrôler"
+                    @remove="supprimerSection(section.id)"
+                    @update-groupe="(updatedSection) => mettreAJourSection(index, updatedSection)"
+                  >
+                    <FabPlanLigneControl
+                      v-for="ligne in section.lignes"
+                      :key="ligne.id"
+                      :ligne="ligne"
+                      :section="section"
+                      :columns="planColumns"
+                      :is-archived="isReadOnly"
+                      :operation-code="plan?.operationCode || wizard.operationCode.value"
+                      @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
+                      @update="(updated) => {
+                        const idx = section.lignes.findIndex(l => l.id === updated.id);
+                        if (idx !== -1) {
+                           let updatedSection = JSON.parse(JSON.stringify(section));
+                           updatedSection.lignes.splice(idx, 1, updated);
+                           mettreAJourSection(index, updatedSection);
+                        }
+                      }"
+                    />
+                  </SharedSectionCard>
+                </table>
+              </div>
+
+              <div class="mt-2" v-if="!isReadOnly">
+                <button @click="ajouterSection" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                  <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
+                </button>
+              </div>
+
+              <div v-if="!isReadOnly">
+                <RemarquesLegendeBox 
+                  v-model:remarques="remarques"
+                  v-model:legendeMoyens="legendeMoyens"
+                  :show-validation="showLegendValidation"
+                  :has-custom-instruments="hasCustomInstrumentsGlobal"
+                  :is-read-only="isReadOnly"
+                />
+              </div>
+            </template>
           </div>
 
           <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end">
@@ -168,16 +197,20 @@
   import { useToast } from 'primevue/usetoast';
   import { useConfirm } from 'primevue/useconfirm';
 
-  import { qualityPlansService } from '@/services/qualityPlansService';
-  import { usePlanVersioning } from '@/composables/useVersioning';
+  import { fabPlanService } from '@/services/fabPlanService';
+  import { fabModeleService } from '@/services/fabModeleService';
+  import { useFabPlanVersioning } from '@/composables/useVersioning';
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
   import { prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
+  import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
   import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
-  import FabPlanSectionCard from '@/components/Fabrication/FabPlanSectionCard.vue';
   import PlanReadView from '@/components/Shared/PlanReadView.vue';
+  import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
+  import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
+  import FabPlanLigneControl from '@/components/Fabrication/FabPlanLigneControl.vue';
   import EditorActions from '@/components/Shared/EditorActions.vue';
   import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
   import ConfirmDialog from 'primevue/confirmdialog';
@@ -191,7 +224,7 @@
   const toast = useToast();
   const confirm = useConfirm();
   const store = useFabModeleStore();
-  const { creerNouvelleVersionPlan, restaurerPlan } = usePlanVersioning();
+  const { creerNouvelleVersionPlan, upgradePlan, restaurerPlan } = useFabPlanVersioning();
 
   const wizard = usePlanWizard();
   const isGeneratingPlan = ref(false);
@@ -211,7 +244,6 @@
     ajouterSection,
     supprimerSection,
     mettreAJourSection,
-    ajouterLigneASection,
     supprimerLigneASection
     // mettreAJourLigne (inutilisé)
   } = useEditorSections();
@@ -228,7 +260,7 @@
 
   const headerTitle = computed(() => {
     if (isForcedView.value) return 'Visualisation';
-    if (isArchived.value) return "Restauration d'Archive";
+    if (isArchived.value) return 'Mettre à jour ce Plan de Fabrication';
     return 'Plan de Fabrication';
   });
 
@@ -239,15 +271,60 @@
       return "Configurez la structure du plan de fabrication.";
     }
     if (!isEditMode.value) return "Configurez la structure du plan de Fabrication.";
-    if (isArchived.value) return "Vous consultez une archive. Restaurer réactivera cette version en production.";
-    return "Modifiez la structure. L'ancienne version sera archivée automatiquement.";
+    return isArchived.value 
+      ? 'Vous consultez une archive. Mettre à jour créera une nouvelle version en brouillon.'
+      : 'Modifiez les valeurs. L\'ancienne version sera archivée automatiquement.';
   });
 
   const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
 
+  const planColumns = computed(() => store.tableColumns || []);
+
+  const planConfigurationColonnes = computed(() => {
+    if (store.effectiveConfigurationColonnes?.length) return store.effectiveConfigurationColonnes;
+    if (plan.value?.configurationColonnesJson) {
+      return typeof plan.value.configurationColonnesJson === 'string'
+        ? JSON.parse(plan.value.configurationColonnesJson)
+        : plan.value.configurationColonnesJson;
+    }
+    return [];
+  });
+
+  const hasValidStructure = computed(() => {
+    if (plan.value?.configurationColonnesJson && plan.value?.configurationColonnesJson.length > 0) return true;
+    const refs = store.formulairesReferences || [];
+    if (refs.length === 0) return false;
+    return refs.some(r => {
+      const s = String(r.statut || r.Statut || '').trim().toUpperCase();
+      return s === 'ACTIF';
+    });
+  });
+
+  const syncPlanFormulaireConfig = (codeRef = null, fromExistingData = null) => {
+    const code = codeRef || wizard.refFormulaireCodeReference?.value || plan.value?.codeReferenceFormulaire || 'PRC';
+    
+    if (fromExistingData) {
+      if (fromExistingData.configurationColonnesJson) {
+        store.entete.configurationColonnes = typeof fromExistingData.configurationColonnesJson === 'string'
+          ? JSON.parse(fromExistingData.configurationColonnesJson)
+          : fromExistingData.configurationColonnesJson;
+      } else {
+        store.entete.configurationColonnes = [];
+      }
+      store.entete.refFormulaireCodeReference = code;
+    } else {
+      store.applyFormulaireConfiguration(code);
+    }
+
+    if (plan.value) {
+      plan.value.configurationColonnesJson = store.effectiveConfigurationColonnes;
+      plan.value.codeReferenceFormulaire = code;
+    }
+  };
+
   const editorLabel = computed(() => {
     if (!isEditMode.value) return 'Générer le Plan';
-    if (isArchived.value) return 'Restaurer ce Plan';
+    if (isArchived.value) return 'Mettre à jour ce Plan';
     if (plan.value?.statut === 'BROUILLON' && (plan.value?.version || 0) <= 1) return 'Enregistrer & Activer le Plan';
     if (plan.value?.statut === 'ACTIF') return 'Créer une Nouvelle Version';
     return 'Enregistrer & Activer le Plan';
@@ -255,7 +332,7 @@
 
   const editorIcon = computed(() => {
     if (!isEditMode.value) return 'pi pi-check';
-    if (isArchived.value) return 'pi pi-history';
+    if (isArchived.value) return 'pi pi-sync';
     if (plan.value?.statut === 'BROUILLON' && (plan.value?.version || 0) <= 1) return 'pi pi-save';
     return plan.value?.statut === 'ACTIF' ? 'pi pi-history' : 'pi pi-save';
   });
@@ -293,7 +370,7 @@
 
         try {
           if (planId.value && planId.value !== 'nouveau') {
-            await qualityPlansService.deletePlan(planId.value);
+            await fabPlanService.deletePlan(planId.value);
             toast.add({ severity: 'success', summary: 'Brouillon effacé', detail: 'La base de données a été nettoyée avec succès.', life: 4000 });
           }
         } catch (error) {
@@ -326,6 +403,13 @@
 
   onMounted(async () => {
     if (!store.isDicosLoaded) await store.fetchDictionnaires();
+    if (!store.formulairesReferences?.length) {
+      await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
+    }
+    if (!wizard.refFormulaireCodeReference?.value) {
+      wizard.refFormulaireCodeReference.value = 'PRC';
+    }
+    syncPlanFormulaireConfig();
     if (planId.value && planId.value !== 'nouveau') await chargerPlan(planId.value);
     startAutoSave();
   });
@@ -336,23 +420,34 @@
 
 
   const preparerNouveauBrouillon = async (modeleId, codeArticle) => {
-    const modRes = await qualityPlansService.getModeleById(modeleId);
+    const modRes = await fabModeleService.getModeleById(modeleId);
     const data = modRes.data.data;
     plan.value = {
       statut: 'BROUILLON',
       codeArticleSage: codeArticle,
       designation: wizard.designationArticle.value,
-      version: 1,
+      version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
       operationCode: data.operationCode,
-      posteCode: wizard.posteCode.value || null
+      posteCode: wizard.posteCode.value || null,
+      notes: data.notes || '',
+      legendeMoyens: data.legendeMoyens || ''
     };
+    syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
     planCreationPayload.value = {
       modeleSourceId: modeleId,
       codeArticleSage: codeArticle,
       operationCode: data.operationCode,
       posteCode: wizard.posteCode.value || null,
       designation: wizard.designationArticle.value,
-      creePar: 'ADMIN_QUALITE'
+      refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
+      creePar: 'ADMIN_QUALITE',
+      remarques: data.notes || '',
+      legendeMoyens: data.legendeMoyens || ''
+    };
+    plan.value = {
+      ...plan.value,
+      configurationColonnesJson: store.effectiveConfigurationColonnes,
+      codeReferenceFormulaire: wizard.refFormulaireCodeReference?.value || 'PRC'
     };
     sections.value = mapModeleDataToSections(data);
     isFromWizard.value = true;
@@ -365,7 +460,7 @@
   watch([wizard.codeArticleSage, wizard.operationCode, wizard.posteCode], async ([code, op, poste]) => {
     if (code && op && (!wizard.requiertPoste.value || poste)) {
       try {
-        const res = await qualityPlansService.verifierEtatPlan(code, null, op, poste);
+        const res = await fabPlanService.verifierEtatPlan(code, null, op, poste);
         const etat = res.data;
 
         if (etat.hasBrouillon) {
@@ -385,7 +480,7 @@
             },
             reject: async () => {
               try {
-                await qualityPlansService.deletePlan(etat.brouillonId);
+                await fabPlanService.deletePlan(etat.brouillonId);
                 toast.add({ severity: 'info', summary: 'Nouveau Plan', detail: 'Ancien brouillon supprimé. Vous pouvez choisir votre méthode.' });
               } catch (err) {
                 console.error(err);
@@ -410,7 +505,7 @@
       const operationCode = wizard.operationCode.value;
 
       // Unifié: on vérifie l'état peu importe qu'on clone ou utilise un modèle
-      const resVal = await qualityPlansService.verifierEtatPlan(codeArticle, modeleId, operationCode, wizard.posteCode.value);
+      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, modeleId, operationCode, wizard.posteCode.value);
       const etat = resVal.data;
 
       if (etat.hasBrouillon) {
@@ -458,7 +553,7 @@
         }
 
         // Clonage en MÉMOIRE
-        const res = await qualityPlansService.getPlanById(sourceId);
+        const res = await fabPlanService.getPlanById(sourceId);
         const data = res.data.data;
         
         if (!data) throw new Error("Plan source introuvable.");
@@ -468,7 +563,7 @@
           nom: `Plan de contrôle en cours de fabrication ${wizard.designationArticle.value || data.designation}${wizard.posteCode.value ? ' (' + wizard.posteCode.value + ')' : ''}`,
           codeArticleSage: codeArticle || data.codeArticleSage,
           designation: wizard.designationArticle.value || data.designation,
-          version: 1,
+          version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
           operationCode: data.operationCode,
           posteCode: wizard.posteCode.value || data.posteCode
         };
@@ -480,11 +575,13 @@
         isFromWizard.value = true;
         
         // Préparer le payload pour la future création lors du clic Enregistrer
+        syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
         planCreationPayload.value = {
             codeArticleSage: plan.value.codeArticleSage,
             designation: plan.value.designation,
             operationCode: plan.value.operationCode,
             posteCode: plan.value.posteCode,
+            refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
             creePar: 'ADMIN_QUALITE',
             sections: sections.value.map((s, idx) => ({
               ordreAffiche: idx + 1,
@@ -512,9 +609,33 @@
               }))
             }))
         };
-        planCreationPayload.value.versionInitiale = versionInitiale.value;
 
         toast.add({ severity: 'success', summary: 'Succès', detail: 'Structure clonée chargée en mémoire.', life: 3000 });
+      } else if (sourceType === 'VIERGE') {
+        syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
+        plan.value = {
+          statut: 'BROUILLON',
+          codeArticleSage: codeArticle,
+          designation: wizard.designationArticle.value,
+          version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
+          operationCode: wizard.operationCode.value,
+          posteCode: wizard.posteCode.value || null,
+          configurationColonnesJson: store.effectiveConfigurationColonnes,
+          codeReferenceFormulaire: wizard.refFormulaireCodeReference?.value || 'PRC'
+        };
+        planCreationPayload.value = {
+          modeleSourceId: null,
+          codeArticleSage: codeArticle,
+          operationCode: wizard.operationCode.value,
+          posteCode: wizard.posteCode.value || null,
+          designation: wizard.designationArticle.value,
+          refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
+          creePar: 'ADMIN_QUALITE'
+        };
+        sections.value = [];
+        isFromWizard.value = true;
+        planId.value = 'nouveau';
+        toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan vierge prêt à éditer.', life: 3000 });
       } else {
         // Nouveau depuis Modèle
         if (!sourceId) {
@@ -572,16 +693,16 @@
 
     const formData = new FormData();
     formData.append('file', file);
-    if (plan.value?.configurationColonnesJson) {
-      const configJson = typeof plan.value.configurationColonnesJson === 'string'
-        ? plan.value.configurationColonnesJson
-        : JSON.stringify(plan.value.configurationColonnesJson);
-      formData.append('configurationColonnesJson', configJson);
+    const configCols = store.effectiveConfigurationColonnes?.length
+      ? store.effectiveConfigurationColonnes
+      : (plan.value?.configurationColonnesJson || []);
+    if (configCols?.length) {
+      formData.append('configurationColonnesJson', JSON.stringify(configCols));
     }
 
     try {
       wizard.isGenerating.value = true;
-      const response = await qualityPlansService.importExcel(formData);
+      const response = await fabPlanService.importExcel(formData);
       const parsedData = response.data.data;
 
       if (parsedData) {
@@ -713,6 +834,7 @@
                 observations: lig.observations || '',
                 estCritique: lig.estCritique || false,
                 libelleAffiche: lig.libelleAffiche || '',
+                imageBase64: lig.imageBase64 || null,
                 valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
               }))
             };
@@ -727,9 +849,10 @@
 
           // Bascule dans l'éditeur comme brouillon en mémoire
           planCreationPayload.value = {
-            codeArticleSage: parsedData.codeArticleSage || wizard.codeArticleSage.value,
+            codeArticleSage: parsedData.codeArticleSage || (typeof wizard.codeArticleSage.value === 'object' ? wizard.codeArticleSage.value.codeArticle : wizard.codeArticleSage.value),
             designation: parsedData.designation || wizard.designationArticle.value,
             operationCode: parsedData.operationCode || wizard.operationCode.value,
+            natureComposantCode: wizard.natureComposantCode.value || '',
             posteCode: wizard.posteCode.value || null,
             nom: '',
             creePar: 'ADMIN_QUALITE',
@@ -749,6 +872,16 @@
 
           isFromWizard.value = true;
           planId.value = 'nouveau';
+
+          planCreationPayload.value = {
+            modeleSourceId: null, // Pas de modèle source pour l'import Excel
+            codeArticleSage: parsedData.codeArticleSage || wizard.codeArticleSage.value,
+            operationCode: parsedData.operationCode || wizard.operationCode.value,
+            posteCode: wizard.posteCode.value || null,
+            designation: parsedData.designation || wizard.designationArticle.value,
+            refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
+            creePar: 'ADMIN_QUALITE'
+          };
 
           // Initialisation du statut pour l'UI
           plan.value = {
@@ -775,41 +908,28 @@
 
   const mapModeleDataToSections = (modeleModel) => {
     return (modeleModel.sections || []).map(sec => {
-      let modeFreq = 'SANS';
-      let regleEchantillonnageId = null;
-      let freqNum = 1;
-      let typeVariable = 'HEURE';
-      let freqHours = 1;
+      let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
+      const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
+      if (texteParse) {
+        freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+      }
 
-      if (sec.frequenceLibelle) {
-        const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === sec.frequenceLibelle);
+      let modeFreq = freqData.modeFreq;
+      let regleEchantillonnageId = sec.regleEchantillonnageId || null;
+      let periodiciteId = sec.periodiciteId || freqData.periodiciteId;
+      let freqNum = sec.freqNum || freqData.freqNum;
+      let typeVariable = sec.typeVariable || freqData.typeVariable;
+      let freqHours = sec.freqHours || freqData.freqHours;
+
+      if (regleEchantillonnageId) {
+        modeFreq = 'FIXE';
+      } else if (periodiciteId) {
+        modeFreq = 'VARIABLE';
+      } else if (texteParse) {
+        const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === texteParse);
         if (regMatch) {
           modeFreq = 'FIXE';
           regleEchantillonnageId = regMatch.id;
-        } else {
-          modeFreq = 'VARIABLE';
-          const libelle = sec.frequenceLibelle.toLowerCase();
-
-          if (libelle.includes('pièce') && libelle.includes('heure')) {
-            typeVariable = 'HEURE';
-            const match = libelle.match(/(\d+)\s*pièce.*\/\s*(\d+)\s*heure/);
-            if (match) {
-              freqNum = parseInt(match[1]);
-              freqHours = parseInt(match[2]);
-            } else {
-              const pieceMatch = libelle.match(/(\d+)\s*pièce/);
-              if (pieceMatch) {
-                freqNum = parseInt(pieceMatch[1]);
-                freqHours = 1;
-              }
-            }
-          } else if (libelle.includes('série')) {
-            typeVariable = 'SERIE';
-            const serieMatch = libelle.match(/série de (\d+) pièces/);
-            if (serieMatch) {
-              freqNum = parseInt(serieMatch[1]);
-            }
-          }
         }
       }
 
@@ -842,6 +962,7 @@
         modeleSectionId: sec.id,
         typeSectionId,
         modeFreq,
+        periodiciteId,
         regleEchantillonnageId,
         freqNum,
         typeVariable,
@@ -868,6 +989,7 @@
           observations: lig.observations || '',
           estCritique: lig.estCritique,
           libelleAffiche: lig.libelleAffiche,
+          imageBase64: lig.imageBase64 || null,
           valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
         }))
       };
@@ -883,7 +1005,7 @@
       if (isClone) {
         data = idOrData;
       } else {
-        const res = await qualityPlansService.getPlanById(idOrData);
+        const res = await fabPlanService.getPlanById(idOrData);
         data = res.data.data;
       }
 
@@ -891,6 +1013,11 @@
         plan.value = data;
         legendeMoyens.value = data.legendeMoyens || '';
         remarques.value = data.remarques || '';
+        const codeRef = data.codeReferenceFormulaire || wizard.refFormulaireCodeReference?.value || 'PRC';
+        if (wizard.refFormulaireCodeReference) wizard.refFormulaireCodeReference.value = codeRef;
+        syncPlanFormulaireConfig(codeRef, data);
+      } else if (data.codeReferenceFormulaire) {
+        syncPlanFormulaireConfig(data.codeReferenceFormulaire);
       }
 
       const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
@@ -898,42 +1025,28 @@
       );
 
       sections.value = sectionsTriees.map(sec => {
-        let modeFreq = 'SANS';
-        let regleEchantillonnageId = sec.regleEchantillonnageId || null;
-        let freqNum = sec.freqNum || 1;
-        let typeVariable = sec.typeVariable || 'HEURE';
-        let freqHours = sec.freqHours || 1;
+        let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
+        const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
+        if (texteParse) {
+          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+        }
 
-        if (sec.regleEchantillonnageId) {
+        let modeFreq = freqData.modeFreq;
+        let regleEchantillonnageId = sec.regleEchantillonnageId || null;
+        let periodiciteId = sec.periodiciteId || freqData.periodiciteId;
+        let freqNum = sec.freqNum || freqData.freqNum;
+        let typeVariable = sec.typeVariable || freqData.typeVariable;
+        let freqHours = sec.freqHours || freqData.freqHours;
+
+        if (regleEchantillonnageId) {
           modeFreq = 'FIXE';
-        } else if (sec.frequenceLibelle) {
-          const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === sec.frequenceLibelle);
+        } else if (periodiciteId) {
+          modeFreq = 'VARIABLE';
+        } else if (texteParse) {
+          const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === texteParse);
           if (regMatch) {
             modeFreq = 'FIXE';
             regleEchantillonnageId = regMatch.id;
-          } else {
-            modeFreq = 'VARIABLE';
-            const libelle = sec.frequenceLibelle.toLowerCase();
-
-            if ((libelle.includes('pièce') || libelle.includes('p/h')) && (libelle.includes('heure') || libelle.includes(' h'))) {
-              typeVariable = 'HEURE';
-              const match = libelle.match(/(\d+)\s*(?:pièce|p).*?\/\s*(?:(\d+)\s*)?(?:heure|h\b)/i);
-              if (match) {
-                freqNum = parseInt(match[1]);
-                freqHours = match[2] ? parseInt(match[2]) : 1;
-              } else {
-                const simpleMatch = libelle.match(/(\d+)\s*pièce/i);
-                if (simpleMatch) freqNum = parseInt(simpleMatch[1]);
-              }
-            } else if (libelle.includes('série') || libelle.includes('serie')) {
-              typeVariable = 'SERIE';
-              const serieMatch = libelle.match(/(?:série|serie).*?(\d+)/i) || libelle.match(/(\d+)\s*pièce/i);
-              if (serieMatch) freqNum = parseInt(serieMatch[1]);
-            } else if (libelle.includes('échantillon')) {
-              typeVariable = 'ECHANTILLON';
-              const echMatch = libelle.match(/(\d+)\s*échantillon/i);
-              if (echMatch) freqNum = parseInt(echMatch[1]);
-            }
           }
         }
 
@@ -975,6 +1088,7 @@
           typeSectionId,
           libelleSection: sec.libelleSection || finalNom, // On garde le libellé complet
           modeFreq,
+          periodiciteId,
           regleEchantillonnageId,
           freqNum,
           typeVariable,
@@ -999,6 +1113,7 @@
             observations: lig.observations || '',
             estCritique: lig.estCritique,
             libelleAffiche: lig.libelleAffiche,
+            imageBase64: lig.imageBase64 || null,
             valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
           }))
         };
@@ -1119,7 +1234,7 @@
         regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
         lignes: (originalSection.lignes || []).map((l, lIdx) => {
           const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
-          const nomCaract = caractMatch?.libelle || 'Caractéristique sans nom';
+          const nomCaract = caractMatch?.libelle || '';
           
           const mesurements = sanitizeMesurements(l, isDraft);
           const hasNumeric = mesurements.valeurNominale != null || mesurements.toleranceInferieure != null || mesurements.toleranceSuperieure != null;
@@ -1142,6 +1257,7 @@
             observations: l.observations || '',
             estCritique: l.estCritique || false,
             libelleAffiche: (l.libelleAffiche || nomCaract).trim(),
+            imageBase64: l.imageBase64 || null,
             colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 ? JSON.stringify(l.valeursColonnesSpecifiques) : null
           };
         })
@@ -1160,11 +1276,11 @@
         if (versionInitiale.value !== null) {
           planCreationPayload.value.versionInitiale = versionInitiale.value;
         }
-        const instRes = await qualityPlansService.instantiatePlan(planCreationPayload.value);
+        const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
         currentPlanId = instRes.data.planId;
         planId.value = currentPlanId;
         aEteCreePendantCetteSession.value = true;
-        const newPlanRes = await qualityPlansService.getPlanById(currentPlanId);
+        const newPlanRes = await fabPlanService.getPlanById(currentPlanId);
         syncIdsFromDb(newPlanRes.data.data);
         planCreationPayload.value = null;
       }
@@ -1172,7 +1288,7 @@
       if (!currentPlanId || currentPlanId === 'nouveau') return;
 
       await prepareModeleDataAndFrequencies(sections.value, store.periodicites, async (payload) => {
-        const res = await qualityPlansService.createPeriodicite(payload);
+        const res = await fabPlanService.createPeriodicite(payload);
         store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payload });
         return res;
       });
@@ -1181,7 +1297,7 @@
 
       const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
 
-      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, finalNom, 'Admin');
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, finalNom, 'Admin');
 
       if (afficherToast) {
         toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
@@ -1199,12 +1315,12 @@
         if (versionInitiale.value !== null) {
           planCreationPayload.value.versionInitiale = versionInitiale.value;
         }
-        const instRes = await qualityPlansService.instantiatePlan(planCreationPayload.value);
+        const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
         currentPlanId = instRes.data.planId;
         planId.value = currentPlanId;
         router.replace(`/dev/fab/plans/editer/${currentPlanId}`);
 
-        const newPlanRes = await qualityPlansService.getPlanById(currentPlanId);
+        const newPlanRes = await fabPlanService.getPlanById(currentPlanId);
         syncIdsFromDb(newPlanRes.data.data);
 
         planCreationPayload.value = null;
@@ -1223,7 +1339,7 @@
         sections.value,
         store.periodicites || [],
         async (payloadFreq) => {
-          const res = await qualityPlansService.createPeriodicite(payloadFreq);
+          const res = await fabPlanService.createPeriodicite(payloadFreq);
           store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
           return res;
         }
@@ -1233,7 +1349,7 @@
 
       const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
 
-      await qualityPlansService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, finalNom, 'Admin');
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, finalNom, 'Admin');
 
       toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
 
@@ -1282,11 +1398,13 @@
       }
 
       // Vérification finale si un plan actif existe déjà avant d'activer celui-ci
-      const codeArticle = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
+      let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
+      const codeArticle = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
+      
       const opCode = plan.value?.operationCode || wizard.operationCode.value;
       const pCode = plan.value?.posteCode || wizard.posteCode.value;
       
-      const resVal = await qualityPlansService.verifierEtatPlan(codeArticle, null, opCode, pCode);
+      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, null, opCode, pCode);
       const etat = resVal.data;
 
       if (etat.hasActif && (!plan.value?.id || etat.actifId !== plan.value.id)) {
@@ -1308,7 +1426,8 @@
         await declencherSauvegarde();
       }
     } catch (error) {
-      console.error(error);
+      console.error('Erreur dans onActivatePlan:', error);
+      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible d\'activer le plan.', life: 5000 });
       isSaving.value = false;
     }
   };
@@ -1325,8 +1444,7 @@
       }
 
       if (isArchived.value) {
-        versioningMode.value = 'restore';
-        showVersioningDialog.value = true;
+        await mettreANiveauArchive();
         isSaving.value = false;
         return;
       }
@@ -1360,6 +1478,19 @@
     }
   };
 
+  const mettreANiveauArchive = async () => {
+    try {
+      const res = await upgradePlan(planId.value);
+      const newId = res.data.planId;
+      toast.add({ severity: 'success', summary: 'Mise à niveau réussie', detail: 'Le plan a été mis à niveau et est maintenant en mode brouillon.', life: 4000 });
+      router.push(`/dev/fab/plans/editer/${newId}`);
+      setTimeout(() => window.location.reload(), 100);
+    } catch (error) {
+      console.error('Erreur mise à niveau:', error);
+      toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Impossible de mettre à niveau le plan.', life: 6000 });
+    }
+  };
+
   const restaurerArchive = async (motif) => {
     try {
       await restaurerPlan({
@@ -1389,7 +1520,7 @@
           motifModification: motif || 'Modification de la structure du plan'
         });
         const newPlanId = newVersionPlan.data.planId;
-        const clonedPlanRes = await qualityPlansService.getPlanById(newPlanId);
+        const clonedPlanRes = await fabPlanService.getPlanById(newPlanId);
         syncIdsFromDb(clonedPlanRes.data.data);
         await enregistrerValeurs(newPlanId, true);
       } else if (versioningMode.value === 'restore') {

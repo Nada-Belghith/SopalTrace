@@ -21,9 +21,9 @@ public class PlanPfService : IPlanPfService
     private readonly IPlanPfRepository _repository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IPlanArchiverService _planArchiverService;
-    private readonly IReferentielService _referentielService;
+    private readonly IFormulairePrcService _referentielService;
 
-    public PlanPfService(IUnitOfWork unitOfWork, IPlanPfRepository repository, ICurrentUserService currentUserService, IPlanArchiverService planArchiverService, IReferentielService referentielService)
+    public PlanPfService(IUnitOfWork unitOfWork, IPlanPfRepository repository, ICurrentUserService currentUserService, IPlanArchiverService planArchiverService, IFormulairePrcService referentielService)
     {
         _unitOfWork = unitOfWork;
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
@@ -84,14 +84,17 @@ public class PlanPfService : IPlanPfService
 
         if (!string.IsNullOrEmpty(dto.ConfigurationColonnesJson))
         {
-            var formResult = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", dto.ConfigurationColonnesJson, null, dto.VersionInitiale);
+            var formResult = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", dto.ConfigurationColonnesJson, dto.RefFormulaireCodeReference, dto.VersionInitiale);
             if (formResult.HasValue)
             {
                 plan.FormulaireId = formResult.Value.Id;
+                plan.Version = formResult.Value.Version;
             }
         }
-
-        plan.Version = await CalculerNouvelleVersionAsync(plan.FamilleProduitFiniCode ?? "", dto.VersionInitiale);
+        else
+        {
+            plan.Version = await CalculerNouvelleVersionAsync(plan.FamilleProduitFiniCode ?? "", dto.VersionInitiale);
+        }
 
         await _repository.AddPlanAsync(plan);
         await _unitOfWork.CommitAsync();
@@ -126,7 +129,7 @@ public class PlanPfService : IPlanPfService
 
         if (!string.IsNullOrEmpty(jsonToUse) || ancienPlan.FormulaireId.HasValue)
         {
-            var formResult = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", jsonToUse, null, request.VersionInitiale);
+            var formResult = await _referentielService.UpdateFormulaireStructureAsync("PRODUIT_FINI", jsonToUse, request.RefFormulaireCodeReference, request.VersionInitiale);
             if (formResult.HasValue)
             {
                 newFormulaireId = formResult.Value.Id;

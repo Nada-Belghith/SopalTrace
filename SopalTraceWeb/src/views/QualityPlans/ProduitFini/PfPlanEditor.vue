@@ -35,12 +35,10 @@
 
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-6">
           <div class="p-6 md:p-8">
-            <div class="flex justify-between items-start mb-6">
-              <div class="flex-1">
-                <PfHeader :is-read-only="isReadOnly" />
-              </div>
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+              <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">1. Informations générales</h3>
 
-              <div v-if="!isReadOnly" class="ml-8 shrink-0 flex items-center gap-3">
+              <div v-if="!isReadOnly" class="shrink-0 flex items-center gap-3">
                 <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.csv" class="hidden" />
                 <button @click="$refs.fileInput.click()" 
                   class="h-10 px-5 flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
@@ -55,6 +53,11 @@
                   <i class="pi pi-sliders-h text-lg"></i> Configurer Colonnes
                 </button>
               </div>
+            </div>
+
+
+            <div class="flex-1">
+              <PfHeader :is-read-only="isReadOnly" />
             </div>
           </div>
         </div>
@@ -92,12 +95,17 @@
             <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
               <table class="w-full text-left border-collapse min-w-[1200px]">
                 <FabTableHeader :columns="modeleColumns" />
-                <PfSectionCard 
+                <SharedSectionCard 
                   v-for="(section, index) in sections" 
                   :key="section.id" 
                   :groupe="section" 
                   :index="index"
                   :is-read-only="isReadOnly"
+                  :typesSection="store.typesSection"
+                  :periodicites="store.periodicites"
+                  :reglesEchantillonnage="store.reglesEchantillonnage"
+                  operationCode="PF"
+                  defaultTitle="Contrôle Produit Fini"
                   @remove="supprimerSection(section.id)"
                   @update-groupe="(updatedSection) => mettreAJourSection(index, updatedSection)"
                   @section-type-required="() => toast.warn('Veuillez définir la nature de la section.', 'Nature requise')"
@@ -112,7 +120,7 @@
                     @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
                     @update="(updatedLigne) => mettreAJourLigne(index, updatedLigne)"
                   />
-                </PfSectionCard>
+                </SharedSectionCard>
               </table>
             </div>
 
@@ -169,7 +177,7 @@ import { useEditorValidation } from '@/composables/useEditorValidation';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import PfHeader from '@/components/ProduitFini/PfHeader.vue';
-import PfSectionCard from '@/components/ProduitFini/PfSectionCard.vue';
+import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import PfPlanReadView from '@/components/ProduitFini/PfPlanReadView.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
@@ -307,6 +315,7 @@ const onFileSelected = async (event) => {
               observations: lig.observations,
               estCritique: lig.estCritique,
               libelleAffiche: lig.libelleAffiche,
+              imageBase64: lig.imageBase64 || null,
               valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
             }))
           };

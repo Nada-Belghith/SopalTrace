@@ -24,7 +24,7 @@ public class ControlePosteService : BasePlanLifecycleService<PlanControlePosteEn
     private readonly IControlePosteRepository _repository;
     private readonly IValidator<CreateControlePosteRequestDto> _createValidator;
     private readonly IPlanArchiverService _planArchiverService;
-    private readonly IReferentielService _referentielService;
+    private readonly IFormulairePrcService _referentielService;
     private readonly ILogger<ControlePosteService> _logger;
 
     public ControlePosteService(
@@ -33,7 +33,7 @@ public class ControlePosteService : BasePlanLifecycleService<PlanControlePosteEn
         ILogger<ControlePosteService> logger,
         IValidator<CreateControlePosteRequestDto> createValidator,
         IPlanArchiverService planArchiverService,
-        IReferentielService referentielService)
+        IFormulairePrcService referentielService)
         : base(unitOfWork)
     {
         _repository = repository;

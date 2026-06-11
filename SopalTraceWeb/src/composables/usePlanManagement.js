@@ -5,7 +5,7 @@
  */
 
 import { ref, computed } from 'vue';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { fabPlanService } from '@/services/fabPlanService';
 import { mapBackendPlanToEditor, preparePlanValuesPayload, prepareInstantiatePayload, prepareClonePlanPayload } from '@/utils/planMapper';
 import { usePlanVersioning } from './useVersioning';
 
@@ -29,7 +29,7 @@ export function usePlanManagement() {
   const loadPlan = async (id) => {
     isLoading.value = true;
     try {
-      const response = await qualityPlansService.getPlanById(id);
+      const response = await fabPlanService.getPlanById(id);
       const data = response.data.data || response.data;
       
       planId.value = data.id;
@@ -52,7 +52,7 @@ export function usePlanManagement() {
     isLoading.value = true;
     try {
       const payload = prepareInstantiatePayload(modeleSourceId, codeArticleSage, designation);
-      const response = await qualityPlansService.instantiatePlan(payload);
+      const response = await fabPlanService.instantiatePlan(payload);
       return response.data.planId;
     } finally {
       isLoading.value = false;
@@ -66,7 +66,7 @@ export function usePlanManagement() {
     isLoading.value = true;
     try {
       const payload = prepareClonePlanPayload(planSourceId, codeArticleSage, designation);
-      const response = await qualityPlansService.clonePlan(payload);
+      const response = await fabPlanService.clonePlan(payload);
       return response.data.planId;
     } finally {
       isLoading.value = false;

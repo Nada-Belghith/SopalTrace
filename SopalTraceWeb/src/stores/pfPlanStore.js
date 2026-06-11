@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { pfPlanService } from '@/services/pfPlanService';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { referentielsService } from '@/services/referentielsService';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
 export const usePfPlanStore = defineStore('pfPlan', () => {
@@ -12,8 +12,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   const typesControle = ref([]);
   const moyensControle = ref([]);
   const periodicites = ref([]);
-  const typesSection = ref([]); 
-  const instruments = ref([]); 
+  const typesSection = ref([]);
+  const instruments = ref([]);
   const postes = ref([]);
   const reglesEchantillonnage = ref([]);
   const formulairesReferences = ref([]);
@@ -24,6 +24,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     id: null,
     familleProduitFiniCode: '',
     familleProduitFiniLibelle: '',
+    refFormulaireCodeReference: null,
     versionInitiale: null,
     version: 1,
     statut: 'ACTIF',
@@ -33,7 +34,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     remarques: '',
     legendeMoyens: '',
   });
-  
+
   const sections = ref([]);
   const isLoading = ref(false);
 
@@ -60,8 +61,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         defauthequeId: l.defauthequeId || null,
         instruction: l.instruction || null,
         observations: l.observations || null,
-        colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 
-          ? JSON.stringify(l.valeursColonnesSpecifiques) 
+        colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0
+          ? JSON.stringify(l.valeursColonnesSpecifiques)
           : null
       }))
     }));
@@ -72,28 +73,28 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     try {
       const response = await pfPlanService.getDictionnaires();
       const data = response.data.data;
-      
+
       typesRobinet.value = data.typesRobinet || [];
       famillesProduit.value = data.famillesProduit || [];
       typesCaracteristique.value = data.typesCaracteristique || [];
       typesControle.value = data.typesControle || [];
       moyensControle.value = data.moyensControle || [];
       periodicites.value = data.periodicites || [];
-      typesSection.value = data.typesSection || data.typesSections || []; 
-      instruments.value = data.instruments || []; 
+      typesSection.value = data.typesSection || data.typesSections || [];
+      instruments.value = data.instruments || [];
       postes.value = data.postes || [];
       reglesEchantillonnage.value = data.reglesEchantillonnage || [];
-      
+
       isDicosLoaded.value = true;
     } catch (apiError) {
       console.error("Erreur réseau (Dictionnaires):", apiError);
-      throw apiError; 
+      throw apiError;
     }
   };
 
   const fetchFormulairesReferences = async (role) => {
     try {
-      const response = await qualityPlansService.getFormulairesListByRole(role);
+      const response = await referentielsService.getFormulairesListByRole(role);
       formulairesReferences.value = response.data?.data || [];
     } catch (e) {
       console.error("Erreur fetch formulaires:", e);
@@ -105,7 +106,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     try {
       const response = await pfPlanService.getPlan(id);
       const data = response.data.data;
-      
+
       entete.value = {
         id: data.id,
         familleProduitFiniCode: data.familleProduitFiniCode || '',
@@ -122,31 +123,37 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
 
       sections.value = (data.sections || []).map(s => {
         const hydrated = { ...s };
-        
+
         if (s.regleEchantillonnageId) {
           const regle = reglesEchantillonnage.value.find(r => r.id === s.regleEchantillonnageId);
           const libelle = regle ? regle.libelle : (s.regleEchantillonnageLibelle || '');
-          
+
           // Détection du mode
           const parsingResult = parseFrequenceLibelle(libelle, periodicites.value);
           Object.assign(hydrated, parsingResult);
-          
+
           // FIX: Si on a un ID de règle d'échantillonnage, on FORCE le mode FIXE
           // même si le libellé contient des mots clés comme "pièce" (ex: "1 pièce / heure")
           hydrated.modeFreq = 'FIXE';
         } else if (s.libelleSection && s.libelleSection.includes('(')) {
-           hydrated.modeFreq = 'VARIABLE';
+          hydrated.modeFreq = 'VARIABLE';
+          const extractedFrequence = s.libelleSection.split('(').pop()?.replace(')', '');
+          if (extractedFrequence) {
+            const parsingResult = parseFrequenceLibelle(extractedFrequence, periodicites.value);
+            Object.assign(hydrated, parsingResult);
+          }
+          hydrated.modeFreq = 'VARIABLE';
         } else {
           hydrated.modeFreq = 'SANS';
         }
-        
+
         if (hydrated.lignes) {
           hydrated.lignes = hydrated.lignes.map(l => ({
             ...l,
             valeursColonnesSpecifiques: l.colonnesSupplementaires ? (typeof l.colonnesSupplementaires === 'string' ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires) : {}
           }));
         }
-        
+
         return hydrated;
       });
     } finally {
@@ -162,6 +169,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
         versionInitiale: entete.value.versionInitiale,
+        refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
         sections: mapSectionsForBackend()
       };
@@ -196,6 +204,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
         versionInitiale: entete.value.versionInitiale,
+        refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
         sections: mapSectionsForBackend()
       };
@@ -223,8 +232,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   };
 
   return {
-    typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle, 
-    periodicites, typesSection, instruments, postes, isDicosLoaded, 
+    typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle,
+    periodicites, typesSection, instruments, postes, isDicosLoaded,
     entete, sections, isLoading, reglesEchantillonnage, formulairesReferences,
     fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan
   };

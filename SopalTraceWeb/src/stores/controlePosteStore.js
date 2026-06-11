@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { controlePosteService } from '@/services/controlePosteService';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { referentielsService } from '@/services/referentielsService';
 import { genererUid } from '@/utils/uuidUtils';
 import apiClient from '@/services/apiClient';
 import { parseDesignation } from '@/utils/designationParser';
@@ -101,7 +101,7 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
 
   const fetchFormulairesReferences = async (role) => {
     try {
-      const response = await qualityPlansService.getFormulairesListByRole(role);
+      const response = await referentielsService.getFormulairesListByRole(role);
       formulairesReferences.value = response.data?.data || [];
     } catch (e) {
       console.error("Erreur fetch formulaires:", e);

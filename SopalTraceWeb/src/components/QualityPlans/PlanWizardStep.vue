@@ -21,22 +21,28 @@
           <div class="flex-1 w-full">
             <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Code Article *</label>
             <div class="relative">
-              <input 
-                v-model="wizard.codeArticleSage.value" 
+              <AutoComplete
+                v-model="wizard.codeArticleSage.value"
+                :suggestions="wizard.filteredArticles.value"
+                @complete="wizard.searchArticles"
+                @item-select="wizard.verifierArticleERP"
                 @keydown.enter="wizard.verifierArticleERP()"
-                type="text" 
-                placeholder="Ex: 2576A01-1" 
-                class="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm font-bold text-slate-800 uppercase shadow-sm h-[42px]"
+                field="codeArticle"
+                placeholder="Ex: 2576A01-1"
+                :delay="300"
+                class="w-full"
+                inputClass="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm font-bold text-slate-800 uppercase shadow-sm h-[42px]"
+                panelClass="max-w-[400px]"
               >
+                <template #item="slotProps">
+                  <div class="flex flex-col py-1">
+                    <span class="font-bold text-sm text-slate-800">{{ slotProps.item.codeArticle }}</span>
+                    <span class="text-xs text-slate-500 truncate">{{ slotProps.item.designation }}</span>
+                  </div>
+                </template>
+              </AutoComplete>
             </div>
           </div>
-          <button 
-            @click="wizard.verifierArticleERP()" 
-            :disabled="!wizard.codeArticleSage.value || wizard.isCheckingArticle.value" 
-            class="w-full sm:w-auto px-5 py-2.5 bg-slate-800 text-white rounded-lg font-bold text-xs hover:bg-slate-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm shrink-0 h-[42px]"
-          >
-            <i :class="wizard.isCheckingArticle.value ? 'pi pi-spin pi-spinner' : 'pi pi-search'"></i> Vérifier
-          </button>
         </div>
 
         <div v-if="wizard.isArticleValid.value" class="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl animate-in fade-in space-y-3">
@@ -169,16 +175,52 @@
         </p>
       </div>
 
+      <!-- 2d. RÉF. FORMULAIRE PRC (structure des colonnes) -->
+      <div
+        v-if="wizard.isArticleValid.value && !wizard.isGenerique.value && !wizard.isPlanCreationBlocked.value && wizard.operationCode.value"
+        class="animate-in fade-in slide-in-from-bottom-4 pt-4 border-t border-slate-100"
+      >
+        <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col md:flex-row gap-4 shadow-inner">
+          <div class="flex items-center text-blue-800 font-black tracking-widest text-xs min-w-[150px]">
+            <i class="pi pi-file-import mr-2 text-lg text-blue-600"></i> RÉF. FORMULAIRE *
+          </div>
+          <div class="flex-1">
+            <select
+              v-model="wizard.refFormulaireCodeReference.value"
+              @change="onRefFormulaireChange"
+              class="w-full md:w-2/3 rounded-lg px-4 py-2 text-sm font-bold shadow-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white border border-blue-200 text-blue-900 cursor-pointer"
+            >
+              <option value="">-- Choisir un formulaire --</option>
+              <option v-for="ref in formulairesReferences" :key="ref.id" :value="ref.codeReference">
+                {{ ref.codeReference }} - {{ ref.designation }} (v{{ ref.version }})
+              </option>
+            </select>
+            <p class="text-[10px] text-blue-600 mt-2 font-semibold italic">
+              Le plan appliquera la structure PRC/PRNC active (colonnes personnalisées incluses).
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- 3. MÉTHODE DE CRÉATION (Bloqué si l'opération n'est pas choisie OU si article générique/bloqué) -->
       <div v-if="!wizard.isGenerique.value && !wizard.isPlanCreationBlocked.value" :class="(wizard.operationCode.value && (!wizard.requiertPoste?.value || wizard.posteCode?.value) && (!wizard.requiertFamille?.value || wizard.familleCode?.value)) ? 'opacity-100' : 'opacity-40 pointer-events-none'" class="transition-opacity duration-300 pt-4 border-t border-slate-100">
         <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">
           <i class="pi pi-sitemap mr-1.5"></i> 3. Méthode de création
         </h3>
 
-        <!-- Méthodes principales: 3 options -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <template v-if="!wizard.hasValidStructure.value">
+          <div class="p-8 text-center bg-amber-50 rounded-lg border border-amber-200 mb-6 flex flex-col items-center justify-center">
+            <i class="pi pi-file-excel text-amber-500 text-4xl mb-3"></i>
+            <h4 class="text-sm font-bold text-amber-800 mb-1">Structure PRC non définie</h4>
+            <p class="text-sm text-amber-700 max-w-lg">Le formulaire sélectionné est à l'état de brouillon. Le Superviseur Qualité doit définir la structure du plan avant que vous puissiez créer des modèles ou des plans par article.</p>
+          </div>
+        </template>
+        
+        <template v-else>
+          <!-- Méthodes principales: 3 options -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
 
-          <!-- Option 1: From Template  -->
+            <!-- Option 1: From Template  -->
           <label
             @click="handleModeleCardClick"
             :class="[
@@ -235,7 +277,7 @@
           <div v-if="wizard.availableModeles.value.length === 0" class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
             <i class="pi pi-info-circle mr-1.5"></i>
             <span v-if="!wizard.isArticleValid.value">Veuillez d'abord vérifier l'article.</span>
-            <span v-else>Aucun modèle disponible pour cette combinaison article.</span>
+            <span v-else>Aucun modèle disponible. Veuillez contacter le Superviseur Qualité pour qu'il crée d'abord un modèle lié à un PRC actif pour cette opération/nature.</span>
           </div>
 
           <div v-else-if="wizard.availableModeles.value.length === 1" class="px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 shadow-sm h-[42px] flex items-center">
@@ -301,13 +343,16 @@
             Créer un plan complètement vierge
           </button>
         </div>
-      </div>
+      </template>
     </div>
   </div>
+</div>
 </template>
 
 <script setup>
-import { nextTick, watch, ref } from 'vue';
+import { nextTick, watch, ref, computed, onMounted } from 'vue';
+import AutoComplete from 'primevue/autocomplete';
+import { useFabModeleStore } from '@/stores/fabModeleStore';
 
 const props = defineProps({
   wizard: {
@@ -316,8 +361,30 @@ const props = defineProps({
   }
 });
 const wizard = props.wizard;
+const store = useFabModeleStore();
 const excelFileInput = ref(null);
 const emit = defineEmits(['load-model', 'excel-selected']);
+
+const formulairesReferences = computed(() => store.formulairesReferences || []);
+
+const onRefFormulaireChange = () => {
+  const code = wizard.refFormulaireCodeReference?.value || 'PRC';
+  store.applyFormulaireConfiguration(code);
+};
+
+onMounted(async () => {
+  if (!store.formulairesReferences?.length) {
+    await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
+  }
+  if (!wizard.refFormulaireCodeReference?.value) {
+    wizard.refFormulaireCodeReference.value = 'PRC';
+  }
+  store.applyFormulaireConfiguration(wizard.refFormulaireCodeReference.value || 'PRC');
+});
+
+watch(() => wizard.refFormulaireCodeReference?.value, (code) => {
+  if (code) store.applyFormulaireConfiguration(code);
+});
 
 // Clicking the MODELE card triggers generation only when a modele is selected
 const handleModeleCardClick = async () => {

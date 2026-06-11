@@ -5,10 +5,10 @@
       :index="index"
       :colspan="12"
       label="SEC"
-      defaultTitle="Contrôle Produit Fini"
-      :typesSection="store.typesSection"
-      :periodicites="store.periodicites"
-      :reglesEchantillonnage="store.reglesEchantillonnage"
+      :defaultTitle="defaultTitle"
+      :typesSection="typesSection"
+      :periodicites="periodicites"
+      :reglesEchantillonnage="reglesEchantillonnage"
       :isReadOnly="isReadOnly"
       @add-ligne="ajouterLigne"
       @remove="() => $emit('remove')"
@@ -20,23 +20,25 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { usePfPlanStore } from '@/stores/pfPlanStore';
 import { genererUid } from '@/utils/uuidUtils';
 import PlanSectionHeader from '@/components/Shared/PlanSectionHeader.vue';
 
 const props = defineProps({
   groupe: { type: Object, required: true },
   index: { type: Number, required: true },
-  isReadOnly: { type: Boolean, default: false }
+  isReadOnly: { type: Boolean, default: false },
+  defaultTitle: { type: String, default: 'Caractéristiques à contrôler' },
+  typesSection: { type: Array, default: () => [] },
+  periodicites: { type: Array, default: () => [] },
+  reglesEchantillonnage: { type: Array, default: () => [] },
+  operationCode: { type: String, default: '' }
 });
 
 const isReadOnly = computed(() => props.isReadOnly);
 
 const emit = defineEmits(['remove', 'update-groupe', 'section-type-required']);
-const store = usePfPlanStore();
 
 const localGroupe = ref({ ...props.groupe });
-
 const isSyncingFromParent = ref(false);
 
 watch(() => props.groupe, (newGroupe) => {
@@ -57,9 +59,21 @@ const handleSectionUpdate = (updatedSection) => {
   emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
 };
 
+watch(() => props.operationCode, (newOp) => {
+  if (isReadOnly.value) return;
+  if (newOp !== 'ASS' && newOp !== 'PF') {
+    if (localGroupe.value.modeFreq === 'FIXE') {
+      localGroupe.value.modeFreq = 'SANS';
+      localGroupe.value.regleEchantillonnageId = null;
+      emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
+    }
+  }
+});
+
 const ajouterLigne = () => {
   if (isReadOnly.value) return;
-  if (!localGroupe.value.typeSectionId) {
+  
+  if (props.operationCode === 'PF' && !localGroupe.value.typeSectionId) {
     emit('section-type-required');
     return;
   }
@@ -75,7 +89,8 @@ const ajouterLigne = () => {
     unite: '',          
     instruction: '',
     observations: '',
-    estCritique: false
+    estCritique: false,
+    valeursColonnesSpecifiques: {}
   };
   
   localGroupe.value.lignes = [...(localGroupe.value.lignes || []), nouvelleLigne];

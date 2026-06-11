@@ -79,6 +79,8 @@ public class PlanAssRepository : IPlanAssRepository
                 .ThenInclude(s => s.PlanAssemblageLignes)
             .Include(p => p.PlanAssemblageSections)
                 .ThenInclude(s => s.RegleEchantillonnage)
+            .Include(p => p.PlanAssemblageSections)
+                .ThenInclude(s => s.Periodicite)
             .Include(p => p.Formulaire)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
@@ -93,6 +95,7 @@ public class PlanAssRepository : IPlanAssRepository
                 p.PosteCode == posteCode &&
                 p.Statut == StatutsPlan.Actif);
     }
+
 
     public async Task<PlanAssemblageEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
     {
@@ -143,6 +146,11 @@ public class PlanAssRepository : IPlanAssRepository
     public async Task AddPlanAsync(PlanAssemblageEntete plan)
     {
         await _context.PlanAssemblageEntetes.AddAsync(plan);
+    }
+
+    public void DeletePlan(PlanAssemblageEntete plan)
+    {
+        _context.PlanAssemblageEntetes.Remove(plan);
     }
 
     public async Task SaveChangesAsync()

@@ -18,10 +18,10 @@ namespace SopalTrace.Api.Controllers;
 public class PlanFabricationController : ControllerBase
 {
     private readonly IPlanFabricationService _planService;
-    private readonly IReferentielService _referentielService;
+    private readonly ICatalogueReferentielService _referentielService;
     private readonly SopalTraceDbContext _context;
 
-    public PlanFabricationController(IPlanFabricationService planService, IReferentielService referentielService, SopalTraceDbContext context)
+    public PlanFabricationController(IPlanFabricationService planService, ICatalogueReferentielService referentielService, SopalTraceDbContext context)
     {
         _planService = planService;
         _referentielService = referentielService;
@@ -301,5 +301,17 @@ public class PlanFabricationController : ControllerBase
         }
     }
 
- 
+    [HttpPost("{id}/upgrade")]
+    public async Task<IActionResult> UpgradePlan(Guid id)
+    {
+        try
+        {
+            var newId = await _planService.MettreANiveauPlanArchiveAsync(id);
+            return Ok(new { success = true, planId = newId, message = "Plan de fabrication mis à niveau avec succès." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
 }

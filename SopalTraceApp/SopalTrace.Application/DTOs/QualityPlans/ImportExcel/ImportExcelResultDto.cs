@@ -38,6 +38,6 @@ public class ImportExcelLigneDto
     public string InstrumentCode { get; set; } = string.Empty;
     public string LimiteSpecTexte { get; set; } = string.Empty;
     public string Observations { get; set; } = string.Empty;
-    public bool EstCritique { get; set; } = false;
     public Dictionary<string, string> ColonnesSupplementaires { get; set; } = new();
+    public string? ImageBase64 { get; set; } = null;
 }

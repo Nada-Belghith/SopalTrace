@@ -16,6 +16,7 @@ public record CreatePlanPfRequestDto
     public string? LegendeMoyens { get; init; }
     public string? ConfigurationColonnesJson { get; init; }
     public int? VersionInitiale { get; init; }
+    public string? RefFormulaireCodeReference { get; init; }
     public List<SectionPfEditDto> Sections { get; init; } = new();
 }
 
@@ -29,6 +30,7 @@ public record NouvelleVersionPfRequestDto
     public string? LegendeMoyens { get; init; }
     public string? ConfigurationColonnesJson { get; init; }
     public int? VersionInitiale { get; init; }
+    public string? RefFormulaireCodeReference { get; init; }
     public List<SectionPfEditDto> Sections { get; init; } = new();
 }
 

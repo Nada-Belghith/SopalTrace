@@ -75,10 +75,11 @@ public record LigneModeleEditDto
     public Guid? PeriodiciteId { get; init; }
     public string? Instruction { get; init; } = null;
     public string? Observations { get; init; } = null;
-    public required bool EstCritique { get; init; }
+    public bool EstCritique { get; init; } = false;
     public string? LimiteSpecTexte { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
     public string? ColonnesSupplementaires { get; init; } = null;
+    public string? ImageBase64 { get; init; } = null;
 }
 
 public record ChangeModeleStatusRequestDto
@@ -131,6 +132,8 @@ public record ModeleResponseDto
     public string? ArchivePar { get; init; }
     public DateTime? ArchiveLe { get; init; }
     public string? ConfigurationColonnesJson { get; init; }
+    public string? CodeReferenceFormulaire { get; init; }
+    public int? FormulaireVersion { get; init; }
     public List<ModeleSectionResponseDto> Sections { get; init; } = new();
 }
 
@@ -159,11 +162,12 @@ public record ModeleLigneResponseDto
     public Guid? PeriodiciteId { get; init; }
     public string? Instruction { get; init; }
     public string? Observations { get; init; }
-    public required bool EstCritique { get; init; }
+    public bool EstCritique { get; init; } = false;
 
     public string? LimiteSpecTexte { get; init; }
     public string? MoyenTexteLibre { get; init; }
     public string? ColonnesSupplementaires { get; init; }
+    public string? ImageBase64 { get; init; } = null;
 }
 
 public record RestaurerModeleRequestDto(

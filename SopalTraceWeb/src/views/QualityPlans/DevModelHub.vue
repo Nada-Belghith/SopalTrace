@@ -3,9 +3,21 @@
     <Toast position="top-right" />
     <ConfirmDialog></ConfirmDialog>
 
-    <div class="mb-10">
-      <h1 class="text-3xl font-black text-slate-900 tracking-tight">DOCUMENTS GÉNÉRIQUES</h1>
-      <p class="text-slate-500 mt-1 font-medium text-sm">Visualisez et gérez vos plans de contrôle génériques existants.</p>
+    <div class="mb-10 flex justify-between items-start">
+      <div>
+        <h1 class="text-3xl font-black text-slate-900 tracking-tight">
+          {{ isModeleFabRoute ? 'Modèles de Fabrication' : 'DOCUMENTS GÉNÉRIQUES' }}
+        </h1>
+        <p class="text-slate-500 mt-1 font-medium text-sm">
+          {{ isModeleFabRoute ? 'Visualisez et gérez vos plans de contrôle génériques pour la fabrication.' : 'Visualisez et gérez vos plans de contrôle génériques existants.' }}
+        </p>
+      </div>
+      <div v-if="isModeleFabRoute">
+        <router-link to="/dev/fab/nouveau" class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-md transition-all active:scale-95">
+          <i class="pi pi-plus font-bold"></i> NOUVEAU MODÈLE
+        </router-link>
+      </div>
+
     </div>
 
     <!-- ========================================== -->
@@ -15,7 +27,7 @@
       <div class="flex flex-col xl:flex-row justify-between gap-4">
         
         <!-- Navigation par Onglets (Type de plan) -->
-        <div class="flex flex-wrap gap-1 p-1 bg-slate-100/80 rounded-lg">
+        <div v-if="!isModeleFabRoute" class="flex flex-wrap gap-1 p-1 bg-slate-100/80 rounded-lg">
           <button v-for="tab in tabs" :key="tab.id" 
             @click="activeTab = tab.id"
             :class="[
@@ -29,6 +41,7 @@
             <span class="sm:hidden">{{ tab.short }}</span>
           </button>
         </div>
+        <div v-else class="flex-1"></div>
 
         <!-- Filtres Rapides -->
         <div class="flex flex-wrap items-center gap-3 px-2">
@@ -142,17 +155,17 @@
           <div class="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
             <div class="flex gap-2">
               <!-- Badge Version -->
-              <span class="inline-flex items-center justify-center bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded">
-                V{{ plan.version }}
+              <span class="inline-flex items-center justify-center bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded" :title="plan.formulaireVersion ? 'Version du Formulaire PRC' : 'Version du Modèle'">
+                V{{ plan.formulaireVersion ?? plan.version }}
               </span>
             </div>
 
             <!-- Actions -->
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-               <button v-if="plan.statut === 'ACTIF' || plan.statut === 'BROUILLON'" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
+            <div class="flex items-center gap-1 transition-opacity">
+               <button v-if="!isReadOnlyGenericHub && (plan.statut === 'ACTIF' || plan.statut === 'BROUILLON')" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
                  <i class="pi pi-pencil"></i>
                </button>
-               <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Archiver">
+               <button v-if="!isReadOnlyGenericHub && plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Archiver">
                  <i class="pi pi-box"></i>
                </button>
 
@@ -192,19 +205,25 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
 import Paginator from 'primevue/paginator';
 import apiClient from '@/services/apiClient';
+import { useAuthStore } from '@/stores/authStore';
+
+const authStore = useAuthStore();
 
 const router = useRouter();
+const route = useRoute();
 const toast = useToast();
 const confirm = useConfirm();
 
-const activeTab = ref('ALL');
+const isModeleFabRoute = computed(() => route.path === '/dev/fab/modeles');
+const isReadOnlyGenericHub = computed(() => !isModeleFabRoute.value && authStore.userRole === 'RESPONSABLE_DI');
+const activeTab = ref(isModeleFabRoute.value ? 'FAB' : 'ALL');
 const searchQuery = ref('');
 const selectedOperation = ref('');
 const vueActuelle = ref('ACTIF'); // Default to ACTIF
@@ -219,16 +238,20 @@ const onPage = (event) => {
   first.value = event.first;
 };
 
-const tabs = [
-  { id: 'ALL', label: 'Tous', short: 'Tous', icon: 'pi pi-th-large' },
-  { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' },
-  { id: 'ASS', label: 'Assemblage', short: 'Ass', icon: 'pi pi-sitemap' },
-  { id: 'VM', label: 'Vérif Machine', short: 'Vérif', icon: 'pi pi-desktop' },
-  { id: 'RC', label: 'Résultat Contrôle', short: 'Contrôle', icon: 'pi pi-list' },
-  { id: 'RCCF', label: 'Résultat Contrôle CF', short: 'Contrôle CF', icon: 'pi pi-check-circle' },
-  { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
-  { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
-];
+const tabs = computed(() => {
+  const allTabs = [
+    { id: 'ALL', label: 'Tous', short: 'Tous', icon: 'pi pi-th-large' },
+    { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' },
+    { id: 'ASS', label: 'Assemblage', short: 'Ass', icon: 'pi pi-sitemap' },
+    { id: 'VM', label: 'Vérif Machine', short: 'Vérif', icon: 'pi pi-desktop' },
+    { id: 'RC', label: 'Résultat Contrôle', short: 'Contrôle', icon: 'pi pi-list' },
+    { id: 'RCCF', label: 'Résultat Contrôle CF', short: 'Contrôle CF', icon: 'pi pi-check-circle' },
+    { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
+    { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
+  ];
+  // Si on est dans le Hub générique, on cache l'onglet Fabrication
+  return isModeleFabRoute.value ? allTabs : allTabs.filter(t => t.id !== 'FAB');
+});
 
 const categoryStyles = {
   FAB: { label: 'Fabrication', icon: 'pi pi-cog', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300', titleHoverClass: 'group-hover:text-amber-600' },
@@ -259,6 +282,9 @@ const chargerModeles = async () => {
 
 const filteredPlans = computed(() => {
   return modeles.value.filter(plan => {
+    // Si c'est le Hub Générique, exclure les modèles de Fabrication
+    if (!isModeleFabRoute.value && plan.category === 'FAB') return false;
+
     // 1. Filtre par Onglet (Type)
     const matchTab = activeTab.value === 'ALL' || plan.category === activeTab.value;
     
@@ -333,21 +359,21 @@ const archiver = async (mod) => {
 
 const editer = (category, id) => {
   const routes = {
-    'FAB': `/dev/fab/editer/${id}`,
-    'ASS': `/dev/fab/editer/${id}`,
-    'VM': `/dev/verif-machine/editer/${id}`,
-    'RC': `/dev/resultat-controle/editer/${id}`,
-    'RCCF': `/dev/resultat-controle-cf/editer/${id}`,
-    'ECH': `/dev/echantillonnage/editer/${id}`,
-    'PF': `/dev/produit-fini/editer/${id}`
+    'FAB': { path: `/dev/fab/editer/${id}`, query: { type: 'FAB' } },
+    'ASS': { path: `/dev/ass/editer/${id}` },
+    'VM': { path: `/dev/verif-machine/editer/${id}` },
+    'RC': { path: `/dev/resultat-controle/editer/${id}` },
+    'RCCF': { path: `/dev/resultat-controle-cf/editer/${id}` },
+    'ECH': { path: `/dev/echantillonnage/editer/${id}` },
+    'PF': { path: `/dev/produit-fini/editer/${id}` }
   };
   if (routes[category]) router.push(routes[category]);
 };
 
 const consulter = (category, id) => {
   const routes = {
-    'FAB': { path: `/dev/fab/editer/${id}`, query: { view: 'true' } },
-    'ASS': { path: `/dev/fab/editer/${id}`, query: { view: 'true' } },
+    'FAB': { path: `/dev/fab/editer/${id}`, query: { view: 'true', type: 'FAB' } },
+    'ASS': { path: `/dev/ass/editer/${id}`, query: { view: 'true' } },
     'VM': { path: `/dev/verif-machine/editer/${id}`, query: { view: 'true' } },
     'RC': { path: `/dev/resultat-controle/editer/${id}`, query: { view: 'true' } },
     'RCCF': { path: `/dev/resultat-controle-cf/editer/${id}`, query: { view: 'true' } },

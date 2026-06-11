@@ -86,26 +86,23 @@ const toggleMobileMenu = () => {
       <!-- Navigation Principale -->
       <nav class="flex-1 overflow-y-auto py-6 custom-scrollbar" @click="isMobileMenuOpen = false">
         
-        <template v-if="authStore.isResponsable || authStore.userRole === 'SUPERVISEUR_QUALITE'">
+        <!-- SECTION : SUPERVISEUR QUALITE -->
+        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE' || authStore.userRole === 'ADMIN'">
           <!-- SECTION 1 : STRUCTURE DES PLANS -->
           <div class="px-6 mb-3">
-            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Structure des plans</p>
+            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Structure des plans</p>
           </div>
           
-          <ul class="px-4 space-y-4 mb-6">
+          <ul class="px-4 mb-6 space-y-4">
             <!-- Plans Spécifiques Group -->
             <li>
-              <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
+              <router-link to="/dev/hub-structures" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
                 <i class="pi pi-list text-amber-500 text-lg"></i>
                 <span>Plans Spécifiques</span>
               </router-link>
-              
-              <!-- Sub-items nested under Plans Spécifiques -->
-              <ul class="ml-8 pl-4 border-l border-slate-800/80 space-y-2 mt-2">
+              <ul class="ml-[2.1rem] pl-4 border-l border-slate-800/80 space-y-2 mt-2">
                 <li>
-                  <router-link to="/dev/fab/specifique" 
-                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
-                    :class="isDocActive('/dev/fab/specifique') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                  <router-link to="/dev/fab/specifique" class="flex items-center gap-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors" active-class="text-amber-400 font-bold">
                     <i class="pi pi-plus-circle text-amber-500 text-sm"></i> Plan de contrôle en cours de fabrication
                   </router-link>
                 </li>
@@ -118,52 +115,94 @@ const toggleMobileMenu = () => {
                 <i class="pi pi-th-large text-blue-500 text-lg"></i>
                 <span>Documents Génériques</span>
               </router-link>
-              
-              <!-- Sub-items nested under Documents Génériques -->
-              <ul class="ml-8 pl-4 border-l border-slate-800/80 space-y-2 mt-2">
+              <ul class="ml-[2.1rem] pl-4 border-l border-slate-800/80 space-y-1 mt-2">
                 <li>
-                  <router-link to="/dev/fab/nouveau?mode=assembly" 
-                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
-                    :class="isDocActive('/dev/fab', 'assembly') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                  <router-link to="/dev/ass/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-blue-400 font-bold bg-white/10 border border-white/5 shadow-sm">
                     <i class="pi pi-plus-circle text-blue-500 text-sm"></i> En cours d'assemblage
                   </router-link>
                 </li>
                 <li>
-                  <router-link to="/dev/produit-fini/nouveau" 
-                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
-                    :class="isDocActive('/dev/produit-fini') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                  <router-link to="/dev/produit-fini/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-blue-400 font-bold bg-white/10 border border-white/5 shadow-sm">
                     <i class="pi pi-plus-circle text-blue-500 text-sm"></i> Contrôle Produit Fini
                   </router-link>
                 </li>
                 <li>
-                  <router-link to="/dev/verif-machine/nouveau" 
-                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
-                    :class="isDocActive('/dev/verif-machine') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                  <router-link to="/dev/verif-machine/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-orange-400 font-bold bg-white/10 border border-white/5 shadow-sm">
                     <i class="pi pi-plus-circle text-orange-500 text-sm"></i> Vérification Machine
                   </router-link>
                 </li>
                 <li>
-                  <router-link to="/dev/echantillonnage/nouveau" 
-                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
-                    :class="isDocActive('/dev/echantillonnage') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                  <router-link to="/dev/echantillonnage/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-purple-400 font-bold bg-white/10 border border-white/5 shadow-sm">
                     <i class="pi pi-plus-circle text-purple-500 text-sm"></i> Échantillonnage
                   </router-link>
                 </li>
                 <li>
-                  <router-link to="/dev/resultat-controle/nouveau" 
-                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
-                    :class="isDocActive('/dev/resultat-controle') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                  <router-link to="/dev/resultat-controle/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-red-400 font-bold bg-white/10 border border-white/5 shadow-sm">
                     <i class="pi pi-plus-circle text-red-500 text-sm"></i> Résultat Contrôle Poste
                   </router-link>
                 </li>
                 <li>
-                  <router-link to="/dev/resultat-controle-cf/nouveau" 
-                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
-                    :class="isDocActive('/dev/resultat-controle-cf') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
-                    <i class="pi pi-plus-circle text-teal-500 text-sm"></i> Résultat Contrôle C.F.
+                  <router-link to="/dev/resultat-controle-cf/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-emerald-400 font-bold bg-white/10 border border-white/5 shadow-sm">
+                    <i class="pi pi-plus-circle text-emerald-500 text-sm"></i> Résultat Contrôle C.F.
                   </router-link>
                 </li>
               </ul>
+            </li>
+          </ul>
+        </template>
+
+        <!-- SECTION : RESPONSABLE DI -->
+        <template v-if="authStore.isResponsable || authStore.userRole === 'ADMIN'">
+          <!-- SECTION 1 : PLANS DE CONTRÔLES -->
+          <div class="px-6 mb-3">
+            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Plans de contrôles</p>
+          </div>
+          
+          <ul class="px-4 space-y-4 mb-6">
+            <!-- Modèles de Fabrication Group -->
+            <li>
+              <router-link to="/dev/fab/modeles" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
+                <i class="pi pi-cog text-amber-500 text-lg"></i>
+                <span>Modèles de Fabrication</span>
+              </router-link>
+              
+              <!-- Sub-items nested under Modèles de Fabrication -->
+              <ul class="ml-8 pl-4 border-l border-slate-800/80 space-y-2 mt-2">
+                <li>
+                  <router-link to="/dev/fab/nouveau?mode=fabrication" 
+                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
+                    :class="isDocActive('/dev/fab', 'fabrication') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                    <i class="pi pi-plus-circle text-amber-500 text-sm"></i> Créer un Modèle
+                  </router-link>
+                </li>
+              </ul>
+            </li>
+
+            <!-- Plans Spécifiques Group -->
+            <li>
+              <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.08)] font-bold">
+                <i class="pi pi-th-large text-emerald-400 text-lg"></i>
+                <span>Plans spécifiques</span>
+              </router-link>
+              
+              <!-- Sub-items nested under Plans Spécifiques -->
+              <ul class="ml-8 pl-4 border-l border-slate-800/80 space-y-2 mt-2">
+                <li>
+                  <router-link to="/dev/fab/plans/nouveau" 
+                    class="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all"
+                    :class="isDocActive('/dev/fab/plans') ? 'bg-slate-800 text-white border border-slate-700 shadow-md shadow-slate-900/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'">
+                    <i class="pi pi-plus-circle text-emerald-400 text-sm"></i> Créer plan par article
+                  </router-link>
+                </li>
+              </ul>
+            </li>
+
+            <!-- Documents Génériques Group (Lecture Seule) -->
+            <li>
+              <router-link to="/dev/hub" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#1e293b] text-blue-400 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.08)] font-bold">
+                <i class="pi pi-th-large text-blue-500 text-lg"></i>
+                <span>Documents Génériques</span>
+              </router-link>
             </li>
           </ul>
         </template>

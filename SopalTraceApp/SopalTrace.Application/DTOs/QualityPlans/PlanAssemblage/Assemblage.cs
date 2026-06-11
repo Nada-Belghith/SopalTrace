@@ -60,8 +60,9 @@ public record LigneAssEditDto
     public string? Instruction { get; init; } = null;
     public string? Observations { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
-    public required bool EstCritique { get; init; }
+    public bool EstCritique { get; init; } = false;
     public string? ColonnesSupplementaires { get; init; } = null;
+    public string? ImageBase64 { get; init; } = null;
 }
 
 // --- ACTIONS MÉTIER ---
@@ -155,6 +156,7 @@ public record LigneAssResponseDto
     public string? Observations { get; init; }
     public string? Instruction { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
-    public required bool EstCritique { get; init; }
+    public bool EstCritique { get; init; } = false;
     public string? ColonnesSupplementaires { get; init; }
+    public string? ImageBase64 { get; init; }
 }

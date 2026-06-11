@@ -23,6 +23,14 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
             .FirstOrDefaultAsync(p => p.Libelle.Trim().ToLower() == normalized);
     }
 
+    public async Task<Periodicite?> GetPeriodiciteByCodeAsync(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return null;
+        var normalized = code.Trim().ToLower();
+        return await _context.Periodicites
+            .FirstOrDefaultAsync(p => p.Code.Trim().ToLower() == normalized);
+    }
+
     public async Task AddPeriodiciteAsync(Periodicite entite)
     {
         _context.Periodicites.Add(entite);
@@ -188,6 +196,59 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         {
             _context.RisqueDefauts.Add(entite);
         }
-        await Task.CompletedTask;
+    }
+    public async Task<System.Collections.Generic.List<TypeRobinet>> GetActiveTypeRobinetsAsync() => await _context.TypeRobinets.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<NatureArticle>> GetActiveNatureArticlesFabriqueAsync() => await _context.NatureArticles.Where(x => x.Actif && x.Origine == "FABRIQUE").ToListAsync();
+    public async Task<System.Collections.Generic.List<Operation>> GetActiveOperationsAsync() => await _context.Operations.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<NatureArticleOperation>> GetAllNatureArticleOperationsAsync() => await _context.NatureArticleOperations.ToListAsync();
+    public async Task<System.Collections.Generic.List<TypeControle>> GetActiveTypeControlesAsync() => await _context.TypeControles.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<TypeCaracteristique>> GetActiveTypeCaracteristiquesAsync() => await _context.TypeCaracteristiques.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<MoyenControle>> GetActiveMoyenControlesAsync() => await _context.MoyenControles.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<PosteTravail>> GetActivePosteTravailsAsync() => await _context.PosteTravails.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<Periodicite>> GetAllPeriodicitesAsync() => await _context.Periodicites.ToListAsync();
+    public async Task<System.Collections.Generic.List<Instrument>> GetActiveInstrumentsAsync() => await _context.Instruments.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync() => await _context.Nqas.ToListAsync();
+    public async Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync() => await _context.Defautheques.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<RefRegleEchantillonnage>> GetActiveRegleEchantillonnagesAsync() => await _context.RefRegleEchantillonnages.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<FamilleProduitFini>> GetActiveFamilleProduitFinisAsync() => await _context.FamilleProduitFinis.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<Machine>> GetAllMachinesAsync() => await _context.Machines.ToListAsync();
+    public async Task<System.Collections.Generic.List<Machine>> GetActiveMachinesAsync() => await _context.Machines.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<RisqueDefaut>> GetAllRisqueDefautsAsync() => await _context.RisqueDefauts.ToListAsync();
+    public async Task<System.Collections.Generic.List<PieceReference>> GetActivePieceReferencesAsync() => await _context.PieceReferences.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<RefFamilleCorp>> GetAllFamilleCorpsAsync() => await _context.RefFamilleCorps.ToListAsync();
+    public async Task<System.Collections.Generic.List<RefMoyenDetection>> GetAllMoyenDetectionsAsync() => await _context.RefMoyenDetections.ToListAsync();
+    public async Task<Article?> GetArticleByCodeNormaliseAsync(string codeNormalise) => await _context.Articles.FirstOrDefaultAsync(x => x.CodeArticle == codeNormalise);
+    public async Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise)
+    {
+        var typeRobinet = await _context.ProduitFinis
+            .Where(x => x.CodeArticle == codeNormalise)
+            .Select(x => x.TypeRobinetCode)
+            .FirstOrDefaultAsync();
+
+        if (string.IsNullOrEmpty(typeRobinet))
+        {
+            typeRobinet = await _context.BomdNomenclatures
+                .Where(n => n.CodeComposant == codeNormalise)
+                .Join(_context.ProduitFinis,
+                      n => n.ArticleParent,
+                      p => p.CodeArticle,
+                      (n, p) => p.TypeRobinetCode)
+                .FirstOrDefaultAsync();
+        }
+
+        return typeRobinet;
+    }
+
+    public async Task<System.Collections.Generic.IReadOnlyList<Article>> SearchArticlesSfAsync(string query, int maxResults = 15)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new System.Collections.Generic.List<Article>();
+
+        var q = query.Trim().ToUpperInvariant();
+
+        return await _context.Articles
+            .Where(a => a.CodeArticle.Contains(q) && a.NatureArticleCode != "PISTON" && a.NatureArticleCode != "PF")
+            .Take(maxResults)
+            .ToListAsync();
     }
 }

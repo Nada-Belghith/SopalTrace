@@ -2,23 +2,25 @@
   <div class="mb-10">
     <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">1. Informations générales</h3>
     
-    <!-- CHOIX RÉFÉRENCE FORMULAIRE (Mode Assemblage Uniquement) -->
-    <div v-if="isAssemblyMode && !isEditMode" class="col-span-full mb-4 bg-blue-50/50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4">
-      <label class="block text-[11px] font-black text-blue-800 uppercase tracking-widest shrink-0">
-        <i class="pi pi-file-import mr-1 text-blue-600"></i> Réf. Formulaire  *
-      </label>
-      <select 
-        v-model="refFormulaireSelected" 
-        :disabled="isReadOnly" 
-        class="w-full md:w-1/3 rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow bg-white border border-slate-300 text-slate-800 cursor-pointer shadow-sm">
-        <option value="">-- Choisir un formulaire générique --</option>
-        <option v-for="ref in formulairesReferences" :key="ref.id" :value="ref.id">
-          {{ ref.codeReference }} - {{ ref.designation }}
-        </option>
-      </select>
-      <p class="text-xs text-blue-600/80 font-medium italic">
-        La sélection du formulaire remplira automatiquement les champs suivants.
-      </p>
+    <!-- NOUVEAU DESIGN POUR REF FORMULAIRE -->
+    <div v-if="!isEditMode" class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col md:flex-row gap-4 mb-6 shadow-inner">
+      <div class="flex items-center text-blue-800 font-black tracking-widest text-xs min-w-[150px]">
+        <i class="pi pi-file-import mr-2 text-lg text-blue-600"></i> RÉF. FORMULAIRE *
+      </div>
+      <div class="flex-1 flex gap-4 items-center relative">
+        <select 
+          v-model="refFormulaireSelected" 
+          :disabled="isReadOnly" 
+          class="w-full md:w-1/2 rounded-lg px-4 py-2 text-sm font-bold shadow-sm focus:ring-2 focus:ring-blue-400 outline-none transition-shadow bg-white border border-blue-200 text-blue-900 cursor-pointer">
+          <option value="">-- Choisir un formulaire générique --</option>
+          <option v-for="ref in formulairesReferences" :key="ref.id" :value="ref.id">
+            {{ ref.codeReference }} - {{ ref.designation }}
+          </option>
+        </select>
+        <span class="text-xs font-bold text-blue-500 italic hidden md:block">
+          La sélection du formulaire remplira automatiquement les champs suivants.
+        </span>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -28,8 +30,8 @@
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Famille *</label>
         <select 
           v-model="store.entete.familleProduitCode" 
-          :disabled="isEditMode || isReadOnly || isPiston" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || isPiston) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :disabled="isEditMode || isReadOnly" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Sélectionner --</option>
           <option v-for="fam in famillesFiltrees" :key="fam.code" :value="fam.code">
             {{ fam.code }}
@@ -87,13 +89,6 @@
           :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
-      <!-- VERSION INITIALE -->
-      <div v-if="!isEditMode && !hasExistingVersion">
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Version de départ</label>
-        <input v-model.number="store.entete.versionInitiale" type="number" min="0" placeholder="0" :disabled="isReadOnly"
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
-      </div>
-
     </div>
 
 
@@ -102,12 +97,10 @@
 
 <script setup>
 import { computed, watch, ref } from 'vue';
-import { useRoute } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 const store = useFabModeleStore();
-const route = useRoute();
 const props = defineProps({
   isEditMode: {
     type: Boolean,
@@ -119,25 +112,34 @@ const props = defineProps({
   }
 });
 
-const isAssemblyMode = computed(() => route.query.mode === 'assembly');
 const formulairesReferences = computed(() => store.formulairesReferences || []);
 const refFormulaireSelected = ref('');
 const isAutoFilling = ref(false);
 
-const hasExistingVersion = computed(() => {
-  if (!refFormulaireSelected.value) return false;
-  const refObj = formulairesReferences.value.find(r => r.id === refFormulaireSelected.value);
-  if (!refObj) return false;
-  
-  const hasVersion = refObj.version > 0 || refObj.Version > 0;
-  const hasConfig = refObj.configurationStructureJson !== null && refObj.configurationStructureJson !== undefined;
-  
-  return hasVersion || hasConfig;
-});
+  watch(formulairesReferences, (newRefs) => {
+    if (newRefs && newRefs.length > 0 && !refFormulaireSelected.value && !props.isEditMode) {
+      refFormulaireSelected.value = newRefs[0].id;
+    }
+  }, { immediate: true });
 
-watch(refFormulaireSelected, async (newRefId) => {
+  const pickFormulaireActif = (refs, selectedId) => {
+    const selected = refs.find(r => r.id === selectedId);
+    if (!selected) return null;
+    const code = (selected.codeReference || '').trim();
+    if (!code) return selected;
+    return refs
+      .filter(r => (r.codeReference || '').trim() === code)
+      .sort((a, b) => {
+        const statutA = String(a.statut || a.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        const statutB = String(b.statut || b.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
+        if (statutA !== statutB) return statutA - statutB;
+        return (b.version ?? b.Version ?? 0) - (a.version ?? a.Version ?? 0);
+      })[0] || selected;
+  };
+
+  watch(refFormulaireSelected, async (newRefId) => {
   if (!newRefId) return;
-  const refObj = formulairesReferences.value.find(r => r.id === newRefId);
+  const refObj = pickFormulaireActif(formulairesReferences.value, newRefId);
   if (!refObj) return;
 
   const designation = refObj.designation || '';
@@ -152,25 +154,11 @@ watch(refFormulaireSelected, async (newRefId) => {
   store.entete.operationCode = parsed.operationCode;
   store.entete.posteCode = parsed.posteCode;
 
-  // Set the gabarit title exactly as the designation to keep it as reference
-  store.entete.libelle = designation;
+  // DO NOT overwrite libelle with the designation of the reference form
+  // The user should type their own libelle for the model (e.g. Modèle MOD-TRONC-CORPS V1)
 
-  // ✅ Mémoriser le codeReference du formulaire sélectionné pour le versioning ciblé
-  store.entete.refFormulaireCodeReference = refObj.codeReference || '';
-  
-  // Appliquer la configuration des colonnes du formulaire sélectionné
-  if (refObj.configurationStructureJson) {
-    try {
-      store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
-        ? JSON.parse(refObj.configurationStructureJson) 
-        : refObj.configurationStructureJson;
-    } catch (e) {
-      console.error("Erreur parsing configuration colonnes:", e);
-      store.entete.configurationColonnes = [];
-    }
-  } else {
-    store.entete.configurationColonnes = [];
-  }
+  // Appliquer la dernière version ACTIF du formulaire (colonnes PRC incluses)
+  store.applyFormulaireConfiguration(refObj.codeReference || '');
 
   // Libérer le flag après la propagation de la réactivité
   setTimeout(() => {
@@ -210,29 +198,17 @@ const afficherPoste = computed(() => {
   return famille.includes('soupape') && article === 'PF';
 });
 
-const isPiston = computed(() => {
-  return String(store.entete.natureComposantCode || '').trim().toUpperCase() === 'PISTON';
-});
-
 // =========================================================================
 // FILTRES DYNAMIQUES
 // =========================================================================
 
 const composantsFiltres = computed(() => {
   let toutesLesNatures = store.naturesComposant || [];
-  
-  const mode = route.query.mode;
-  if (mode === 'assembly') {
-    toutesLesNatures = toutesLesNatures.filter(n => {
-      const code = (n.code || '').trim().toUpperCase();
-      return code === 'PISTON' || code === 'PF';
-    });
-  } else if (mode === 'fabrication') {
-    toutesLesNatures = toutesLesNatures.filter(n => {
-      const code = (n.code || '').trim().toUpperCase();
-      return code === 'CORPS' || code === 'VOLANT';
-    });
-  }
+    
+  toutesLesNatures = toutesLesNatures.filter(n => {
+    const code = (n.code || '').trim().toUpperCase();
+    return code !== 'PISTON' && code !== 'PF';
+  });
 
   const selectedOp = (store.entete.operationCode || '').trim().toUpperCase();
   const gammes = store.gammesOperatoires || [];
@@ -248,12 +224,7 @@ const composantsFiltres = computed(() => {
 });
 
 const famillesFiltrees = computed(() => {
-  const allFamilies = store.famillesProduit || [];
-  if (isPiston.value) {
-    // On ajoute 'TOUS' au début mais on laisse les autres familles accessibles
-    return [{ code: 'TOUS' }, ...allFamilies];
-  }
-  return allFamilies;
+  return store.famillesProduit || [];
 });
 
 const operationsFiltrees = computed(() => {
@@ -263,19 +234,10 @@ const operationsFiltrees = computed(() => {
 
   if (!gammes.length) return toutesLesOperations;
 
-  let gammesFiltrees = gammes;
-  const mode = route.query.mode;
-  if (mode === 'assembly') {
-    gammesFiltrees = gammes.filter(g => {
-      const nat = (g.natureComposantCode || '').trim().toUpperCase();
-      return nat === 'PISTON' || nat === 'PF';
-    });
-  } else if (mode === 'fabrication') {
-    gammesFiltrees = gammes.filter(g => {
-      const nat = (g.natureComposantCode || '').trim().toUpperCase();
-      return nat === 'CORPS' || nat === 'VOLANT';
-    });
-  }
+  let gammesFiltrees = gammes.filter(g => {
+    const nat = (g.natureComposantCode || '').trim().toUpperCase();
+    return nat !== 'PISTON' && nat !== 'PF';
+  });
 
   // Si une nature est sélectionnée, on filtre les opérations liées à cette nature
   if (selectedNature) {
@@ -308,9 +270,6 @@ const postesDisponibles = computed(() =>
 watch(() => store.entete.familleProduitCode, (newVal, oldVal) => {
   if (isAutoFilling.value || store.isBeingLoaded) return;  // ✅ Pas de cascade pendant le chargement
   if (newVal !== oldVal) {
-    // Évite la boucle si c'est un auto-remplissage PISTON
-    if (newVal === 'TOUS' && isPiston.value) return;
-
     store.entete.operationCode = '';
     store.entete.natureComposantCode = '';
     store.entete.posteCode = '';
@@ -321,9 +280,6 @@ watch(() => store.entete.familleProduitCode, (newVal, oldVal) => {
 watch(() => store.entete.operationCode, (newVal, oldVal) => {
   if (isAutoFilling.value || store.isBeingLoaded) return;  // ✅ Pas de cascade pendant le chargement
   if (newVal !== oldVal) {
-    // Évite la boucle si c'est un auto-remplissage PISTON
-    if (newVal === 'ASS' && isPiston.value) return;
-
     store.entete.natureComposantCode = '';
     store.entete.posteCode = '';
   }
@@ -334,20 +290,6 @@ watch(() => store.entete.natureComposantCode, (newVal, oldVal) => {
   if (isAutoFilling.value || store.isBeingLoaded) return;  // ✅ Pas de cascade pendant le chargement
   if (newVal !== oldVal) {
     store.entete.posteCode = '';
-    
-    const isPistonNew = String(newVal || '').trim().toUpperCase() === 'PISTON';
-    const isPistonOld = String(oldVal || '').trim().toUpperCase() === 'PISTON';
-
-    // Règle spécifique PISTON : Force la famille et l'opération
-    if (isPistonNew) {
-      // Note: On utilise 'TOUS' ou 'ASS AUTO' selon ce qui est défini dans famillesFiltrees
-      store.entete.familleProduitCode = 'TOUS'; 
-      store.entete.operationCode = 'ASS';
-    } else if (isPistonOld) {
-      // Si on quitte le mode PISTON, on vide les champs forcés
-      store.entete.familleProduitCode = '';
-      store.entete.operationCode = '';
-    }
   }
 });
 

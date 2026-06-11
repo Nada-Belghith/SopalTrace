@@ -299,6 +299,7 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { usePlanRccfStore } from '@/stores/planRccfStore';
 import { useReferentielStore } from '@/stores/referentielStore';
 import { useToast } from 'primevue/usetoast';
@@ -314,6 +315,7 @@ defineProps({
 const store = usePlanRccfStore();
 const referentielStore = useReferentielStore();
 const toast = useToast();
+const router = useRouter();
 
 const fileInput = ref(null);
 const isImporting = ref(false);
@@ -448,6 +450,9 @@ const savePlan = async () => {
   const res = await store.savePlan();
   if (res.success) {
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le plan ENCF a été enregistré.', life: 3000 });
+    setTimeout(() => {
+      router.push('/dev/hub');
+    }, 1500);
   } else {
     toast.add({ severity: 'error', summary: 'Erreur', detail: res.message, life: 3000 });
   }

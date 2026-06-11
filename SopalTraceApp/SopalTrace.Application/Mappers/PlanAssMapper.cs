@@ -64,10 +64,10 @@ public static class PlanAssMapper
                     MoyenControleId = l.MoyenControleId,
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
-                    Observations = l.Observations,
                     Instruction = l.Instruction,
                     EstCritique = l.EstCritique,
-                    ColonnesSupplementaires = l.ColonnesSupplementaires
+                    ColonnesSupplementaires = l.ColonnesSupplementaires,
+                    ImageBase64 = l.ImageBase64
                 }).ToList() ?? new List<LigneAssResponseDto>()
             }).ToList() ?? new List<SectionAssResponseDto>()
         };
@@ -98,6 +98,8 @@ public static class PlanAssMapper
 
             Notes = string.Empty,
             ConfigurationColonnesJson = plan.Formulaire?.ConfigurationStructureJson,
+            CodeReferenceFormulaire = plan.Formulaire?.CodeReference,
+            FormulaireVersion = plan.Formulaire?.Version,
             Sections = plan.PlanAssemblageSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id,
@@ -119,10 +121,10 @@ public static class PlanAssMapper
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
                     Observations = l.Observations,
-                    Instruction = l.Instruction,
                     EstCritique = l.EstCritique,
                     MoyenTexteLibre = l.MoyenTexteLibre,
-                    ColonnesSupplementaires = l.ColonnesSupplementaires
+                    ColonnesSupplementaires = l.ColonnesSupplementaires,
+                    ImageBase64 = l.ImageBase64
                 }).ToList() ?? new List<ModeleLigneResponseDto>()
             }).ToList() ?? new List<ModeleSectionResponseDto>()
         };
@@ -156,10 +158,10 @@ public static class PlanAssMapper
                 Id = sectionId,
                 PlanEnteteId = planId,
                 TypeSectionId = (s.TypeSectionId == null || s.TypeSectionId == Guid.Empty) ? null : s.TypeSectionId,
-                PeriodiciteId = s.PeriodiciteId,
+                PeriodiciteId = (s.PeriodiciteId == null || s.PeriodiciteId == Guid.Empty) ? null : s.PeriodiciteId,
 
                 LibelleSection = s.LibelleSection,
-                RegleEchantillonnageId = s.RegleEchantillonnageId,
+                RegleEchantillonnageId = (s.RegleEchantillonnageId == null || s.RegleEchantillonnageId == Guid.Empty) ? null : s.RegleEchantillonnageId,
                 RegleEchantillonnageLibelle = s.RegleEchantillonnageLibelle,
                 OrdreAffiche = s.OrdreAffiche,
                 Notes = s.Notes,
@@ -174,17 +176,17 @@ public static class PlanAssMapper
                     PlanEnteteId = planId,
                     SectionId = sectionId,
                     OrdreAffiche = l.OrdreAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                    TypeCaracteristiqueId = (l.TypeCaracteristiqueId == null || l.TypeCaracteristiqueId == Guid.Empty) ? null : l.TypeCaracteristiqueId,
                     LibelleAffiche = l.LibelleAffiche,
-                    TypeControleId = l.TypeControleId,
-                    MoyenControleId = l.MoyenControleId,
+                    TypeControleId = (l.TypeControleId == null || l.TypeControleId == Guid.Empty) ? null : l.TypeControleId,
+                    MoyenControleId = (l.MoyenControleId == null || l.MoyenControleId == Guid.Empty) ? null : l.MoyenControleId,
                     InstrumentCode = l.InstrumentCode,
                     LimiteSpecTexte = l.LimiteSpecTexte,
                     Observations = l.Observations,
-                    Instruction = l.Instruction,
                     EstCritique = l.EstCritique,
                     MoyenTexteLibre = l.MoyenTexteLibre,
-                    ColonnesSupplementaires = l.ColonnesSupplementaires
+                    ColonnesSupplementaires = l.ColonnesSupplementaires,
+                    ImageBase64 = l.ImageBase64
                 });
             }
             entete.PlanAssemblageSections.Add(section);
@@ -199,13 +201,13 @@ public static class PlanAssMapper
         {
             PlanEnteteId = planId,
             TypeSectionId = (dto.TypeSectionId == null || dto.TypeSectionId == Guid.Empty) ? null : dto.TypeSectionId,
-            PeriodiciteId = dto.PeriodiciteId,
+            PeriodiciteId = (dto.PeriodiciteId == null || dto.PeriodiciteId == Guid.Empty) ? null : dto.PeriodiciteId,
             OrdreAffiche = dto.OrdreAffiche,
             LibelleSection = string.IsNullOrWhiteSpace(dto.LibelleSection) ? "NOUVELLE SECTION" : dto.LibelleSection,
             NormeReference = dto.NormeReference,
             NqaId = dto.NqaId,
             Notes = dto.Notes,
-            RegleEchantillonnageId = dto.RegleEchantillonnageId,
+            RegleEchantillonnageId = (dto.RegleEchantillonnageId == null || dto.RegleEchantillonnageId == Guid.Empty) ? null : dto.RegleEchantillonnageId,
             RegleEchantillonnageLibelle = dto.RegleEchantillonnageLibelle,
             PlanAssemblageLignes = new List<PlanAssemblageLigne>()
         };
@@ -218,16 +220,16 @@ public static class PlanAssMapper
             PlanEnteteId = planId,
             SectionId = sectionId,
             OrdreAffiche = dto.OrdreAffiche,
-            TypeCaracteristiqueId = dto.TypeCaracteristiqueId,
+            TypeCaracteristiqueId = (dto.TypeCaracteristiqueId == null || dto.TypeCaracteristiqueId == Guid.Empty) ? null : dto.TypeCaracteristiqueId,
             LibelleAffiche = dto.LibelleAffiche,
-            TypeControleId = dto.TypeControleId,
-            MoyenControleId = dto.MoyenControleId,
+            TypeControleId = (dto.TypeControleId == null || dto.TypeControleId == Guid.Empty) ? null : dto.TypeControleId,
+            MoyenControleId = (dto.MoyenControleId == null || dto.MoyenControleId == Guid.Empty) ? null : dto.MoyenControleId,
             InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode,
             LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte,
-            Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations,
             Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction,
             EstCritique = dto.EstCritique,
-            ColonnesSupplementaires = dto.ColonnesSupplementaires
+            ColonnesSupplementaires = dto.ColonnesSupplementaires,
+            ImageBase64 = dto.ImageBase64
         };
     }
 
@@ -240,10 +242,10 @@ public static class PlanAssMapper
         ligne.MoyenControleId = dto.MoyenControleId;
         ligne.InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode;
         ligne.LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte;
-        ligne.Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations;
         ligne.Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction;
         ligne.EstCritique = dto.EstCritique;
         ligne.ColonnesSupplementaires = dto.ColonnesSupplementaires;
+        ligne.ImageBase64 = dto.ImageBase64;
     }
 
     public static PlanAssemblageEntete DupliquerEntitePlan(PlanAssemblageEntete source, bool estModele, string? nouveauCodeArticle, string? nouvelleDesig, string creePar, string? motif)
@@ -299,10 +301,10 @@ public static class PlanAssMapper
                     MoyenControleId = sourceLigne.MoyenControleId,
                     InstrumentCode = sourceLigne.InstrumentCode,
                     LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
-                    Observations = sourceLigne.Observations,
                     Instruction = sourceLigne.Instruction,
                     EstCritique = sourceLigne.EstCritique,
-                    ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
+                    ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires,
+                    ImageBase64 = sourceLigne.ImageBase64
                 });
             }
             plan.PlanAssemblageSections.Add(section);
@@ -313,7 +315,7 @@ public static class PlanAssMapper
     public static string IncrementerSuffixeVersion(string original, int nouvelleVersion)
     {
         if (string.IsNullOrWhiteSpace(original)) return original;
-        var regex = new System.Text.RegularExpressions.Regex(@"-[Vv]\d+$");
+        var regex = new System.Text.RegularExpressions.Regex(@"(?:[-\s]+[Vv]\d+)+$");
 
         if (nouvelleVersion == 0)
         {
@@ -383,10 +385,10 @@ public static class PlanAssMapper
                         InstrumentCode = l.InstrumentCode,
                         LimiteSpecTexte = l.LimiteSpecTexte,
                         Observations = l.Observations,
-                        Instruction = l.Instruction,
                         EstCritique = l.EstCritique,
                         MoyenTexteLibre = l.MoyenTexteLibre,
-                        ColonnesSupplementaires = l.ColonnesSupplementaires
+                        ColonnesSupplementaires = l.ColonnesSupplementaires,
+                        ImageBase64 = l.ImageBase64
                     });
                 }
                 nouveauPlan.PlanAssemblageSections.Add(section);
@@ -423,10 +425,10 @@ public static class PlanAssMapper
                         MoyenControleId = sourceLigne.MoyenControleId,
                         InstrumentCode = sourceLigne.InstrumentCode,
                         LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
-                        Observations = sourceLigne.Observations,
                         Instruction = sourceLigne.Instruction,
                         EstCritique = sourceLigne.EstCritique,
-                        ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
+                        ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires,
+                        ImageBase64 = sourceLigne.ImageBase64
                     });
                 }
                 nouveauPlan.PlanAssemblageSections.Add(section);

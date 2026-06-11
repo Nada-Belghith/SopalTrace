@@ -11,9 +11,9 @@ namespace SopalTrace.Application.Services
 {
     public class PlanRccfService : BasePlanLifecycleService<PlanResultatControleCfEntete, CreatePlanRccfRequest, UpdatePlanRccfRequest>, IPlanRccfService
     {
-        private readonly IReferentielService _referentielService;
+        private readonly IFormulairePrcService _referentielService;
 
-        public PlanRccfService(IUnitOfWork unitOfWork, IReferentielService referentielService) 
+        public PlanRccfService(IUnitOfWork unitOfWork, IFormulairePrcService referentielService) 
             : base(unitOfWork)
         {
             _referentielService = referentielService;

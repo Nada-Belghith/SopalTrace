@@ -30,6 +30,7 @@ public class PlanFabricationService : IPlanFabricationService
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<PlanFabricationService> _logger;
     private readonly IPlanArchiverService _planArchiverService;
+    private readonly IFormulairePrcService _formulaireService;
 
     public PlanFabricationService(
         IUnitOfWork unitOfWork,
@@ -40,7 +41,8 @@ public class PlanFabricationService : IPlanFabricationService
         IValidator<ClonePlanRequestDto> clonePlanValidator,
         ICurrentUserService currentUserService,
         ILogger<PlanFabricationService> logger,
-        IPlanArchiverService planArchiverService)
+        IPlanArchiverService planArchiverService,
+        IFormulairePrcService formulaireService)
     {
         _unitOfWork = unitOfWork;
         _repository = repository;
@@ -51,6 +53,29 @@ public class PlanFabricationService : IPlanFabricationService
         _currentUserService = currentUserService;
         _logger = logger;
         _planArchiverService = planArchiverService;
+        _formulaireService = formulaireService;
+    }
+
+    private async Task<Guid?> ResolveFormulaireActifIdAsync(string? codeReference, string role)
+    {
+        if (!string.IsNullOrWhiteSpace(codeReference))
+        {
+            var form = await _formulaireService.GetFormulaireActifParCodeReferenceAsync(codeReference);
+            if (form != null) return form.Id;
+        }
+
+        var formByRole = await _formulaireService.GetFormulaireByRoleAsync(role);
+        return formByRole?.Id;
+    }
+
+    private async Task AppliquerFormulaireActifAuPlanAsync(
+        PlanFabricationEntete plan,
+        string? codeReference,
+        string role)
+    {
+        var formulaireId = await ResolveFormulaireActifIdAsync(codeReference, role);
+        if (formulaireId.HasValue)
+            plan.FormulaireId = formulaireId.Value;
     }
 
     private async Task<int> CalculerNouvelleVersionAsync(string? codeArticleSage, string? operationCode)
@@ -128,11 +153,12 @@ public class PlanFabricationService : IPlanFabricationService
         await _planArchiverService.ArchivePlanFabricationActifAsync(request.CodeArticleSage, request.OperationCode, user);
 
         PlanFabricationEntete nouveauPlan;
+        ModeleFabricationEntete? modeleSource = null;
 
         // 5. Instanciation du Header
         if (modeleSourceId.HasValue)
         {
-            var modeleSource = await _repository.GetModeleActifAvecRelationsAsync(modeleSourceId.Value);
+            modeleSource = await _repository.GetModeleActifAvecRelationsAsync(modeleSourceId.Value);
             if (modeleSource == null) throw new ModeleIntrouvableException(modeleSourceId.Value);
 
             // Sécurité : Pas d'instanciation directe sur un modèle générique
@@ -145,6 +171,14 @@ public class PlanFabricationService : IPlanFabricationService
         {
             nouveauPlan = PlanFabricationMapper.ConstruireEntitePlanVierge(request, designationSage);
         }
+
+        var codeRef = request.RefFormulaireCodeReference;
+        if (string.IsNullOrWhiteSpace(codeRef) && modeleSource?.Formulaire?.CodeReference != null)
+            codeRef = modeleSource.Formulaire.CodeReference;
+        if (string.IsNullOrWhiteSpace(codeRef))
+            codeRef = "PRC";
+
+        await AppliquerFormulaireActifAuPlanAsync(nouveauPlan, codeRef, "EN_COURS_DE_FABRICATION");
 
         // 6. Gestion de la version et du nom
         var prochaineVersion = request.VersionInitiale ?? await CalculerNouvelleVersionAsync(request.CodeArticleSage, request.OperationCode);
@@ -318,6 +352,37 @@ public class PlanFabricationService : IPlanFabricationService
         var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, user, $"[Restauré] {request.MotifRestoration}");
         nouveauPlan.Statut = StatutsPlan.Actif;
         nouveauPlan.Version = nouvelleVersion;
+
+        await SmartDictionaryPassAsync(nouveauPlan);
+
+        await _repository.AddPlanAsync(nouveauPlan);
+        await _unitOfWork.CommitAsync();
+
+        return nouveauPlan.Id;
+    }
+
+    public async Task<Guid> MettreANiveauPlanArchiveAsync(Guid planArchiveId)
+    {
+        var planArchive = await _repository.GetPlanAvecRelationsAsync(planArchiveId);
+        if (planArchive == null) throw new KeyNotFoundException("Plan archivé introuvable.");
+
+        var user = _currentUserService.UserInfo;
+        var role = planArchive.OperationCode == "ASS" ? "EN_COURS_DE_ASSEMBLAGE" : "EN_COURS_DE_FABRICATION";
+
+        var formulaireActif = await _formulaireService.GetFormulaireByRoleAsync(role);
+        if (formulaireActif == null) throw new InvalidOperationException("Aucun formulaire PRC actif trouvé pour la mise à niveau.");
+
+        // Archiver l'actif actuel (au cas où il y en a un autre ?)
+        // Normalement il ne devrait pas y avoir d'actif s'il est archivé suite à une maj PRC,
+        // mais pour être sûr on archive.
+        await _planArchiverService.ArchivePlanFabricationActifAsync(planArchive.CodeArticleSage, planArchive.OperationCode, user);
+
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(planArchive.CodeArticleSage, planArchive.OperationCode);
+        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, user, $"[Mise à niveau] depuis l'archive de la v{planArchive.Version}");
+        
+        nouveauPlan.Statut = StatutsPlan.Brouillon;
+        nouveauPlan.Version = nouvelleVersion;
+        nouveauPlan.FormulaireId = formulaireActif.Id;
 
         await SmartDictionaryPassAsync(nouveauPlan);
 

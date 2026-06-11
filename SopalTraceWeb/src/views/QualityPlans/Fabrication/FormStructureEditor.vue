@@ -22,10 +22,17 @@
           </div>
           <span class="text-slate-300">|</span>
           <div class="flex items-center gap-1.5">
-            <span class="text-[10px] font-black text-slate-400 uppercase">Version active :</span>
-            <span class="font-mono font-bold text-sm text-slate-700">V{{ formVersion }}.0</span>
+            <span class="text-[10px] font-black text-slate-400 uppercase">Version de départ :</span>
+            <input 
+              v-model.number="formVersion" 
+              type="number" 
+              min="1" 
+              class="w-16 bg-white border border-slate-200 rounded px-2 py-1 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all" 
+              :disabled="isViewOnly" 
+            />
           </div>
-          <span class="bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-emerald-500/20">ACTIF</span>
+          <span v-if="formStatut === 'ACTIF'" class="bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-emerald-500/20">ACTIF</span>
+          <span v-else-if="formStatut === 'BROUILLON'" class="bg-slate-500/10 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-slate-500/20">BROUILLON</span>
         </div>
       </div>
 
@@ -37,7 +44,7 @@
             <i class="pi pi-sliders-h text-lg text-amber-500"></i>
             <span>Structure des Plans Spécifiques</span>
           </div>
-          <button @click="$router.push('/dev/hub')" class="text-slate-400 hover:text-white transition-colors">
+          <button @click="$router.push('/dev/hub-structures')" class="text-slate-400 hover:text-white transition-colors">
             <i class="pi pi-times text-lg"></i>
           </button>
         </div>
@@ -195,7 +202,7 @@
         <!-- ACTIONS FOOTER -->
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-3.5">
           <button 
-            @click="$router.push('/dev/hub-plans')" 
+            @click="$router.push('/dev/hub-structures')" 
             class="px-6 py-3 rounded-xl text-xs font-black tracking-widest text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all uppercase active:scale-95 cursor-pointer"
             :disabled="isSaving"
           >
@@ -221,19 +228,22 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import apiClient from '@/services/apiClient'
 
-const route = useRoute();
+const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 
 const isSaving = ref(false)
 const isViewOnly = computed(() => route.query.view === 'true')
 const customColumns = ref([])
 const newCol = ref({ label: '', type: 'Texte', insertAfter: 'code_instrument' })
+const formId = ref('')
 const formCode = ref('')
 const formVersion = ref(0)
+const formStatut = ref('')
 
 const baseColumns = [
   { key: 'caracteristique', label: 'CARACTÉRISTIQUE CONTRÔLÉE' },
@@ -252,9 +262,11 @@ const loadStructure = async () => {
       : '/referentiels/formulaires/role/EN_COURS_DE_FABRICATION'
       
     const res = await apiClient.get(endpoint)
-    if (res.data?.success && res.data?.data) {
+      if (res.data?.success && res.data?.data) {
+      formId.value = res.data.data.id
       formCode.value = res.data.data.codeReference
       formVersion.value = res.data.data.version
+      formStatut.value = res.data.data.statut
       const configJson = res.data.data.configurationStructureJson
       if (configJson) {
         customColumns.value = JSON.parse(configJson)
@@ -384,7 +396,8 @@ const saveStructure = async () => {
   isSaving.value = true
   try {
     const payload = {
-      configurationStructureJson: JSON.stringify(customColumns.value)
+      configurationStructureJson: JSON.stringify(customColumns.value),
+      versionInitiale: formVersion.value
     }
     const res = await apiClient.put('/referentiels/formulaires/role/EN_COURS_DE_FABRICATION', payload)
     
@@ -396,6 +409,9 @@ const saveStructure = async () => {
         life: 4000
       })
       await loadStructure()
+      setTimeout(() => {
+        router.push('/dev/hub-structures')
+      }, 1500)
     }
   } catch (error) {
     console.error('Erreur sauvegarde structure:', error)

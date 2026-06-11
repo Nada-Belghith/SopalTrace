@@ -101,6 +101,7 @@
 
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue';
+import { findTypeSection, normalizeTypeSectionId } from '@/utils/sectionTitleUtils';
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -127,6 +128,13 @@ watch(() => props.section, (newSection) => {
   if (sourceSource !== sourceLocale) {
     isSyncingFromParent.value = true;
     localSection.value = JSON.parse(sourceSource);
+
+    if (localSection.value.typeSectionId) {
+      localSection.value.typeSectionId = normalizeTypeSectionId(
+        localSection.value.typeSectionId,
+        props.typesSection
+      );
+    }
     
     // Auto-populate 'nom' from 'libelleSection' for custom sections
     if (!localSection.value.typeSectionId && !localSection.value.nom && localSection.value.libelleSection) {
@@ -149,7 +157,7 @@ watch(localSection, (newVal) => {
 // --- PROPRIÉTÉS CALCULÉES (Logique Métier Unifiée) ---
 
 const est100Pourcent = computed(() => {
-  const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
+  const typeSec = findTypeSection(props.typesSection, localSection.value.typeSectionId);
   if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) return true;
 
   const libFreq = (localSection.value.frequenceLibelle || '').toLowerCase();
@@ -166,18 +174,9 @@ const est100Pourcent = computed(() => {
 });
 
 const titreCalcule = computed(() => {
-  // 1. Si l'utilisateur a saisi un texte personnalisé, on l'utilise EXACTEMENT tel quel
-  // (sans forcer le préfixe par défaut, pour permettre une personnalisation totale)
-  if (localSection.value.nom) {
-    const cleanNom = localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
-    if (cleanNom) {
-      return cleanNom;
-    }
-  }
-
-  // 2. Sinon, on génère le titre par défaut
-  const typeSec = (props.typesSection || []).find(ts => ts.id === localSection.value.typeSectionId);
-  let baseTitle = localSection.value.libelleSection || props.defaultTitle;
+  const typeSec = findTypeSection(props.typesSection, localSection.value.typeSectionId);
+  let baseTitle = props.defaultTitle;
+  
   if (typeSec) {
     // Eviter la duplication si le typeSec.libelle inclut déjà le defaultTitle
     if (typeSec.libelle.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
@@ -187,6 +186,30 @@ const titreCalcule = computed(() => {
     } else {
       baseTitle = `${props.defaultTitle} ${typeSec.libelle}`;
     }
+  }
+
+  // Le champ de saisie 'nom' (même vide) a toujours la priorité.
+  // On s'assure d'éliminer TOUTES les parenthèses accumulées à la fin (ex: (1 pièce / h) (2 pièces / h))
+  const currentNom = typeof localSection.value.nom === 'string' ? localSection.value.nom : '';
+  const cleanNom = currentNom.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
+
+  if (cleanNom) {
+    if (cleanNom.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
+      return cleanNom;
+    }
+    return `${baseTitle} ${cleanNom}`;
+  }
+
+  // Si le champ de saisie est explicitement vide (typeof === string)
+  if (typeof localSection.value.nom === 'string') {
+    return baseTitle; 
+  }
+
+  // Fallback si la section vient d'être créée (nom === undefined)
+  // On nettoie aussi le libelleSection de TOUTES ses parenthèses de fréquence pour éviter l'accumulation
+  if (localSection.value.libelleSection) {
+      const cleanLib = localSection.value.libelleSection.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
+      return cleanLib || baseTitle;
   }
 
   return baseTitle;
@@ -306,7 +329,7 @@ watch(() => localSection.value.typeSectionId, (newId) => {
     localSection.value.typeSectionId = null;
     return;
   }
-  const typeSec = (props.typesSection || []).find(ts => ts.id === newId);
+  const typeSec = findTypeSection(props.typesSection, newId);
   if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) {
     localSection.value.modeFreq = 'VARIABLE';
     localSection.value.freqNum = 100;

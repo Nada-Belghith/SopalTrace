@@ -43,6 +43,27 @@ const router = createRouter({
           path: 'hub-plans',
           name: 'dev-hub-plans',
           component: () => import('@/views/QualityPlans/DevPlanHub.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE_DI'] }
+        },
+        {
+          path: 'hub-structures',
+          name: 'dev-hub-structures',
+          component: () => import('@/views/QualityPlans/DevStructHub.vue'),
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
+        },
+
+        // --- ASS : MODELISATION DES PLANS D'ASSEMBLAGE ---
+        {
+          path: 'ass/nouveau',
+          name: 'dev-ass-create',
+          component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
+        },
+        {
+          path: 'ass/editer/:id',
+          name: 'dev-ass-edit',
+          component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE', 'SUPERVISEUR_QUALITE'] }
         },
 
         // --- EXECUTION DES PLANS ---
@@ -55,22 +76,28 @@ const router = createRouter({
         // 2. ÉDITEUR FABRICATION (TRN, ESP, USI) - GABARITS
         // Gère les Corps et Volants pour les 3 premières opérations
         {
-          path: 'fab/nouveau', 
-          name: 'dev-fab-modele-create',
-          component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE', 'SUPERVISEUR_QUALITE'] }
+          path: 'fab/modeles',
+          name: 'dev-fab-modeles-hub',
+          component: () => import('@/views/QualityPlans/DevModelHub.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE_DI', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
         },
         {
-          path: 'fab/specifique', 
+          path: 'fab/nouveau',
+          name: 'dev-fab-modele-create',
+          component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE_DI'] }
+        },
+        {
+          path: 'fab/specifique',
           name: 'dev-fab-specifique',
           component: () => import('@/views/QualityPlans/Fabrication/FormStructureEditor.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'fab/editer/:id',
           name: 'dev-fab-edit',
           component: () => import('@/views/QualityPlans/Fabrication/FabModeleEditor.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE', 'SUPERVISEUR_QUALITE'] }
+          meta: { roles: ['ADMIN', 'RESPONSABLE_DI', 'SUPERVISEUR_QUALITE'] }
         },
 
         // === NOUVEAU : ÉDITEUR PLANS PAR ARTICLE (Production) ===
@@ -205,7 +232,7 @@ router.beforeEach(async (to, from) => {
     // PREVENT INFINITE REDIRECT: if we're already trying to go to the fallback, stop redirecting.
     const fallbackRoute = authStore.userRole === 'MAGASINIER' ? 'magasinier-scan-of' : (authStore.userRole === 'SUPERVISEUR_QUALITE' ? 'superviseur-dashboard' : 'dev-hub');
     if (to.name !== fallbackRoute) {
-       return { name: fallbackRoute };
+      return { name: fallbackRoute };
     }
     // If the fallback route ITSELF requires roles the user doesn't have, they are completely unauthorized.
     // Ideally redirect to an unauthorized page. Here we just let them go to the page but it might be blank.

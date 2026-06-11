@@ -1,26 +1,27 @@
 <template>
   <div class="mb-10">
-    <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">1. Informations générales</h3>
-    <div class="grid grid-cols-1 md:grid-cols-1 gap-8 bg-slate-50/50 p-6 rounded-xl border border-slate-100">
-      
-      <!-- CHOIX RÉFÉRENCE FORMULAIRE -->
-      <div v-if="!isReadOnly && !isEditMode" class="col-span-full mb-4 bg-blue-50/50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4">
-        <label class="block text-[11px] font-black text-blue-800 uppercase tracking-widest shrink-0">
-          <i class="pi pi-file-import mr-1 text-blue-600"></i> Réf. Formulaire  *
-        </label>
+    <!-- NOUVEAU DESIGN POUR REF FORMULAIRE -->
+    <div v-if="!isReadOnly && !isEditMode" class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col md:flex-row gap-4 mb-6 shadow-inner">
+      <div class="flex items-center text-blue-800 font-black tracking-widest text-xs min-w-[150px]">
+        <i class="pi pi-file-import mr-2 text-lg text-blue-600"></i> RÉF. FORMULAIRE *
+      </div>
+      <div class="flex-1 flex gap-4 items-center relative">
         <select 
           v-model="refFormulaireSelected" 
-          class="w-full md:w-1/3 rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow bg-white border border-slate-300 text-slate-800 cursor-pointer shadow-sm">
+          class="w-full md:w-1/2 rounded-lg px-4 py-2 text-sm font-bold shadow-sm focus:ring-2 focus:ring-blue-400 outline-none transition-shadow bg-white border border-blue-200 text-blue-900 cursor-pointer">
           <option value="">-- Choisir un formulaire générique --</option>
           <option v-for="ref in store.formulairesReferences" :key="ref.id" :value="ref.id">
             {{ ref.codeReference }} - {{ ref.designation }}
           </option>
         </select>
-        <p class="text-xs text-blue-600/80 font-medium italic">
+        <span class="text-xs font-bold text-blue-500 italic hidden md:block">
           La sélection du formulaire remplira automatiquement les champs suivants.
-        </p>
+        </span>
       </div>
+    </div>
 
+    <div class="grid grid-cols-1 md:grid-cols-1 gap-8 bg-slate-50/50 p-6 rounded-xl border border-slate-100">
+      
       <!-- FAMILLE PRODUIT (Obligatoire) -->
       <div>
         <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.1em] mb-2">Famille de Produit Fini</label>
@@ -93,6 +94,8 @@ watch(refFormulaireSelected, (newRefId) => {
   if (parsed.familleCode) {
     store.entete.familleProduitFiniCode = parsed.familleCode;
   }
+  
+  store.entete.refFormulaireCodeReference = refObj.codeReference;
 
   // Appliquer la configuration des colonnes du formulaire sélectionné
   if (refObj.configurationStructureJson) {

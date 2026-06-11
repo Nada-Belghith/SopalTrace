@@ -7,6 +7,7 @@ namespace SopalTrace.Application.Interfaces;
 public interface IDictionnaireQualiteRepository
 {
     Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle);
+    Task<Periodicite?> GetPeriodiciteByCodeAsync(string code);
     Task AddPeriodiciteAsync(Periodicite entite);
     Task<TypeSection> GetTypeSectionByLibelleAsync(string libelle);
     Task AddTypeSectionAsync(TypeSection entite);
@@ -39,4 +40,27 @@ public interface IDictionnaireQualiteRepository
     Task<RisqueDefaut?> GetRisqueDefautByLibelleAsync(string libelle);
     Task<RisqueDefaut?> GetRisqueDefautByCodeAsync(string code);
     Task AddRisqueDefautAsync(RisqueDefaut entite);
+    Task<System.Collections.Generic.List<TypeRobinet>> GetActiveTypeRobinetsAsync();
+    Task<System.Collections.Generic.List<NatureArticle>> GetActiveNatureArticlesFabriqueAsync();
+    Task<System.Collections.Generic.List<Operation>> GetActiveOperationsAsync();
+    Task<System.Collections.Generic.List<NatureArticleOperation>> GetAllNatureArticleOperationsAsync();
+    Task<System.Collections.Generic.List<TypeControle>> GetActiveTypeControlesAsync();
+    Task<System.Collections.Generic.List<TypeCaracteristique>> GetActiveTypeCaracteristiquesAsync();
+    Task<System.Collections.Generic.List<MoyenControle>> GetActiveMoyenControlesAsync();
+    Task<System.Collections.Generic.List<PosteTravail>> GetActivePosteTravailsAsync();
+    Task<System.Collections.Generic.List<Periodicite>> GetAllPeriodicitesAsync();
+    Task<System.Collections.Generic.List<Instrument>> GetActiveInstrumentsAsync();
+    Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync();
+    Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync();
+    Task<System.Collections.Generic.List<RefRegleEchantillonnage>> GetActiveRegleEchantillonnagesAsync();
+    Task<System.Collections.Generic.List<FamilleProduitFini>> GetActiveFamilleProduitFinisAsync();
+    Task<System.Collections.Generic.List<Machine>> GetAllMachinesAsync();
+    Task<System.Collections.Generic.List<Machine>> GetActiveMachinesAsync();
+    Task<System.Collections.Generic.List<RisqueDefaut>> GetAllRisqueDefautsAsync();
+    Task<System.Collections.Generic.List<PieceReference>> GetActivePieceReferencesAsync();
+    Task<System.Collections.Generic.List<RefFamilleCorp>> GetAllFamilleCorpsAsync();
+    Task<System.Collections.Generic.List<RefMoyenDetection>> GetAllMoyenDetectionsAsync();
+    Task<Article?> GetArticleByCodeNormaliseAsync(string codeNormalise);
+    Task<System.Collections.Generic.IReadOnlyList<Article>> SearchArticlesSfAsync(string query, int maxResults = 15);
+    Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise);
 }

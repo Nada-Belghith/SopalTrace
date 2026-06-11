@@ -15,7 +15,7 @@ public static class ModeleFabricationMapper
     public static string IncrementerSuffixeVersion(string original, int nouvelleVersion)
     {
         if (string.IsNullOrWhiteSpace(original)) return original;
-        var regex = new Regex(@"-[Vv]\d+$");
+        var regex = new Regex(@"(?:[-\s]+[Vv]\d+)+$");
 
         if (nouvelleVersion == 0)
         {
@@ -42,7 +42,7 @@ public static class ModeleFabricationMapper
             Version = 0,
             Statut = StatutsPlan.Actif,
             Notes = dto.Notes,
-            //FamilleProduitFiniCode = MapperHelper.NullIfEmpty(dto.FamilleProduitCode),
+            FamilleProduitFiniCode = string.IsNullOrWhiteSpace(dto.FamilleProduitCode) ? null : dto.FamilleProduitCode,
             LegendeMoyens = dto.LegendeMoyens,
             CreePar = "Admin",
             CreeLe = DateTime.UtcNow,
@@ -70,8 +70,9 @@ public static class ModeleFabricationMapper
             Version = nouvelleVersion,
             Statut = StatutsPlan.Actif,
             Notes = request.Notes ?? ancienModele.Notes,
-            //FamilleProduitFiniCode = MapperHelper.NullIfEmpty(request.FamilleProduitCode) ?? ancienModele.FamilleProduitFiniCode,
+            FamilleProduitFiniCode = string.IsNullOrWhiteSpace(request.FamilleProduitCode) ? ancienModele.FamilleProduitFiniCode : request.FamilleProduitCode,
             LegendeMoyens = string.IsNullOrWhiteSpace(request.LegendeMoyens) ? ancienModele.LegendeMoyens : request.LegendeMoyens,
+            FormulaireId = ancienModele.FormulaireId,
             CreePar = auteur,
             CreeLe = DateTime.UtcNow,
             ModeleFabricationSections = new List<ModeleFabricationSection>()
@@ -95,6 +96,7 @@ public static class ModeleFabricationMapper
             Version = nouvelleVersion,
             Statut = StatutsPlan.Actif,
             Notes = string.IsNullOrWhiteSpace(motif) ? modeleArchive.Notes : $"{motif}\n{modeleArchive.Notes}",
+            FormulaireId = modeleArchive.FormulaireId,
             //FamilleProduitFiniCode = modeleArchive.FamilleProduitFiniCode,
             LegendeMoyens = modeleArchive.LegendeMoyens,
             CreePar = auteur,
@@ -130,7 +132,8 @@ public static class ModeleFabricationMapper
                 Instruction = l.Instruction,
                 EstCritique = l.EstCritique,
                 LimiteSpecTexte = l.LimiteSpecTexte,
-                ColonnesSupplementaires = l.ColonnesSupplementaires
+                ColonnesSupplementaires = l.ColonnesSupplementaires,
+                ImageBase64 = l.ImageBase64
             }).ToList()
         });
     }
@@ -157,7 +160,7 @@ public static class ModeleFabricationMapper
 
                 // Toujours stocker le LibelleSection (texte libre du modèle)
                 LibelleSection = secDto.LibelleSection,
-                TypeSectionId = secDto.TypeSectionId,
+                TypeSectionId = MapperHelper.NullIfEmpty(secDto.TypeSectionId),
                 PeriodiciteId = MapperHelper.NullIfEmpty(secDto.PeriodiciteId),
                 //FrequenceLibelle = string.IsNullOrWhiteSpace(secDto.FrequenceLibelle) ? null : secDto.FrequenceLibelle,
                 ModeleFabricationLignes = new List<ModeleFabricationLigne>()
@@ -174,9 +177,9 @@ public static class ModeleFabricationMapper
                     //ModeleEnteteId = modele.Id,
                     SectionId = sectionId,
                     OrdreAffiche = lignDto.OrdreAffiche,
-                    TypeCaracteristiqueId = lignDto.TypeCaracteristiqueId,
+                    TypeCaracteristiqueId = MapperHelper.NullIfEmpty(lignDto.TypeCaracteristiqueId),
                     LibelleAffiche = lignDto.LibelleAffiche,
-                    TypeControleId = lignDto.TypeControleId,
+                    TypeControleId = MapperHelper.NullIfEmpty(lignDto.TypeControleId),
                     MoyenControleId = MapperHelper.NullIfEmpty(lignDto.MoyenControleId),
                     InstrumentCode = instrumentData.InstrumentCode,
                     MoyenTexteLibre = instrumentData.MoyenTexteLibre,
@@ -184,7 +187,8 @@ public static class ModeleFabricationMapper
                     Instruction = lignDto.Instruction,
                     EstCritique = lignDto.EstCritique,
                     LimiteSpecTexte = string.IsNullOrWhiteSpace(lignDto.LimiteSpecTexte) ? null : lignDto.LimiteSpecTexte,
-                    ColonnesSupplementaires = string.IsNullOrWhiteSpace(lignDto.ColonnesSupplementaires) ? null : lignDto.ColonnesSupplementaires
+                    ColonnesSupplementaires = string.IsNullOrWhiteSpace(lignDto.ColonnesSupplementaires) ? null : lignDto.ColonnesSupplementaires,
+                    ImageBase64 = string.IsNullOrWhiteSpace(lignDto.ImageBase64) ? null : lignDto.ImageBase64
                 });
             }
             modele.ModeleFabricationSections.Add(section);
@@ -201,12 +205,14 @@ public static class ModeleFabricationMapper
             TypeRobinetCode = string.Empty, // Supprimé de l'entité
             NatureComposantCode = modele.NatureArticleCode, 
             OperationCode = modele.OperationCode ?? string.Empty, 
-            FamilleProduitCode = string.Empty, // FamilleProduitFiniCode supprimé
+            FamilleProduitCode = modele.FamilleProduitFiniCode,
             Version = modele.Version,
             Statut = modele.Statut, Notes = modele.Notes ?? string.Empty,
             LegendeMoyens = modele.LegendeMoyens ?? string.Empty, CreePar = modele.CreePar, CreeLe = modele.CreeLe,
             //ArchiveLe = modele.ArchiveLe, ArchivePar = modele.ArchivePar ?? string.Empty,
             ConfigurationColonnesJson = modele.Formulaire?.ConfigurationStructureJson,
+            CodeReferenceFormulaire = modele.Formulaire?.CodeReference,
+            FormulaireVersion = modele.Formulaire?.Version,
             Sections = modele.ModeleFabricationSections?.Select(s => new ModeleSectionResponseDto
             {
                 Id = s.Id, OrdreAffiche = s.OrdreAffiche, LibelleSection = s.LibelleSection, 
@@ -226,7 +232,8 @@ public static class ModeleFabricationMapper
                     Instruction = l.Instruction ?? string.Empty,
                     EstCritique = l.EstCritique,
                     LimiteSpecTexte = l.LimiteSpecTexte ?? string.Empty,
-                    ColonnesSupplementaires = l.ColonnesSupplementaires
+                    ColonnesSupplementaires = l.ColonnesSupplementaires,
+                    ImageBase64 = l.ImageBase64
                 }).ToList() ?? new List<ModeleLigneResponseDto>()
             }).ToList() ?? new List<ModeleSectionResponseDto>()
         };

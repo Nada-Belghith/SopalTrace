@@ -10,8 +10,8 @@ public static class LineCleanupHelper
     /// </summary>
     public static void CleanupModeleFabLine(SopalTrace.Domain.Entities.ModeleFabricationLigne ligne)
     {
-        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
-        if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;
+        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) ligne.TypeCaracteristiqueId = null;
+        if (ligne.TypeControleId == System.Guid.Empty) ligne.TypeControleId = null;
         if (ligne.MoyenControleId == System.Guid.Empty) ligne.MoyenControleId = null;
         if (ligne.PeriodiciteId == System.Guid.Empty) ligne.PeriodiciteId = null;
 
@@ -43,8 +43,8 @@ public static class LineCleanupHelper
     /// </summary>
     public static void CleanupPlanAssLine(SopalTrace.Domain.Entities.PlanAssemblageLigne ligne)
     {
-        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
-        if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;
+        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) ligne.TypeCaracteristiqueId = null;
+        if (ligne.TypeControleId == System.Guid.Empty) ligne.TypeControleId = null;
         if (ligne.MoyenControleId == System.Guid.Empty) ligne.MoyenControleId = null;
         if (ligne.PeriodiciteId == System.Guid.Empty) ligne.PeriodiciteId = null;
 
@@ -76,8 +76,8 @@ public static class LineCleanupHelper
     /// </summary>
     public static void CleanupPlanFabLine(SopalTrace.Domain.Entities.PlanFabricationLigne ligne)
     {
-        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
-        if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;
+        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) ligne.TypeCaracteristiqueId = null;
+        if (ligne.TypeControleId == System.Guid.Empty) ligne.TypeControleId = null;
         if (ligne.MoyenControleId == System.Guid.Empty) ligne.MoyenControleId = null;
         if (ligne.PeriodiciteId == System.Guid.Empty) ligne.PeriodiciteId = null;
 
@@ -109,8 +109,8 @@ public static class LineCleanupHelper
     /// </summary>
     public static void CleanupPlanPfLine(SopalTrace.Domain.Entities.PlanProduitFiniLigne ligne)
     {
-        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) //ligne.TypeCaracteristiqueId = null;
-        if (ligne.TypeControleId == System.Guid.Empty) //ligne.TypeControleId = null;
+        if (ligne.TypeCaracteristiqueId == System.Guid.Empty) ligne.TypeCaracteristiqueId = null;
+        if (ligne.TypeControleId == System.Guid.Empty) ligne.TypeControleId = null;
         if (ligne.MoyenControleId == System.Guid.Empty) ligne.MoyenControleId = null;
 
         if (string.IsNullOrWhiteSpace(ligne.InstrumentCode)) ligne.InstrumentCode = null;
