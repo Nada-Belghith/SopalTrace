@@ -179,7 +179,6 @@ import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import PfHeader from '@/components/ProduitFini/PfHeader.vue';
 import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import PfPlanReadView from '@/components/ProduitFini/PfPlanReadView.vue';
-import RefFormulaireBanner from '@/components/Shared/RefFormulaireBanner.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';

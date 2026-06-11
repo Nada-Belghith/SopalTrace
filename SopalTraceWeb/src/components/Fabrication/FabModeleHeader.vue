@@ -97,9 +97,7 @@
 
 <script setup>
 import { computed, watch, ref } from 'vue';
-import { useRoute } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
-import { useAuthStore } from '@/stores/authStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 const store = useFabModeleStore();

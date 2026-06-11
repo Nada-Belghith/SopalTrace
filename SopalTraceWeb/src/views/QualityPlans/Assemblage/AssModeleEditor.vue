@@ -167,7 +167,6 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAssModeleStore } from '@/stores/assModeleStore';
-import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 

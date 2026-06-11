@@ -112,7 +112,6 @@
 
 <script setup>
 import { computed, watch, ref } from 'vue';
-import { useRoute } from 'vue-router';
 import { useAssModeleStore } from '@/stores/assModeleStore';
 import { parseDesignation } from '@/utils/designationParser';
 

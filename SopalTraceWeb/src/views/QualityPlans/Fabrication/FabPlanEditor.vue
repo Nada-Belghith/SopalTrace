@@ -224,7 +224,7 @@
   const toast = useToast();
   const confirm = useConfirm();
   const store = useFabModeleStore();
-  const { creerNouvelleVersionPlan, upgradePlan } = useFabPlanVersioning();
+  const { creerNouvelleVersionPlan, upgradePlan, restaurerPlan } = useFabPlanVersioning();
 
   const wizard = usePlanWizard();
   const isGeneratingPlan = ref(false);
@@ -244,7 +244,6 @@
     ajouterSection,
     supprimerSection,
     mettreAJourSection,
-    ajouterLigneASection,
     supprimerLigneASection
     // mettreAJourLigne (inutilisé)
   } = useEditorSections();
