@@ -7,6 +7,7 @@ namespace SopalTrace.Application.Interfaces;
 public interface IDictionnaireQualiteRepository
 {
     Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle);
+    Task<Periodicite?> GetPeriodiciteByCodeAsync(string code);
     Task AddPeriodiciteAsync(Periodicite entite);
     Task<TypeSection> GetTypeSectionByLibelleAsync(string libelle);
     Task AddTypeSectionAsync(TypeSection entite);

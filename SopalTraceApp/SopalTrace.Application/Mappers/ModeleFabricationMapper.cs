@@ -72,6 +72,7 @@ public static class ModeleFabricationMapper
             Notes = request.Notes ?? ancienModele.Notes,
             FamilleProduitFiniCode = string.IsNullOrWhiteSpace(request.FamilleProduitCode) ? ancienModele.FamilleProduitFiniCode : request.FamilleProduitCode,
             LegendeMoyens = string.IsNullOrWhiteSpace(request.LegendeMoyens) ? ancienModele.LegendeMoyens : request.LegendeMoyens,
+            FormulaireId = ancienModele.FormulaireId,
             CreePar = auteur,
             CreeLe = DateTime.UtcNow,
             ModeleFabricationSections = new List<ModeleFabricationSection>()
@@ -95,6 +96,7 @@ public static class ModeleFabricationMapper
             Version = nouvelleVersion,
             Statut = StatutsPlan.Actif,
             Notes = string.IsNullOrWhiteSpace(motif) ? modeleArchive.Notes : $"{motif}\n{modeleArchive.Notes}",
+            FormulaireId = modeleArchive.FormulaireId,
             //FamilleProduitFiniCode = modeleArchive.FamilleProduitFiniCode,
             LegendeMoyens = modeleArchive.LegendeMoyens,
             CreePar = auteur,
@@ -130,7 +132,8 @@ public static class ModeleFabricationMapper
                 Instruction = l.Instruction,
                 EstCritique = l.EstCritique,
                 LimiteSpecTexte = l.LimiteSpecTexte,
-                ColonnesSupplementaires = l.ColonnesSupplementaires
+                ColonnesSupplementaires = l.ColonnesSupplementaires,
+                ImageBase64 = l.ImageBase64
             }).ToList()
         });
     }
@@ -184,7 +187,8 @@ public static class ModeleFabricationMapper
                     Instruction = lignDto.Instruction,
                     EstCritique = lignDto.EstCritique,
                     LimiteSpecTexte = string.IsNullOrWhiteSpace(lignDto.LimiteSpecTexte) ? null : lignDto.LimiteSpecTexte,
-                    ColonnesSupplementaires = string.IsNullOrWhiteSpace(lignDto.ColonnesSupplementaires) ? null : lignDto.ColonnesSupplementaires
+                    ColonnesSupplementaires = string.IsNullOrWhiteSpace(lignDto.ColonnesSupplementaires) ? null : lignDto.ColonnesSupplementaires,
+                    ImageBase64 = string.IsNullOrWhiteSpace(lignDto.ImageBase64) ? null : lignDto.ImageBase64
                 });
             }
             modele.ModeleFabricationSections.Add(section);
@@ -228,7 +232,8 @@ public static class ModeleFabricationMapper
                     Instruction = l.Instruction ?? string.Empty,
                     EstCritique = l.EstCritique,
                     LimiteSpecTexte = l.LimiteSpecTexte ?? string.Empty,
-                    ColonnesSupplementaires = l.ColonnesSupplementaires
+                    ColonnesSupplementaires = l.ColonnesSupplementaires,
+                    ImageBase64 = l.ImageBase64
                 }).ToList() ?? new List<ModeleLigneResponseDto>()
             }).ToList() ?? new List<ModeleSectionResponseDto>()
         };

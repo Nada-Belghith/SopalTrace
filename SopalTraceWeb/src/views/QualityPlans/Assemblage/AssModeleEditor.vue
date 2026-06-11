@@ -90,18 +90,23 @@
             <table class="w-full text-left border-collapse min-w-[1200px]">
               <AssTableHeader :columns="modeleColumns" />
               
-              <AssSectionCard 
-                v-for="(groupe, index) in groupes" 
-                :key="groupe.id" 
-                :groupe="groupe" 
+              <SharedSectionCard 
+                v-for="(section, index) in groupes" 
+                :key="section.id" 
+                :groupe="section" 
                 :index="index"
                 :is-read-only="isReadOnly"
-                @remove="supprimerGroupe(groupe.id)"
+                :typesSection="store.typesSection"
+                :periodicites="store.periodicites"
+                :reglesEchantillonnage="store.reglesEchantillonnage"
+                :operationCode="store.entete.operationCode"
+                defaultTitle="Caractéristiques à contrôler"
+                @remove="supprimerGroupe(section.id)"
                 @update-groupe="(updatedGroupe) => mettreAJourGroupe(index, updatedGroupe)"
                 @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
               >
                 <AssLigneControl 
-                  v-for="ligne in groupe.lignes" 
+                  v-for="ligne in section.lignes" 
                   :key="ligne.id" 
                   :ligne="ligne"
                   :columns="modeleColumns"
@@ -110,7 +115,7 @@
                   @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
                   @update="(updatedLigne) => mettreAJourLigne(index, updatedLigne)"
                 />
-              </AssSectionCard>
+              </SharedSectionCard>
             </table>
           </div>
           
@@ -166,9 +171,10 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 
-import { qualityPlansService } from '@/services/qualityPlansService';
-import { useModeleVersioning } from '@/composables/useVersioning';
-import { useDirtyChecking } from '@/composables/useDirtyChecking';
+import { assModeleService } from '@/services/assModeleService';
+import { fabPlanService } from '@/services/fabPlanService';
+import { useAssModeleVersioning } from '@/composables/useVersioning';
+const { creerNouvelleVersionModele } = useAssModeleVersioning();
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
@@ -178,13 +184,14 @@ import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import AssModeleHeader from '@/components/Assemblage/AssModeleHeader.vue';
 import AssTableHeader from '@/components/Assemblage/AssTableHeader.vue';
-import AssSectionCard from '@/components/Assemblage/AssSectionCard.vue';
+import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import AssLigneControl from '@/components/Assemblage/AssLigneControl.vue'; 
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 
 import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
+import { useDirtyChecking } from '@/composables/useDirtyChecking';
 
 const store = useAssModeleStore();
 const roleStore = useAuthStore();
@@ -223,7 +230,7 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerModele } = useModeleVersioning();
+const { restaurerModele } = useAssModeleVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -322,7 +329,7 @@ const headerTitle = computed(() => {
     return `Plan d'assemblage ${nature}`;
   }
 
-  if (isEditMode.value) return isArchived.value ? 'Restauration d\'Archive' : `Édition du Plan Générique`;
+  if (isEditMode.value) return isArchived.value ? 'Mise à jour d\'Archive' : `Édition du Plan Générique`;
   return 'Création d\'un Plan Générique';
 });
 
@@ -341,7 +348,7 @@ const headerSubtitle = computed(() => {
 
   if (isEditMode.value) {
     return isArchived.value 
-      ? 'Vous consultez une archive. Enregistrer restaurera cette version en production.'
+      ? 'Vous consultez une archive. Mettre à jour créera une nouvelle version en brouillon.'
       : 'Modifiez la structure. L\'ancienne version sera archivée automatiquement.';
   }
   return 'Configurez la structure des plans du contrôle.';
@@ -349,7 +356,7 @@ const headerSubtitle = computed(() => {
 
 const actionButtonLabel = computed(() => {
   if (isLoading.value) return 'Enregistrement...';
-  if (isArchived.value) return 'Restaurer ce Plan Générique';
+  if (isArchived.value) return 'Mettre à jour ce Plan Générique';
   if (isEditMode.value) return 'Enregistrer les modifications';
   return 'Enregistrer le Plan Générique';
 });
@@ -377,13 +384,14 @@ const onFileSelected = async (event) => {
 
   try {
     store.isLoading = true;
-    const response = await qualityPlansService.importExcel(formData);
+    const response = await fabPlanService.importExcel(formData);
     const parsedData = response.data.data;
 
     if (parsedData && parsedData.sections) {
       const newSections = parsedData.sections.map(sec => ({
         id: sec.id || crypto.randomUUID(),
         isFromDb: false,
+        nom: sec.nom || '',
         libelleSection: sec.nom,
         typeSectionId: sec.typeSectionId,
         modeFreq: sec.modeFreq,
@@ -406,7 +414,8 @@ const onFileSelected = async (event) => {
           observations: lig.observations,
           instruction: lig.instruction,
           estCritique: lig.estCritique,
-          libelleAffiche: lig.libelleAffiche
+          libelleAffiche: lig.libelleAffiche,
+          imageBase64: lig.imageBase64 || null
         }))
       }));
 
@@ -447,7 +456,7 @@ const chargerModelePourEdition = async (id) => {
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
     const type = route.query.type || null;
-    const res = await qualityPlansService.getModeleById(id, type);
+    const res = await assModeleService.getModeleById(id);
     const data = res.data.data || res.data;
     
     modeleEditionId.value = data.id;
@@ -474,17 +483,21 @@ const chargerModelePourEdition = async (id) => {
     groupes.value = sectionsTriees.map(sec => {
       let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
       
-      if (sec.frequenceLibelle) {
-        freqData = parseFrequenceLibelle(sec.frequenceLibelle, store.periodicites);
-        // FIX: Toujours forcer FIXE si on a une règle d'échantillonnage
-        if (sec.regleEchantillonnageId) {
-          freqData.modeFreq = 'FIXE';
-          freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
-        }
-      } else if (sec.periodiciteId || sec.regleEchantillonnageId) {
+      const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
+      if (texteParse) {
+        freqData = parseFrequenceLibelle(texteParse, []);
+      }
+      
+      if (freqData.modeFreq === 'VARIABLE') {
+        freqData.periodiciteId = sec.periodiciteId || null;
+      } else if (freqData.modeFreq === 'SANS' && sec.periodiciteId) {
+        freqData.modeFreq = 'VARIABLE';
+        freqData.periodiciteId = sec.periodiciteId;
+      }
+      
+      if (sec.regleEchantillonnageId) {
         freqData.modeFreq = 'FIXE';
-        if (sec.periodiciteId) freqData.periodiciteId = sec.periodiciteId;
-        if (sec.regleEchantillonnageId) freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
+        freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
       }
 
       let typeSectionId = sec.typeSectionId || '';
@@ -520,6 +533,7 @@ const chargerModelePourEdition = async (id) => {
         typeSectionId,
         ...freqData,
         isNewFreq: false,
+        nom: sec.nom || '',
         libelleSection: sec.libelleSection,
         lignes: lignesTriees.map(lig => ({ 
           id: lig.id,
@@ -535,6 +549,7 @@ const chargerModelePourEdition = async (id) => {
           limiteSpecTexte: lig.limiteSpecTexte || '',
           observations: lig.observations || '',
           moyenTexteLibre: lig.moyenTexteLibre || '',
+          imageBase64: lig.imageBase64 || null,
           valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
         }))
       };
@@ -564,7 +579,7 @@ const preparerDonneesEtFrequences = async () => {
     store.periodicites,
     async (payloadFreq) => {
       const type = route.query.type || null;
-      const res = await qualityPlansService.createPeriodicite(payloadFreq, type);
+      const res = await fabPlanService.createPeriodicite(payloadFreq);
       store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
       return res;
     }
@@ -581,7 +596,7 @@ const sauvegarderDirectement = async () => {
   store.isLoading = true;
   try {
     // Vérifier si un modèle actif existe déjà pour ces critères (Nature, Opération, Poste)
-    const resExist = await qualityPlansService.getModelesByFilters(
+    const resExist = await assModeleService.getModelesByFilters(
       null, // typeRobinet (optionnel)
       store.entete.natureComposantCode,
       store.entete.operationCode,
@@ -688,7 +703,7 @@ const activerPlanCourant = async () => {
     
     // Ensuite on active le modèle
     const type = route.query.type || null;
-    await qualityPlansService.activerModele(modeleEditionId.value, type);
+    await assModeleService.activerModele(modeleEditionId.value);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });
     

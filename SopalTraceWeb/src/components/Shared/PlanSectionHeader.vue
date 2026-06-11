@@ -174,18 +174,9 @@ const est100Pourcent = computed(() => {
 });
 
 const titreCalcule = computed(() => {
-  // 1. Si l'utilisateur a saisi un texte personnalisé, on l'utilise EXACTEMENT tel quel
-  // (sans forcer le préfixe par défaut, pour permettre une personnalisation totale)
-  if (localSection.value.nom) {
-    const cleanNom = localSection.value.nom.replace(/\s*\([^)]*\)\s*$/, '').trim();
-    if (cleanNom) {
-      return cleanNom;
-    }
-  }
-
-  // 2. Sinon, on génère le titre par défaut
   const typeSec = findTypeSection(props.typesSection, localSection.value.typeSectionId);
-  let baseTitle = localSection.value.libelleSection || props.defaultTitle;
+  let baseTitle = props.defaultTitle;
+  
   if (typeSec) {
     // Eviter la duplication si le typeSec.libelle inclut déjà le defaultTitle
     if (typeSec.libelle.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
@@ -195,6 +186,30 @@ const titreCalcule = computed(() => {
     } else {
       baseTitle = `${props.defaultTitle} ${typeSec.libelle}`;
     }
+  }
+
+  // Le champ de saisie 'nom' (même vide) a toujours la priorité.
+  // On s'assure d'éliminer TOUTES les parenthèses accumulées à la fin (ex: (1 pièce / h) (2 pièces / h))
+  const currentNom = typeof localSection.value.nom === 'string' ? localSection.value.nom : '';
+  const cleanNom = currentNom.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
+
+  if (cleanNom) {
+    if (cleanNom.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
+      return cleanNom;
+    }
+    return `${baseTitle} ${cleanNom}`;
+  }
+
+  // Si le champ de saisie est explicitement vide (typeof === string)
+  if (typeof localSection.value.nom === 'string') {
+    return baseTitle; 
+  }
+
+  // Fallback si la section vient d'être créée (nom === undefined)
+  // On nettoie aussi le libelleSection de TOUTES ses parenthèses de fréquence pour éviter l'accumulation
+  if (localSection.value.libelleSection) {
+      const cleanLib = localSection.value.libelleSection.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
+      return cleanLib || baseTitle;
   }
 
   return baseTitle;

@@ -35,7 +35,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   // Vérifier s'il y a au moins un instrument personnalisé dans toutes les sections
   const hasCustomInstrumentsGlobal = computed(() => {
     return (sectionsRef.value || []).some(section =>
-      (section.lignes || []).some(ligne => 
+      (section.lignes || []).some(ligne =>
         /[*~!@#$%^&]/.test(ligne.instrumentCode || '')
       )
     );
@@ -51,6 +51,7 @@ export function useEditorValidation(sectionsRef, legendeMoyensRef, toast) {
   const validerLegendeMoyens = () => {
     if (hasCustomInstrumentsGlobal.value && !legendeMoyensRef.value?.trim()) {
       showLegendValidation.value = true;
+      showWarn('Veuillez remplir la légende des instruments car vous avez utilisé des outils personnalisés (ex: *, ~).', 'Légende requise');
       return false;
     }
     showLegendValidation.value = false;

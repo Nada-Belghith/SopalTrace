@@ -16,9 +16,10 @@
         icon="pi pi-cog"
         iconColorClass="text-amber-500"
         :is-read-only="isReadOnly"
-        :version="version"
-        :statut="statut"
+        :version="isArchiveEditing ? version + 1 : version"
+        :statut="isArchiveEditing ? 'BROUILLON' : statut"
         :is-restoring="isLoading"
+        :show-restaurer-btn="!isArchiveEditing"
         @restaurer="onEditorSubmit"
       >
         <template #actions>
@@ -87,18 +88,23 @@
             <table class="w-full text-left border-collapse min-w-[1200px]">
               <FabTableHeader :columns="modeleColumns" />
               
-              <FabSectionCard 
-                v-for="(groupe, index) in groupes" 
-                :key="groupe.id" 
-                :groupe="groupe" 
-                :index="index"
-                :is-read-only="isReadOnly"
-                @remove="supprimerGroupe(groupe.id)"
-                @update-groupe="(updatedGroupe) => mettreAJourGroupe(index, updatedGroupe)"
-                @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
-              >
+              <SharedSectionCard 
+                  v-for="(section, index) in groupes" 
+                  :key="section.id" 
+                  :groupe="section" 
+                  :index="index"
+                  :is-read-only="isReadOnly"
+                  :typesSection="store.typesSection"
+                  :periodicites="store.periodicites"
+                  :reglesEchantillonnage="store.reglesEchantillonnage"
+                  :operationCode="store.entete.operationCode"
+                  defaultTitle="Caractéristiques à contrôler"
+                  @remove="supprimerGroupe(section.id)"
+                  @update-groupe="(updatedSection) => mettreAJourGroupe(index, updatedSection)"
+                  @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
+                >
                 <FabLigneControl 
-                  v-for="ligne in groupe.lignes" 
+                  v-for="ligne in section.lignes" 
                   :key="ligne.id" 
                   :ligne="ligne"
                   :columns="modeleColumns"
@@ -107,7 +113,7 @@
                   @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
                   @update="(updatedLigne) => mettreAJourLigne(index, updatedLigne)"
                 />
-              </FabSectionCard>
+              </SharedSectionCard>
             </table>
           </div>
             
@@ -131,11 +137,6 @@
         </div>
 
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end" v-if="!isForcedView">
-          <button v-if="statut === 'BROUILLON' && isEditMode" @click="activerPlanCourant" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-md transition-all active:scale-95 flex items-center gap-2 mr-4" :disabled="store.isLoading">
-            <i v-if="store.isLoading" class="pi pi-spin pi-spinner"></i>
-            <i v-else class="pi pi-check-circle"></i>
-            Activer le modèle
-          </button>
           <EditorActions 
             :label="actionButtonLabel"
             :icon="actionButtonIcon"
@@ -160,16 +161,16 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
-import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'primevue/usetoast';
 
-import { qualityPlansService } from '@/services/qualityPlansService';
-import { useModeleVersioning } from '@/composables/useVersioning';
+import { fabModeleService } from '@/services/fabModeleService';
+import { fabPlanService } from '@/services/fabPlanService';
+import { useFabModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 import {
-  extractNomFromLibelle,
+  nettoyerNomSection,
   normalizeTypeSectionId,
   resolveSectionDisplayTitle
 } from '@/utils/sectionTitleUtils';
@@ -180,7 +181,7 @@ import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import FabModeleHeader from '@/components/Fabrication/FabModeleHeader.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
-import FabSectionCard from '@/components/Fabrication/FabSectionCard.vue';
+import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
@@ -190,7 +191,6 @@ import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
 
 const store = useFabModeleStore();
-const roleStore = useAuthStore();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
@@ -217,6 +217,7 @@ const showVersioningDialog = ref(false);
 const showColumnModal = ref(false);
 const versioningMode = ref('FAB');
 const isAutoVersioning = ref(false);
+const isArchiveEditing = ref(route.query.draft === 'true');
 
 const { 
   showLegendValidation, 
@@ -226,7 +227,7 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerModele } = useModeleVersioning();
+const { restaurerModele } = useFabModeleVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -269,8 +270,8 @@ const isLoading = computed(() => store.isLoading);
 const isEditMode = computed(() => !!modeleEditionId.value);
 const isArchived = computed(() => statut.value === 'ARCHIVE');
 
-// 🔒 NOUVEAU : On verrouille tout si c'est une archive OU si on est en mode aperçu (view)
-const isReadOnly = computed(() => (isEditMode.value && isArchived.value) || isForcedView.value);
+// 🔒 NOUVEAU : On verrouille tout si c'est une archive non éditée OU si on est en mode aperçu (view)
+const isReadOnly = computed(() => (isEditMode.value && isArchived.value && !isArchiveEditing.value) || isForcedView.value);
 
 
 const codeAffiche = computed(() => {
@@ -313,7 +314,11 @@ const headerTitle = computed(() => {
     return `Plan en cours de fabrication ${nature}`;
   }
 
-  if (isEditMode.value) return isArchived.value ? 'Restauration d\'Archive' : `Édition du Plan Générique`;
+  if (isEditMode.value) {
+    if (isArchived.value && !isArchiveEditing.value) return 'Mise à jour d\'Archive';
+    if (isArchiveEditing.value) return 'Création : Nouvelle Version';
+    return `Édition du Plan Générique`;
+  }
   return 'Création d\'un Plan Générique';
 });
 
@@ -331,22 +336,27 @@ const headerSubtitle = computed(() => {
   }
 
   if (isEditMode.value) {
-    return isArchived.value 
-      ? 'Vous consultez une archive. Enregistrer restaurera cette version en production.'
-      : 'Modifiez la structure. L\'ancienne version sera archivée automatiquement.';
+    if (isArchived.value && !isArchiveEditing.value) {
+      return 'Vous consultez une archive. Mettre à jour vous permettra de préparer une nouvelle version.';
+    }
+    if (isArchiveEditing.value) {
+      return 'Modifiez les valeurs. L\'ancienne version sera archivée automatiquement lors de la sauvegarde.';
+    }
+    return 'Modifiez la structure. L\'ancienne version sera archivée automatiquement.';
   }
   return 'Configurez la structure des plans du contrôle.';
 });
 
 const actionButtonLabel = computed(() => {
   if (isLoading.value) return 'Enregistrement...';
-  if (isArchived.value) return 'Restaurer ce Plan Générique';
-  if (isEditMode.value) return 'Enregistrer les modifications';
-  return 'Enregistrer le Plan Générique';
+  if (isArchived.value && !isArchiveEditing.value) return 'Éditer et Mettre à jour ce Plan';
+  if (isArchived.value && isArchiveEditing.value) return 'Enregistrer la Nouvelle Version';
+  if (!isEditMode.value) return 'Créer et Activer le Modèle';
+  return 'Créer Nouvelle Version';
 });
 
 const actionButtonIcon = computed(() => {
-  if (isArchived.value) return 'pi pi-history';
+  if (isArchived.value) return 'pi pi-sync';
   if (isEditMode.value) return 'pi pi-save';
   return 'pi pi-check';
 });
@@ -377,8 +387,9 @@ const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
-    const type = route.query.type || null;
-    const res = await qualityPlansService.getModeleById(id, type);
+    store.isLoading = true;
+    store.loadingMessage = "Chargement du modèle...";
+    const res = await fabModeleService.getModeleById(id);
     const data = res.data.data || res.data;
     
     modeleEditionId.value = data.id;
@@ -396,11 +407,21 @@ const chargerModelePourEdition = async (id) => {
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitCode || '';
     store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || 'PRC';
-    store.applyFormulaireConfiguration(store.entete.refFormulaireCodeReference);
-    if (!store.effectiveConfigurationColonnes?.length && data.configurationColonnesJson) {
-      store.entete.configurationColonnes = typeof data.configurationColonnesJson === 'string'
-        ? JSON.parse(data.configurationColonnesJson)
-        : data.configurationColonnesJson;
+    
+    if (isArchiveEditing.value) {
+      // Mettre à jour avec la dernière structure active pour la nouvelle version
+      store.syncConfigurationFromFormulaire();
+    } else {
+      // NOUVEAU COMPORTEMENT STRICT (Consultation/Archive)
+      // Ne pas appliquer le formulaire actif si on consulte juste un modèle existant
+      if (data.configurationColonnesJson) {
+        store.entete.configurationColonnes = typeof data.configurationColonnesJson === 'string'
+          ? JSON.parse(data.configurationColonnesJson)
+          : data.configurationColonnesJson;
+      } else {
+        // Modèle existant sans colonnes supplémentaires -> on fige à []
+        store.entete.configurationColonnes = [];
+      }
     }
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
@@ -410,17 +431,21 @@ const chargerModelePourEdition = async (id) => {
     groupes.value = sectionsTriees.map(sec => {
       let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
       
-      if (sec.frequenceLibelle) {
-        freqData = parseFrequenceLibelle(sec.frequenceLibelle, store.periodicites);
-        // FIX: Toujours forcer FIXE si on a une règle d'échantillonnage
-        if (sec.regleEchantillonnageId) {
-          freqData.modeFreq = 'FIXE';
-          freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
-        }
-      } else if (sec.periodiciteId || sec.regleEchantillonnageId) {
+      const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
+      if (texteParse) {
+        freqData = parseFrequenceLibelle(texteParse, []);
+      }
+      
+      if (freqData.modeFreq === 'VARIABLE') {
+        freqData.periodiciteId = sec.periodiciteId || null;
+      } else if (freqData.modeFreq === 'SANS' && sec.periodiciteId) {
+        freqData.modeFreq = 'VARIABLE';
+        freqData.periodiciteId = sec.periodiciteId;
+      }
+      
+      if (sec.regleEchantillonnageId) {
         freqData.modeFreq = 'FIXE';
-        if (sec.periodiciteId) freqData.periodiciteId = sec.periodiciteId;
-        if (sec.regleEchantillonnageId) freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
+        freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
       }
 
       let typeSectionId = normalizeTypeSectionId(sec.typeSectionId || '', store.typesSection);
@@ -450,10 +475,12 @@ const chargerModelePourEdition = async (id) => {
         { typeSectionId, libelleSection: sec.libelleSection, nom: sec.nom },
         store.typesSection
       );
-      const nom = extractNomFromLibelle(
+      const nom = nettoyerNomSection(
         sec.libelleSection || libelleSection,
         typeSectionId,
-        store.typesSection
+        store.typesSection,
+        sec.frequenceLibelle || '',
+        sec.regleEchantillonnageLibelle || ''
       );
 
       const lignesTriees = [...(sec.lignes || [])].sort((a, b) =>
@@ -482,6 +509,7 @@ const chargerModelePourEdition = async (id) => {
           limiteSpecTexte: lig.limiteSpecTexte || '',
           observations: lig.observations || '',
           moyenTexteLibre: lig.moyenTexteLibre || '',
+          imageBase64: lig.imageBase64 || null,
           valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
         }))
       };
@@ -505,22 +533,6 @@ const chargerModelePourEdition = async (id) => {
 
 
 
-const preparerDonneesEtFrequences = async () => {
-  const sections = await prepareModeleDataAndFrequencies(
-    groupes.value,
-    store.periodicites,
-    async (payloadFreq) => {
-      const type = route.query.type || null;
-      const res = await qualityPlansService.createPeriodicite(payloadFreq, type);
-      store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
-      return res;
-    }
-  );
-  return sections;
-};
-
-
-
 const sauvegarderDirectement = async () => {
   if (!validerSaisieValeurs()) return;
   if (!validerLegendeMoyens()) return;
@@ -528,8 +540,8 @@ const sauvegarderDirectement = async () => {
   store.isLoading = true;
   try {
     // Vérifier si un modèle actif existe déjà pour ces critères (Nature, Opération, Poste)
-    const resExist = await qualityPlansService.getModelesByFilters(
-      null, // typeRobinet (optionnel)
+    const resExist = await fabModeleService.getModelesByFilters(
+      null,
       store.entete.natureComposantCode,
       store.entete.operationCode,
       store.entete.posteCode,
@@ -549,7 +561,16 @@ const sauvegarderDirectement = async () => {
       return;
     }
 
-    store.sections = await preparerDonneesEtFrequences();
+    await prepareModeleDataAndFrequencies(
+      groupes.value,
+      store.periodicites,
+      async (payloadFreq) => {
+        const res = await fabPlanService.createPeriodicite(payloadFreq);
+        store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
+        return res;
+      }
+    );
+    store.sections = groupes.value;
     const resData = await store.saveModele(store.entete.legendeMoyens);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle (V${resData?.version ?? 0}) créé et activé !`, life: 3000 });
@@ -565,30 +586,27 @@ const sauvegarderDirectement = async () => {
 const sauvegarderV2 = async (motif) => {
   store.isLoading = true;
   try {
-    const sectionsPrepared = await preparerDonneesEtFrequences();
-    store.sections = sectionsPrepared;
+    // 1. Résoudre/créer les périodicités variables et récupérer les sections enrichies
+    await prepareModeleDataAndFrequencies(
+      groupes.value,
+      store.periodicites,
+      async (payloadFreq) => {
+        const res = await fabPlanService.createPeriodicite(payloadFreq);
+        store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
+        return res;
+      }
+    );
+    // Après l'appel, groupes.value a été muté in-place avec les periodiciteId résolus.
+    // On les recopie dans store.sections pour que mapPayload() les lise correctement lors de l'envoi.
+    store.sections = groupes.value;
 
     const resData = await store.creerNouvelleVersion(modeleEditionId.value, motif, store.entete.legendeMoyens);
+
     toast.add({ severity: 'success', summary: `V${resData?.version ?? version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
     toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 6000 });
-  } finally {
-    store.isLoading = false;
-  }
-};
-
-const restaurerArchive = async (motif) => {
-  store.isLoading = true;
-  try {
-    const type = route.query.type || null;
-    const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
-    await restaurerModele(payloadRestore, type);
-    toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
-    setTimeout(() => router.push(returnUrl.value), 1500);
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur de restauration', detail: error.message, life: 6000 });
   } finally {
     store.isLoading = false;
   }
@@ -603,49 +621,35 @@ const onEditorSubmitClick = () => {
 };
 
 const onEditorSubmit = async () => {
-  if (isArchived.value) {
-    versioningMode.value = 'restore';
-    showVersioningDialog.value = true;
-  } else if (statut.value === 'ACTIF') {
+  if (isArchived.value && !isArchiveEditing.value) {
+    isArchiveEditing.value = true;
+    
+    // On retire 'view' pour sortir du mode consultation forcée
+    const newQuery = { ...route.query, draft: 'true' };
+    delete newQuery.view;
+    
+    router.replace({ query: newQuery });
+    toast.add({ severity: 'info', summary: 'Mode Édition Activé', detail: 'Modifiez la structure, puis cliquez sur "Enregistrer la Nouvelle Version" en bas.', life: 5000 });
+  } else if (isArchived.value || statut.value === 'ACTIF') {
     versioningMode.value = 'new-version';
     showVersioningDialog.value = true;
   } else {
-    // Si c'est en BROUILLON, on met directement à jour
-    if (!validerSaisieValeurs()) return;
-    if (!validerLegendeMoyens()) return;
-
-    try {
-      await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Brouillon mis à jour avec succès', life: 3000 });
-      initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
-      setTimeout(() => router.push(returnUrl.value), 1500);
-    } catch (error) {
-      toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la mise à jour', life: 6000 });
-    }
+    // Cas inattendu (BROUILLON) - Normalement les Modèles n'ont pas de brouillon
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Les modèles ne gèrent pas de brouillons. Veuillez recréer le modèle.', life: 6000 });
   }
 };
 
-const activerPlanCourant = async () => {
-  if (!validerSaisieValeurs()) return;
-  if (!validerLegendeMoyens()) return;
-
+const restaurerArchive = async (motif) => {
+  store.isLoading = true;
   try {
-    // Toujours sauvegarder la dernière version du brouillon avant activation
-    await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
-    
-    // Ensuite on active le modèle
-    const type = route.query.type || null;
-    await qualityPlansService.activerModele(modeleEditionId.value, type);
-    
-    toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });
-    
-    // Mettre à jour l'état local
-    statut.value = 'ACTIF';
-    initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
-    
+    const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
+    await restaurerModele(payloadRestore);
+    toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de l\'activation', life: 6000 });
+    toast.add({ severity: 'error', summary: 'Erreur de restauration', detail: error.message, life: 6000 });
+  } finally {
+    store.isLoading = false;
   }
 };
 
@@ -657,7 +661,9 @@ const onVersioningConfirm = async (motif) => {
     if (!validerLegendeMoyens()) return;
     
     // Si c'est un auto-versioning (venant d'une nouvelle création), on bypass le check isDirty
-    if (!isAutoVersioning.value && !isDirty.value) {
+    // Si on vient d'une ARCHIVE (lecture seule), on bypass aussi : l'utilisateur ne peut rien modifier,
+    // isDirty sera toujours false mais il faut quand même créer la nouvelle version.
+    if (!isAutoVersioning.value && !isArchived.value && !isDirty.value) {
       toast.add({ severity: 'info', summary: 'Aucune modification', detail: 'Vous n\'avez effectué aucun changement sur la structure du modèle.', life: 4000 });
       return;
     }

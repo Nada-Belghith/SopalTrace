@@ -2,16 +2,29 @@
   <tr v-if="localLigne" class="hover:bg-blue-50/20 transition-colors group">
     <template v-for="col in columns" :key="col.key">
       <td v-if="col.key === 'caracteristique'" class="p-2 align-top">
-        <div class="flex items-center gap-1">
-          <div v-if="localLigne.modeleLigneSourceId" class="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 font-bold overflow-hidden text-ellipsis whitespace-nowrap cursor-not-allowed" :title="localLigne.libelleAffiche">
-            {{ localLigne.libelleAffiche }}
-          </div>
-          <template v-else>
-            <input v-model="localLigne.libelleAffiche" :disabled="isArchived"
+        <div :class="[
+          'w-full flex flex-col rounded border overflow-hidden transition-colors',
+          (isArchived || localLigne.modeleLigneSourceId) ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-300 focus-within:border-blue-500'
+        ]">
+          <!-- Zone texte -->
+          <template v-if="localLigne.modeleLigneSourceId || isArchived">
+            <div v-if="localLigne.libelleAffiche" class="px-2 py-1.5 text-[11px] text-slate-900 font-bold overflow-hidden text-ellipsis whitespace-nowrap cursor-not-allowed" :title="localLigne.libelleAffiche">
+              {{ localLigne.libelleAffiche }}
+            </div>
+          </template>
+          <input v-else v-model="localLigne.libelleAffiche"
                  type="text"
                  placeholder="Ex: Ø29.8, Entraxe..."
-                 :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none border', isArchived ? 'bg-slate-100 border-slate-200 text-slate-900 font-black cursor-not-allowed' : 'bg-white border-slate-300 text-slate-700 focus:border-blue-500']" />
-          </template>
+                 class="w-full px-2 py-1.5 text-[11px] outline-none bg-transparent text-slate-700" />
+          
+          <!-- Image preview if available -->
+          <div v-if="localLigne.imageBase64" class="relative group/img px-2 pb-1.5 pt-0.5 bg-transparent w-fit">
+             <img :src="localLigne.imageBase64" alt="Croquis" class="max-w-[120px] max-h-[60px] w-auto h-auto object-contain rounded" />
+             <!-- Delete button on hover -->
+             <button v-if="!isArchived && !localLigne.modeleLigneSourceId" @click.stop="() => { localLigne.imageBase64 = null; }" class="absolute -top-1 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/img:opacity-100 transition-opacity" title="Supprimer l'image">
+               <i class="pi pi-times text-[9px]"></i>
+             </button>
+          </div>
         </div>
       </td>
 

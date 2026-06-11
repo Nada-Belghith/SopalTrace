@@ -23,6 +23,14 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
             .FirstOrDefaultAsync(p => p.Libelle.Trim().ToLower() == normalized);
     }
 
+    public async Task<Periodicite?> GetPeriodiciteByCodeAsync(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return null;
+        var normalized = code.Trim().ToLower();
+        return await _context.Periodicites
+            .FirstOrDefaultAsync(p => p.Code.Trim().ToLower() == normalized);
+    }
+
     public async Task AddPeriodiciteAsync(Periodicite entite)
     {
         _context.Periodicites.Add(entite);

@@ -204,17 +204,25 @@ public class CatalogueReferentielService : ICatalogueReferentielService
 
     public async Task<Guid> CreatePeriodiciteAsync(CreatePeriodiciteDto request)
     {
-        var existing = await _repository.GetPeriodiciteByLibelleAsync(request.Code);
-        if (existing != null)
+        // Chercher d'abord par libellé (cas le plus courant)
+        var existingByLibelle = await _repository.GetPeriodiciteByLibelleAsync(request.Libelle);
+        if (existingByLibelle != null)
         {
-            throw new InvalidOperationException($"Une périodicité avec le code {request.Code} existe déjà.");
+            return existingByLibelle.Id; // Retourner l'existante au lieu d'erreur
+        }
+
+        // Puis par code
+        var existingByCode = await _repository.GetPeriodiciteByCodeAsync(request.Code);
+        if (existingByCode != null)
+        {
+            return existingByCode.Id; // Retourner l'existante au lieu d'erreur
         }
 
         var periodicite = new Periodicite
         {
             Id = Guid.NewGuid(),
             Code = request.Code,
-            Libelle = request.Code, // Le libellé est le même que le code d'après ReferentielService
+            Libelle = request.Libelle, // ✅ Utiliser le libellé lisible, pas le code
             FrequenceNum = request.FrequenceNum,
             FrequenceUnite = request.FrequenceUnite,
             OrdreAffichage = request.OrdreAffichage,

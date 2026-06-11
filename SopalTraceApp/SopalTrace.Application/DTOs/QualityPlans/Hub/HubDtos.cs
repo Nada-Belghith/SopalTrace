@@ -13,7 +13,8 @@ public record HubModeleDto(
     int Version,
     string Statut,
     string Description,
-    string? CodeReferenceFormulaire = null
+    string? CodeReferenceFormulaire = null,
+    int? FormulaireVersion = null
 );
 
 public record HubPlanDto(
@@ -29,5 +30,6 @@ public record HubPlanDto(
     string Description,
     string? CodeArticleSage,
     string? Designation = null,
-    string? CodeReferenceFormulaire = null
+    string? CodeReferenceFormulaire = null,
+    int? FormulaireVersion = null
 );

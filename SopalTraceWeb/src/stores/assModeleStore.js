@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { assPlanService } from '@/services/assPlanService';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { assModeleService } from '@/services/assModeleService';
+import { referentielsService } from '@/services/referentielsService';
 
 export const useAssModeleStore = defineStore('assModele', () => {
   // --- DICTIONNAIRES ---
@@ -54,7 +54,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
   // --- ACTIONS ---
   const fetchDictionnaires = async () => {
     try {
-      const response = await assPlanService.getDictionnaires();
+      const response = await referentielsService.getDictionnaires();
       const data = response.data.data;
 
       operations.value = data.operations || [];
@@ -84,7 +84,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
 
   const fetchFormulairesReferences = async (role) => {
     try {
-      const response = await qualityPlansService.getFormulairesListByRole(role);
+      const response = await referentielsService.getFormulairesListByRole(role);
       formulairesReferences.value = response.data?.data || [];
     } catch (e) {
       console.error("Erreur fetch formulaires:", e);
@@ -184,7 +184,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await assPlanService.creerModele(payload);
+      const res = await assModeleService.createModele(payload);
       return res.data; // Return the whole data which includes modeleId and version
     } finally {
       isLoading.value = false;
@@ -200,7 +200,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await assPlanService.nouvelleVersionModele(payload);
+      const res = await assModeleService.newModeleVersion(payload);
       return res.data; // Return full data with modeleId and version
     } finally {
       isLoading.value = false;
@@ -212,7 +212,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await assPlanService.updateModeleValeurs(id, payload);
+      const res = await assModeleService.updateModeleValeurs(id, payload);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -222,7 +222,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
   const activerModeleDraft = async (id) => {
     isLoading.value = true;
     try {
-      const res = await assPlanService.activerModele(id);
+      const res = await assModeleService.activerModele(id);
       return res.data;
     } finally {
       isLoading.value = false;

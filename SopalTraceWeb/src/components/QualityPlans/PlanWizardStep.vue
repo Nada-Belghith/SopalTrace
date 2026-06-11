@@ -43,13 +43,6 @@
               </AutoComplete>
             </div>
           </div>
-          <button 
-            @click="wizard.verifierArticleERP()" 
-            :disabled="!wizard.codeArticleSage.value || wizard.isCheckingArticle.value" 
-            class="w-full sm:w-auto px-5 py-2.5 bg-slate-800 text-white rounded-lg font-bold text-xs hover:bg-slate-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm shrink-0 h-[42px]"
-          >
-            <i :class="wizard.isCheckingArticle.value ? 'pi pi-spin pi-spinner' : 'pi pi-search'"></i> Vérifier
-          </button>
         </div>
 
         <div v-if="wizard.isArticleValid.value" class="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl animate-in fade-in space-y-3">
@@ -215,10 +208,19 @@
           <i class="pi pi-sitemap mr-1.5"></i> 3. Méthode de création
         </h3>
 
-        <!-- Méthodes principales: 3 options -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <template v-if="!wizard.hasValidStructure.value">
+          <div class="p-8 text-center bg-amber-50 rounded-lg border border-amber-200 mb-6 flex flex-col items-center justify-center">
+            <i class="pi pi-file-excel text-amber-500 text-4xl mb-3"></i>
+            <h4 class="text-sm font-bold text-amber-800 mb-1">Structure PRC non définie</h4>
+            <p class="text-sm text-amber-700 max-w-lg">Le formulaire sélectionné est à l'état de brouillon. Le Superviseur Qualité doit définir la structure du plan avant que vous puissiez créer des modèles ou des plans par article.</p>
+          </div>
+        </template>
+        
+        <template v-else>
+          <!-- Méthodes principales: 3 options -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
 
-          <!-- Option 1: From Template  -->
+            <!-- Option 1: From Template  -->
           <label
             @click="handleModeleCardClick"
             :class="[
@@ -341,9 +343,10 @@
             Créer un plan complètement vierge
           </button>
         </div>
-      </div>
+      </template>
     </div>
   </div>
+</div>
 </template>
 
 <script setup>

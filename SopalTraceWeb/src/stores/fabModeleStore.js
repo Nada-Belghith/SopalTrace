@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { fabPlanService } from '@/services/fabPlanService';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { fabModeleService } from '@/services/fabModeleService';
+import { referentielsService } from '@/services/referentielsService';
 import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
@@ -63,7 +63,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       })[0] || null;
   };
 
-  const applyFormulaireConfiguration = (codeReference = null) => {
+  const applyFormulaireConfiguration = (codeReference = null, force = false) => {
+    if (!force && entete.value.configurationColonnes && entete.value.configurationColonnes.length > 0) return;
     const refs = formulairesReferences.value || [];
     if (!refs.length) return;
 
@@ -76,11 +77,15 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   };
 
   const syncConfigurationFromFormulaire = () => {
-    applyFormulaireConfiguration();
+    applyFormulaireConfiguration(null, true);
   };
 
-  /** Colonnes PRC/PRNC : toujours lire la dernière version ACTIF du formulaire référencé */
+  /** Colonnes PRC/PRNC : Retourner les colonnes de l'entete si elles existent, sinon celles du formulaire actif */
   const effectiveConfigurationColonnes = computed(() => {
+    if (entete.value.configurationColonnes !== undefined && entete.value.configurationColonnes !== null) {
+      return entete.value.configurationColonnes;
+    }
+
     const codeRef = (entete.value.refFormulaireCodeReference || '').trim();
     if (codeRef) {
       const refObj = findFormulaireActif(codeRef);
@@ -100,7 +105,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       if (cols.length > 0) return cols;
     }
 
-    return entete.value.configurationColonnes || [];
+    return [];
   });
 
   const baseTableColumns = [
@@ -149,7 +154,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   // --- ACTIONS ---
   const fetchDictionnaires = async () => {
     try {
-      const response = await fabPlanService.getDictionnaires();
+      const response = await referentielsService.getDictionnaires();
       const data = response.data.data;
 
       operations.value = data.operations || [];
@@ -179,7 +184,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const fetchFormulairesReferences = async (role) => {
     try {
-      const response = await qualityPlansService.getFormulairesListByRole(role);
+      const response = await referentielsService.getFormulairesListByRole(role);
       formulairesReferences.value = response.data?.data || [];
       applyFormulaireConfiguration();
     } catch (e) {
@@ -243,59 +248,58 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   };
 
   const mapPayload = (legendeMoyens = '') => {
-    syncConfigurationFromFormulaire();
     syncSectionLibellesFromTypes();
 
     const configCols = effectiveConfigurationColonnes.value || [];
     const codeRef = entete.value.refFormulaireCodeReference || null;
 
     return {
-    code: entete.value.code || codeModeleAuto.value,
-    libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
-    typeRobinetCode: entete.value.typeRobinetCode || null,
-    natureComposantCode: entete.value.natureComposantCode || '',
-    operationCode: entete.value.operationCode || '',
-    posteCode: entete.value.posteCode || null,
-    familleProduitCode: entete.value.familleProduitCode || null,
-    notes: entete.value.notes || "",
-    legendeMoyens: legendeMoyens || '',
-    versionInitiale: entete.value.versionInitiale,
-    configurationColonnesJson: typeof configCols === 'string' ? configCols : JSON.stringify(configCols),
-    refFormulaireCodeReference: codeRef,
-    sections: sections.value.map(s => ({
-      ordreAffiche: s.ordreAffiche,
-      typeSectionId: (s.typeSectionId && s.typeSectionId !== '') ? s.typeSectionId : null,
-      periodiciteId: s.periodiciteId,
-      regleEchantillonnageId: s.regleEchantillonnageId, // Ajouté ici
-      libelleSection: s.libelleSection || resolveSectionDisplayTitle(s, typesSection.value) || 'SECTION SANS NOM',
-      frequenceLibelle: s.frequenceLibelle,
-      notes: s.notes,
-      lignes: s.lignes.map(l => ({
-        ordreAffiche: l.ordreAffiche,
-        typeCaracteristiqueId: l.typeCaracteristiqueId,
-        libelleAffiche: l.libelleAffiche,
-        typeControleId: l.typeControleId,
-        moyenControleId: l.moyenControleId,
-        instrumentCode: l.instrumentCode,
-        periodiciteId: l.periodiciteId,
-        instruction: l.instruction,
-        observations: l.observations,
-        estCritique: l.estCritique,
-        unite: l.unite || '',
-        limiteSpecTexte: l.limiteSpecTexte || null,
-        colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 
-          ? JSON.stringify(l.valeursColonnesSpecifiques) 
-          : null
+      code: codeModeleAuto.value || entete.value.code,
+      libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
+      typeRobinetCode: entete.value.typeRobinetCode || null,
+      natureComposantCode: entete.value.natureComposantCode || '',
+      operationCode: entete.value.operationCode || '',
+      posteCode: entete.value.posteCode || null,
+      familleProduitCode: entete.value.familleProduitCode || null,
+      notes: entete.value.notes || "",
+      legendeMoyens: legendeMoyens || '',
+      versionInitiale: entete.value.versionInitiale,
+      configurationColonnesJson: typeof configCols === 'string' ? configCols : JSON.stringify(configCols),
+      refFormulaireCodeReference: codeRef,
+      sections: sections.value.map((s, idx) => ({
+        ordreAffiche: idx + 1,
+        typeSectionId: (s.typeSectionId && s.typeSectionId !== '') ? s.typeSectionId : null,
+        periodiciteId: s.periodiciteId || null,
+        regleEchantillonnageId: s.regleEchantillonnageId || null,
+        libelleSection: s.libelleSection || resolveSectionDisplayTitle(s, typesSection.value) || 'SECTION SANS NOM',
+        frequenceLibelle: s.frequenceLibelle || '',
+        notes: s.notes || '',
+        lignes: (s.lignes || []).map((l, lIdx) => ({
+          ordreAffiche: lIdx + 1,
+          typeCaracteristiqueId: l.typeCaracteristiqueId || null,
+          libelleAffiche: l.libelleAffiche || '',
+          typeControleId: l.typeControleId || null,
+          moyenControleId: l.moyenControleId || null,
+          instrumentCode: l.instrumentCode || '',
+          periodiciteId: l.periodiciteId || null,
+          instruction: l.instruction || '',
+          observations: l.observations || '',
+          estCritique: l.estCritique || false,
+          unite: l.unite || '',
+          limiteSpecTexte: l.limiteSpecTexte || null,
+          colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0
+            ? JSON.stringify(l.valeursColonnesSpecifiques)
+            : null
+        }))
       }))
-    }))
-  };
+    };
   };
 
   const saveModele = async (legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await fabPlanService.creerModele(payload);
+      const res = await fabModeleService.createModele(payload);
       return res.data; // Return the whole data which includes modeleId and version
     } finally {
       isLoading.value = false;
@@ -311,8 +315,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await fabPlanService.nouvelleVersionModele(payload);
-      return res.data; // Return full data with modeleId and version
+      const res = await fabModeleService.newModeleVersion(payload);
+      return res.data;
     } finally {
       isLoading.value = false;
     }
@@ -323,7 +327,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await fabPlanService.updateModeleValeurs(id, payload);
+      const res = await fabModeleService.updateModeleValeurs(id, payload);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -333,7 +337,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const activerModeleDraft = async (id) => {
     isLoading.value = true;
     try {
-      const res = await fabPlanService.activerModele(id);
+      const res = await fabModeleService.activerModele(id);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -350,13 +354,14 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     gammesOperatoires,
     formulairesReferences,
     isDicosLoaded,
-    
+
     // État Modèle
     entete, sections, isLoading, version, codeModeleAuto, effectiveConfigurationColonnes, tableColumns,
     // Actions
     fetchDictionnaires,
     fetchFormulairesReferences,
     applyFormulaireConfiguration,
+    syncConfigurationFromFormulaire,
     addSection,
     removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft,
     isBeingLoaded

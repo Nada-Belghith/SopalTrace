@@ -15,4 +15,5 @@ public interface IModeleFabricationService
     Task<ModeleResponseDto> GetModeleByIdAsync(Guid modeleId);
     Task<Guid> CreerNouvelleVersionModeleAsync(NouvelleVersionModeleRequestDto request);
     Task<Guid> RestaurerModeleArchiveAsync(RestaurerModeleRequestDto request);
+    Task<Guid> MettreANiveauModeleArchiveAsync(Guid modeleArchiveId);
 }

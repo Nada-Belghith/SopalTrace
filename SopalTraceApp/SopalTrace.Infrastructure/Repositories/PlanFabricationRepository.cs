@@ -106,6 +106,8 @@ public class PlanFabricationRepository : IPlanFabricationRepository
             .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.RegleEchantillonnage)
             .Include(m => m.ModeleFabricationSections)
+                .ThenInclude(s => s.Periodicite)
+            .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.ModeleFabricationLignes)
                     .ThenInclude(l => l.TypeCaracteristique)
             .Include(m => m.ModeleFabricationSections)
@@ -125,6 +127,8 @@ public class PlanFabricationRepository : IPlanFabricationRepository
                 .ThenInclude(s => s.TypeSection)
             .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.RegleEchantillonnage)
+            .Include(m => m.ModeleFabricationSections)
+                .ThenInclude(s => s.Periodicite)
             .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.ModeleFabricationLignes)
             .FirstOrDefaultAsync(m => m.Id == modeleId);
@@ -214,6 +218,8 @@ public class PlanFabricationRepository : IPlanFabricationRepository
                 .ThenInclude(s => s.PlanFabricationLignes)
             .Include(p => p.PlanFabricationSections)
                 .ThenInclude(s => s.RegleEchantillonnage)
+            .Include(p => p.PlanFabricationSections)
+                .ThenInclude(s => s.Periodicite)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
@@ -225,6 +231,8 @@ public class PlanFabricationRepository : IPlanFabricationRepository
                 .ThenInclude(s => s.PlanFabricationLignes)
             .Include(p => p.PlanFabricationSections)
                 .ThenInclude(s => s.RegleEchantillonnage)
+            .Include(p => p.PlanFabricationSections)
+                .ThenInclude(s => s.Periodicite)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }
 
@@ -242,7 +250,9 @@ public class PlanFabricationRepository : IPlanFabricationRepository
 
     public async Task<IReadOnlyList<PlanFabricationEntete>> GetPlansParFiltresAsync(string? natureCode, string? operationCode)
     {
-        var query = _context.PlanFabricationEntetes.AsQueryable();
+        var query = _context.PlanFabricationEntetes
+            .Include(p => p.Formulaire)
+            .AsQueryable();
 
         if (!string.IsNullOrEmpty(natureCode))
         {

@@ -19,8 +19,8 @@ public static class PlanFabricationMapper
             Designation = designationSage, Nom = dto.Nom ?? $"PC-{dto.CodeArticleSage}",
             Version = 0, Statut = StatutsPlan.Brouillon, CreePar = "Admin", CreeLe = DateTime.UtcNow,
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? modele.OperationCode : dto.OperationCode,
-            //LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
-            //Remarques = string.IsNullOrWhiteSpace(dto.Remarques) ? modele.Notes : dto.Remarques,
+            LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
+            Remarques = string.IsNullOrWhiteSpace(dto.Remarques) ? modele.Notes : dto.Remarques,
             //FamilleProduitFiniCode = modele.FamilleProduitFiniCode,
             PlanFabricationSections = new List<PlanFabricationSection>()
         };
@@ -51,7 +51,8 @@ public static class PlanFabricationMapper
                     MoyenControleId = MapperHelper.NullIfEmpty(modeleLigne.MoyenControleId),
                     InstrumentCode = instrumentData.InstrumentCode,
                     MoyenTexteLibre = instrumentData.MoyenTexteLibre,
-                    LimiteSpecTexte = string.IsNullOrWhiteSpace(modeleLigne.LimiteSpecTexte) ? null : modeleLigne.LimiteSpecTexte
+                    LimiteSpecTexte = string.IsNullOrWhiteSpace(modeleLigne.LimiteSpecTexte) ? null : modeleLigne.LimiteSpecTexte,
+                    ImageBase64 = modeleLigne.ImageBase64
                 });
             }
             plan.PlanFabricationSections.Add(planSection);
@@ -69,8 +70,9 @@ public static class PlanFabricationMapper
             Designation = nouvelleDesig, Nom = !string.IsNullOrWhiteSpace(source.Nom) ? source.Nom : $"Plan de contrôle {nouvelleDesig}",
             Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, MachineDefautCode = source.MachineDefautCode,
             OperationCode = source.OperationCode,
-            //LegendeMoyens = source.LegendeMoyens,
-            //Remarques = source.Remarques,
+            FormulaireId = source.FormulaireId,
+            LegendeMoyens = source.LegendeMoyens,
+            Remarques = source.Remarques,
             //CommentaireVersion = comm,
             CreePar = creePar ?? "SYSTEM", CreeLe = DateTime.UtcNow,
             PlanFabricationSections = new List<PlanFabricationSection>()
@@ -83,6 +85,8 @@ public static class PlanFabricationMapper
                 Id = Guid.NewGuid(), PlanEnteteId = plan.Id, ModeleSectionId = sourceSection.ModeleSectionId,
                 OrdreAffiche = sourceSection.OrdreAffiche, LibelleSection = sourceSection.LibelleSection,
                 //FrequenceLibelle = sourceSection.FrequenceLibelle, 
+                TypeSectionId = sourceSection.TypeSectionId,
+                PeriodiciteId = sourceSection.PeriodiciteId,
                 RegleEchantillonnageId = sourceSection.RegleEchantillonnageId, 
                 RegleEchantillonnageLibelle = sourceSection.RegleEchantillonnageLibelle,
                 PlanFabricationLignes = new List<PlanFabricationLigne>()
@@ -100,7 +104,8 @@ public static class PlanFabricationMapper
                     MoyenTexteLibre = sourceLigne.MoyenTexteLibre,
                     LimiteSpecTexte = sourceLigne.LimiteSpecTexte,
                     Observations = sourceLigne.Observations, Instruction = sourceLigne.Instruction, EstCritique = sourceLigne.EstCritique,
-                    ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires
+                    ColonnesSupplementaires = sourceLigne.ColonnesSupplementaires,
+                    ImageBase64 = sourceLigne.ImageBase64
                 });
             }
             plan.PlanFabricationSections.Add(planSection);
@@ -179,7 +184,8 @@ public static class PlanFabricationMapper
             InstrumentCode = instrumentData.InstrumentCode, MoyenTexteLibre = instrumentData.MoyenTexteLibre,
             LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte, Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations,
             Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction,
-            ColonnesSupplementaires = dto.ColonnesSupplementaires
+            ColonnesSupplementaires = dto.ColonnesSupplementaires,
+            ImageBase64 = string.IsNullOrWhiteSpace(dto.ImageBase64) ? null : dto.ImageBase64
         };
     }
 
@@ -195,6 +201,7 @@ public static class PlanFabricationMapper
         ligne.InstrumentCode = instrumentData.InstrumentCode; ligne.MoyenTexteLibre = instrumentData.MoyenTexteLibre; 
         ligne.LimiteSpecTexte = string.IsNullOrWhiteSpace(dto.LimiteSpecTexte) ? null : dto.LimiteSpecTexte; ligne.Observations = string.IsNullOrWhiteSpace(dto.Observations) ? null : dto.Observations; ligne.Instruction = string.IsNullOrWhiteSpace(dto.Instruction) ? null : dto.Instruction;
         ligne.ColonnesSupplementaires = dto.ColonnesSupplementaires;
+        ligne.ImageBase64 = string.IsNullOrWhiteSpace(dto.ImageBase64) ? null : dto.ImageBase64;
     }
 
     public static PlanResponseDto MapperEntitePlanVersDto(PlanFabricationEntete plan)
@@ -207,11 +214,11 @@ public static class PlanFabricationMapper
             CodeArticleSage = plan.CodeArticleSage,
             Nom = plan.Nom,
             Designation = plan.Designation ?? string.Empty,
-            Version = plan.Version,
+            Version = plan.Formulaire != null ? plan.Formulaire.Version : plan.Version,
             Statut = plan.Statut,
             MachineDefautCode = plan.MachineDefautCode,
-            //LegendeMoyens = plan.LegendeMoyens ?? string.Empty,
-            //Remarques = plan.Remarques ?? string.Empty,
+            LegendeMoyens = plan.LegendeMoyens ?? string.Empty,
+            Remarques = plan.Remarques ?? string.Empty,
             CreePar = plan.CreePar,
             CreeLe = plan.CreeLe,
             //ModifiePar = plan.ModifiePar ?? string.Empty,
@@ -224,7 +231,7 @@ public static class PlanFabricationMapper
                 ModeleSectionId = s.ModeleSectionId,
                 OrdreAffiche = s.OrdreAffiche,
                 LibelleSection = s.LibelleSection,
-                //FrequenceLibelle = s.FrequenceLibelle ?? string.Empty,
+                FrequenceLibelle = s.Periodicite?.Libelle ?? string.Empty,
                 TypeSectionId = s.TypeSectionId,
                 PeriodiciteId = s.PeriodiciteId,
                 RegleEchantillonnageId = s.RegleEchantillonnageId,
@@ -245,7 +252,8 @@ public static class PlanFabricationMapper
                     Observations = l.Observations ?? string.Empty,
                     Instruction = l.Instruction ?? string.Empty,
                     EstCritique = l.EstCritique,
-                    ColonnesSupplementaires = l.ColonnesSupplementaires
+                    ColonnesSupplementaires = l.ColonnesSupplementaires,
+                    ImageBase64 = l.ImageBase64
                 }).ToList() ?? new List<PlanLigneResponseDto>()
             }).ToList() ?? new List<PlanSectionResponseDto>()
         };
@@ -265,8 +273,8 @@ public static class PlanFabricationMapper
             Statut = StatutsPlan.Brouillon,
             CreePar = "Admin",
             CreeLe = DateTime.UtcNow,
-            //LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
-            //Remarques = dto.Remarques,
+            LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
+            Remarques = dto.Remarques,
             PlanFabricationSections = new List<PlanFabricationSection>()
         };
     }

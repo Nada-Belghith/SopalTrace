@@ -553,6 +553,66 @@ public class ModeleFabricationService : IModeleFabricationService
         throw new ModeleIntrouvableException(request.ModeleArchiveId);
     }
 
+    public async Task<Guid> MettreANiveauModeleArchiveAsync(Guid modeleArchiveId)
+    {
+        var assModele = await _assRepository.GetPlanAvecRelationsAsync(modeleArchiveId);
+        if (assModele != null)
+        {
+            var user = _currentUserService.UserInfo;
+            var role = "EN_COURS_DE_ASSEMBLAGE";
+
+            var formResult = await _referentielService.GetFormulaireByRoleAsync(role);
+            if (formResult == null) throw new InvalidOperationException("Aucun formulaire PRC actif trouvé pour la mise à niveau de l'assemblage.");
+
+            var actif = await _assRepository.GetPlanActifMaitreAsync(assModele.OperationCode, assModele.FamilleProduitFiniCode, assModele.NatureArticleCode, assModele.PosteCode);
+            if (actif != null)
+            {
+                actif.Statut = StatutsPlan.Archive;
+            }
+
+            var nouveauPlan = PlanAssMapper.DupliquerEntitePlan(assModele, true, null, null, user, $"[Mise à niveau] depuis l'archive de la v{assModele.Version}");
+            nouveauPlan.Statut = StatutsPlan.Brouillon;
+            nouveauPlan.Version = await _assRepository.GetDerniereVersionAsync(assModele.OperationCode ?? string.Empty, assModele.FamilleProduitFiniCode, assModele.NatureArticleCode) + 1;
+            nouveauPlan.FormulaireId = formResult.Id;
+
+            await SmartDictionaryPassAssAsync(nouveauPlan);
+
+            await _assRepository.AddPlanAsync(nouveauPlan);
+            await _unitOfWork.CommitAsync();
+            return nouveauPlan.Id;
+        }
+
+        var fabModele = await _fabRepository.GetModeleAvecRelationsAsync(modeleArchiveId);
+        if (fabModele != null)
+        {
+            var user = _currentUserService.UserInfo;
+            var role = "EN_COURS_DE_FABRICATION";
+
+            var formResult = await _referentielService.GetFormulaireByRoleAsync(role);
+            if (formResult == null) throw new InvalidOperationException("Aucun formulaire PRC actif trouvé pour la mise à niveau de la fabrication.");
+
+            var actif = await _fabRepository.GetModeleActifPourFamilleAsync(fabModele.NatureArticleCode, fabModele.OperationCode, null, fabModele.FamilleProduitFiniCode);
+            if (actif != null)
+            {
+                actif.Statut = StatutsPlan.Archive;
+            }
+
+            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleAsync(fabModele.NatureArticleCode, fabModele.OperationCode) + 1;
+            
+            var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(fabModele, user, $"[Mise à niveau] depuis l'archive de la v{fabModele.Version}", nouvelleVersion);
+            nouveauModele.Statut = StatutsPlan.Brouillon;
+            nouveauModele.FormulaireId = formResult.Id;
+
+            await SmartDictionaryPassAsync(nouveauModele);
+
+            await _fabRepository.AddModeleAsync(nouveauModele);
+            await _unitOfWork.CommitAsync();
+            return nouveauModele.Id;
+        }
+
+        throw new ModeleIntrouvableException(modeleArchiveId);
+    }
+
     public Task UpdateModeleBrouillonAsync(Guid id, CreateModeleRequestDto request)
         => throw new NotSupportedException("Les modèles sont gérés en direct (pas de brouillon).");
 

@@ -1,6 +1,5 @@
 <template>
   <div class="mb-10">
-    <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">1. Informations générales</h3>
     <!-- NOUVEAU DESIGN POUR REF FORMULAIRE -->
     <div v-if="!isReadOnly && !isEditMode" class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col md:flex-row gap-4 mb-6 shadow-inner">
       <div class="flex items-center text-blue-800 font-black tracking-widest text-xs min-w-[150px]">

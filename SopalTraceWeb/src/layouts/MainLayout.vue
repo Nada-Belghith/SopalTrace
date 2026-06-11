@@ -96,7 +96,7 @@ const toggleMobileMenu = () => {
           <ul class="px-4 mb-6 space-y-4">
             <!-- Plans Spécifiques Group -->
             <li>
-              <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
+              <router-link to="/dev/hub-structures" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.08)] font-bold">
                 <i class="pi pi-list text-amber-500 text-lg"></i>
                 <span>Plans Spécifiques</span>
               </router-link>
@@ -180,10 +180,10 @@ const toggleMobileMenu = () => {
 
             <!-- Plans Spécifiques Group -->
             <li>
-              <div class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white">
+              <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-white hover:bg-slate-800/50" active-class="bg-[#241e17] text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.08)] font-bold">
                 <i class="pi pi-th-large text-emerald-400 text-lg"></i>
                 <span>Plans spécifiques</span>
-              </div>
+              </router-link>
               
               <!-- Sub-items nested under Plans Spécifiques -->
               <ul class="ml-8 pl-4 border-l border-slate-800/80 space-y-2 mt-2">

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { verifMachineService } from '@/services/verifMachineService';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { referentielsService } from '@/services/referentielsService';
 import { genererUid } from '@/utils/uuidUtils';
 
 /**
@@ -329,7 +329,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
   const fetchFormulairesReferences = async (role) => {
     try {
-      const response = await qualityPlansService.getFormulairesListByRole(role);
+      const response = await referentielsService.getFormulairesListByRole(role);
       formulairesReferences.value = response.data?.data || [];
     } catch (e) {
       console.error("Erreur fetch formulaires:", e);

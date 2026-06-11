@@ -223,8 +223,8 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
     libelleSection: g.libelleSection,
     periodiciteId: g.periodiciteId,
     frequenceLibelle: g.periodiciteId
-      ? (existingPeriodicites || []).find(p => p.id === g.periodiciteId)?.libelle
-      : '',
+      ? ((existingPeriodicites || []).find(p => p.id === g.periodiciteId)?.libelle || g.frequenceLibelle || '')
+      : (g.frequenceLibelle || ''),
     lignes: g.lignes.map((l, lIdx) => ({
       id: l.isFromDb ? l.id : null,
       ordreAffiche: lIdx + 1,

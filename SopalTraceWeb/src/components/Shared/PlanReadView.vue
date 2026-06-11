@@ -47,7 +47,12 @@
                   {{ resolveCustomValue(ligne, col.key) }}
                 </template>
                 <template v-else-if="col.key === 'caracteristique'">
-                  {{ resolveLibelle(ligne) }}
+                  <div class="flex flex-col gap-1">
+                    <span>{{ resolveLibelle(ligne) }}</span>
+                    <div v-if="ligne.imageBase64" class="mt-1 max-w-[120px] bg-slate-50 border border-slate-200 rounded p-1 print:max-w-[100px]">
+                      <img :src="ligne.imageBase64" class="w-full h-auto object-contain rounded" alt="Croquis" />
+                    </div>
+                  </div>
                 </template>
                 <template v-else-if="col.key === 'limite_spec'">
                   {{ ligne.limiteSpecTexte || ligne.limiteSpec || '—' }}
@@ -167,8 +172,44 @@ function resolveCustomValue(ligne, colKey) {
 
 // ─── Résolution des libellés ───
 
+function buildFreqLabel(section) {
+  // Si frequenceLibelle est directement disponible, on l'utilise
+  if (section.frequenceLibelle) return section.frequenceLibelle;
+
+  // Sinon on reconstruit depuis les champs parsés
+  if (section.modeFreq === 'VARIABLE') {
+    const freqNum = section.freqNum || 1;
+    const sP = freqNum > 1 ? 's' : '';
+    if (section.typeVariable === 'HEURE') {
+      const h = section.freqHours || 1;
+      const sH = h > 1 ? 's' : '';
+      return h === 1 ? `${freqNum} pièce${sP} / heure` : `${freqNum} pièce${sP} / ${h} heure${sH}`;
+    }
+    if (section.typeVariable === 'ECHANTILLON') return `${freqNum} échantillon${sP}`;
+    return `une série de ${freqNum} pièces`;
+  }
+
+  if (section.modeFreq === 'FIXE' && section.periodiciteId) {
+    const period = (props.periodicites || []).find(p => p.id === section.periodiciteId);
+    if (period) return period.libelle;
+  }
+
+  // Chercher dans periodicites par periodiciteId même sans modeFreq=FIXE
+  if (section.periodiciteId) {
+    const period = (props.periodicites || []).find(p => p.id === section.periodiciteId);
+    if (period) return period.libelle;
+  }
+
+  return '';
+}
+
 function buildSectionTitle(section) {
-  return resolveSectionDisplayTitle(section, props.typesSection);
+  const freqLabel = buildFreqLabel(section);
+  // On enrichit la section avec le frequenceLibelle calculé pour que resolveSectionDisplayTitle l'utilise
+  const enrichedSection = freqLabel
+    ? { ...section, frequenceLibelle: freqLabel }
+    : section;
+  return resolveSectionDisplayTitle(enrichedSection, props.typesSection);
 }
 
 function resolveLibelle(ligne) {

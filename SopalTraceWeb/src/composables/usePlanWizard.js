@@ -1,6 +1,8 @@
 import { ref, computed, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { referentielsService } from '@/services/referentielsService';
+import { fabModeleService } from '@/services/fabModeleService';
+import { fabPlanService } from '@/services/fabPlanService';
 import { useFabModeleStore } from '@/stores/fabModeleStore'; // Accès au dictionnaire global
 
 /**
@@ -32,7 +34,7 @@ export function usePlanWizard() {
         return;
       }
       isSearchingArticles.value = true;
-      const res = await qualityPlansService.searchArticlesSf(query);
+      const res = await referentielsService.searchArticlesSf(query);
       filteredArticles.value = res.data || [];
     } catch (e) {
       console.error(e);
@@ -89,6 +91,15 @@ export function usePlanWizard() {
     return nat === 'PISTON' || nat === 'PF';
   });
 
+  const hasValidStructure = computed(() => {
+    const refs = store.formulairesReferences || [];
+    if (refs.length === 0) return false;
+    return refs.some(r => {
+      const s = String(r.statut || r.Statut || '').trim().toUpperCase();
+      return s === 'ACTIF';
+    });
+  });
+
   // ============================================================================
   // ÉTAPE 1: VÉRIFICATION ERP
   // ============================================================================
@@ -106,7 +117,7 @@ export function usePlanWizard() {
 
     isCheckingArticle.value = true;
     try {
-      const response = await qualityPlansService.getArticleFromERP(codeStr);
+      const response = await referentielsService.getArticleFromERP(codeStr);
       // Correction: le backend renvoie { success: true, data: { ... } }
       const articleData = response.data?.data || response.data || response;
 
@@ -247,7 +258,7 @@ export function usePlanWizard() {
 
     isLoadingSources.value = true;
     try {
-      const response = await qualityPlansService.getModelesByFilters(
+      const response = await fabModeleService.getModelesByFilters(
         typeRobinetCode.value,
         natureComposantCode.value,
         operationCode.value,
@@ -276,20 +287,34 @@ export function usePlanWizard() {
     isLoadingSources.value = true;
     try {
       // Filtrer par Type, Nature et Opération pour proposer des plans pertinents à cloner
-      const response = await qualityPlansService.getPlansByFilters(
+      const response = await fabPlanService.getPlansByFilters(
         typeRobinetCode.value,
         natureComposantCode.value,
         operationCode.value,
         posteCode.value || undefined
       );
-      const plans = response.data?.data || response.data || [];
+      const allPlans = response.data?.data || response.data || [];
 
-      // Exclure le plan de l'article actuel s'il existe déjà (on ne clone pas sur soi-même)
-      // Et ne garder que les plans ACTIFS
-      availablePlans.value = plans.filter(p =>
-        p.statut === 'ACTIF' &&
-        p.codeArticleSage !== codeArticleSage.value
-      );
+      // Récupérer la version de la structure PRC active (Role EN_COURS_DE_FABRICATION)
+      const activePrcVersion = store.formulairesReferences?.find(r => String(r.statut || r.Statut || '').trim().toUpperCase() === 'ACTIF')?.version;
+
+      availablePlans.value = allPlans.filter(p => {
+        // Exclure les archives et les plans de ce même article (on ne se clone pas soi-même)
+        if (p.statut === 'ARCHIVE') return false;
+        if (p.codeArticleSage === codeArticleSage.value) return false;
+
+        // FILTRE STRICT : On ne propose de cloner que les plans liés à la version active de la structure PRC
+        if (activePrcVersion !== undefined) {
+          const planVersion = p.version !== undefined ? p.version : p.Version;
+          if (planVersion !== activePrcVersion) return false;
+        }
+
+        // Optionnel : filtrer par poste
+        if (posteCode.value) {
+          return p.posteCode === posteCode.value;
+        }
+        return true;
+      });
     } catch (error) {
       console.error('Erreur lors du chargement des plans:', error);
       availablePlans.value = [];
@@ -377,7 +402,7 @@ export function usePlanWizard() {
           nom: `PC-${codeArticleSage.value}${posteCode.value ? '-P' + posteCode.value : ''}`,
           creePar: 'ADMIN_QUALITE'
         };
-        return await qualityPlansService.instantiatePlan(payload);
+        return await fabPlanService.instantiatePlan(payload);
       } else {
         payload = {
           planExistantId: selectedSourceId.value,
@@ -385,7 +410,7 @@ export function usePlanWizard() {
           nouvelleDesignation: designationArticle.value,
           creePar: 'ADMIN_QUALITE'
         };
-        return await qualityPlansService.clonePlan(payload);
+        return await fabPlanService.clonePlan(payload);
       }
     } catch (error) {
       toast.add({ severity: 'error', summary: 'Erreur', detail: error.message, life: 6000 });
@@ -427,7 +452,7 @@ export function usePlanWizard() {
     codeArticleSage, designationArticle, typeRobinetCode, natureComposantCode, operationCode, posteCode,
     isArticleValid, isCheckingArticle, isGenerique, sourceType, selectedSourceId, refFormulaireCodeReference, isGenerating, isLoadingSources,
     availableModeles, availablePlans, operationsFiltrees, debugInfo,
-    requiertPoste, postesDisponibles, requiertFamille, famillesFiltrees, familleCode, isPlanCreationBlocked,
+    requiertPoste, postesDisponibles, requiertFamille, famillesFiltrees, familleCode, isPlanCreationBlocked, hasValidStructure,
     filteredArticles, isSearchingArticles, searchArticles,
     verifierArticleERP, genererPlan, canGeneratePlan, reset,
     getLibelleType, getLibelleNature, chargerPlansFiltrés

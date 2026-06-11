@@ -63,7 +63,10 @@
           @input="$emit('update:legendeMoyens', $event.target.value)"
           rows="3"
           placeholder="Ex: A = Pied à coulisse..."
-          class="w-full border-2 border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-700 resize-none outline-none transition-all font-mono"
+          :class="[
+            'w-full border-2 rounded-lg px-3 py-2 text-[12px] text-slate-700 resize-none outline-none transition-all font-mono',
+            showValidation ? 'border-red-500 bg-red-50 focus:border-red-600 focus:ring-red-500/20' : 'border-slate-200 focus:border-blue-400'
+          ]"
         ></textarea>
       </div>
     </div>

@@ -301,5 +301,17 @@ public class PlanFabricationController : ControllerBase
         }
     }
 
- 
+    [HttpPost("{id}/upgrade")]
+    public async Task<IActionResult> UpgradePlan(Guid id)
+    {
+        try
+        {
+            var newId = await _planService.MettreANiveauPlanArchiveAsync(id);
+            return Ok(new { success = true, planId = newId, message = "Plan de fabrication mis à niveau avec succès." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
 }

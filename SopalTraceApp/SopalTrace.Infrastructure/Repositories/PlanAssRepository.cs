@@ -79,6 +79,8 @@ public class PlanAssRepository : IPlanAssRepository
                 .ThenInclude(s => s.PlanAssemblageLignes)
             .Include(p => p.PlanAssemblageSections)
                 .ThenInclude(s => s.RegleEchantillonnage)
+            .Include(p => p.PlanAssemblageSections)
+                .ThenInclude(s => s.Periodicite)
             .Include(p => p.Formulaire)
             .FirstOrDefaultAsync(p => p.Id == planId);
     }

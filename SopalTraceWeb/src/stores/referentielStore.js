@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import apiClient from '@/services/apiClient';
-import { qualityPlansService } from '@/services/qualityPlansService';
+import { referentielsService } from '@/services/referentielsService';
 
 export const useReferentielStore = defineStore('referentiel', {
   state: () => ({
@@ -26,7 +26,7 @@ export const useReferentielStore = defineStore('referentiel', {
     async fetchFormulaires() {
       if (this.isFormulairesLoaded) return;
       try {
-        const res = await qualityPlansService.getFormulairesListByRole('RESULTAT_CONTROLE_CF');
+        const res = await referentielsService.getFormulairesListByRole('RESULTAT_CONTROLE_CF');
         if (res.data && res.data.data) {
           this.formulaires = res.data.data;
           this.isFormulairesLoaded = true;

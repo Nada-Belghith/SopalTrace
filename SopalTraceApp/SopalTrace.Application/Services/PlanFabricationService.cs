@@ -361,6 +361,37 @@ public class PlanFabricationService : IPlanFabricationService
         return nouveauPlan.Id;
     }
 
+    public async Task<Guid> MettreANiveauPlanArchiveAsync(Guid planArchiveId)
+    {
+        var planArchive = await _repository.GetPlanAvecRelationsAsync(planArchiveId);
+        if (planArchive == null) throw new KeyNotFoundException("Plan archivé introuvable.");
+
+        var user = _currentUserService.UserInfo;
+        var role = planArchive.OperationCode == "ASS" ? "EN_COURS_DE_ASSEMBLAGE" : "EN_COURS_DE_FABRICATION";
+
+        var formulaireActif = await _formulaireService.GetFormulaireByRoleAsync(role);
+        if (formulaireActif == null) throw new InvalidOperationException("Aucun formulaire PRC actif trouvé pour la mise à niveau.");
+
+        // Archiver l'actif actuel (au cas où il y en a un autre ?)
+        // Normalement il ne devrait pas y avoir d'actif s'il est archivé suite à une maj PRC,
+        // mais pour être sûr on archive.
+        await _planArchiverService.ArchivePlanFabricationActifAsync(planArchive.CodeArticleSage, planArchive.OperationCode, user);
+
+        var nouvelleVersion = await CalculerNouvelleVersionAsync(planArchive.CodeArticleSage, planArchive.OperationCode);
+        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, user, $"[Mise à niveau] depuis l'archive de la v{planArchive.Version}");
+        
+        nouveauPlan.Statut = StatutsPlan.Brouillon;
+        nouveauPlan.Version = nouvelleVersion;
+        nouveauPlan.FormulaireId = formulaireActif.Id;
+
+        await SmartDictionaryPassAsync(nouveauPlan);
+
+        await _repository.AddPlanAsync(nouveauPlan);
+        await _unitOfWork.CommitAsync();
+
+        return nouveauPlan.Id;
+    }
+
     public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionEditDto> sectionsModifiees, string? legendeMoyens = null, string? remarques = null, bool finaliser = true, string? nom = null, string? modifiePar = null)
     {
         var plan = await _repository.GetPlanCompletPourMiseAJourAsync(planId);

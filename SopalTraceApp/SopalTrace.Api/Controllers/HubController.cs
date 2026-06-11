@@ -30,6 +30,13 @@ public class HubController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    [HttpGet("structures")]
+    public async Task<IActionResult> GetToutesLesStructures()
+    {
+        var data = await _service.GetToutesLesStructuresAsync();
+        return Ok(new { success = true, data });
+    }
+
     [HttpPut("modeles/{category}/{id}/statut")]
     public async Task<IActionResult> ChangerStatutModele(string category, Guid id, [FromQuery] string statut)
     {

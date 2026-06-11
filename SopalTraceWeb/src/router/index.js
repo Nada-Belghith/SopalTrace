@@ -43,6 +43,13 @@ const router = createRouter({
           path: 'hub-plans',
           name: 'dev-hub-plans',
           component: () => import('@/views/QualityPlans/DevPlanHub.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE_DI'] }
+        },
+        {
+          path: 'hub-structures',
+          name: 'dev-hub-structures',
+          component: () => import('@/views/QualityPlans/DevStructHub.vue'),
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
 
         // --- ASS : MODELISATION DES PLANS D'ASSEMBLAGE ---

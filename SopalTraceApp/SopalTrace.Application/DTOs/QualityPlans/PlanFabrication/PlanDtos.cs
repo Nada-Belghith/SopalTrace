@@ -106,6 +106,7 @@ public record LigneEditDto
     public string Instruction { get; init; }
     public bool EstCritique { get; init; } = false;
     public string ColonnesSupplementaires { get; init; }
+    public string? ImageBase64 { get; init; } = null;
 }
 
 // ====================================================================
@@ -168,6 +169,7 @@ public record PlanLigneResponseDto
     public string Instruction { get; set; }
     public bool EstCritique { get; init; }
     public string ColonnesSupplementaires { get; set; }
+    public string? ImageBase64 { get; set; } = null;
 }
 
 public record RestaurerPlanRequestDto(

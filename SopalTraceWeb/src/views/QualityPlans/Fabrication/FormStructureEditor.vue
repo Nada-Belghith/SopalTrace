@@ -44,7 +44,7 @@
             <i class="pi pi-sliders-h text-lg text-amber-500"></i>
             <span>Structure des Plans Spécifiques</span>
           </div>
-          <button @click="$router.push('/dev/hub-plans')" class="text-slate-400 hover:text-white transition-colors">
+          <button @click="$router.push('/dev/hub-structures')" class="text-slate-400 hover:text-white transition-colors">
             <i class="pi pi-times text-lg"></i>
           </button>
         </div>
@@ -202,7 +202,7 @@
         <!-- ACTIONS FOOTER -->
         <div class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-3.5">
           <button 
-            @click="$router.push('/dev/hub-plans')" 
+            @click="$router.push('/dev/hub-structures')" 
             class="px-6 py-3 rounded-xl text-xs font-black tracking-widest text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:text-slate-700 transition-all uppercase active:scale-95 cursor-pointer"
             :disabled="isSaving"
           >
@@ -410,7 +410,7 @@ const saveStructure = async () => {
       })
       await loadStructure()
       setTimeout(() => {
-        router.push('/dev/hub-plans')
+        router.push('/dev/hub-structures')
       }, 1500)
     }
   } catch (error) {

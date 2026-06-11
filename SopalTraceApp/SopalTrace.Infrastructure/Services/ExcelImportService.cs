@@ -138,6 +138,20 @@ public partial class ExcelImportService : IExcelImportService
         var worksheet = workbook.Worksheets.FirstOrDefault();
         if (worksheet == null) throw new Exception("Le fichier Excel est vide ou invalide.");
 
+        var imagesByRow = new Dictionary<int, string>();
+        foreach (var pic in worksheet.Pictures)
+        {
+            try 
+            {
+                var r = pic.TopLeftCell.Address.RowNumber;
+                using var ms = new MemoryStream();
+                pic.ImageStream.CopyTo(ms);
+                var format = pic.Format.ToString().ToLower();
+                if (format == "jpeg") format = "jpg"; // Optional standardizing
+                imagesByRow[r] = $"data:image/{format};base64,{Convert.ToBase64String(ms.ToArray())}";
+            } catch { }
+        }
+
         var rows = worksheet.RowsUsed().ToList();
         if (!rows.Any()) return result;
 
@@ -337,9 +351,9 @@ public partial class ExcelImportService : IExcelImportService
 
             if (currentSection != null && map.IsInitialized)
             {
-                if (rowHasOtherData)
+                if (rowHasOtherData || imagesByRow.ContainsKey(row.RowNumber())) // Always add row if it has an image!
                 {
-                    var ligne = await ParseLigneAsync(row, map);
+                    var ligne = await ParseLigneAsync(row, map, imagesByRow);
                     currentSection.Lignes.Add(ligne);
                 }
                 else if (!string.IsNullOrWhiteSpace(colCaract))
@@ -368,6 +382,15 @@ public partial class ExcelImportService : IExcelImportService
             parenthesesContent = lastMatch.Value.Substring(1, lastMatch.Value.Length - 2).Trim();
             naturePart = cleanText.Replace(lastMatch.Value, "").Trim();
         }
+        else
+        {
+            var freqMatch = Regex.Match(cleanText, @"\b((?:100\s*%|\d+\s*(?:pièces?|pieces?|p/h|p/|%|échantillons?|echantillons?)).*)$", RegexOptions.IgnoreCase);
+            if (freqMatch.Success)
+            {
+                parenthesesContent = freqMatch.Value.Trim();
+                naturePart = cleanText.Substring(0, freqMatch.Index).Trim();
+            }
+        }
 
         string natureSearch = Regex.Replace(naturePart, @"^SEC\s*\d+\s*[-:]*", "", RegexOptions.IgnoreCase).Trim();
         natureSearch = Regex.Replace(natureSearch, @"^Caractéristiques\s*à\s*contrôler\s*", "", RegexOptions.IgnoreCase).Trim();
@@ -392,6 +415,13 @@ public partial class ExcelImportService : IExcelImportService
                         ? "" : "Caractéristiques à contrôler ";
         
         section.LibelleSection = $"{prefix}{finalNatureLib}".Trim();
+        
+        // Nettoyer le Nom (pour l'UI) en ne gardant que la partie nature, et si c'est identique au type de section, on le vide pour éviter la redondance
+        section.Nom = naturePart;
+        if (typeSec != null && NormalizeForSearch(section.Nom).Contains(NormalizeForSearch(typeSec.Libelle)))
+        {
+            section.Nom = ""; // L'UI utilisera le typeSec.Libelle
+        }
 
         if (!string.IsNullOrEmpty(parenthesesContent))
             await _frequencyParserService.ParseFrequencyAsync(section, parenthesesContent);
@@ -415,9 +445,14 @@ public partial class ExcelImportService : IExcelImportService
         return await CompleteParseLigneAsync(ligne, typeControle, moyenControle, limiteSpec);
     }
 
-    private async Task<ImportExcelLigneDto> ParseLigneAsync(IXLRow row, PlanColumnMapping map)
+    private async Task<ImportExcelLigneDto> ParseLigneAsync(IXLRow row, PlanColumnMapping map, Dictionary<int, string> imagesByRow = null)
     {
         var ligne = new ImportExcelLigneDto();
+        if (imagesByRow != null && imagesByRow.TryGetValue(row.RowNumber(), out var img))
+        {
+            ligne.ImageBase64 = img;
+        }
+        
         ligne.LibelleAffiche = SafeGetCellValue(row.Cell(map.CaractCol));
         string limiteSpec = SafeGetCellValue(row.Cell(map.LimiteCol));
         string typeControle = SafeGetCellValue(row.Cell(map.TypeCol));

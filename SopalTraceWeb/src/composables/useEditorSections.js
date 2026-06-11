@@ -8,6 +8,7 @@ export function useEditorSections() {
       id: crypto.randomUUID(),
       isFromDb: false,
       typeSectionId: '',
+      nom: '',
       libelleSection: '',
       modeFreq: 'SANS',
       periodiciteId: null,

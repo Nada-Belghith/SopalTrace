@@ -92,4 +92,18 @@ public class ModeleFabricationController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
+
+    [HttpPost("{id}/upgrade")]
+    public async Task<IActionResult> UpgradeModele(Guid id)
+    {
+        try
+        {
+            var newId = await _modeleService.MettreANiveauModeleArchiveAsync(id);
+            return Ok(new { success = true, modeleId = newId, message = "Modèle mis à niveau avec succès." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
 }

@@ -37,10 +37,11 @@ public class HubService : IHubService
                 m.FamilleProduitFiniCode ?? "GEN",
                 m.OperationCode ?? "N/A",
                 "N/A",
-                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Version,
                 m.Statut ?? "ACTIF",
                 "Gabarit de fabrication générique.",
-                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null,
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null))
             .ToListAsync();
         result.AddRange(fabModeles);
 
@@ -59,10 +60,11 @@ public class HubService : IHubService
                 m.FamilleProduitFiniCode ?? "N/A",
                 m.OperationCode ?? "N/A",
                 m.PosteCode ?? "N/A",
-                m.Formulaire != null ? m.Formulaire.Version : m.Version,  // Version du RefFormulaire (source de vérité)
+                m.Version,
                 m.Statut ?? "ACTIF",
                 "Plan Maître d'assemblage.",
-                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null,
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null))
             .ToListAsync();
         result.AddRange(assModeles);
 
@@ -79,10 +81,11 @@ public class HubService : IHubService
                 "VM",
                 "VÉRIF",
                 m.MachineCode ?? "N/A",
-                m.Formulaire != null ? m.Formulaire.Version : (m.Version ?? 1),
+                m.Version ?? 1,
                 m.Statut ?? "ACTIF",
                 "Vérification des étalons machines.",
-                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null,
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null))
             .ToListAsync();
         result.AddRange(vmModeles);
 
@@ -100,6 +103,7 @@ public class HubService : IHubService
                 m.Version,
                 m.Statut ?? "ACTIF",
                 "Niveau de contrôle: " + m.NiveauControle,
+                null,
                 null))
             .ToListAsync();
         result.AddRange(echModeles);
@@ -120,7 +124,8 @@ public class HubService : IHubService
                 m.Version,
                 m.Statut ?? "ACTIF",
                 "Gabarit de controle final.",
-                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null,
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null))
             .ToListAsync();
         result.AddRange(pfModeles);
 
@@ -137,10 +142,11 @@ public class HubService : IHubService
                 null,
                 null,
                 m.PosteCode ?? "N/A",
-                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Version,
                 m.Formulaire != null ? m.Formulaire.Statut : m.Statut,
                 "Fiche de contrôle par poste de travail.",
-                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null,
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null))
             .ToListAsync();
         result.AddRange(ncModeles);
 
@@ -154,13 +160,14 @@ public class HubService : IHubService
                 "RCCF",
                 m.Nom ?? "Résultat Contrôle CF Sans Nom",
                 "POSTE",
-                null,
-                null,
+                "N/A",
+                "N/A",
                 m.PosteCode ?? "N/A",
-                m.Formulaire != null ? m.Formulaire.Version : m.Version,
+                m.Version,
                 m.Formulaire != null ? m.Formulaire.Statut : m.Statut,
                 "Résultat Contrôle en cours de fabrication.",
-                m.Formulaire != null ? m.Formulaire.CodeReference : null))
+                m.Formulaire != null ? m.Formulaire.CodeReference : null,
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null))
             .ToListAsync();
         result.AddRange(rccfModeles);
 
@@ -168,6 +175,39 @@ public class HubService : IHubService
     }
 
     public async Task<IReadOnlyList<HubPlanDto>> GetTousLesPlansAsync()
+    {
+        var result = new List<HubPlanDto>();
+
+        // 1. PLANS DE FABRICATION PAR ARTICLE
+        var fabPlans = await _context.PlanFabricationEntetes
+            .AsNoTracking()
+            .Include(p => p.Formulaire)
+            .Include(p => p.CodeArticleSageNavigation)
+                .ThenInclude(a => a.ProduitFini)
+            .Where(p => p.Statut == "ACTIF" || p.Statut == "ARCHIVE" || p.Statut == "BROUILLON")
+            .Select(p => new HubPlanDto(
+                p.Id,
+                "FAB",
+                p.Nom ?? p.Designation ?? "Plan de Fabrication",
+                p.CodeArticleSageNavigation != null && p.CodeArticleSageNavigation.ProduitFini != null ? p.CodeArticleSageNavigation.ProduitFini.FamilleProduitFiniCode : (p.CodeArticleSageNavigation != null ? p.CodeArticleSageNavigation.NatureArticleCode : "SF"),
+                p.Designation ?? "N/A",
+                p.OperationCode ?? "N/A",
+                p.OperationCode ?? "N/A",
+                p.Version,
+                p.Statut ?? "ACTIF",
+                "Plan de contrôle instancié par article",
+                p.CodeArticleSage,
+                "FABRICATION",
+                p.Formulaire != null ? p.Formulaire.CodeReference : null,
+                p.Formulaire != null ? p.Formulaire.Version : (int?)null
+            ))
+            .ToListAsync();
+        result.AddRange(fabPlans);
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<HubPlanDto>> GetToutesLesStructuresAsync()
     {
         var result = new List<HubPlanDto>();
 
@@ -189,7 +229,8 @@ public class HubService : IHubService
                 $"Structure de référence des plans en cours de fabrication",
                 null,
                 $"Structure de référence",
-                f.CodeReference
+                f.CodeReference,
+                f.Version
             ))
             .ToListAsync();
         result.AddRange(prcStructures);

@@ -4,7 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
-using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Entities;using SopalTrace.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace SopalTrace.Infrastructure.Services;
 
@@ -12,11 +13,13 @@ public class FormulairePrcService : IFormulairePrcService
 {
     private readonly IRefFormulaireRepository _formulaireRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly SopalTraceDbContext _context;
 
-    public FormulairePrcService(IRefFormulaireRepository formulaireRepository, IUnitOfWork unitOfWork)
+    public FormulairePrcService(IRefFormulaireRepository formulaireRepository, IUnitOfWork unitOfWork, SopalTraceDbContext context)
     {
         _formulaireRepository = formulaireRepository;
         _unitOfWork = unitOfWork;
+        _context = context;
     }
 
     public async Task<FormulaireStructureDto?> GetFormulaireByRoleAsync(string role)
@@ -114,6 +117,23 @@ public class FormulairePrcService : IFormulairePrcService
             {
                 formulaireActuel.Statut = "ARCHIVE";
                 await _formulaireRepository.UpdateAsync(formulaireActuel);
+
+                // Auto-archiver tous les modèles et plans de fabrication qui utilisent cette version
+                var modelesAArchiver = await _context.ModeleFabricationEntetes
+                    .Where(m => m.FormulaireId == formulaireActuel.Id && m.Statut == "ACTIF")
+                    .ToListAsync();
+                foreach (var m in modelesAArchiver)
+                {
+                    m.Statut = "ARCHIVE";
+                }
+
+                var plansAArchiver = await _context.PlanFabricationEntetes
+                    .Where(p => p.FormulaireId == formulaireActuel.Id && p.Statut == "ACTIF")
+                    .ToListAsync();
+                foreach (var p in plansAArchiver)
+                {
+                    p.Statut = "ARCHIVE";
+                }
 
                 var maxVersion = await _formulaireRepository.GetMaxVersionByCodeReferenceAsync(formulaireActuel.CodeReference);
 
