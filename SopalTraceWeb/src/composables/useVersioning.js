@@ -21,8 +21,8 @@ export function useAssModeleVersioning() {
 export function useFabPlanVersioning() {
   const creerNouvelleVersionPlan = (payload) => fabPlanService.newPlanVersion(payload);
   
-  const mettreAJourValeurs = (id, payload, legendeMoyens = null, remarques = null, finaliser = true) => 
-      fabPlanService.mettreAJourValeurs(id, payload, legendeMoyens, remarques, finaliser);
+  const mettreAJourValeurs = (id, payload, legendeMoyens = null, remarques = null, finaliser = true, nom = null, modifiePar = 'Admin', codeArticleSage = null) => 
+      fabPlanService.mettreAJourValeurs(id, payload, legendeMoyens, remarques, finaliser, nom, modifiePar, codeArticleSage);
       
   const restaurerPlan = (payload) => fabPlanService.restorePlan(payload);
   const upgradePlan = (id) => fabPlanService.upgradePlan(id);

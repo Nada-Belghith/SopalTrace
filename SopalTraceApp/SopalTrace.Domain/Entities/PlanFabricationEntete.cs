@@ -9,7 +9,7 @@ public partial class PlanFabricationEntete
 
     public Guid? ModeleSourceId { get; set; }
 
-    public string CodeArticleSage { get; set; } = null!;
+    public string CodeArticleSageVersionne { get; set; } = null!;
 
     public string? Designation { get; set; }
 
@@ -36,8 +36,6 @@ public partial class PlanFabricationEntete
     public string? ModifiePar { get; set; }
 
     public DateTime? ModifieLe { get; set; }
-
-    public virtual Article CodeArticleSageNavigation { get; set; } = null!;
 
     public virtual RefFormulaire? Formulaire { get; set; }
 

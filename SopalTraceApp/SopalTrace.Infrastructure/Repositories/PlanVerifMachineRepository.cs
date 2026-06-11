@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
@@ -21,28 +22,28 @@ public class PlanVerifMachineRepository : IPlanVerifMachineRepository
     {
         return await _context.PlanVerifMachineEntetes.AnyAsync(p =>
             p.MachineCode == machineCode &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<bool> ExistePlanActifParFormulaireAsync(Guid formulaireId)
     {
         return await _context.PlanVerifMachineEntetes.AnyAsync(p =>
             p.FormulaireId == formulaireId &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanVerifMachineEntete> GetPlanActifAsync(string machineCode)
     {
         return await _context.PlanVerifMachineEntetes.FirstOrDefaultAsync(p =>
             p.MachineCode == machineCode &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanVerifMachineEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
     {
         return await _context.PlanVerifMachineEntetes.FirstOrDefaultAsync(p =>
             p.FormulaireId == formulaireId &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanVerifMachineEntete> GetPlanAvecRelationsAsync(Guid planId)

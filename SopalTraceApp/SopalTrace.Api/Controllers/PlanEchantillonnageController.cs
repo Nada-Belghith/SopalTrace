@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
 using SopalTrace.Application.Interfaces;
@@ -20,7 +21,7 @@ public class PlanEchantillonnageController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePlanEchanRequestDto request)
     {
-        var id = await _service.CreerPlanAsync(request, "ADMIN");
+        var id = await _service.CreerPlanAsync(request, RolesApp.Admin);
         var data = await _service.GetPlanByIdAsync(id);
         return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Profil d'échantillonnage créé et ACTIF." });
     }
@@ -32,7 +33,7 @@ public class PlanEchantillonnageController : ControllerBase
         return Ok(new { success = true, data });
     }
 
-    [HttpGet("actif")]
+    [HttpGet(StatutsPlan.Actif)]
     public async Task<IActionResult> GetActif()
     {
         var data = await _service.GetPlanActifAsync();

@@ -107,7 +107,7 @@
           <!-- Titre & Référence -->
           <div class="flex-1 mb-3">
             <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
-              {{ plan.libelle || plan.designation || '(Sans désignation)' }}
+              {{ plan.category === 'FAB' ? (plan.codeArticleSage || plan.libelle || plan.designation || '(Sans désignation)') : (plan.libelle || plan.designation || '(Sans désignation)') }}
             </h3>
           </div>
 

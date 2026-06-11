@@ -167,7 +167,7 @@ public class ModeleAssemblageService : IModeleAssemblageService
                         {
                             CodeInstrument = ligne.InstrumentCode.Length > 50 ? ligne.InstrumentCode.Substring(0, 50) : ligne.InstrumentCode,
                             Designation = ligne.InstrumentCode,
-                            Statut = "ACTIF",
+                            Statut = StatutsPlan.Actif,
                             Actif = true
                         };
                         await _unitOfWork.DictionnaireQualiteRepository.AddInstrumentAsync(instrument);

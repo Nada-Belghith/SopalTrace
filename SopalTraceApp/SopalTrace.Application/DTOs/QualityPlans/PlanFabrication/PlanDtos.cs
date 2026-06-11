@@ -46,6 +46,7 @@ public record ClonePlanRequestDto
 public record NouvelleVersionRequestDto
 {
     public Guid AncienId { get; init; }
+    public string CodeArticleSage { get; init; }
     public string ModifiePar { get; init; }
     public string PosteCode { get; init; }
     public string FamilleCode { get; init; }
@@ -179,6 +180,7 @@ public record RestaurerPlanRequestDto(
 );
 public record UpdateValeursPlanRequestDto
 {
+    public string CodeArticleSage { get; init; }
     public List<SectionEditDto> Sections { get; init; } = new();
     public string LegendeMoyens { get; init; }
     public string Remarques { get; init; }

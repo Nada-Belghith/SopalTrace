@@ -17,6 +17,12 @@ public partial class RefFormulaire
 
     public DateTime CreeLe { get; set; }
 
+    public string? CreePar { get; set; }
+
+    public string? ModifiePar { get; set; }
+
+    public DateTime? ModifieLe { get; set; }
+
     public string? Role { get; set; }
 
     public string? ConfigurationStructureJson { get; set; }

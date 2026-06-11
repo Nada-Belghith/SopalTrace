@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System;
 
 namespace SopalTrace.Domain.Interfaces;
@@ -14,7 +15,7 @@ public interface IPlanEntete
     Guid Id { get; set; }
 
     /// <summary>
-    /// Statut du plan (ex: "ACTIF", "BROUILLON", "ARCHIVE").
+    /// Statut du plan (ex: StatutsPlan.Actif, StatutsPlan.Brouillon, StatutsPlan.Archive).
     /// </summary>
     string Statut { get; set; }
 

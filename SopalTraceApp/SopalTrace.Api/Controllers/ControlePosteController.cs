@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.ControlePoste;
@@ -29,7 +30,7 @@ public class ControlePosteController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateControlePosteRequestDto request)
     {
-        var id = await _service.CreerPlanAsync(request, "ADMIN");
+        var id = await _service.CreerPlanAsync(request, RolesApp.Admin);
         var data = await _service.GetPlanByIdAsync(id);
         return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Plan NC créé et activé." });
     }
@@ -44,7 +45,7 @@ public class ControlePosteController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveControlePosteDto request)
     {
-        var newId = await _service.MettreAJourPlanAsync(id, request, "ADMIN");
+        var newId = await _service.MettreAJourPlanAsync(id, request, RolesApp.Admin);
         var data = await _service.GetPlanByIdAsync(newId);
         return Ok(new { success = true, planId = newId, version = data?.Version ?? 0, message = "Nouvelle version enregistrée et activée." });
     }
@@ -60,7 +61,7 @@ public class ControlePosteController : ControllerBase
     [HttpPost("restaurer")]
     public async Task<IActionResult> Restaurer([FromBody] NouvelleVersionNcRequestDto request)
     {
-        var id = await _service.RestaurerPlanAsync(request.AncienId, request.ModifiePar ?? "ADMIN", request.MotifModification);
+        var id = await _service.RestaurerPlanAsync(request.AncienId, request.ModifiePar ?? RolesApp.Admin, request.MotifModification);
         var data = await _service.GetPlanByIdAsync(id);
         return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Plan restauré avec succès." });
     }

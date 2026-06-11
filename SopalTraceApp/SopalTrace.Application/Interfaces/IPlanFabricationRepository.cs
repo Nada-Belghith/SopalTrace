@@ -29,10 +29,12 @@ public interface IPlanFabricationRepository
     Task<ModeleFabricationEntete?> GetBrouillonModeleLePlusRecentAsync(string? natureCode, string? operationCode); 
 
     // Plans
+
     Task<bool> ExistePlanActifPourArticleAsync(string codeArticleSage);
     Task<bool> ExistePlanActifPourArticleEtOperationAsync(string codeArticleSage, string? operationCode);
     Task<PlanFabricationEntete?> GetPlanActifPourArticleAsync(string codeArticleSage);
     Task<PlanFabricationEntete?> GetPlanActifPourArticleEtOperationAsync(string codeArticleSage, string operationCode);
+    Task<List<PlanFabricationEntete>> GetPlansActifsPourBaseArticleEtOperationAsync(string baseCode, string operationCode);
     Task<PlanFabricationEntete?> GetBrouillonLePlusRecentAsync(string codeArticleSage, Guid? modeleSourceId, string? operationCode = null);
     Task<PlanFabricationEntete?> GetPlanAvecRelationsAsync(Guid planId);
     Task<PlanFabricationEntete?> GetPlanCompletPourMiseAJourAsync(Guid planId);

@@ -15,9 +15,9 @@ public static class PlanFabricationMapper
     {
         var plan = new PlanFabricationEntete
         {
-            Id = Guid.NewGuid(), ModeleSourceId = modele.Id, CodeArticleSage = dto.CodeArticleSage,
+            Id = Guid.NewGuid(), ModeleSourceId = modele.Id, CodeArticleSageVersionne = dto.CodeArticleSage,
             Designation = designationSage, Nom = dto.Nom ?? $"PC-{dto.CodeArticleSage}",
-            Version = 0, Statut = StatutsPlan.Brouillon, CreePar = "Admin", CreeLe = DateTime.UtcNow,
+            Version = 0, Statut = StatutsPlan.Brouillon, CreePar = RolesApp.Admin, CreeLe = DateTime.UtcNow,
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? modele.OperationCode : dto.OperationCode,
             LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? modele.LegendeMoyens : dto.LegendeMoyens,
             Remarques = string.IsNullOrWhiteSpace(dto.Remarques) ? modele.Notes : dto.Remarques,
@@ -64,10 +64,17 @@ public static class PlanFabricationMapper
     public static PlanFabricationEntete DupliquerEntitePlan(PlanFabricationEntete source, string nouveauCode, string nouvelleDesig, string? creePar, string? comm = null)
     {
         int nouvelleVersion = comm == null ? 1 : source.Version + 1;
+        
+        string nouveauNom = !string.IsNullOrWhiteSpace(source.Nom) ? source.Nom : $"Plan de contrôle {nouvelleDesig}";
+        if (nouveauNom.StartsWith("PC-"))
+        {
+            nouveauNom = nouvelleVersion == 0 ? $"PC-{nouveauCode}" : $"PC-{nouveauCode}-V{nouvelleVersion}";
+        }
+
         var plan = new PlanFabricationEntete
         {
-            Id = Guid.NewGuid(), ModeleSourceId = source.ModeleSourceId, CodeArticleSage = nouveauCode,
-            Designation = nouvelleDesig, Nom = !string.IsNullOrWhiteSpace(source.Nom) ? source.Nom : $"Plan de contrôle {nouvelleDesig}",
+            Id = Guid.NewGuid(), ModeleSourceId = source.ModeleSourceId, CodeArticleSageVersionne = nouveauCode,
+            Designation = nouvelleDesig, Nom = nouveauNom,
             Version = nouvelleVersion, Statut = StatutsPlan.Brouillon, MachineDefautCode = source.MachineDefautCode,
             OperationCode = source.OperationCode,
             FormulaireId = source.FormulaireId,
@@ -211,7 +218,7 @@ public static class PlanFabricationMapper
             Id = plan.Id,
             ModeleSourceId = plan.ModeleSourceId ?? Guid.Empty,
             OperationCode = !string.IsNullOrWhiteSpace(plan.OperationCode) ? plan.OperationCode : plan.ModeleSource?.OperationCode ?? string.Empty,
-            CodeArticleSage = plan.CodeArticleSage,
+            CodeArticleSage = plan.CodeArticleSageVersionne,
             Nom = plan.Nom,
             Designation = plan.Designation ?? string.Empty,
             Version = plan.Formulaire != null ? plan.Formulaire.Version : plan.Version,
@@ -265,13 +272,13 @@ public static class PlanFabricationMapper
         {
             Id = Guid.NewGuid(),
             ModeleSourceId = null,
-            CodeArticleSage = dto.CodeArticleSage,
+            CodeArticleSageVersionne = dto.CodeArticleSage,
             Designation = designationSage,
             OperationCode = dto.OperationCode,
             Nom = string.IsNullOrWhiteSpace(dto.Nom) ? $"PC-{dto.CodeArticleSage}" : dto.Nom,
             Version = 0,
             Statut = StatutsPlan.Brouillon,
-            CreePar = "Admin",
+            CreePar = RolesApp.Admin,
             CreeLe = DateTime.UtcNow,
             LegendeMoyens = string.IsNullOrWhiteSpace(dto.LegendeMoyens) ? null : dto.LegendeMoyens,
             Remarques = dto.Remarques,

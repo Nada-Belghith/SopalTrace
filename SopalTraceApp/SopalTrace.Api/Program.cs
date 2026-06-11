@@ -78,9 +78,15 @@ var connectionString = builder.Configuration.GetConnectionString("SopalTraceConn
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("Connection string 'SopalTraceConnection' is not configured.");
 
-builder.Services.AddDbContext<SopalTraceDbContext>(options =>
+builder.Services.AddScoped<SopalTrace.Infrastructure.Data.Interceptors.AuditableEntityInterceptor>();
+
+builder.Services.AddDbContext<SopalTraceDbContext>((sp, options) =>
+{
+    var interceptor = sp.GetRequiredService<SopalTrace.Infrastructure.Data.Interceptors.AuditableEntityInterceptor>();
     options.UseSqlServer(connectionString, sqlOptions =>
-        sqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null)));
+        sqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null))
+        .AddInterceptors(interceptor);
+});
 
 builder.Services.AddHealthChecks()
     .AddSqlServer(connectionString);

@@ -26,8 +26,12 @@ namespace SopalTrace.Application.Services
 
         public async Task ArchivePlanFabricationActifAsync(string codeArticleSage, string? operationCode, string user)
         {
-            var planActif = await _planFabRepository.GetPlanActifPourArticleEtOperationAsync(codeArticleSage, operationCode ?? "");
-            if (planActif != null)
+            var baseCode = codeArticleSage;
+            var dotIndex = baseCode.LastIndexOf('.');
+            if (dotIndex > 0) baseCode = baseCode.Substring(0, dotIndex);
+
+            var plansActifs = await _planFabRepository.GetPlansActifsPourBaseArticleEtOperationAsync(baseCode, operationCode ?? "");
+            foreach (var planActif in plansActifs)
             {
                 planActif.Statut = StatutsPlan.Archive;
                 //planActif.ModifieLe = DateTime.UtcNow;

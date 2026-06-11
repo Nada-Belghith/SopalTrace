@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Domain.Entities;
@@ -76,7 +77,7 @@ public class MagasinierController : ControllerBase
         if (!magasinierExists)
         {
             var firstUser = await _context.UtilisateursApps.FirstOrDefaultAsync();
-            matriculeMagasinier = firstUser?.Matricule ?? "ADMIN";
+            matriculeMagasinier = firstUser?.Matricule ?? RolesApp.Admin;
         }
 
         var prep = new MagPreparationOf

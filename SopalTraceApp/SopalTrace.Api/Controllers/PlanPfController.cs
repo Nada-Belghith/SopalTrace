@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlanProduitFini;
 using SopalTrace.Application.Interfaces;
@@ -39,7 +40,7 @@ public class PlanPfController : ControllerBase
     {
         try
         {
-            var planId = await _planPfService.CreateGenericPlanAsync(dto, "Admin"); // TODO: Use real user
+            var planId = await _planPfService.CreateGenericPlanAsync(dto, RolesApp.Admin); // TODO: Use real user
             var data = await _planPfService.GetPlanByIdAsync(planId);
             return Ok(new { message = "Plan créé avec succès.", planId, version = data?.Version ?? 0 });
         }
@@ -150,7 +151,7 @@ public class PlanPfController : ControllerBase
         {
             if (statut == SopalTrace.Domain.Constants.StatutsPlan.Archive)
             {
-                await _planPfService.ArchiverPlanAsync(id, "Admin");
+                await _planPfService.ArchiverPlanAsync(id, RolesApp.Admin);
                 return Ok(new { message = "Plan archivé." });
             }
             return BadRequest(new { message = "Action non supportée par cet endpoint." });

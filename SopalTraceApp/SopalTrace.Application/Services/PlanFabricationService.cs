@@ -75,7 +75,11 @@ public class PlanFabricationService : IPlanFabricationService
     {
         var formulaireId = await ResolveFormulaireActifIdAsync(codeReference, role);
         if (formulaireId.HasValue)
+        {
             plan.FormulaireId = formulaireId.Value;
+            var form = await _formulaireService.GetFormulaireByIdAsync(formulaireId.Value);
+            if (form != null) plan.Version = form.Version;
+        }
     }
 
     private async Task<int> CalculerNouvelleVersionAsync(string? codeArticleSage, string? operationCode)
@@ -102,7 +106,9 @@ public class PlanFabricationService : IPlanFabricationService
 
         var user = _currentUserService.UserInfo;
 
-        // 1. Déterminer si on doit router vers l'Assemblage (Logique spécifique Sopal)
+        // 1. (Supprimé) Plus de vérification / Création de l'Article dans l'ERP
+
+        // 1bis. Déterminer si on doit router vers l'Assemblage (Logique spécifique Sopal)
         if (IsAssemblage(request.OperationCode, request.NatureComposantCode, null))
         {
             var assRequest = new CreatePlanAssRequestDto
@@ -124,18 +130,18 @@ public class PlanFabricationService : IPlanFabricationService
             return await _assService.CreerPlanAsync(assRequest, user);
         }
 
-        // 2. Récupérer l'article (et sa nature)
+        // 2. Récupérer l'article (et sa nature) s'il existe dans l'ERP
         var articleSage = await _repository.GetArticleItmAsync(request.CodeArticleSage);
-        if (articleSage == null) throw new ArticleSageIntrouvableException(request.CodeArticleSage);
-        
-        var designationSage = articleSage.Designation;
+        var designationSage = articleSage?.Designation ?? request.Designation ?? "Désignation Inconnue";
 
         // 2bis. Validation de la Gamme Opératoire (NatureComposant <-> Operation)
-        var estValide = await _repository.IsOperationValidePourNatureAsync(articleSage.NatureComposantCode ?? "", request.OperationCode);
-
-        if (!estValide)
+        if (articleSage != null && !string.IsNullOrWhiteSpace(articleSage.NatureComposantCode))
         {
-            throw new ValidationException($"L'opération '{request.OperationCode}' n'est pas autorisée pour un article de nature '{articleSage.NatureComposantCode}'.");
+            var estValide = await _repository.IsOperationValidePourNatureAsync(articleSage.NatureComposantCode, request.OperationCode);
+            if (!estValide)
+            {
+                throw new ValidationException($"L'opération '{request.OperationCode}' n'est pas autorisée pour un article de nature '{articleSage.NatureComposantCode}'.");
+            }
         }
 
         var modeleSourceId = request.ModeleSourceId.HasValue && request.ModeleSourceId.Value != Guid.Empty
@@ -180,17 +186,15 @@ public class PlanFabricationService : IPlanFabricationService
 
         await AppliquerFormulaireActifAuPlanAsync(nouveauPlan, codeRef, "EN_COURS_DE_FABRICATION");
 
-        // 6. Gestion de la version et du nom
-        var prochaineVersion = request.VersionInitiale ?? await CalculerNouvelleVersionAsync(request.CodeArticleSage, request.OperationCode);
-        nouveauPlan.Version = prochaineVersion;
+        // 6. Gestion de la version et du nom (la version est déjà définie par le formulaire)
         nouveauPlan.CreePar = user;
         nouveauPlan.Statut = StatutsPlan.Actif; // Création directe en mode ACTIF
 
         if (string.IsNullOrWhiteSpace(request.Nom))
         {
-            nouveauPlan.Nom = prochaineVersion == 0 
+            nouveauPlan.Nom = nouveauPlan.Version == 0 
                 ? $"PC-{request.CodeArticleSage}" 
-                : $"PC-{request.CodeArticleSage}-V{prochaineVersion}";
+                : $"PC-{request.CodeArticleSage}-V{nouveauPlan.Version}";
         }
         else
         {
@@ -290,16 +294,22 @@ public class PlanFabricationService : IPlanFabricationService
         if (ancienPlan == null) throw new KeyNotFoundException("Plan source introuvable.");
 
         var user = _currentUserService.UserInfo;
+        var codeArticleSage = !string.IsNullOrWhiteSpace(request.CodeArticleSage) ? request.CodeArticleSage : ancienPlan.CodeArticleSageVersionne;
+
+        // Plus de vérification d'article dans l'ERP
 
         // 1. Archiver TOUT plan actif existant pour cet article/opération (y compris l'ancien plan source s'il était actif)
-        await _planArchiverService.ArchivePlanFabricationActifAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode, user);
+        await _planArchiverService.ArchivePlanFabricationActifAsync(codeArticleSage, ancienPlan.OperationCode, user);
 
-        var nouvelleVersion = request.VersionInitiale ?? await CalculerNouvelleVersionAsync(ancienPlan.CodeArticleSage, ancienPlan.OperationCode);
-        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(ancienPlan, ancienPlan.CodeArticleSage, ancienPlan.Designation ?? string.Empty, user, request.MotifModification);
-        
+        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(ancienPlan, codeArticleSage, ancienPlan.Designation ?? string.Empty, user, request.MotifModification);
+
+        // La version sera celle du formulaire si un formulaire est appliqué, 
+        // sinon on la garde telle quelle (on peut aussi forcer la copie depuis l'ancien plan)
+        var codeRef = ancienPlan.Formulaire?.CodeReference ?? "PRC";
+        await AppliquerFormulaireActifAuPlanAsync(nouveauPlan, codeRef, "EN_COURS_DE_FABRICATION");
+
         //nouveauPlan.Remarques = request.Remarques;
         //nouveauPlan.LegendeMoyens = request.LegendeMoyens;
-        nouveauPlan.Version = nouvelleVersion;
         nouveauPlan.Statut = StatutsPlan.Actif;
 
         if (request.SectionsModifiees != null && request.SectionsModifiees.Any())
@@ -329,8 +339,8 @@ public class PlanFabricationService : IPlanFabricationService
         var desig = await _repository.GetDesignationArticleSageAsync(request.NouveauCodeArticleSage);
         var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(sourcePlan, request.NouveauCodeArticleSage, desig ?? request.NouvelleDesignation, user);
         nouveauPlan.Statut = StatutsPlan.Actif;
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(request.NouveauCodeArticleSage, sourcePlan.OperationCode);
-        nouveauPlan.Version = nouvelleVersion;
+        var codeRef = sourcePlan.Formulaire?.CodeReference ?? "PRC";
+        await AppliquerFormulaireActifAuPlanAsync(nouveauPlan, codeRef, "EN_COURS_DE_FABRICATION");
 
         await _repository.AddPlanAsync(nouveauPlan);
         await _unitOfWork.CommitAsync();
@@ -346,12 +356,24 @@ public class PlanFabricationService : IPlanFabricationService
         var user = _currentUserService.UserInfo;
 
         // Archiver l'actif actuel
-        await _planArchiverService.ArchivePlanFabricationActifAsync(planArchive.CodeArticleSage, planArchive.OperationCode, user);
+        await _planArchiverService.ArchivePlanFabricationActifAsync(planArchive.CodeArticleSageVersionne, planArchive.OperationCode, user);
 
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(planArchive.CodeArticleSage, planArchive.OperationCode);
-        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, user, $"[Restauré] {request.MotifRestoration}");
+        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSageVersionne, planArchive.Designation ?? string.Empty, user, $"[Restauré] {request.MotifRestoration}");
         nouveauPlan.Statut = StatutsPlan.Actif;
-        nouveauPlan.Version = nouvelleVersion;
+        
+        if (planArchive.FormulaireId.HasValue)
+        {
+            var oldForm = await _formulaireService.GetFormulaireByIdAsync(planArchive.FormulaireId.Value);
+            if (oldForm != null)
+            {
+                var formResult = await _formulaireService.GetFormulaireActifParCodeReferenceAsync(oldForm.CodeReference);
+                if (formResult != null)
+                {
+                    nouveauPlan.FormulaireId = formResult.Id;
+                    nouveauPlan.Version = formResult.Version;
+                }
+            }
+        }
 
         await SmartDictionaryPassAsync(nouveauPlan);
 
@@ -375,14 +397,13 @@ public class PlanFabricationService : IPlanFabricationService
         // Archiver l'actif actuel (au cas où il y en a un autre ?)
         // Normalement il ne devrait pas y avoir d'actif s'il est archivé suite à une maj PRC,
         // mais pour être sûr on archive.
-        await _planArchiverService.ArchivePlanFabricationActifAsync(planArchive.CodeArticleSage, planArchive.OperationCode, user);
+        await _planArchiverService.ArchivePlanFabricationActifAsync(planArchive.CodeArticleSageVersionne, planArchive.OperationCode, user);
 
-        var nouvelleVersion = await CalculerNouvelleVersionAsync(planArchive.CodeArticleSage, planArchive.OperationCode);
-        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSage, planArchive.Designation ?? string.Empty, user, $"[Mise à niveau] depuis l'archive de la v{planArchive.Version}");
+        var nouveauPlan = PlanFabricationMapper.DupliquerEntitePlan(planArchive, planArchive.CodeArticleSageVersionne, planArchive.Designation ?? string.Empty, user, $"[Mise à niveau] depuis l'archive de la v{planArchive.Version}");
         
         nouveauPlan.Statut = StatutsPlan.Brouillon;
-        nouveauPlan.Version = nouvelleVersion;
         nouveauPlan.FormulaireId = formulaireActif.Id;
+        nouveauPlan.Version = formulaireActif.Version;
 
         await SmartDictionaryPassAsync(nouveauPlan);
 
@@ -392,7 +413,7 @@ public class PlanFabricationService : IPlanFabricationService
         return nouveauPlan.Id;
     }
 
-    public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionEditDto> sectionsModifiees, string? legendeMoyens = null, string? remarques = null, bool finaliser = true, string? nom = null, string? modifiePar = null)
+    public async Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<SectionEditDto> sectionsModifiees, string? legendeMoyens = null, string? remarques = null, bool finaliser = true, string? nom = null, string? modifiePar = null, string? codeArticleSage = null)
     {
         var plan = await _repository.GetPlanCompletPourMiseAJourAsync(planId);
         if (plan == null) 
@@ -455,6 +476,11 @@ public class PlanFabricationService : IPlanFabricationService
             return true;
         }
 
+        if (!string.IsNullOrWhiteSpace(codeArticleSage) && plan.CodeArticleSageVersionne != codeArticleSage)
+        {
+            plan.CodeArticleSageVersionne = codeArticleSage;
+        }
+
         plan.ModifiePar = _currentUserService.UserInfo;
         plan.ModifieLe = DateTime.UtcNow;
         
@@ -464,6 +490,12 @@ public class PlanFabricationService : IPlanFabricationService
         if (!string.IsNullOrWhiteSpace(nom)) plan.Nom = nom;
         //if (legendeMoyens is not null) plan.LegendeMoyens = string.IsNullOrWhiteSpace(legendeMoyens) ? null : legendeMoyens;
         //if (remarques is not null) plan.Remarques = string.IsNullOrWhiteSpace(remarques) ? null : remarques;
+
+        // Synchroniser le nom avec le code article versionné si le nom est généré automatiquement
+        if (!string.IsNullOrWhiteSpace(plan.Nom) && plan.Nom.StartsWith("PC-"))
+        {
+            plan.Nom = plan.Version == 0 ? $"PC-{plan.CodeArticleSageVersionne}" : $"PC-{plan.CodeArticleSageVersionne}-V{plan.Version}";
+        }
 
         await MettreAJourSectionsAsync(plan, sectionsModifiees, plan.ModifiePar);
 

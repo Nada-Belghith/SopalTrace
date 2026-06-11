@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using SopalTrace.Application.DTOs.QualityPlans.ControlePoste;
 using SopalTrace.Domain.Entities;
 using System;
@@ -66,7 +67,7 @@ public static class ControlePosteMapper
             PosteCode = source.PosteCode,
             Nom = source.Nom,
             Version = source.Version + 1,
-            Statut = "BROUILLON",
+            Statut = StatutsPlan.Brouillon,
             CreePar = modifiePar,
             CreeLe = DateTime.UtcNow,
             Remarques = source.Remarques,
