@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.VerifMachine;
@@ -43,7 +44,7 @@ public class PlanVerifMachineController : ControllerBase
         try
         {
             var service = _planFactory.GetService(request.MachineCode);
-            var newId = await service.CreerPlanVerifAsync(request, "ADMIN");
+            var newId = await service.CreerPlanVerifAsync(request, RolesApp.Admin);
             var data = await service.GetPlanVerifByIdAsync(newId);
             return Ok(new { success = true, planId = newId, version = data?.Version ?? 0, message = "Plan de vérification machine créé avec succès." });
         }
@@ -92,7 +93,7 @@ public class PlanVerifMachineController : ControllerBase
         try
         {
             var service = _planFactory.GetService(request.MachineCode);
-            var newId = await service.MettreAJourPlanVerifAsync(id, request, "ADMIN");
+            var newId = await service.MettreAJourPlanVerifAsync(id, request, RolesApp.Admin);
             return Ok(new { success = true, planId = newId, message = "Nouvelle version du plan créée et l'ancienne a été archivée." });
         }
         catch (Exception ex)
@@ -128,10 +129,10 @@ public class PlanVerifMachineController : ControllerBase
     {
         try
         {
-            if (statut == "ARCHIVE")
+            if (statut == StatutsPlan.Archive)
             {
                 var service = _planFactory.GetService("DEFAULT");
-                await service.ArchiverPlanAsync(id, "ADMIN"); // TODO: récupérer depuis JWT
+                await service.ArchiverPlanAsync(id, RolesApp.Admin); // TODO: récupérer depuis JWT
                 return Ok(new { success = true, message = "Plan archivé." });
             }
             return BadRequest(new { success = false, message = "Action non supportée." });
@@ -151,7 +152,7 @@ public class PlanVerifMachineController : ControllerBase
         try
         {
             var service = _planFactory.GetService("DEFAULT");
-            var newId = await service.RestaurerPlanAsync(request.AncienId, request.ModifiePar ?? "ADMIN", request.MotifModification);
+            var newId = await service.RestaurerPlanAsync(request.AncienId, request.ModifiePar ?? RolesApp.Admin, request.MotifModification);
             var data = await service.GetPlanVerifByIdAsync(newId);
             return Ok(new { success = true, planId = newId, version = data?.Version ?? 0, message = "Plan restauré." });
         }

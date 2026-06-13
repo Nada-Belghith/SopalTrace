@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
 using System;
@@ -89,7 +90,7 @@ public static class SmartDictionaryHelper
                     {
                         CodeInstrument = codeInstrument.Length > 50 ? codeInstrument.Substring(0, 50) : codeInstrument,
                         Designation = codeInstrument,
-                        Statut = "ACTIF",
+                        Statut = StatutsPlan.Actif,
                         Actif = true
                     };
                     await repo.AddInstrumentAsync(instrument);

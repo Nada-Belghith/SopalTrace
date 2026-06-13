@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -40,7 +41,7 @@ public class HubController : ControllerBase
     [HttpPut("modeles/{category}/{id}/statut")]
     public async Task<IActionResult> ChangerStatutModele(string category, Guid id, [FromQuery] string statut)
     {
-        if (statut != "ACTIF" && statut != "ARCHIVE")
+        if (statut != StatutsPlan.Actif && statut != StatutsPlan.Archive)
         {
             return BadRequest("Le statut doit être ACTIF ou ARCHIVE.");
         }
@@ -57,7 +58,7 @@ public class HubController : ControllerBase
     [HttpPut("plans/{category}/{id}/statut")]
     public async Task<IActionResult> ChangerStatutPlan(string category, Guid id, [FromQuery] string statut)
     {
-        if (statut != "ACTIF" && statut != "ARCHIVE")
+        if (statut != StatutsPlan.Actif && statut != StatutsPlan.Archive)
         {
             return BadRequest("Le statut doit être ACTIF ou ARCHIVE.");
         }

@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.PlanFabrication;
@@ -93,13 +94,13 @@ public class PlanFabricationController : ControllerBase
             // PlanAssemblageEntete n'a pas de CodeArticleSage : c'est un modèle générique filtré par opération/famille
             var planQuery = _context.PlanAssemblageEntetes.AsQueryable();
 
-            var brouillonQuery = planQuery.Where(p => p.Statut == "BROUILLON");
+            var brouillonQuery = planQuery.Where(p => p.Statut == StatutsPlan.Brouillon);
             if (!string.IsNullOrWhiteSpace(typeRobinetCode)) brouillonQuery = brouillonQuery.Where(p => p.FamilleProduitFiniCode == typeRobinetCode);
             if (!string.IsNullOrWhiteSpace(natureComposantCode)) brouillonQuery = brouillonQuery.Where(p => p.NatureArticleCode == natureComposantCode);
             if (!string.IsNullOrWhiteSpace(opCode)) brouillonQuery = brouillonQuery.Where(p => p.OperationCode == opCode);
             if (!string.IsNullOrWhiteSpace(posteCode)) brouillonQuery = brouillonQuery.Where(p => p.PosteCode == posteCode);
 
-            var actifQuery = planQuery.Where(p => p.Statut == "ACTIF");
+            var actifQuery = planQuery.Where(p => p.Statut == StatutsPlan.Actif);
             if (!string.IsNullOrWhiteSpace(opCode)) actifQuery = actifQuery.Where(p => p.OperationCode == opCode);
             if (!string.IsNullOrWhiteSpace(posteCode)) actifQuery = actifQuery.Where(p => p.PosteCode == posteCode);
 
@@ -110,12 +111,12 @@ public class PlanFabricationController : ControllerBase
         }
         else
         {
-            var planQuery = _context.PlanFabricationEntetes.Where(p => p.CodeArticleSage == articleCode);
+            var planQuery = _context.PlanFabricationEntetes.Where(p => p.CodeArticleSageVersionne == articleCode);
 
 
 
         var brouillonQuery = planQuery
-            .Where(p => p.Statut == "BROUILLON")
+            .Where(p => p.Statut == StatutsPlan.Brouillon)
             .Include(p => p.ModeleSource)
             .AsQueryable();
 
@@ -138,7 +139,7 @@ public class PlanFabricationController : ControllerBase
         // PosteCode supprimé pour la fabrication
 
         var actifQuery = planQuery
-            .Where(p => p.Statut == "ACTIF")
+            .Where(p => p.Statut == StatutsPlan.Actif)
             .Include(p => p.ModeleSource)
             .AsQueryable();
 
@@ -189,7 +190,8 @@ public class PlanFabricationController : ControllerBase
             request.Remarques,
             request.Finaliser,
             request.LibelleSection,
-            request.ModifiePar
+            request.ModifiePar,
+            request.CodeArticleSage
         );
 
         if (!success) return NotFound(new { success = false, message = "Plan introuvable." });

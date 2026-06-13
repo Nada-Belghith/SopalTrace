@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -104,9 +105,9 @@ public class FormulairePrcService : IFormulairePrcService
         {
             bool forceArchive = versionInitiale.HasValue && versionInitiale.Value != formulaireActuel.Version;
 
-            if (formulaireActuel.Statut?.Trim() == "BROUILLON" && !forceArchive)
+            if (formulaireActuel.Statut?.Trim() == StatutsPlan.Brouillon && !forceArchive)
             {
-                formulaireActuel.Statut = "ACTIF";
+                formulaireActuel.Statut = StatutsPlan.Actif;
                 formulaireActuel.ConfigurationStructureJson = configurationStructureJson;
                 await _formulaireRepository.UpdateAsync(formulaireActuel);
                 await _unitOfWork.CommitAsync();
@@ -115,24 +116,24 @@ public class FormulairePrcService : IFormulairePrcService
             }
             else
             {
-                formulaireActuel.Statut = "ARCHIVE";
+                formulaireActuel.Statut = StatutsPlan.Archive;
                 await _formulaireRepository.UpdateAsync(formulaireActuel);
 
                 // Auto-archiver tous les modèles et plans de fabrication qui utilisent cette version
                 var modelesAArchiver = await _context.ModeleFabricationEntetes
-                    .Where(m => m.FormulaireId == formulaireActuel.Id && m.Statut == "ACTIF")
+                    .Where(m => m.FormulaireId == formulaireActuel.Id && m.Statut == StatutsPlan.Actif)
                     .ToListAsync();
                 foreach (var m in modelesAArchiver)
                 {
-                    m.Statut = "ARCHIVE";
+                    m.Statut = StatutsPlan.Archive;
                 }
 
                 var plansAArchiver = await _context.PlanFabricationEntetes
-                    .Where(p => p.FormulaireId == formulaireActuel.Id && p.Statut == "ACTIF")
+                    .Where(p => p.FormulaireId == formulaireActuel.Id && p.Statut == StatutsPlan.Actif)
                     .ToListAsync();
                 foreach (var p in plansAArchiver)
                 {
-                    p.Statut = "ARCHIVE";
+                    p.Statut = StatutsPlan.Archive;
                 }
 
                 var maxVersion = await _formulaireRepository.GetMaxVersionByCodeReferenceAsync(formulaireActuel.CodeReference);
@@ -147,7 +148,7 @@ public class FormulairePrcService : IFormulairePrcService
                     CodeReference = formulaireActuel.CodeReference,
                     Designation = formulaireActuel.Designation,
                     Version = newVersion,
-                    Statut = "ACTIF",
+                    Statut = StatutsPlan.Actif,
                     CreeLe = DateTime.UtcNow,
                     Role = role,
                     ConfigurationStructureJson = configurationStructureJson
@@ -168,7 +169,7 @@ public class FormulairePrcService : IFormulairePrcService
                 CodeReference = code,
                 Designation = $"Formulaire {code}",
                 Version = 0,
-                Statut = "ACTIF",
+                Statut = StatutsPlan.Actif,
                 CreeLe = DateTime.UtcNow,
                 Role = role,
                 ConfigurationStructureJson = configurationStructureJson
@@ -187,7 +188,7 @@ public class FormulairePrcService : IFormulairePrcService
         var formulaire = await _formulaireRepository.GetByIdAsync(id);
         if (formulaire == null) return false;
 
-        formulaire.Statut = "ACTIF";
+        formulaire.Statut = StatutsPlan.Actif;
         await _formulaireRepository.UpdateAsync(formulaire);
         await _unitOfWork.CommitAsync();
         return true;

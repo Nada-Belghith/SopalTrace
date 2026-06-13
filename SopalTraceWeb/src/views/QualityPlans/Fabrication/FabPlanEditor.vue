@@ -25,9 +25,13 @@
           @restaurer="onEditorSubmit"
         >
           <template #actions>
-            <div v-if="isEditMode" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-4 hidden md:flex">
-              <span class="text-[10px] font-black text-slate-400 uppercase">Code Article:</span>
-              <span class="font-mono font-bold text-sm text-slate-700">{{ codeAffiche }}</span>
+            <div v-if="isEditMode" class="flex items-center bg-slate-50 rounded-lg border border-slate-200 ml-4 hidden md:flex overflow-hidden">
+              <span class="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase bg-slate-100 border-r border-slate-200 flex items-center h-full">Code Article:</span>
+              <div v-if="!isReadOnly && plan" class="flex items-center">
+                <span class="font-mono font-bold text-sm text-slate-700 pl-2 py-1.5">{{ codeArticleBase }}</span>
+                <InputText v-model="codeArticleSuffix" class="font-mono font-bold text-sm text-blue-700 p-1 w-16 h-8 mx-1 bg-white border-slate-300 focus:border-blue-500 rounded" placeholder=".X" />
+              </div>
+              <span v-else class="font-mono font-bold text-sm text-slate-700 px-3 py-1.5">{{ codeAffiche }}</span>
             </div>
             <div v-if="isEditMode" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-2 hidden md:flex">
               <span class="text-[10px] font-black text-slate-400 uppercase">Opération:</span>
@@ -215,6 +219,7 @@
   import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
   import ConfirmDialog from 'primevue/confirmdialog';
   import PlanHeader from '@/components/Shared/PlanHeader.vue';
+  import InputText from 'primevue/inputtext';
 
   import { useEditorSections } from '@/composables/useEditorSections';
   import { useEditorValidation } from '@/composables/useEditorValidation';
@@ -277,6 +282,28 @@
   });
 
   const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
+
+  const codeArticleBase = ref('');
+
+  watch(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value, (newCode) => {
+    if (!codeArticleBase.value && newCode) {
+      const match = newCode.match(/^(.*?)(\.\d+)?$/);
+      codeArticleBase.value = match ? match[1] : newCode;
+    }
+  }, { immediate: true });
+
+  const codeArticleSuffix = computed({
+    get: () => {
+      return plan.value?.codeArticleSage?.substring(codeArticleBase.value.length) || '';
+    },
+    set: (val) => {
+      if (plan.value) {
+        let suffix = val || '';
+        if (suffix && !suffix.startsWith('.')) suffix = '.' + suffix;
+        plan.value.codeArticleSage = codeArticleBase.value + suffix;
+      }
+    }
+  });
 
   const planColumns = computed(() => store.tableColumns || []);
 
@@ -1276,6 +1303,10 @@
         if (versionInitiale.value !== null) {
           planCreationPayload.value.versionInitiale = versionInitiale.value;
         }
+        // Assure-toi qu'on envoie le code modifié (ex: avec .4)
+        if (plan.value?.codeArticleSage) {
+          planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
+        }
         const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
         currentPlanId = instRes.data.planId;
         planId.value = currentPlanId;
@@ -1297,7 +1328,7 @@
 
       const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
 
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, finalNom, 'Admin');
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, finalNom, 'Admin', plan.value?.codeArticleSage);
 
       if (afficherToast) {
         toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
@@ -1314,6 +1345,10 @@
       try {
         if (versionInitiale.value !== null) {
           planCreationPayload.value.versionInitiale = versionInitiale.value;
+        }
+        // Assure-toi qu'on envoie le code modifié (ex: avec .4)
+        if (plan.value?.codeArticleSage) {
+          planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
         const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
         currentPlanId = instRes.data.planId;
@@ -1349,7 +1384,7 @@
 
       const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
 
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, finalNom, 'Admin');
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, finalNom, 'Admin', plan.value?.codeArticleSage);
 
       toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
 
@@ -1517,7 +1552,8 @@
         const newVersionPlan = await creerNouvelleVersionPlan({
           ancienId: planId.value,
           modifiePar: 'ADMIN',
-          motifModification: motif || 'Modification de la structure du plan'
+          motifModification: motif || 'Modification de la structure du plan',
+          codeArticleSage: plan.value?.codeArticleSage
         });
         const newPlanId = newVersionPlan.data.planId;
         const clonedPlanRes = await fabPlanService.getPlanById(newPlanId);

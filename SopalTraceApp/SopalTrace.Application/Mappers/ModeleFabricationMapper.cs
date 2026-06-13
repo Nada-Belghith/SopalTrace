@@ -44,7 +44,7 @@ public static class ModeleFabricationMapper
             Notes = dto.Notes,
             FamilleProduitFiniCode = string.IsNullOrWhiteSpace(dto.FamilleProduitCode) ? null : dto.FamilleProduitCode,
             LegendeMoyens = dto.LegendeMoyens,
-            CreePar = "Admin",
+            CreePar = RolesApp.Admin,
             CreeLe = DateTime.UtcNow,
             ModeleFabricationSections = new List<ModeleFabricationSection>()
         };

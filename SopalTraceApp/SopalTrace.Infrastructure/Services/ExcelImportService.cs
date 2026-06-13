@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using ClosedXML.Excel;
 using SopalTrace.Application.DTOs.QualityPlans.ImportExcel;
 using SopalTrace.Application.Interfaces;
@@ -548,7 +549,7 @@ public partial class ExcelImportService : IExcelImportService
                 {
                     CodeInstrument = instrumentCode,
                     Designation = SafeSubstring(instrumentCode, 100),
-                    Statut = "ACTIF",
+                    Statut = StatutsPlan.Actif,
                     Actif = true
                 };
                 await _unitOfWork.DictionnaireQualiteRepository.AddInstrumentAsync(instrument);

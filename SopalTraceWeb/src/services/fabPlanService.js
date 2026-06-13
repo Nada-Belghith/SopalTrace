@@ -44,14 +44,15 @@ export const fabPlanService = {
     });
   },
 
-  mettreAJourValeurs(planId, sectionsPayload, legendeMoyens, remarques, finaliser = true, nom = null, modifiePar = 'Admin') {
+  mettreAJourValeurs(planId, sectionsPayload, legendeMoyens, remarques, finaliser = true, nom = null, modifiePar = 'Admin', codeArticleSage = null) {
     return apiClient.put(`/plans-fabrication/${planId}/valeurs`, {
       sections: sectionsPayload,
       legendeMoyens: legendeMoyens, 
       remarques: remarques,
       finaliser,
       nom,
-      modifiePar
+      modifiePar,
+      codeArticleSage
     });
   },
 

@@ -164,7 +164,7 @@ public class BasePlanLifecycleServiceTests
         // Assert
         var plan = await service.ConsulterPlanAsync(planId);
         Assert.NotNull(plan);
-        Assert.Equal("BROUILLON", plan.Statut);
+        Assert.Equal(StatutsPlan.Brouillon, plan.Statut);
         Assert.Equal(1, plan.Version);
         Assert.Equal("Test Plan", plan.Designation);
         Assert.True(service.HooksCalled.Contains("ValidateCreationAsync"));
@@ -198,7 +198,7 @@ public class BasePlanLifecycleServiceTests
         // Assert
         var plan = await service.ConsulterPlanAsync(planId);
         Assert.Equal("Updated", plan.Designation);
-        Assert.Equal("BROUILLON", plan.Statut); // Toujours brouillon
+        Assert.Equal(StatutsPlan.Brouillon, plan.Statut); // Toujours brouillon
         Assert.Equal("USER2", plan.ModifiePar);
     }
 
@@ -218,7 +218,7 @@ public class BasePlanLifecycleServiceTests
 
         // Assert
         var plan = await service.ConsulterPlanAsync(planId);
-        Assert.Equal("ACTIF", plan.Statut);
+        Assert.Equal(StatutsPlan.Actif, plan.Statut);
         Assert.Equal(2, plan.Version); // Version incrémentée
         Assert.True(service.HooksCalled.Contains("HandleVersioningBeforeActivationAsync"));
         Assert.True(service.HooksCalled.Contains("OnPlanActivatedAsync"));
@@ -253,7 +253,7 @@ public class BasePlanLifecycleServiceTests
 
         // Assert
         var plan = await service.ConsulterPlanAsync(planId);
-        Assert.Equal("ARCHIVE", plan.Statut);
+        Assert.Equal(StatutsPlan.Archive, plan.Statut);
         // Assert.Equal("ARCHIVER", plan.ModifiePar); // ModifiePar is not part of the IPlanEntete contract in BasePlanLifecycleService
     }
 
@@ -305,7 +305,7 @@ public class BasePlanLifecycleServiceTests
             new TestCreateDto { Designation = "Lifecycle Test" },
             "CREATOR"
         );
-        Assert.Equal("BROUILLON", (await service.ConsulterPlanAsync(planId)).Statut);
+        Assert.Equal(StatutsPlan.Brouillon, (await service.ConsulterPlanAsync(planId)).Statut);
 
         // Act: Mettre à jour
         await service.UpdateDraftAsync(
@@ -317,12 +317,12 @@ public class BasePlanLifecycleServiceTests
 
         // Act: Activer
         await service.ActiverPlanAsync(planId, "ACTIVATOR");
-        Assert.Equal("ACTIF", (await service.ConsulterPlanAsync(planId)).Statut);
+        Assert.Equal(StatutsPlan.Actif, (await service.ConsulterPlanAsync(planId)).Statut);
         Assert.Equal(2, (await service.ConsulterPlanAsync(planId)).Version);
 
         // Act: Archiver
         await service.ArchiverPlanAsync(planId, "ARCHIVER");
-        Assert.Equal("ARCHIVE", (await service.ConsulterPlanAsync(planId)).Statut);
+        Assert.Equal(StatutsPlan.Archive, (await service.ConsulterPlanAsync(planId)).Statut);
 
         // Assert: Tous les hooks ont été appelés
         Assert.True(service.HooksCalled.Contains("ValidateCreationAsync"));

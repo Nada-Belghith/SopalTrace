@@ -82,7 +82,11 @@ public class ModeleFabricationService : IModeleFabricationService
     {
         var formulaireId = await ResolveFormulaireActifIdAsync(codeReference, role);
         if (formulaireId.HasValue)
+        {
             modele.FormulaireId = formulaireId.Value;
+            var form = await _referentielService.GetFormulaireByIdAsync(formulaireId.Value);
+            if (form != null) modele.Version = form.Version;
+        }
     }
 
     private async Task AppliquerFormulaireActifAuPlanAssAsync(
@@ -92,7 +96,11 @@ public class ModeleFabricationService : IModeleFabricationService
     {
         var formulaireId = await ResolveFormulaireActifIdAsync(codeReference, role);
         if (formulaireId.HasValue)
+        {
             modele.FormulaireId = formulaireId.Value;
+            var form = await _referentielService.GetFormulaireByIdAsync(formulaireId.Value);
+            if (form != null) modele.Version = form.Version;
+        }
     }
 
     public async Task<Guid> CreerModeleAsync(CreateModeleRequestDto request)
@@ -253,7 +261,7 @@ public class ModeleFabricationService : IModeleFabricationService
                         {
                             CodeInstrument = ligne.InstrumentCode.Length > 50 ? ligne.InstrumentCode.Substring(0, 50) : ligne.InstrumentCode,
                             Designation = ligne.InstrumentCode,
-                            Statut = "ACTIF",
+                            Statut = StatutsPlan.Actif,
                             Actif = true
                         };
                         await _unitOfWork.DictionnaireQualiteRepository.AddInstrumentAsync(instrument);
@@ -343,7 +351,7 @@ public class ModeleFabricationService : IModeleFabricationService
                         {
                             CodeInstrument = ligne.InstrumentCode.Length > 50 ? ligne.InstrumentCode.Substring(0, 50) : ligne.InstrumentCode,
                             Designation = ligne.InstrumentCode,
-                            Statut = "ACTIF",
+                            Statut = StatutsPlan.Actif,
                             Actif = true
                         };
                         await _unitOfWork.DictionnaireQualiteRepository.AddInstrumentAsync(instrument);
@@ -500,6 +508,7 @@ public class ModeleFabricationService : IModeleFabricationService
                     if (formResult != null)
                     {
                         nouveauPlan.FormulaireId = formResult.Id;
+                        nouveauPlan.Version = formResult.Version;
                     }
                 }
             }
@@ -526,6 +535,8 @@ public class ModeleFabricationService : IModeleFabricationService
             var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleAsync(fabModele.NatureArticleCode, fabModele.OperationCode) + 1;
             Guid? newFormulaireId = null;
 
+            var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(fabModele, user, request.MotifRestoration, nouvelleVersion);
+
             if (fabModele.FormulaireId.HasValue)
             {
                 var oldForm = await _referentielService.GetFormulaireByIdAsync(fabModele.FormulaireId.Value);
@@ -536,11 +547,11 @@ public class ModeleFabricationService : IModeleFabricationService
                     if (formResult != null)
                     {
                         newFormulaireId = formResult.Id;
+                        nouveauModele.Version = formResult.Version;
                     }
                 }
             }
 
-            var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(fabModele, user, request.MotifRestoration, nouvelleVersion);
             if (newFormulaireId.HasValue) nouveauModele.FormulaireId = newFormulaireId.Value;
             
             await SmartDictionaryPassAsync(nouveauModele);
@@ -572,8 +583,8 @@ public class ModeleFabricationService : IModeleFabricationService
 
             var nouveauPlan = PlanAssMapper.DupliquerEntitePlan(assModele, true, null, null, user, $"[Mise à niveau] depuis l'archive de la v{assModele.Version}");
             nouveauPlan.Statut = StatutsPlan.Brouillon;
-            nouveauPlan.Version = await _assRepository.GetDerniereVersionAsync(assModele.OperationCode ?? string.Empty, assModele.FamilleProduitFiniCode, assModele.NatureArticleCode) + 1;
             nouveauPlan.FormulaireId = formResult.Id;
+            nouveauPlan.Version = formResult.Version;
 
             await SmartDictionaryPassAssAsync(nouveauPlan);
 
@@ -597,9 +608,7 @@ public class ModeleFabricationService : IModeleFabricationService
                 actif.Statut = StatutsPlan.Archive;
             }
 
-            var nouvelleVersion = await _fabRepository.GetDerniereVersionModeleAsync(fabModele.NatureArticleCode, fabModele.OperationCode) + 1;
-            
-            var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(fabModele, user, $"[Mise à niveau] depuis l'archive de la v{fabModele.Version}", nouvelleVersion);
+            var nouveauModele = ModeleFabricationMapper.RestaurerEntiteModele(fabModele, user, $"[Mise à niveau] depuis l'archive de la v{fabModele.Version}", formResult.Version);
             nouveauModele.Statut = StatutsPlan.Brouillon;
             nouveauModele.FormulaireId = formResult.Id;
 

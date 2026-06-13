@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
@@ -38,8 +39,8 @@ public class RefFormulaireRepository : IRefFormulaireRepository
         // Priorité : ACTIF d'abord, puis BROUILLON si pas encore activé
         return await _context.RefFormulaires
             .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed)
-                     && (f.Statut != null && (f.Statut.Trim() == "ACTIF" || f.Statut.Trim() == "BROUILLON")))
-            .OrderBy(f => f.Statut!.Trim() == "ACTIF" ? 0 : 1) // ACTIF en premier
+                     && (f.Statut != null && (f.Statut.Trim() == StatutsPlan.Actif || f.Statut.Trim() == StatutsPlan.Brouillon)))
+            .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1) // ACTIF en premier
             .ThenByDescending(f => f.Version)
             .FirstOrDefaultAsync();
     }
@@ -50,8 +51,8 @@ public class RefFormulaireRepository : IRefFormulaireRepository
         // Priorité : ACTIF d'abord, puis BROUILLON si pas encore activé
         return await _context.RefFormulaires
             .Where(f => (f.CodeReference != null && f.CodeReference.Trim() == codeRefTrimmed)
-                     && (f.Statut != null && (f.Statut.Trim() == "ACTIF" || f.Statut.Trim() == "BROUILLON")))
-            .OrderBy(f => f.Statut!.Trim() == "ACTIF" ? 0 : 1) // ACTIF en premier
+                     && (f.Statut != null && (f.Statut.Trim() == StatutsPlan.Actif || f.Statut.Trim() == StatutsPlan.Brouillon)))
+            .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1) // ACTIF en premier
             .ThenByDescending(f => f.Version)
             .FirstOrDefaultAsync();
     }
@@ -61,14 +62,14 @@ public class RefFormulaireRepository : IRefFormulaireRepository
         var roleTrimmed = role?.Trim();
         var formulaires = await _context.RefFormulaires
             .AsNoTracking()
-            .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed) && (f.Statut != null && (f.Statut.Trim() == "ACTIF" || f.Statut.Trim() == "BROUILLON")))
+            .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed) && (f.Statut != null && (f.Statut.Trim() == StatutsPlan.Actif || f.Statut.Trim() == StatutsPlan.Brouillon)))
             .ToListAsync();
 
         // Une seule entrée par codeReference : priorité ACTIF, puis version la plus élevée
         return formulaires
             .GroupBy(f => f.CodeReference?.Trim() ?? string.Empty)
             .Select(g => g
-                .OrderBy(f => f.Statut!.Trim() == "ACTIF" ? 0 : 1)
+                .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1)
                 .ThenByDescending(f => f.Version)
                 .First())
             .OrderBy(f => f.Designation)

@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.PlanAssemblage;
 using SopalTrace.Application.Interfaces;
@@ -36,7 +37,7 @@ public class PlanAssemblageController : ControllerBase
     [ProducesResponseType(409)]
     public async Task<IActionResult> Create([FromBody] CreatePlanAssRequestDto req)
     {
-        var id = await _service.CreerPlanAssemblageAsync(req with { CreePar = req.CreePar ?? "ADMIN" });
+        var id = await _service.CreerPlanAssemblageAsync(req with { CreePar = req.CreePar ?? RolesApp.Admin });
         return Ok(new { success = true, id });
     }
 

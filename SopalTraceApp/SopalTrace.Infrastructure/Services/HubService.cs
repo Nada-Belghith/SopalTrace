@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.Hub;
 using SopalTrace.Application.Interfaces;
@@ -26,7 +27,7 @@ public class HubService : IHubService
         var fabModeles = await _context.ModeleFabricationEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Where(m => m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive || m.Statut == StatutsPlan.Brouillon)
             .Select(m => new HubModeleDto(
                 m.Id,
                 "FAB",
@@ -38,7 +39,7 @@ public class HubService : IHubService
                 m.OperationCode ?? "N/A",
                 "N/A",
                 m.Version,
-                m.Statut ?? "ACTIF",
+                m.Statut ?? StatutsPlan.Actif,
                 "Gabarit de fabrication générique.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
                 m.Formulaire != null ? m.Formulaire.Version : (int?)null))
@@ -49,7 +50,7 @@ public class HubService : IHubService
         var assModeles = await _context.PlanAssemblageEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Where(m => m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive || m.Statut == StatutsPlan.Brouillon)
             .Select(m => new HubModeleDto(
                 m.Id,
                 "ASS",
@@ -61,7 +62,7 @@ public class HubService : IHubService
                 m.OperationCode ?? "N/A",
                 m.PosteCode ?? "N/A",
                 m.Version,
-                m.Statut ?? "ACTIF",
+                m.Statut ?? StatutsPlan.Actif,
                 "Plan Maître d'assemblage.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
                 m.Formulaire != null ? m.Formulaire.Version : (int?)null))
@@ -72,7 +73,7 @@ public class HubService : IHubService
         var vmModeles = await _context.PlanVerifMachineEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Where(m => m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive || m.Statut == StatutsPlan.Brouillon)
             .Select(m => new HubModeleDto(
                 m.Id,
                 "VM",
@@ -82,7 +83,7 @@ public class HubService : IHubService
                 "VÉRIF",
                 m.MachineCode ?? "N/A",
                 m.Version ?? 1,
-                m.Statut ?? "ACTIF",
+                m.Statut ?? StatutsPlan.Actif,
                 "Vérification des étalons machines.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
                 m.Formulaire != null ? m.Formulaire.Version : (int?)null))
@@ -101,7 +102,7 @@ public class HubService : IHubService
                 "NQA",
                 n.ValeurNqa.ToString(),
                 m.Version,
-                m.Statut ?? "ACTIF",
+                m.Statut ?? StatutsPlan.Actif,
                 "Niveau de contrôle: " + m.NiveauControle,
                 null,
                 null))
@@ -112,7 +113,7 @@ public class HubService : IHubService
         var pfModeles = await _context.PlanProduitFiniEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Where(m => m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive || m.Statut == StatutsPlan.Brouillon)
             .Select(m => new HubModeleDto(
                 m.Id,
                 "PF",
@@ -122,7 +123,7 @@ public class HubService : IHubService
                 "CONTROLE FINAL",
                 "N/A",
                 m.Version,
-                m.Statut ?? "ACTIF",
+                m.Statut ?? StatutsPlan.Actif,
                 "Gabarit de controle final.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
                 m.Formulaire != null ? m.Formulaire.Version : (int?)null))
@@ -133,7 +134,7 @@ public class HubService : IHubService
         var ncModeles = await _context.PlanControlePosteEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Where(m => m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive || m.Statut == StatutsPlan.Brouillon)
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RC",
@@ -154,7 +155,7 @@ public class HubService : IHubService
         var rccfModeles = await _context.PlanResultatControleCfEntetes
             .AsNoTracking()
             .Include(m => m.Formulaire)
-            .Where(m => m.Statut == "ACTIF" || m.Statut == "ARCHIVE" || m.Statut == "BROUILLON")
+            .Where(m => m.Statut == StatutsPlan.Actif || m.Statut == StatutsPlan.Archive || m.Statut == StatutsPlan.Brouillon)
             .Select(m => new HubModeleDto(
                 m.Id,
                 "RCCF",
@@ -179,29 +180,26 @@ public class HubService : IHubService
         var result = new List<HubPlanDto>();
 
         // 1. PLANS DE FABRICATION PAR ARTICLE
-        var fabPlans = await _context.PlanFabricationEntetes
-            .AsNoTracking()
-            .Include(p => p.Formulaire)
-            .Include(p => p.CodeArticleSageNavigation)
-                .ThenInclude(a => a.ProduitFini)
-            .Where(p => p.Statut == "ACTIF" || p.Statut == "ARCHIVE" || p.Statut == "BROUILLON")
-            .Select(p => new HubPlanDto(
-                p.Id,
-                "FAB",
-                p.Nom ?? p.Designation ?? "Plan de Fabrication",
-                p.CodeArticleSageNavigation != null && p.CodeArticleSageNavigation.ProduitFini != null ? p.CodeArticleSageNavigation.ProduitFini.FamilleProduitFiniCode : (p.CodeArticleSageNavigation != null ? p.CodeArticleSageNavigation.NatureArticleCode : "SF"),
-                p.Designation ?? "N/A",
-                p.OperationCode ?? "N/A",
-                p.OperationCode ?? "N/A",
-                p.Version,
-                p.Statut ?? "ACTIF",
-                "Plan de contrôle instancié par article",
-                p.CodeArticleSage,
-                "FABRICATION",
-                p.Formulaire != null ? p.Formulaire.CodeReference : null,
-                p.Formulaire != null ? p.Formulaire.Version : (int?)null
-            ))
-            .ToListAsync();
+        var fabPlans = await (from p in _context.PlanFabricationEntetes.AsNoTracking().Include(p => p.Formulaire)
+                              join a in _context.Articles.Include(art => art.ProduitFini) on p.CodeArticleSageVersionne equals a.CodeArticle into pa
+                              from a in pa.DefaultIfEmpty()
+                              where p.Statut == StatutsPlan.Actif || p.Statut == StatutsPlan.Archive || p.Statut == StatutsPlan.Brouillon
+                              select new HubPlanDto(
+                                  p.Id,
+                                  "FAB",
+                                  p.Nom ?? p.Designation ?? "Plan de Fabrication",
+                                  a != null && a.ProduitFini != null ? a.ProduitFini.FamilleProduitFiniCode : (a != null ? a.NatureArticleCode : "SF"),
+                                  p.Designation ?? "N/A",
+                                  p.OperationCode ?? "N/A",
+                                  p.OperationCode ?? "N/A",
+                                  p.Version,
+                                  p.Statut ?? StatutsPlan.Actif,
+                                  "Plan de contrôle instancié par article",
+                                  p.CodeArticleSageVersionne,
+                                  "FABRICATION",
+                                  p.Formulaire != null ? p.Formulaire.CodeReference : null,
+                                  p.Formulaire != null ? p.Formulaire.Version : (int?)null
+                              )).ToListAsync();
         result.AddRange(fabPlans);
 
         return result;
@@ -215,7 +213,7 @@ public class HubService : IHubService
         var prcStructures = await _context.RefFormulaires
             .AsNoTracking()
             .Where(f => f.Role == "EN_COURS_DE_FABRICATION")
-            .Where(f => f.Statut == "ACTIF" || f.Statut == "ARCHIVE")
+            .Where(f => f.Statut == StatutsPlan.Actif || f.Statut == StatutsPlan.Archive)
             .Select(f => new HubPlanDto(
                 f.Id,
                 "PRC_STRUCT",
@@ -248,8 +246,8 @@ public class HubService : IHubService
                 var m = await _context.ModeleFabricationEntetes.FindAsync(id);
                 if (m is null) return false;
                 m.Statut = statut;
-                //m.ArchiveLe = statut == "ARCHIVE" ? DateTime.UtcNow : null;
-                //m.ArchivePar = statut == "ARCHIVE" ? "ADMIN" : null;
+                //m.ArchiveLe = statut == StatutsPlan.Archive ? DateTime.UtcNow : null;
+                //m.ArchivePar = statut == StatutsPlan.Archive ? RolesApp.Admin : null;
                 break;
             }
             case "ASS":
@@ -258,7 +256,7 @@ public class HubService : IHubService
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
-                //m.ModifiePar = "ADMIN";
+                //m.ModifiePar = RolesApp.Admin;
                 break;
             }
             case "VM":
@@ -267,7 +265,7 @@ public class HubService : IHubService
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
-                //m.ModifiePar = "ADMIN";
+                //m.ModifiePar = RolesApp.Admin;
                 break;
             }
             case "ECH":
@@ -283,7 +281,7 @@ public class HubService : IHubService
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
-                //m.ModifiePar = "ADMIN";
+                //m.ModifiePar = RolesApp.Admin;
                 break;
             }
             case "RC":
@@ -292,7 +290,7 @@ public class HubService : IHubService
                 if (m is null) return false;
                 m.Statut = statut;
                 //m.ModifieLe = DateTime.UtcNow;
-                //m.ModifiePar = "ADMIN";
+                //m.ModifiePar = RolesApp.Admin;
                 break;
             }
             case "RCCF":
@@ -322,7 +320,7 @@ public class HubService : IHubService
                     var assPlan = await _context.PlanAssemblageEntetes.FindAsync(id);
                     if (assPlan is null) return false;
 
-                    if (statut == "ARCHIVE" && assPlan.Statut == "BROUILLON")
+                    if (statut == StatutsPlan.Archive && assPlan.Statut == StatutsPlan.Brouillon)
                     {
                         return false;
                     }
@@ -331,14 +329,14 @@ public class HubService : IHubService
                     break;
                 }
 
-                if (statut == "ARCHIVE" && p.Statut == "BROUILLON")
+                if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
                 {
                     return false;
                 }
 
                 p.Statut = statut;
                 //p.ModifieLe = DateTime.UtcNow;
-                //p.ModifiePar = "ADMIN";
+                //p.ModifiePar = RolesApp.Admin;
                 break;
             }
             default:
@@ -368,7 +366,7 @@ public class HubService : IHubService
                         .FirstOrDefaultAsync(p => p.Id == id);
 
                     if (assPlan is null) return false;
-                    if (assPlan.Statut != "BROUILLON") return false;
+                    if (assPlan.Statut != StatutsPlan.Brouillon) return false;
 
                     foreach (var section in assPlan.PlanAssemblageSections)
                     {
@@ -382,7 +380,7 @@ public class HubService : IHubService
                     return true;
                 }
 
-                if (plan.Statut != "BROUILLON") return false;
+                if (plan.Statut != StatutsPlan.Brouillon) return false;
 
                 // Suppression complète : sections + lignes + entête
                 foreach (var section in plan.PlanFabricationSections)
@@ -403,7 +401,7 @@ public class HubService : IHubService
                     .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null) return false;
-                if (plan.Statut != "BROUILLON") return false;
+                if (plan.Statut != StatutsPlan.Brouillon) return false;
 
                 _context.PlanControlePosteLignes.RemoveRange(plan.PlanControlePosteLignes);
                 _context.PlanControlePosteEntetes.Remove(plan);
@@ -419,7 +417,7 @@ public class HubService : IHubService
                     .FirstOrDefaultAsync(p => p.Id == id);
 
                 if (plan is null) return false;
-                if (plan.Statut != "BROUILLON") return false;
+                if (plan.Statut != StatutsPlan.Brouillon) return false;
 
                 foreach (var section in plan.PlanResultatControleCfSections)
                 {

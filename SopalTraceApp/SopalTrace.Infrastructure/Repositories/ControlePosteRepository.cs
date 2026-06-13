@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
@@ -20,28 +21,28 @@ public class ControlePosteRepository : IControlePosteRepository
     {
         return await _context.PlanControlePosteEntetes.AnyAsync(p =>
             p.PosteCode == posteCode &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<bool> ExistePlanActifParFormulaireAsync(Guid formulaireId)
     {
         return await _context.PlanControlePosteEntetes.AnyAsync(p =>
             p.FormulaireId == formulaireId &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanControlePosteEntete?> GetPlanActifAsync(string posteCode)
     {
         return await _context.PlanControlePosteEntetes.FirstOrDefaultAsync(p =>
             p.PosteCode == posteCode &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanControlePosteEntete?> GetPlanActifParFormulaireAsync(Guid formulaireId)
     {
         return await _context.PlanControlePosteEntetes.FirstOrDefaultAsync(p =>
             p.FormulaireId == formulaireId &&
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<List<PlanControlePosteEntete>> GetTousLesPlansAsync()

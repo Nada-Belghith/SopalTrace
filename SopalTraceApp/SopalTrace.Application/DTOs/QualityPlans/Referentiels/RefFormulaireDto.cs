@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System;
 
 #nullable enable
@@ -19,13 +20,13 @@ public class RefFormulaireDto
 public class UpdateRefFormulaireDto
 {
     public string? ConfigurationStructureJson { get; set; }
-    public string ModifiePar { get; set; } = "ADMIN";
+    public string ModifiePar { get; set; } = RolesApp.Admin;
 }
 
 public class NouvelleVersionRefFormulaireDto
 {
     public Guid AncienId { get; set; }
     public string? ConfigurationStructureJson { get; set; }
-    public string ModifiePar { get; set; } = "ADMIN";
+    public string ModifiePar { get; set; } = RolesApp.Admin;
     public string MotifModification { get; set; } = string.Empty;
 }

@@ -90,7 +90,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         
         if (planActif != null)
         {
-            planActif.Statut = "ARCHIVE";
+            planActif.Statut = StatutsPlan.Archive;
             //planActif.ModifieLe = DateTime.UtcNow;
             //planActif.ModifiePar = creePar;
             
@@ -105,7 +105,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
             .Max(p => (int?)p.Version);
         
         nouveauPlan.Version = maxVersionExistante.HasValue ? maxVersionExistante.Value + 1 : (request.VersionInitiale ?? 0);
-        nouveauPlan.Statut = "ACTIF";
+        nouveauPlan.Statut = StatutsPlan.Actif;
 
         if (!string.IsNullOrEmpty(request.ConfigurationColonnesJson))
         {
@@ -155,13 +155,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         if (planActuel == null) throw new Exception("Plan introuvable.");
 
         // 🛡️ SÉCURITÉ : Si l'utilisateur clique sur "Sauvegarder" sur un plan DÉJÀ archivé
-        if (planActuel.Statut == "ARCHIVE")
+        if (planActuel.Statut == StatutsPlan.Archive)
         {
             throw new Exception("Ce plan a déjà été archivé. Veuillez recharger la page pour voir la dernière version active.");
         }
 
         // 2. Archiver l'ancien plan
-        planActuel.Statut = "ARCHIVE";
+        planActuel.Statut = StatutsPlan.Archive;
         //planActuel.ModifiePar = modifiePar;
         //planActuel.ModifieLe = DateTime.UtcNow;
 
@@ -218,7 +218,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         if (ancienPlan == null) throw new Exception("Plan introuvable.");
 
         // 1. Archiver l'ancien
-        ancienPlan.Statut = "ARCHIVE";
+        ancienPlan.Statut = StatutsPlan.Archive;
         //ancienPlan.ModifieLe = DateTime.UtcNow;
         //ancien//////plan.ModifiePar = request.ModifiePar;
 
@@ -264,7 +264,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         var plan = await _unitOfWork.PlanVerifMachineRepository.GetPlanAvecRelationsAsync(planId);
         if (plan == null) throw new Exception("Plan introuvable.");
 
-        plan.Statut = "ARCHIVE";
+        plan.Statut = StatutsPlan.Archive;
         ////////plan.ModifiePar = modifiePar;
         ////plan.ModifieLe = DateTime.UtcNow;
 
@@ -345,7 +345,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         if (plan == null) return false;
 
         // Protection ISO 9001 : Si le plan est actif, on ne doit pas le modifier directement, on doit versionner.
-        if (plan.Statut == "ACTIF") 
+        if (plan.Statut == StatutsPlan.Actif) 
             throw new Exception("Interdit: Un plan ACTIF ne peut pas être modifié directement. Veuillez créer une nouvelle version.");
 
         foreach (var lDto in lignesModifiees)

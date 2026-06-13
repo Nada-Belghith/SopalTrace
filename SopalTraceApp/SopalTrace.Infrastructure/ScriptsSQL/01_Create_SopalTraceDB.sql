@@ -361,6 +361,9 @@ CREATE TABLE dbo.Ref_Formulaire (
     Version INT NOT NULL DEFAULT 0,
     Statut VARCHAR(20) NOT NULL DEFAULT 'ACTIF',
     CreeLe DATETIME NOT NULL DEFAULT GETDATE(),
+    CreePar VARCHAR(20) NULL,
+    ModifiePar VARCHAR(20) NULL,
+    ModifieLe DATETIME NULL,
     Role VARCHAR(50) NULL,
     ConfigurationStructureJson NVARCHAR(MAX) NULL,
     UNIQUE (CodeReference, Version)
@@ -494,7 +497,7 @@ GO
 CREATE TABLE dbo.Plan_Fabrication_Entete (
     Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     ModeleSourceId UNIQUEIDENTIFIER REFERENCES dbo.Modele_Fabrication_Entete(Id),
-    CodeArticleSage VARCHAR(30) NOT NULL REFERENCES dbo.Article(CodeArticle),
+    CodeArticleSageVersionne VARCHAR(30) NOT NULL,
     Designation VARCHAR(200),
     Nom VARCHAR(150) NOT NULL,
     Version INT NOT NULL DEFAULT 0,
@@ -1014,7 +1017,7 @@ CREATE INDEX IX_ProduitFini_FamilleCode ON dbo.ProduitFini(FamilleProduitFiniCod
 CREATE INDEX IX_BOMD_Parent ON dbo.BOMD_Nomenclature(ArticleParent);
 CREATE INDEX IX_BOMD_Composant ON dbo.BOMD_Nomenclature(CodeComposant);
 CREATE INDEX IX_MFGHEAD_CodeArticle ON dbo.MFGHEAD_OrdreFabrication(CodeArticle);
-CREATE INDEX IX_PlanFab_CodeArticle ON dbo.Plan_Fabrication_Entete(CodeArticleSage);
+CREATE INDEX IX_PlanFab_CodeArticleVersionne ON dbo.Plan_Fabrication_Entete(CodeArticleSageVersionne);
 CREATE INDEX IX_PlanFab_Statut ON dbo.Plan_Fabrication_Entete(Statut);
 CREATE INDEX IX_Machine_Operation ON dbo.Machine(OperationCode);
 GO

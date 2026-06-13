@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
@@ -52,7 +53,7 @@ public class RefFormulaireService : IRefFormulaireService
             if (oldForm == null) throw new InvalidOperationException("Ancien formulaire introuvable.");
 
             // Archiver l'ancien
-            oldForm.Statut = "ARCHIVE";
+            oldForm.Statut = StatutsPlan.Archive;
             await _unitOfWork.RefFormulaireRepository.UpdateAsync(oldForm);
 
             // Créer le nouveau
@@ -62,7 +63,7 @@ public class RefFormulaireService : IRefFormulaireService
                 CodeReference = oldForm.CodeReference,
                 Designation = oldForm.Designation,
                 Version = oldForm.Version + 1,
-                Statut = "ACTIF",
+                Statut = StatutsPlan.Actif,
                 CreeLe = DateTime.UtcNow,
                 Role = oldForm.Role,
                 ConfigurationStructureJson = dto.ConfigurationStructureJson ?? oldForm.ConfigurationStructureJson

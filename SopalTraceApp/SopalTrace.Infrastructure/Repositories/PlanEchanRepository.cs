@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
@@ -19,13 +20,13 @@ public class PlanEchanRepository : IPlanEchanRepository
     public async Task<bool> ExistePlanActifAsync()
     {
         return await _context.PlanEchantillonnageEntetes.AnyAsync(p =>
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanEchantillonnageEntete?> GetPlanActifAsync()
     {
         return await _context.PlanEchantillonnageEntetes.FirstOrDefaultAsync(p =>
-            p.Statut == "ACTIF");
+            p.Statut == StatutsPlan.Actif);
     }
 
     public async Task<PlanEchantillonnageEntete?> GetPlanAvecRelationsAsync(Guid planId)
