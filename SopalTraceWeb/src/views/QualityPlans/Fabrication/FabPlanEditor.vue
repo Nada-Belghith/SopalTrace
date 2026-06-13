@@ -284,14 +284,16 @@
   const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
 
   const codeArticleBase = ref('');
+
+  watch(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value, (newCode) => {
+    if (!codeArticleBase.value && newCode) {
+      const match = newCode.match(/^(.*?)(\.\d+)?$/);
+      codeArticleBase.value = match ? match[1] : newCode;
+    }
+  }, { immediate: true });
+
   const codeArticleSuffix = computed({
     get: () => {
-      const fullCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value || '';
-      if (!codeArticleBase.value) {
-        // Init base code on first load
-        const match = fullCode.match(/^(.*?)(\.\d+)?$/);
-        codeArticleBase.value = match ? match[1] : fullCode;
-      }
       return plan.value?.codeArticleSage?.substring(codeArticleBase.value.length) || '';
     },
     set: (val) => {
