@@ -11,6 +11,8 @@ public partial class ModeleFabricationLigne
 
     public int OrdreAffiche { get; set; }
 
+    public Guid? CaracteristiqueId { get; set; }
+
     public Guid? TypeCaracteristiqueId { get; set; }
 
     public string? LibelleAffiche { get; set; }
@@ -33,9 +35,19 @@ public partial class ModeleFabricationLigne
 
     public string? Observations { get; set; }
 
-    public string? ColonnesSupplementaires { get; set; }
-
     public string? ImageBase64 { get; set; }
+
+    public string? Libre1 { get; set; }
+
+    public string? Libre2 { get; set; }
+
+    public string? Libre3 { get; set; }
+
+    public string? Libre4 { get; set; }
+
+    public string? Libre5 { get; set; }
+
+    public virtual RefCaracteristique? Caracteristique { get; set; }
 
     public virtual Instrument? InstrumentCodeNavigation { get; set; }
 

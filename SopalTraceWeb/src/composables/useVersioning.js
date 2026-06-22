@@ -1,6 +1,6 @@
-import { fabModeleService } from '@/services/fabModeleService';
-import { assModeleService } from '@/services/assModeleService';
-import { fabPlanService } from '@/services/fabPlanService';
+import { documentService as fabModeleService } from '@/services/documentService';
+import { documentService as assModeleService } from '@/services/documentService';
+import { documentService as fabPlanService } from '@/services/documentService';
 
 export function useFabModeleVersioning() {
   const creerNouvelleVersionModele = (payload) => fabModeleService.newModeleVersion(payload);

@@ -201,8 +201,8 @@
   import { useToast } from 'primevue/usetoast';
   import { useConfirm } from 'primevue/useconfirm';
 
-  import { fabPlanService } from '@/services/fabPlanService';
-  import { fabModeleService } from '@/services/fabModeleService';
+  import { documentService as fabPlanService } from '@/services/documentService';
+  import { documentService as fabModeleService } from '@/services/documentService';
   import { useFabPlanVersioning } from '@/composables/useVersioning';
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
@@ -309,16 +309,14 @@
 
   const planConfigurationColonnes = computed(() => {
     if (store.effectiveConfigurationColonnes?.length) return store.effectiveConfigurationColonnes;
-    if (plan.value?.configurationColonnesJson) {
-      return typeof plan.value.configurationColonnesJson === 'string'
-        ? JSON.parse(plan.value.configurationColonnesJson)
-        : plan.value.configurationColonnesJson;
+    if (plan.value?.colonneDefs) {
+      return plan.value.colonneDefs;
     }
     return [];
   });
 
   const hasValidStructure = computed(() => {
-    if (plan.value?.configurationColonnesJson && plan.value?.configurationColonnesJson.length > 0) return true;
+    if (plan.value?.colonneDefs && plan.value?.colonneDefs.length > 0) return true;
     const refs = store.formulairesReferences || [];
     if (refs.length === 0) return false;
     return refs.some(r => {
@@ -331,10 +329,8 @@
     const code = codeRef || wizard.refFormulaireCodeReference?.value || plan.value?.codeReferenceFormulaire || 'PRC';
     
     if (fromExistingData) {
-      if (fromExistingData.configurationColonnesJson) {
-        store.entete.configurationColonnes = typeof fromExistingData.configurationColonnesJson === 'string'
-          ? JSON.parse(fromExistingData.configurationColonnesJson)
-          : fromExistingData.configurationColonnesJson;
+      if (fromExistingData.colonneDefs) {
+        store.entete.configurationColonnes = fromExistingData.colonneDefs;
       } else {
         store.entete.configurationColonnes = [];
       }
@@ -344,7 +340,7 @@
     }
 
     if (plan.value) {
-      plan.value.configurationColonnesJson = store.effectiveConfigurationColonnes;
+      plan.value.colonneDefs = store.effectiveConfigurationColonnes;
       plan.value.codeReferenceFormulaire = code;
     }
   };
@@ -448,7 +444,7 @@
 
   const preparerNouveauBrouillon = async (modeleId, codeArticle) => {
     const modRes = await fabModeleService.getModeleById(modeleId);
-    const data = modRes.data.data;
+    const data = modRes?.data?.data || modRes?.data || modRes;
     plan.value = {
       statut: 'BROUILLON',
       codeArticleSage: codeArticle,
@@ -467,13 +463,14 @@
       posteCode: wizard.posteCode.value || null,
       designation: wizard.designationArticle.value,
       refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
+      colonneDefs: store.effectiveConfigurationColonnes,
       creePar: 'ADMIN_QUALITE',
       remarques: data.notes || '',
       legendeMoyens: data.legendeMoyens || ''
     };
     plan.value = {
       ...plan.value,
-      configurationColonnesJson: store.effectiveConfigurationColonnes,
+      colonneDefs: store.effectiveConfigurationColonnes,
       codeReferenceFormulaire: wizard.refFormulaireCodeReference?.value || 'PRC'
     };
     sections.value = mapModeleDataToSections(data);
@@ -488,7 +485,7 @@
     if (code && op && (!wizard.requiertPoste.value || poste)) {
       try {
         const res = await fabPlanService.verifierEtatPlan(code, null, op, poste);
-        const etat = res.data;
+        const etat = res?.data || res;
 
         if (etat.hasBrouillon) {
           confirm.require({
@@ -581,7 +578,7 @@
 
         // Clonage en MÉMOIRE
         const res = await fabPlanService.getPlanById(sourceId);
-        const data = res.data.data;
+        const data = res?.data?.data || res?.data || res;
         
         if (!data) throw new Error("Plan source introuvable.");
 
@@ -609,6 +606,7 @@
             operationCode: plan.value.operationCode,
             posteCode: plan.value.posteCode,
             refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
+            colonneDefs: store.effectiveConfigurationColonnes,
             creePar: 'ADMIN_QUALITE',
             sections: sections.value.map((s, idx) => ({
               ordreAffiche: idx + 1,
@@ -647,7 +645,7 @@
           version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
           operationCode: wizard.operationCode.value,
           posteCode: wizard.posteCode.value || null,
-          configurationColonnesJson: store.effectiveConfigurationColonnes,
+          colonneDefs: store.effectiveConfigurationColonnes,
           codeReferenceFormulaire: wizard.refFormulaireCodeReference?.value || 'PRC'
         };
         planCreationPayload.value = {
@@ -657,6 +655,7 @@
           posteCode: wizard.posteCode.value || null,
           designation: wizard.designationArticle.value,
           refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
+          colonneDefs: store.effectiveConfigurationColonnes,
           creePar: 'ADMIN_QUALITE'
         };
         sections.value = [];
@@ -718,155 +717,27 @@
     const file = event.target?.files?.[0];
     if (!file) return;
 
+    event.target.value = '';
     const formData = new FormData();
     formData.append('file', file);
     const configCols = store.effectiveConfigurationColonnes?.length
       ? store.effectiveConfigurationColonnes
-      : (plan.value?.configurationColonnesJson || []);
+      : (plan.value?.colonneDefs || []);
     if (configCols?.length) {
       formData.append('configurationColonnesJson', JSON.stringify(configCols));
     }
 
     try {
       wizard.isGenerating.value = true;
-      const response = await fabPlanService.importExcel(formData);
-      const parsedData = response.data.data;
+      const parsedData = await store.importerDepuisExcel(file);
 
       if (parsedData) {
-        if (parsedData.remarques && parsedData.remarques.trim() !== '') {
-          remarques.value = (remarques.value ? remarques.value + '\n' : '') + parsedData.remarques.trim();
+        if (store.entete.notes && store.entete.notes.trim() !== '') {
+          remarques.value = store.entete.notes;
         }
 
-        // ✅ Recharger les dictionnaires AVANT le mapping pour que les nouvelles
-        // periodicites/règles créées par le backend soient disponibles localement
-        await store.fetchDictionnaires();
-
         if (parsedData.sections) {
-          const mappedSections = parsedData.sections.map((sec, idx) => {
-            // --- RÉSOLUTION INTELLIGENTE DE LA FRÉQUENCE (même logique que mapModeleDataToSections) ---
-            let modeFreq = 'SANS';
-            let regleEchantillonnageId = null;
-            let periodiciteId = sec.periodiciteId || null;
-            let freqNum = sec.freqNum || 1;
-            let typeVariable = sec.typeVariable || 'HEURE';
-            let freqHours = sec.freqHours || 1;
-
-            if (sec.frequenceLibelle) {
-              // Priorité 1 : Si le backend a déjà résolu le regleEchantillonnageId, on l'utilise
-              if (sec.regleEchantillonnageId) {
-                modeFreq = 'FIXE';
-                regleEchantillonnageId = sec.regleEchantillonnageId;
-              } else {
-                // Priorité 2 : Chercher par libellé exact dans la liste locale des RÈGLES
-                const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === sec.frequenceLibelle);
-                if (regMatch) {
-                  modeFreq = 'FIXE';
-                  regleEchantillonnageId = regMatch.id;
-                } else {
-                  // Priorité 3 : Parser la fréquence variable
-                  modeFreq = 'VARIABLE';
-                  const libelle = sec.frequenceLibelle.toLowerCase();
-
-                  if (/100\s*%/.test(libelle) && libelle.includes('pièce')) {
-                    // ✅ Cas spécial "100% des pièces/h" = toutes les pièces/heure
-                    // L'UI représente cela par freqNum=100, freqHours=1 (convention interne)
-                    typeVariable = 'HEURE';
-                    freqNum = 100;
-                    freqHours = 1;
-                  } else if (libelle.includes('pièce') && (libelle.includes('heure') || libelle.includes('/h'))) {
-                    typeVariable = 'HEURE';
-                    // ✅ .*? permet de gérer "100% des pièces/h" (texte entre nombre et "pièce")
-                    const match = libelle.match(/(\d+)(?:%)?.*?(?:pièce|piece).*?\/\s*(?:(\d+)\s*)?(?:heure|h\b)/);
-                    if (match) {
-                      freqNum = parseInt(match[1]);
-                      freqHours = match[2] ? parseInt(match[2]) : 1;
-                    } else {
-                      const pieceMatch = libelle.match(/(\d+)(?:%)?.*?(?:pièce|piece)/);
-                      if (pieceMatch) {
-                        freqNum = parseInt(pieceMatch[1]);
-                        freqHours = 1;
-                      }
-                    }
-                  } else if (libelle.includes('échantillon')) {
-                    typeVariable = 'ECHANTILLON';
-                    const match = libelle.match(/(\d+)\s*échantillon/);
-                    if (match) freqNum = parseInt(match[1]);
-                  } else if (libelle.includes('série')) {
-                    typeVariable = 'SERIE';
-                    const serieMatch = libelle.match(/série de (\d+) pièces?/);
-                    if (serieMatch) freqNum = parseInt(serieMatch[1]);
-                  } else if (libelle.includes('lot') || libelle.includes('of')) {
-                    typeVariable = 'SERIE';
-                    const lotMatch = libelle.match(/(\d+)/);
-                    if (lotMatch) freqNum = parseInt(lotMatch[1]);
-                  }
-
-                  // ✅ Si aucun chiffre trouvé (règle complexe comme "première et dernière pièce"),
-                  // on remet freqNum à 0 pour indiquer que c'est un libellé texte libre
-                  if (!freqNum || freqNum === 1 && !sec.freqNum) {
-                    // Vérifier si backend a renvoyé freqNum=0 explicitement
-                    if (sec.freqNum === 0 || sec.freqNum === undefined) {
-                      freqNum = 0;
-                    }
-                  }
-                }
-              }
-            } else if (sec.modeFreq) {
-              modeFreq = sec.modeFreq;
-            }
-
-            // --- RÉSOLUTION INTELLIGENTE DE LA NATURE DE SECTION ---
-            let typeSectionId = sec.typeSectionId || '';
-            if (!typeSectionId && (sec.nom || sec.libelleSection)) {
-              let secLib = (sec.nom || sec.libelleSection || '').trim().toLowerCase();
-              const cleanLib = secLib.split(' (')[0].replace("caractéristiques à contrôler ", "").trim();
-              
-              const match = store.typesSection.find(t => {
-                const tLib = (t.libelle || '').trim().toLowerCase();
-                return tLib === cleanLib;
-              });
-
-              if (match) typeSectionId = match.id;
-            }
-
-            return {
-              id: sec.id || crypto.randomUUID(),
-              isFromDb: false,
-              ordreAffiche: idx + 1,
-              typeSectionId: typeSectionId || null,
-              libelleSection: sec.nom || sec.libelleSection || '',
-              nom: nettoyerNomSection(sec.nom || sec.libelleSection || '', typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
-              notes: sec.notes || '',
-              modeFreq,
-              frequenceLibelle: sec.frequenceLibelle || '',
-              periodiciteId: periodiciteId || null,
-              regleEchantillonnageId: regleEchantillonnageId || null,
-              freqNum,
-              typeVariable,
-              freqHours,
-              isNewFreq: false,
-              lignes: (sec.lignes || []).map((lig, lIdx) => ({
-                id: lig.id || crypto.randomUUID(),
-                isFromDb: false,
-                modeleLigneSourceId: lig.modeleLigneSourceId || null,
-                ordreAffiche: lig.ordreAffiche || lIdx + 1,
-                typeCaracteristiqueId: lig.typeCaracteristiqueId || null,
-                typeControleId: lig.typeControleId || null,
-                moyenControleId: lig.moyenControleId || null,
-                moyenTexteLibre: lig.moyenTexteLibre || '',
-                instrumentCode: lig.instrumentCode || '',
-                unite: lig.unite || '',
-                limiteSpecTexte: lig.limiteSpecTexte || '',
-                instruction: lig.instruction || '',
-                observations: lig.observations || '',
-                estCritique: lig.estCritique || false,
-                libelleAffiche: lig.libelleAffiche || '',
-                imageBase64: lig.imageBase64 || null,
-                valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
-              }))
-            };
-          });
-
+          const mappedSections = JSON.parse(JSON.stringify(store.sections));
           sections.value = mappedSections;
 
           // Mise à jour du wizard pour que le header affiche les bonnes infos
@@ -929,7 +800,6 @@
       toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la lecture du fichier.', life: 5000 });
     } finally {
       wizard.isGenerating.value = false;
-      event.target.value = ''; // Reset file input
     }
   };
 
@@ -1017,7 +887,7 @@
           estCritique: lig.estCritique,
           libelleAffiche: lig.libelleAffiche,
           imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
+          valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : (lig.valeursColonnesSpecifiques || {})
         }))
       };
     });
@@ -1033,7 +903,7 @@
         data = idOrData;
       } else {
         const res = await fabPlanService.getPlanById(idOrData);
-        data = res.data.data;
+        data = res?.data?.data || res?.data || res;
       }
 
       if (!isClone) {
@@ -1141,7 +1011,7 @@
             estCritique: lig.estCritique,
             libelleAffiche: lig.libelleAffiche,
             imageBase64: lig.imageBase64 || null,
-            valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
+            valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : (lig.valeursColonnesSpecifiques || {})
           }))
         };
       });
@@ -1285,7 +1155,13 @@
             estCritique: l.estCritique || false,
             libelleAffiche: (l.libelleAffiche || nomCaract).trim(),
             imageBase64: l.imageBase64 || null,
-            colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 ? JSON.stringify(l.valeursColonnesSpecifiques) : null
+            extraColonnes: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 
+              ? Object.entries(l.valeursColonnesSpecifiques).map(([key, val], idx) => ({
+                  cleColonne: key,
+                  valeurColonne: val,
+                  ordreAffiche: idx + 1
+                }))
+              : []
           };
         })
       };
@@ -1308,7 +1184,7 @@
           planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
         const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
-        currentPlanId = instRes.data.planId;
+        currentPlanId = instRes.data.planId || instRes.data.id;
         planId.value = currentPlanId;
         aEteCreePendantCetteSession.value = true;
         const newPlanRes = await fabPlanService.getPlanById(currentPlanId);
@@ -1325,10 +1201,14 @@
       });
 
       const payload = construirePayloadService(true);
-
       const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
 
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, false, finalNom, 'Admin', plan.value?.codeArticleSage);
+      const payloadData = {
+        sections: payload,
+        colonneDefs: planConfigurationColonnes.value
+      };
+
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, false, finalNom, 'Admin', plan.value?.codeArticleSage);
 
       if (afficherToast) {
         toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
@@ -1351,7 +1231,7 @@
           planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
         const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
-        currentPlanId = instRes.data.planId;
+        currentPlanId = instRes.data.planId || instRes.data.id;
         planId.value = currentPlanId;
         router.replace(`/dev/fab/plans/editer/${currentPlanId}`);
 
@@ -1381,10 +1261,14 @@
       );
 
       const payload = construirePayloadService(false);
-
       const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
 
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payload, legendeMoyens.value, remarques.value, true, finalNom, 'Admin', plan.value?.codeArticleSage);
+      const payloadData = {
+        sections: payload,
+        colonneDefs: planConfigurationColonnes.value
+      };
+
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, true, finalNom, 'Admin', plan.value?.codeArticleSage);
 
       toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
 

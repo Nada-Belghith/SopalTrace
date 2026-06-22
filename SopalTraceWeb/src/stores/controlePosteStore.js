@@ -62,6 +62,20 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
   };
 
   const buildPayload = () => {
+    // Build the lignes for the single section
+    const lignesDtos = lignes.value
+      .filter(l => l.machineCode || l.risqueDefautId || l._libelleDefautBrut)
+      .map((l, idx) => ({
+        Id: l.id || undefined,
+        // Architecture: MachineCodeCtrlPoste is the correct field for CTRL_POSTE machine
+        MachineCodeCtrlPoste: l.machineCode || null,
+        MachineCode: null,
+        RisqueDefautId: l.risqueDefautId || null,
+        // LibelleAffiche stores the defaut designation text
+        LibelleAffiche: resoudreLibelleDefaut(l) || null,
+        OrdreAffiche: idx + 1
+      }));
+
     return {
       PosteCode: entete.value.posteCode,
       Nom: entete.value.nom,
@@ -69,18 +83,17 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
       LegendeMoyens: entete.value.legendeMoyens || '',
       ConfigurationColonnesJson: JSON.stringify(entete.value.configurationColonnes),
       // Transmettre FormulaireId ET CodeReference pour éviter un lookup EF Core côté backend
-      // (le lookup causait un conflit de concurrence car le même enregistrement était tracké deux fois)
       FormulaireId: entete.value.formulaireId || null,
-      FormulaireCodeReference: entete.value.formulaireCodeReference || null,
+      RefFormulaireCodeReference: entete.value.formulaireCodeReference || null,
       // Inclure versionInitiale seulement lors de la création (pas d'édition)
       VersionInitiale: (!entete.value.id && entete.value.versionInitiale != null) ? entete.value.versionInitiale : undefined,
-      Lignes: lignes.value.map((l, idx) => ({
-        Id: l.id,
-        MachineCode: l.machineCode,
-        RisqueDefautId: l.risqueDefautId,
-        LibelleDefaut: resoudreLibelleDefaut(l),
-        OrdreAffiche: idx + 1
-      }))
+      // CTRL_POSTE stores lines in a single unnamed section
+      Sections: [{
+        Id: entete.value.sectionId || undefined,
+        OrdreAffiche: 1,
+        LibelleSection: 'Lignes de Contrôle',
+        Lignes: lignesDtos
+      }]
     };
   };
 
@@ -130,11 +143,16 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
     isLoading.value = true;
     entete.value.isModeleTemplate = false;
     entete.value.formulaireId = null;
-    
+
     try {
       const res = await controlePosteService.getControlePoste(id);
-      const data = res.data.data;
-      
+      // documentService.getById returns response.data (the DTO directly),
+      // controlePosteService wraps it as { data: DTO }, so we read res.data (not res.data.data)
+      const data = res.data;
+
+      if (!data || !data.id) throw new Error('Réponse vide du serveur');
+
+      // Parse configuration des colonnes/équipes
       let configColonnes = {
         equipes: [
           { nom: 'Equipe 1', debut: 6, fin: 14 },
@@ -142,17 +160,27 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
         ],
         customCols: []
       };
-      
+
       if (data.configurationColonnesJson) {
         try {
-          configColonnes = JSON.parse(data.configurationColonnesJson);
-          if (!configColonnes.equipes) configColonnes.equipes = [];
-          if (!configColonnes.customCols) configColonnes.customCols = [];
+          const parsed = JSON.parse(data.configurationColonnesJson);
+          if (parsed.equipes && parsed.equipes.length > 0) {
+            configColonnes.equipes = parsed.equipes;
+          }
         } catch (e) {
           console.error('Failed to parse ConfigurationColonnesJson', e);
         }
       }
-      
+
+      if (data.colonneDefs && data.colonneDefs.length > 0) {
+        configColonnes.customCols = data.colonneDefs.map(c => ({
+          key: c.cleColonne,
+          label: c.labelAffiche || c.titre,
+          type: c.typeValeur || 'Texte',
+          insertAfter: c.insertAfter || 'col_designation'
+        }));
+      }
+
       entete.value = {
         id: data.id,
         posteCode: data.posteCode,
@@ -161,97 +189,55 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
         statut: data.statut,
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
-        formulaireId: null,
+        formulaireId: data.formulaireId || null,
+        formulaireCodeReference: data.formulaireCodeReference || null,
         isModeleTemplate: false,
-        configurationColonnes: configColonnes
+        configurationColonnes: configColonnes,
+        sectionId: (data.sections && data.sections.length > 0) ? data.sections[0].id : null
       };
-      lignes.value = (data.lignes || []).map(mapperLigneDepuisServeur);
+
+      // Use lignesControlePoste (new DTO field) to reload saved lines
+      const rawLignes = (data.lignesControlePoste || []).map(l => ({
+        _uid: genererUid(),
+        id: l.id,
+        machineCode: l.machineCode,
+        risqueDefautId: l.risqueDefautId,
+        _libelleDefautBrut: l.libelleDefaut,
+        ordreAffiche: l.ordreAffiche
+      }));
+
+      lignes.value = rawLignes.length > 0 ? rawLignes : [{
+        _uid: genererUid(),
+        id: null,
+        machineCode: '',
+        risqueDefautId: null,
+        ordreAffiche: 1
+      }];
+
       planInitialise.value = true;
       prendreSnapshot();
     } catch (e) {
-      // Fallback: Check if it's a generic template (RefFormulaire)
-      try {
-        const resForm = await apiClient.get(`/referentiels/modeles-generiques/${id}`);
-        const data = resForm.data.data;
-        
-        let configColonnes = { equipes: [], customCols: [] };
-        if (data.configurationStructureJson) {
-          try {
-            const parsed = JSON.parse(data.configurationStructureJson);
-            if (Array.isArray(parsed)) {
-              configColonnes.customCols = parsed;
-            } else {
-              configColonnes = parsed;
-              if (!configColonnes.equipes) configColonnes.equipes = [];
-              if (!configColonnes.customCols) configColonnes.customCols = [];
-            }
-          } catch (e) {
-            console.error("Erreur parsing configurationStructureJson", e);
-          }
-        }
-        
-        if (configColonnes.equipes.length === 0) {
-          configColonnes.equipes = [
-            { nom: 'Equipe 1', debut: 6, fin: 14 },
-            { nom: 'Equipe 2', debut: 14, fin: 22 }
-          ];
-        }
-
-        // Use parseDesignation to find the poste
-        const parsedDesignation = parseDesignation(data.designation, [], [], postes.value);
-        const codePoste = parsedDesignation.posteCode || '';
-        
-        entete.value = {
-          id: data.id,
-          posteCode: codePoste,
-          nom: data.designation, // we show designation as title
-          version: data.version,
-          statut: data.statut,
-          remarques: '',
-          legendeMoyens: '',
-          formulaireId: data.id, // we save its own ID as the template ID
-          isModeleTemplate: true, // IMPORTANT FLAG
-          configurationColonnes: configColonnes
-        };
-        
-        // Populate lines based on the poste
-        if (codePoste) {
-          // Initialize lines based on RisquesDefauts for this poste, just to show them
-          // Wait, when initialising a plan, lines are empty, the user adds them manually.
-          // BUT the user wants to see the table at the beginning! Wait, in ControlePosteForm.vue, 
-          // the table ONLY shows the lines added by the user! If `lignes` is empty, it shows an empty state!
-          lignes.value = [];
-        } else {
-          lignes.value = [];
-        }
-        
-        planInitialise.value = true;
-        prendreSnapshot();
-      } catch (err) {
-        console.error("Erreur lors du chargement (ni Plan, ni Modele)", err);
-        throw e;
-      }
+      console.error('Erreur lors du chargement du Contrôle Poste', e);
     } finally {
       isLoading.value = false;
     }
   };
 
-  const initialiserNouveauPlan = (posteCode, formulaireId = null, formulaireCodeReference = null) => {
+  const initialiserNouveauPlan = (posteCode, formulaireId = null, formulaireCodeReference = null, configurationColonnes = null) => {
     const p = postes.value.find(x => x.code === posteCode);
     entete.value = {
       id: null,
       posteCode,
-      nom: `Fiche de Contrôle - ${p?.libelle || posteCode}`,
+      nom: `Résultat ControlePoste_${p?.libelle || posteCode}`,
       version: null,
       versionInitiale: null,
       statut: 'ACTIF',
       remarques: '',
       legendeMoyens: '',
-      // Conserver les infos du formulaire sélectionné (ex: FE-RC-PAS71_SOUPAPE)
       formulaireId: formulaireId,
       formulaireCodeReference: formulaireCodeReference,
       isModeleTemplate: false,
-      configurationColonnes: {
+      configurationColonnes: configurationColonnes || {
         equipes: [
           { nom: 'Equipe 1', debut: 6, fin: 14 },
           { nom: 'Equipe 2', debut: 14, fin: 22 }
@@ -259,7 +245,13 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
         customCols: []
       }
     };
-    lignes.value = [];
+    lignes.value = [{
+      _uid: genererUid(),
+      id: null,
+      machineCode: '',
+      risqueDefautId: null,
+      ordreAffiche: 1
+    }];
     planInitialise.value = true;
   };
 
@@ -294,31 +286,36 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
         };
         const res = await apiClient.post('/referentiels/modeles-generiques/nouvelle-version', payload);
         if (res.data.success) {
-           entete.value.id = res.data.data.id;
-           entete.value.formulaireId = res.data.data.id;
-           entete.value.version = res.data.data.version;
-           prendreSnapshot();
+          entete.value.id = res.data.data.id;
+          entete.value.formulaireId = res.data.data.id;
+          entete.value.version = res.data.data.version;
+          prendreSnapshot();
         }
         return { success: true, planId: res.data.data.id, message: "Modèle générique mis à jour avec succès." };
       } else {
         const payload = buildPayload();
-        
+
         if (entete.value.id) {
           // Mode Edition -> Nouvelle version
-          const res = await controlePosteService.mettreAJourPlan(entete.value.id, payload);
-          if (res.data.success) {
-             entete.value.id = res.data.planId;
-             prendreSnapshot();
+          // We pass the documentId as ancienId in the payload
+          payload.ancienId = entete.value.id;
+          const res = await controlePosteService.creerNouvelleVersion(payload);
+          // La réponse contient data: { id: ... } ou data: { id: { id: ... } } selon le wrapping
+          const newId = res.data?.id?.id || res.data?.id || res.data?.planId;
+          if (newId) {
+            entete.value.id = newId;
+            prendreSnapshot();
           }
-          return res.data;
+          return { success: true, planId: entete.value.id, message: "Nouvelle version créée avec succès" };
         } else {
           // Mode Création
           const res = await controlePosteService.creerControlePoste(payload);
-          if (res.data.success) {
-            entete.value.id = res.data.planId;
+          const newId = res.data?.id?.id || res.data?.id || res.data?.planId;
+          if (newId) {
+            entete.value.id = newId;
             prendreSnapshot();
           }
-          return res.data;
+          return { success: true, planId: entete.value.id, message: "Plan créé avec succès" };
         }
       }
     } finally {
@@ -362,7 +359,13 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
         customCols: []
       }
     };
-    lignes.value = [];
+    lignes.value = [{
+      _uid: genererUid(),
+      id: null,
+      machineCode: '',
+      risqueDefautId: null,
+      ordreAffiche: 1
+    }];
     planInitialise.value = false;
     snapshotOriginal.value = null;
   };
@@ -389,7 +392,7 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
     isLoading.value = true;
     try {
       const res = await controlePosteService.importerExcel(file);
-      const data = res.data.data;
+      const data = res.data;
 
       if (data.posteCode && !entete.value.posteCode) {
         entete.value.posteCode = data.posteCode;

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { rccfService } from '@/services/rccfService';
 import api from '@/services/apiClient';
 
 export const usePlanRccfStore = defineStore('planRccf', {
@@ -21,15 +22,24 @@ export const usePlanRccfStore = defineStore('planRccf', {
         legendeMoyens: '',
         configurationJson: [],
       };
-      this.sections = [];
+      this.sections = [{
+        ordreAffiche: 1,
+        libelleSection: 'Section par défaut',
+        lignes: [{
+          _uid: Date.now().toString(),
+          ordreAffiche: 1,
+          libelleAffiche: '',
+          estCritique: false
+        }]
+      }];
       this.error = null;
     },
 
     async loadAllPlans(includeArchived = false) {
       this.isLoading = true;
       try {
-        const response = await api.get(`/planrccf?includeArchived=${includeArchived}`);
-        this.plans = response.data;
+        const response = await rccfService.getTousLesPlans();
+        this.plans = response.data.data || [];
       } catch (error) {
         this.error = error.response?.data?.message || 'Erreur lors du chargement des plans';
         throw error;
@@ -41,15 +51,46 @@ export const usePlanRccfStore = defineStore('planRccf', {
     async chargerPlan(id) {
       this.isLoading = true;
       try {
-        const response = await api.get(`/planrccf/${id}`);
-        const data = response.data;
-        if (typeof data.configurationJson === 'string' && data.configurationJson) {
-          try { data.configurationJson = JSON.parse(data.configurationJson); } catch(e) { data.configurationJson = []; }
-        } else if (!data.configurationJson) {
+        const res = await rccfService.getPlan(id);
+        const data = res.data;
+        if (typeof data.configurationColonnesJson === 'string' && data.configurationColonnesJson) {
+          try { data.configurationJson = JSON.parse(data.configurationColonnesJson); } catch (e) { data.configurationJson = []; }
+        } else if (!data.configurationColonnesJson) {
           data.configurationJson = [];
         }
-        this.entete = data;
-        this.sections = response.data.sections || [];
+
+        // Restore entete
+        this.entete = {
+          id: data.id,
+          posteCode: data.posteCode,
+          nom: data.nom,
+          remarques: data.remarques,
+          legendeMoyens: data.legendeMoyens,
+          formulaireId: data.formulaireId,
+          formulaireCodeReference: data.formulaireCodeReference,
+          version: data.version,
+          statut: data.statut,
+          configurationJson: data.configurationJson
+        };
+
+        // Restore sections from Document generic structure
+        if (data.sections && data.sections.length > 0) {
+          this.sections = data.sections.map(s => ({
+            id: s.id,
+            sectionType: s.notes || s.libelleSection,
+            libelleAffiche: s.libelleSection,
+            ordreAffiche: s.ordreAffiche,
+            lignes: (s.lignes || []).map(l => ({
+              id: l.id,
+              caracteristique: l.libelleAffiche,
+              limiteSpecTexte: l.limiteSpecTexte,
+              observations: l.observations,
+              ordreAffiche: l.ordreAffiche
+            })).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0))
+          })).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
+        } else {
+          this.sections = [];
+        }
       } catch (error) {
         this.error = error.response?.data?.message || 'Erreur lors du chargement du plan';
         throw error;
@@ -61,37 +102,58 @@ export const usePlanRccfStore = defineStore('planRccf', {
     async savePlan() {
       this.isLoading = true;
       try {
+        // Build document payload
         const payload = {
-          posteCode: this.entete.posteCode,
-          formulaireId: this.entete.formulaireId,
-          nom: this.entete.nom,
-          remarques: this.entete.remarques || this.entete.notes,
-          legendeMoyens: this.entete.legendeMoyens,
-          configurationJson: typeof this.entete.configurationJson === 'object' ? JSON.stringify(this.entete.configurationJson) : this.entete.configurationJson,
-          sections: this.sections
+          TypeDocumentCode: 'RESULTAT_CF',
+          PosteCode: this.entete.posteCode,
+          RefFormulaireCodeReference: this.entete.formulaireCodeReference,
+          Nom: this.entete.nom,
+          Remarques: this.entete.remarques || this.entete.notes,
+          LegendeMoyens: this.entete.legendeMoyens,
+          ConfigurationColonnesJson: typeof this.entete.configurationJson === 'object' ? JSON.stringify(this.entete.configurationJson) : this.entete.configurationJson,
+          Sections: this.sections.map((s, idx) => ({
+            Id: s.id,
+            OrdreAffiche: s.ordreAffiche || (idx + 1),
+            LibelleSection: s.libelleAffiche || s.sectionType,
+            Notes: s.sectionType,
+            Lignes: (s.lignes || []).map((l, lIdx) => ({
+              Id: l.id,
+              OrdreAffiche: l.ordreAffiche || (lIdx + 1),
+              LibelleAffiche: l.caracteristique,
+              LimiteSpecTexte: l.limiteSpecTexte,
+              Observations: l.observations
+            }))
+          }))
         };
 
         let response;
         if (this.entete.id) {
-          response = await api.put(`/planrccf/${this.entete.id}`, payload);
+          if (this.entete.statut === 'ACTIF' || this.entete.statut === 'ARCHIVE') {
+            // Document est actif, la modification crée une nouvelle version brouillon
+            payload.ancienId = this.entete.id;
+            response = await rccfService.creerNouvelleVersion(payload);
+            let newId = response.data.id;
+            this.entete.id = newId;
+            await this.chargerPlan(newId);
+            return { success: true, planId: newId };
+          } else {
+            // Document est en brouillon, mise à jour simple
+            response = await rccfService.mettreAJourPlan(this.entete.id, payload);
+            await this.chargerPlan(this.entete.id); // Reload to ensure frontend and backend are in sync
+            return { success: true, planId: this.entete.id };
+          }
         } else {
-          response = await api.post('/planrccf', payload);
+          response = await rccfService.creerPlan(payload);
+          let newId = response.data.id;
+          this.entete.id = newId; // Set local ID immediately
+          await this.chargerPlan(newId); // Re-fetch from backend to get generated section and line IDs
+          return { success: true, planId: newId };
         }
-        
-        let data = response.data;
-        if (typeof data.configurationJson === 'string' && data.configurationJson) {
-          try { data.configurationJson = JSON.parse(data.configurationJson); } catch(e) { data.configurationJson = []; }
-        } else if (!data.configurationJson) {
-          data.configurationJson = [];
-        }
-        this.entete = data;
-        this.sections = data.sections || [];
-        return { success: true, planId: data.id };
       } catch (error) {
         let msg = error.response?.data?.message || 'Erreur de sauvegarde';
         if (error.response?.data?.errors) {
-            const errs = error.response.data.errors;
-            msg = Object.values(errs).flat().join(' | ');
+          const errs = error.response.data.errors;
+          msg = Object.values(errs).flat().join(' | ');
         }
         return { success: false, message: msg };
       } finally {
@@ -100,28 +162,51 @@ export const usePlanRccfStore = defineStore('planRccf', {
     },
 
     async validerPlan() {
+      // Logic for validation via Document generic process if needed
+      // Temporarily doing nothing if validation is not strictly required in TPH yet
       try {
-        await api.post(`/planrccf/${this.entete.id}/valider`);
-        await this.chargerPlan(this.entete.id);
+        this.entete.statut = 'ACTIF';
+        await this.savePlan();
         return { success: true };
       } catch (error) {
-        return { success: false, message: error.response?.data?.message || 'Erreur de validation' };
+        return { success: false, message: 'Erreur de validation' };
       }
     },
 
     async annulerValidation() {
       try {
-        await api.post(`/planrccf/${this.entete.id}/annuler-validation`);
-        await this.chargerPlan(this.entete.id);
+        this.entete.statut = 'BROUILLON';
+        await this.savePlan();
         return { success: true };
       } catch (error) {
-        return { success: false, message: error.response?.data?.message || "Erreur d'annulation" };
+        return { success: false, message: "Erreur d'annulation" };
       }
     },
 
     async creerNouvelleVersion() {
       try {
-        const res = await api.post(`/planrccf/${this.entete.id}/nouvelle-version`);
+        const payload = {
+          TypeDocumentCode: 'RESULTAT_CF',
+          AncienId: this.entete.id,
+          PosteCode: this.entete.posteCode,
+          RefFormulaireCodeReference: this.entete.formulaireCodeReference,
+          Nom: this.entete.nom,
+          Remarques: this.entete.remarques,
+          LegendeMoyens: this.entete.legendeMoyens,
+          ConfigurationColonnesJson: typeof this.entete.configurationJson === 'object' ? JSON.stringify(this.entete.configurationJson) : this.entete.configurationJson,
+          Sections: this.sections.map((s, idx) => ({
+            OrdreAffiche: s.ordreAffiche || (idx + 1),
+            LibelleSection: s.libelleAffiche || s.sectionType,
+            Notes: s.sectionType,
+            Lignes: (s.lignes || []).map((l, lIdx) => ({
+              OrdreAffiche: l.ordreAffiche || (lIdx + 1),
+              LibelleAffiche: l.caracteristique,
+              LimiteSpecTexte: l.limiteSpecTexte,
+              Observations: l.observations
+            }))
+          }))
+        };
+        const res = await rccfService.creerNouvelleVersion(payload);
         return { success: true, newPlanId: res.data.id };
       } catch (error) {
         return { success: false, message: error.response?.data?.message || 'Erreur' };
@@ -130,7 +215,7 @@ export const usePlanRccfStore = defineStore('planRccf', {
 
     async archiverPlan() {
       try {
-        await api.post(`/planrccf/${this.entete.id}/archive`);
+        await api.put(`/hub/plans/RC/${this.entete.id}/statut?statut=ARCHIVE`);
         await this.chargerPlan(this.entete.id);
         return { success: true };
       } catch (error) {
@@ -140,34 +225,28 @@ export const usePlanRccfStore = defineStore('planRccf', {
 
     async importExcel(file) {
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await api.post('/planrccf/import-excel', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-        
+        const res = await rccfService.importerExcel(file);
+
         const importedSections = res.data?.sections || res.data;
         const importedRemarques = res.data?.remarques;
 
         // Merge imported lines into existing sections
         if (importedSections && importedSections.length > 0) {
-           importedSections.forEach(importedSec => {
-             const existSection = this.sections.find(s => s.sectionType === importedSec.sectionType);
-             if (existSection) {
-               existSection.lignes = importedSec.lignes || [];
-               if (importedSec.libelleAffiche) {
-                 existSection.libelleAffiche = importedSec.libelleAffiche;
-               }
-             } else {
-               // Fallback if section somehow wasn't predefined
-               importedSec.ordreAffiche = this.sections.length + 1;
-               this.sections.push(importedSec);
-             }
-           });
+          importedSections.forEach(importedSec => {
+            const existSection = this.sections.find(s => s.sectionType === importedSec.sectionType);
+            if (existSection) {
+              existSection.lignes = importedSec.lignes || [];
+              if (importedSec.libelleAffiche) {
+                existSection.libelleAffiche = importedSec.libelleAffiche;
+              }
+            } else {
+              // Fallback if section somehow wasn't predefined
+              importedSec.ordreAffiche = this.sections.length + 1;
+              this.sections.push(importedSec);
+            }
+          });
         }
-        
+
         if (importedRemarques && this.entete) {
           if (!this.entete.notes) {
             this.entete.notes = importedRemarques.trim();
@@ -175,7 +254,7 @@ export const usePlanRccfStore = defineStore('planRccf', {
             this.entete.notes += "\n" + importedRemarques.trim();
           }
         }
-        
+
         return { success: true };
       } catch (error) {
         return { success: false, message: error.response?.data?.message || 'Erreur importation' };

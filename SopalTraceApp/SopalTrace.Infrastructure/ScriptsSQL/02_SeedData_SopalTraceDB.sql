@@ -453,6 +453,18 @@ INSERT INTO dbo.Machine (CodeMachine, Libelle, OperationCode, TypeAffectation, A
 -- Usinage
 ('TRF14', 'TRF14','USINAG', 'INDEPENDANTE', 1, 'USINAG');
 
+INSERT INTO dbo.TypeDocument (Code, Libelle) VALUES
+    ('ASSEMBLAGE',   'Plan de contrôle Assemblage'),
+    ('PRODUIT_FINI', 'Plan de contrôle Produit Fini'),
+    ('CTRL_POSTE',   'Plan de contrôle de Poste (Tally)'),
+    ('RESULTAT_CF',  'Résultats Contrôle en cours de Fabrication'),
+    ('MODELE_ASS',   'Modèle Assemblage'),
+    ('MODELE_FAB',   'Modèle Fabrication'),
+    ('PLAN_ASS',     'Plan Assemblage'),
+    ('PLAN_FAB',     'Plan Fabrication'),
+    ('PLAN_PF',      'Plan Produit Fini');
+GO
+
 -- =================================================================================
 -- 22. ARTICLE ET OF DE LA FICHE SUIVEUSE (Test d'intégration complet)
 -- =================================================================================
@@ -500,7 +512,7 @@ VALUES
 -- =================================================================================
 -- Formulaire commun pour Semi-Finis (Corps, Volant, Piston)
 INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut, CreeLe, Role) VALUES
-('D3C2A4F4-1B0A-4F9E-B4FF-67E97A135593', 'PRC', 'Formulaire PRC', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_FABRICATION'),
+('D3C2A4F4-1B0A-4F9E-B4FF-67E97A135593', 'PRC', 'Formulaire PRC', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_FABRICATION'),
 ('A1B2C3D4-1111-4444-5555-666677778888', 'FE-ASS-PISTON', 'Plan Ass Piston', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
 ('B2C3D4E5-2222-4444-5555-666677778888', 'FE-ASS-MANU', 'Plan Ass PF Manu', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
 (NEWID(), 'FE-ASS-RBGFA-BAC-01', 'Plan ASS RBGFA-BAC-01', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
@@ -520,6 +532,7 @@ INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut,
 (NEWID(), 'FE-VM-BEE22', 'Formulaire Verif Machine BEE22', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
 (NEWID(), 'FE-VM-BEE46', 'Formulaire Verif Machine BEE46', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
 (NEWID(), 'FE-VM-BEE47', 'Formulaire Verif Machine BEE47', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
+(NEWID(), 'FE-ECHAN-01', 'Formulaire Echantillonnage', 0, 'BROUILLON', GETDATE(), 'ECHANTILLONNAGE'),
 (NEWID(), 'FE-VM-SER05', 'Formulaire Verif Machine SER05', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
 (NEWID(), 'FE-RC-PAS71', 'Formulaire Résultat Contrôle PAS71', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
 (NEWID(), 'FE-RC-PAS72', 'Formulaire Résultat Contrôle PAS72', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),

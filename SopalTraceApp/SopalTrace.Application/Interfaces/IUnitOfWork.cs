@@ -3,18 +3,17 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Interfaces;
 
-public interface IUnitOfWork : IAsyncDisposable
-{
-    IPlanAssRepository PlanAssRepository { get; }
-    IUserRepository UserRepository { get; }
+    using SopalTrace.Application.Interfaces.Repositories;
 
-    IPlanEchanRepository PlanEchanRepository { get; }
-    IControlePosteRepository ControlePosteRepository { get; }
-
-    IPlanVerifMachineRepository PlanVerifMachineRepository { get; }
-    IPlanRccfRepository PlanRccfRepository { get; }
+    public interface IUnitOfWork : IAsyncDisposable
+    {
+        IDocumentEnteteRepository DocumentEnteteRepository { get; }
+        IUserRepository UserRepository { get; }
+    
     IDictionnaireQualiteRepository DictionnaireQualiteRepository { get; }
     IRefFormulaireRepository RefFormulaireRepository { get; }
+    IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository { get; }
+    IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository { get; }
 
     Task BeginTransactionAsync();
     Task<int> CommitAsync();

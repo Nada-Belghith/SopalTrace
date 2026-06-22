@@ -12,7 +12,7 @@ export const usePlanEchanStore = defineStore('planEchan', {
       nqaId: null,
       valeurNqa: 0.65,
       version: 1,
-      statut: 'ACTIF',
+      statut: 'BROUILLON',
       remarques: '',
       legendeMoyens: ''
     },
@@ -36,9 +36,17 @@ export const usePlanEchanStore = defineStore('planEchan', {
         // Wait, sampling might need its own referentials if different
         // For now let's assume we need NQA and Formulaires
         const nqaRes = await apiClient.get('/referentiels/fabrication');
-        this.nqaList = nqaRes.data.data.nqas || [];
+        this.nqaList = (nqaRes.data.data.nqa || []).map(n => ({
+          ...n,
+          valeurNqa: Number(n.code || n.libelle)
+        }));
         this.formulaires = nqaRes.data.data.formulaires || [];
         this.isDicosLoaded = true;
+
+        // Ensure an NQA is selected by default if available
+        if (this.nqaList.length > 0 && !this.entete.nqaId) {
+          this.entete.nqaId = this.nqaList[0].id;
+        }
       } catch (error) {
         console.error("Erreur dicos echantillonnage:", error);
       }
@@ -93,7 +101,9 @@ export const usePlanEchanStore = defineStore('planEchan', {
       if (this.entete.id) {
         await apiClient.put(`/plans-echantillonnage/${this.entete.id}`, payload);
       } else {
-        await apiClient.post('/plans-echantillonnage', payload);
+        const res = await apiClient.post('/plans-echantillonnage', payload);
+        // Stocker l'ID retourné pour que activerPlan puisse l'utiliser
+        this.entete.id = res.data.data;
       }
     },
 
@@ -117,6 +127,12 @@ export const usePlanEchanStore = defineStore('planEchan', {
         modifiePar: 'ADMIN',
         motifRestauration: motif
       });
+      return res.data;
+    },
+
+    async activerPlan() {
+      const res = await apiClient.put(`/plans-echantillonnage/${this.entete.id}/activer`);
+      this.entete.statut = 'ACTIF';
       return res.data;
     }
   }

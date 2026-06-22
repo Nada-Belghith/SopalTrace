@@ -15,6 +15,7 @@ using SopalTrace.Infrastructure.Services.Erp;
 using SopalTrace.Infrastructure.Services.Security;
 using SopalTrace.Infrastructure.UnitOfWork;
 using SopalTrace.Application.Services.QualityPlans.Referentiels;
+using SopalTrace.Application.Interfaces.Repositories;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -93,55 +94,36 @@ builder.Services.AddHealthChecks()
 
 // 2. Injection des dépendances (Clean Architecture)
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<IControlePosteRepository, ControlePosteRepository>();
-builder.Services.AddScoped<IPlanRccfService, PlanRccfService>();
+
+// Register new Document Domain services
+builder.Services.AddScoped<IDocumentEnteteRepository, DocumentEnteteRepository>();
+builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
+builder.Services.AddScoped<IPlanEchantillonnageService, PlanEchantillonnageService>();
+
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecEncfRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfService, SopalTrace.Application.Services.ExecEncfService>();
-builder.Services.AddScoped<IExcelImportRccfService, ExcelImportRccfService>();
-builder.Services.AddScoped<IControlePosteService, ControlePosteService>();
 builder.Services.AddScoped<IErpService, SqlErpService>();
-builder.Services.AddScoped<IPlanVerifMachineRepository, PlanVerifMachineRepository>();
-builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
-builder.Services.AddScoped<IPlanVerifMachineService, SopalTrace.Application.Services.PlanBeeMachineService>();
-builder.Services.AddScoped<IPlanVerifMachineService, SopalTrace.Application.Services.PlanMasMachineService>();
-builder.Services.AddScoped<IPlanVerifMachineService, SopalTrace.Application.Services.PlanSer05MachineService>();
-builder.Services.AddScoped<IPlanMachineFactory, SopalTrace.Application.Services.PlanMachineFactory>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IPlanAssRepository, PlanAssRepository>();
-builder.Services.AddScoped<IPlanAssService, PlanAssService>();
-builder.Services.AddScoped<IPlanFabricationRepository, PlanFabricationRepository>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
-builder.Services.AddValidatorsFromAssemblyContaining<CreateModeleRequestValidator>();
-builder.Services.AddScoped<IPlanEchanRepository, PlanEchanRepository>();
-builder.Services.AddScoped<IPlanEchanService, PlanEchanService>();
+builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 builder.Services.AddScoped<IFrequencyParserService, FrequencyParserService>();
-builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
-builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportBeeMachineService>();
-builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportMasMachineService>();
-builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportSer05MachineService>();
-builder.Services.AddScoped<IExcelImporter, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportDefaultMachineService>();
-builder.Services.AddScoped<IExcelImportFactory, ExcelImportFactory>();
 builder.Services.AddScoped<IRefFormulaireRepository, RefFormulaireRepository>();
 builder.Services.AddScoped<IRefFormulaireService, RefFormulaireService>();
-builder.Services.AddScoped<IFormulairePrcService, FormulairePrcService>();
+builder.Services.AddScoped<IFormulaireStructureService, FormulaireStructureService>();
 builder.Services.AddScoped<ICatalogueReferentielService, CatalogueReferentielService>();
 builder.Services.AddScoped<IHubService, HubService>();
-builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
-builder.Services.AddScoped<IModeleAssemblageService, ModeleAssemblageService>();
-builder.Services.AddScoped<IPlanPfRepository, PlanPfRepository>();
-builder.Services.AddScoped<IPlanPfService, PlanPfService>();
 builder.Services.AddScoped<IDictionnaireQualiteRepository, DictionnaireQualiteRepository>();
-builder.Services.AddScoped<IPlanArchiverService>(sp =>
-    new PlanArchiverService(
-        sp.GetRequiredService<IPlanFabricationRepository>(),
-        sp.GetRequiredService<IPlanPfRepository>(),
-        sp.GetRequiredService<IPlanAssRepository>(),
-        sp.GetRequiredService<IControlePosteRepository>()
-    ));
+builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
+builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IFusionStrategy, SopalTrace.Infrastructure.Services.ExcelImport.Strategies.Ser05FusionStrategy>();
+builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IFusionStrategy, SopalTrace.Infrastructure.Services.ExcelImport.Strategies.MasFusionStrategy>();
+builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IFusionStrategy, SopalTrace.Infrastructure.Services.ExcelImport.Strategies.BeeFusionStrategy>();
+builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IFusionStrategy, SopalTrace.Infrastructure.Services.ExcelImport.Strategies.DefaultFusionStrategy>();
+builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IExcelImportFactory, ExcelImportFactory>();
+builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IExcelImportRccfService, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportRccfService>();
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---
 var secretKey = builder.Configuration["Jwt:Secret"] ?? "VotreCleSecreteDePlusDe32Caracteres";

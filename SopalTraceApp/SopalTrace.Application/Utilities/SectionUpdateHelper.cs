@@ -26,7 +26,7 @@ namespace SopalTrace.Application.Utilities
             where TSectionDto : class
             where TLineDto : class
         {
-            var sectionDtoIds = sectionDtos.Select(getSectionDtoId).Where(id => id.HasValue).Select(id => id.Value).ToList();
+            var sectionDtoIds = sectionDtos.Select(getSectionDtoId).Where(id => id.HasValue).Select(id => id!.Value).ToList();
             var sectionsToRemove = existingSections.Where(s => !sectionDtoIds.Contains(getSectionId(s))).ToList();
 
             foreach (var sectionToRemove in sectionsToRemove)
@@ -59,7 +59,7 @@ namespace SopalTrace.Application.Utilities
                 var existingLines = getLines(existingSection);
                 var lineDtos = getLineDtos(sectionDto);
 
-                var lineDtoIds = lineDtos.Select(getLineDtoId).Where(id => id.HasValue).Select(id => id.Value).ToList();
+                var lineDtoIds = lineDtos.Select(getLineDtoId).Where(id => id.HasValue).Select(id => id!.Value).ToList();
                 var linesToRemove = existingLines.Where(l => !lineDtoIds.Contains(getLineId(l))).ToList();
 
                 foreach (var lineToRemove in linesToRemove)

@@ -1,36 +1,54 @@
 import apiClient from './apiClient';
+import { documentService } from './documentService';
 
 export const verifMachineService = {
-  // Dictionnaires (machines, périodicités, etc.)
-  getDictionnaires: () => apiClient.get('/referentiels/verif-machine'),
+  getDictionnaires() {
+    return apiClient.get('/referentiels/verif-machine');
+  },
 
-  // CRUD Plans de vérification machine
-  getTousLesPlans: () => apiClient.get('/plans-verif-machine'),
+  getFamillesParMachine(machineCode) {
+    // Si l'API backend n'a pas encore de endpoint pour les familles par machine, 
+    // on peut renvoyer un tableau vide pour ne pas crasher.
+    // return apiClient.get(`/referentiels/machines/${machineCode}/familles`);
+    return Promise.resolve({ data: { data: [] } });
+  },
 
-  creerPlanVerif: (payload) => apiClient.post('/plans-verif-machine', payload),
+  getTousLesPlans() {
+    return apiClient.get('/PlanVerifMachine');
+  },
 
-  getPlanVerif: (id) => apiClient.get(`/plans-verif-machine/${id}`),
+  getPlanVerif(id) {
+    return apiClient.get(`/PlanVerifMachine/${id}`);
+  },
 
-  mettreAJourPlanVerif: (id, payload) => apiClient.put(`/plans-verif-machine/${id}`, payload),
+  creerPlanVerif(payload) {
+    return apiClient.post('/PlanVerifMachine', payload);
+  },
 
-  creerNouvelleVersion: (id, payload) => apiClient.post(`/plans-verif-machine/${id}/nouvelle-version`, payload),
-
-  archiverPlanVerif: (id) => apiClient.put(`/plans-verif-machine/${id}/statut?statut=ARCHIVE`),
-
-  restaurerPlanVerif: (payload) => apiClient.post('/plans-verif-machine/restaurer', payload),
-  
-  importExcel: (file, configurationColonnesJson) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (configurationColonnesJson) {
-      formData.append('configurationColonnesJson', configurationColonnesJson);
-    }
-    return apiClient.post('/plans-verif-machine/import-excel', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+  mettreAJourPlanVerif(id, payload) {
+    // Le backend PlanVerifMachineController renvoie 204 NoContent, donc on mock la réponse pour le store
+    return apiClient.put(`/PlanVerifMachine/${id}`, payload).then(() => {
+      return { data: { id: id, version: payload.version } };
     });
   },
 
-  // Familles de corps configurées pour une machine (Machine_FamilleCorps)
-  getFamillesParMachine: (machineCode) =>
-    apiClient.get(`/plans-verif-machine/machine/${machineCode}/familles`),
+  restaurerPlanVerif(payload) {
+    return apiClient.post(`/PlanVerifMachine/${payload.AncienId}/restaurer`, payload);
+  },
+
+  importExcel(file, configColonnesJson) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (configColonnesJson) {
+      formData.append('configurationColonnesJson', configColonnesJson);
+    }
+    return apiClient.post('/ExcelImport/verif-machine', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }).then(res => {
+      // Le store attend response.data.data pour l'import Excel
+      return { data: { data: res.data } };
+    });
+  }
 };

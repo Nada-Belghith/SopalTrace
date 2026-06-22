@@ -13,7 +13,5 @@ public partial class Defautheque
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<PlanAssemblageLigne> PlanAssemblageLignes { get; set; } = new List<PlanAssemblageLigne>();
-
-    public virtual ICollection<PlanProduitFiniLigne> PlanProduitFiniLignes { get; set; } = new List<PlanProduitFiniLigne>();
+    public virtual ICollection<DocumentLigne> DocumentLignes { get; set; } = new List<DocumentLigne>();
 }

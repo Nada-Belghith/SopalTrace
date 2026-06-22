@@ -9,7 +9,7 @@ namespace SopalTrace.Application.DTOs.QualityPlans.ImportExcel;
 ///   Ligne en-tête: | N° | Machine / Banc d'essai | Désignation du défaut |
 ///   Données      : | 1  | MAS26                  | ABSENCE/MAUVAIS MONTAGE JOINT ANTI-FUITE |
 /// </summary>
-public class ImportNcExcelResultDto
+public class ImportNcExcelResultDto : ImportExcelResultBaseDto
 {
     /// <summary>Code du poste détecté depuis l'entête du fichier.</summary>
     public string PosteCode { get; set; } = string.Empty;

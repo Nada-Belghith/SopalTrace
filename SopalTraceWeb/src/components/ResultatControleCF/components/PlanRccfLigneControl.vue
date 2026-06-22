@@ -14,14 +14,14 @@
     </td>
 
     <td class="border-[1px] border-black p-0 h-8">
-      <select v-model="localLigne.typeControleId" :disabled="isArchived" class="w-full h-full text-center outline-none bg-transparent text-sm text-black px-1 cursor-pointer">
+      <select v-model="localLigne.typeControleId" :disabled="isArchived" class="w-full h-full text-center outline-none bg-transparent hover:bg-white focus:bg-white text-sm text-black px-1 cursor-pointer">
         <option :value="null"></option>
         <option v-for="tco in (store.typesControle || [])" :key="tco.id" :value="tco.id">{{ tco.code }}</option>
       </select>
     </td>
 
     <td class="border-[1px] border-black p-0 h-8">
-      <select v-model="localLigne.moyenControleId" :disabled="isArchived" class="w-full h-full text-center outline-none bg-transparent text-sm text-black px-1 cursor-pointer">
+      <select v-model="localLigne.moyenControleId" :disabled="isArchived" class="w-full h-full text-center outline-none bg-transparent hover:bg-white focus:bg-white text-sm text-black px-1 cursor-pointer">
         <option :value="null"></option>
         <option v-for="mco in (store.moyensControle || [])" :key="mco.id" :value="mco.id">{{ mco.libelle }}</option>
       </select>
@@ -31,7 +31,7 @@
       <div class="flex h-full w-full">
         <select @change="(e) => { if (e.target.value) localLigne.instrumentCode = e.target.value; e.target.value = ''; }"
                 :disabled="isArchived"
-                class="w-1/2 h-full text-center outline-none bg-transparent text-sm text-black cursor-pointer border-r-[1px] border-black">
+                class="w-1/2 h-full text-center outline-none bg-white hover:bg-white focus:bg-white text-sm text-black cursor-pointer border-r-[1px] border-black appearance-none">
           <option value=""></option>
           <option v-for="ins in (store.instruments || [])" :key="ins.codeInstrument" :value="ins.codeInstrument">
             {{ ins.codeInstrument }}

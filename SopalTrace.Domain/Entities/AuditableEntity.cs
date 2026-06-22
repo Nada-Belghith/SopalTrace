@@ -1,2 +1,0 @@
-"using System;\n\nnamespace SopalTrace.Domain.Entities;\n\npublic abstract class AuditableEntity\n{\n    public Guid Id { get; set; }\n    public string CreePar { get; set; } = null!;\n    public DateTime CreeLe { get; set; }\n    public string? ModifiePar
-<truncated 66 bytes>

@@ -10,9 +10,9 @@ namespace SopalTrace.Api.Controllers;
 public class ReferentielController : ControllerBase
 {
     private readonly ICatalogueReferentielService _referentielService;
-    private readonly IFormulairePrcService _formulaireService;
+    private readonly IFormulaireStructureService _formulaireService;
 
-    public ReferentielController(ICatalogueReferentielService referentielService, IFormulairePrcService formulaireService)
+    public ReferentielController(ICatalogueReferentielService referentielService, IFormulaireStructureService formulaireService)
     {
         _referentielService = referentielService;
         _formulaireService = formulaireService;
@@ -122,5 +122,19 @@ public class ReferentielController : ControllerBase
         var result = await _formulaireService.ActiverFormulaireAsync(id);
         if (!result) return NotFound(new { success = false, message = "Formulaire introuvable ou n'est pas en statut BROUILLON." });
         return Ok(new { success = true, message = "Formulaire activé avec succès." });
+    }
+
+    [HttpPost("periodicites")]
+    public async Task<IActionResult> CreatePeriodicite([FromBody] CreatePeriodiciteDto request)
+    {
+        try
+        {
+            var result = await _referentielService.CreatePeriodiciteAsync(request);
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 }

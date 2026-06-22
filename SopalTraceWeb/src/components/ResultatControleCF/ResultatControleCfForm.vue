@@ -28,10 +28,8 @@
             <span class="text-[10px] text-teal-600/70 italic hidden md:inline">La sélection du formulaire remplira automatiquement le contexte.</span>
           </div>
         </div>
-        <!-- Le champ Poste de Travail est masqué car l'utilisateur ne le veut pas,
-             mais il est gardé dans le DOM/Store pour l'affectation automatique 
-             afin de respecter la contrainte de clé étrangère côté serveur -->
-        <div class="md:col-span-2 lg:col-span-1" style="display: none;">
+        <!-- Le champ Poste de Travail est maintenant visible pour permettre à l'utilisateur de choisir -->
+        <div class="md:col-span-2 lg:col-span-1">
           <div class="flex items-center gap-2 mb-2">
             <i class="pi pi-cog text-teal-600"></i>
             <label class="text-xs font-black text-teal-800 uppercase tracking-widest">Poste de Travail <span class="text-red-500">*</span></label>
@@ -346,12 +344,48 @@ const modeleColumns = computed(() => {
   return cols;
 });
 
-const onFormulaireChange = (e) => {
-  const formId = e.value;
-  const val = referentielStore.formulaires.find(f => f.id === formId);
+const onFormulaireChange = (event) => {
+  const selectedId = event.value || event;
+  const val = referentielStore.formulaires?.find(f => f.id === selectedId);
+
   if (val && store.entete) {
     store.entete.nom = val.designation;
+    store.entete.formulaireCodeReference = val.codeReference;
+
+    // --- AUTO-AFFECTATION DU POSTE DE TRAVAIL ---
+    // Si la désignation contient "PAS78", "PAS71", on cherche le poste correspondant
+    if (referentielStore.postesTravail && referentielStore.postesTravail.length > 0) {
+      const designationUpper = val.designation.toUpperCase();
+      const match = designationUpper.match(/(PAS\s*\d+)/); // Ex: "PAS78" ou "PAS 78"
+      if (match) {
+        const posteCodeExtracted = match[1].replace(/\s+/g, ''); // Enlève les espaces: "PAS78"
+        const foundPoste = referentielStore.postesTravail.find(p => p.code.toUpperCase() === posteCodeExtracted);
+        if (foundPoste) {
+          store.entete.posteCode = foundPoste.code;
+        }
+      }
+    }
     
+    // Load custom configuration from Formulaire if it exists
+    if (val.configurationStructureJson) {
+      try {
+        const structure = JSON.parse(val.configurationStructureJson);
+        const customCols = (structure.customCols && structure.customCols.length > 0)
+            ? structure.customCols.map(c => ({
+                key: c.key || c.cleColonne,
+                label: c.label || c.labelAffiche || c.titre,
+                type: c.type || c.typeValeur || 'Texte',
+                insertAfter: c.insertAfter || 'observations'
+              }))
+            : [];
+        store.entete.configurationJson = customCols;
+      } catch (e) {
+        console.error('Erreur parsing configurationStructureJson:', e);
+      }
+    } else {
+      store.entete.configurationJson = [];
+    }
+
     // Always reinitialize sections when the form explicitly changes via the dropdown
     if (val.designation.includes('Assemblage') || val.designation.includes('ASS')) {
       store.sections = [
@@ -410,6 +444,7 @@ const onFileSelected = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
+  event.target.value = '';
   isImporting.value = true;
   const res = await store.importExcel(file);
   isImporting.value = false;
@@ -419,8 +454,6 @@ const onFileSelected = async (event) => {
   } else {
     toast.add({ severity: 'error', summary: 'Erreur', detail: res.message, life: 3000 });
   }
-  
-  event.target.value = '';
 };
 
 const removeSection = (sec) => {

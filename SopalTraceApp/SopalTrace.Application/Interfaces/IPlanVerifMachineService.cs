@@ -1,5 +1,4 @@
-using SopalTrace.Application.DTOs.QualityPlans.VerifMachine;
-using SopalTrace.Domain.Entities;
+using SopalTrace.Application.DTOs.QualityPlans.PlanVerifMachines;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -8,40 +7,9 @@ namespace SopalTrace.Application.Interfaces;
 
 public interface IPlanVerifMachineService
 {
-    string Role { get; }
-
-    /// <summary>
-    /// Création unifiée d'un plan de vérification machine.
-    /// Reçoit le payload complet (flags + familles + lignes + échéances + pièces).
-    /// </summary>
-    Task<Guid> CreerPlanVerifAsync(CreateVerifMachineModeleDto request, string creePar);
-
-    /// <summary>Récupère un plan complet avec toutes ses relations.</summary>
-    Task<PlanVerifMachineResponseDto> GetPlanVerifByIdAsync(Guid planId);
-
-    /// <summary>Récupère tous les plans de vérification.</summary>
-    Task<List<PlanVerifMachineResponseDto>> GetTousLesPlansVerifAsync();
-
-    /// <summary>
-    /// Met à jour un plan existant en remplaçant tout son arbre de données.
-    /// </summary>
-    Task<Guid> MettreAJourPlanVerifAsync(Guid planIdActuel, CreateVerifMachineModeleDto request, string modifiePar);
-    /// <summary>Crée une nouvelle version (clone brouillon) d'un plan existant.</summary>
-    Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionVerifMachineDto request);
-
-    /// <summary>Archive un plan existant.</summary>
-    Task ArchiverPlanAsync(Guid planId, string modifiePar);
-
-    /// <summary>Restaure un plan archivé.</summary>
-    Task<Guid> RestaurerPlanAsync(Guid planId, string restaurePar, string motif);
-
-    // Méthodes conservées pour compatibilité
-    Task<Guid> CreerPlanAsync(CreatePlanVerifMachineDto request, string creePar);
-    Task<bool> MettreAJourValeursPlanAsync(Guid planId, List<VerifMachineLigneEditDto> lignesModifiees);
-
-    /// <summary>
-    /// Retourne la liste des familles de corps configurées pour une machine
-    /// depuis la table Machine_FamilleCorps (source de vérité).
-    /// </summary>
-    Task<List<FamilleCorpsDto>> GetFamillesParMachineAsync(string machineCode);
+    Task<Guid> CreerPlanVerifMachineAsync(CreatePlanVerifMachineRequestDto request);
+    Task<PlanVerifMachineEnteteDto> GetPlanVerifMachineByIdAsync(Guid id);
+    Task<IEnumerable<PlanVerifMachineEnteteDto>> GetAllPlansAsync();
+    Task<IEnumerable<PlanVerifMachineEnteteDto>> GetPlansByMachineCodeAsync(string machineCode);
+    Task MettreAJourPlanVerifMachineAsync(Guid id, UpdatePlanVerifMachineRequestDto request);
 }

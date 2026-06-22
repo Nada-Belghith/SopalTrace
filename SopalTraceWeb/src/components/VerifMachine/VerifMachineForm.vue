@@ -345,6 +345,7 @@ watch(refFormulaireSelected, async (newRefId) => {
   console.log('[DEBUG] refFormulaireSelected changed to:', newRefId, 'Found refObj:', refObj);
   if (!refObj) return;
 
+  store.entete.refFormulaireCodeReference = refObj.codeReference;
   const designation = refObj.designation || '';
   const parsed = parseDesignation(designation, [], store.machines || []);
 
@@ -385,7 +386,7 @@ watch(() => store.entete.machineCode, (newVal) => {
 const isMachineSansConformite = computed(() => {
   if (!store.entete.machineCode) return false;
   const code = store.entete.machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-  return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
+  return code.includes('BEE46') || code.includes('BEE47') || 
          code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
 });
 
@@ -465,6 +466,7 @@ const handleExcelImport = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
+  event.target.value = '';
   try {
     const result = await store.importerDepuisExcel(file);
     if (result.success) {
@@ -475,7 +477,6 @@ const handleExcelImport = async (event) => {
     console.error("Erreur import Excel:", error);
     toast.add({ severity: 'error', summary: 'Échec de l\'import', detail: error.response?.data?.message || 'Une erreur est survenue lors de la lecture du fichier.', life: 5000 });
   } finally {
-    if (fileInput.value) fileInput.value.value = '';
   }
 };
 
@@ -483,6 +484,7 @@ const handleExcelImport = async (event) => {
 const onMachineChange = async (newMachineCode) => {
   if (newMachineCode) {
     const expectedCode = `FE-VM-${newMachineCode}`;
+    store.entete.refFormulaireCodeReference = expectedCode;
     const matchingRef = store.formulairesReferences.find(r => r.codeReference === expectedCode);
     if (matchingRef && refFormulaireSelected.value !== matchingRef.id) {
       // Auto-sélectionne le formulaire actif (ce qui déclenchera le watch et initialisera le plan avec les colonnes)

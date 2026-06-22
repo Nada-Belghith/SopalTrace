@@ -33,6 +33,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     statut: 'ACTIF',
     remarques: '',
     legendeMoyens: '',
+    configurationColonnes: [],
+    refFormulaireCodeReference: '',
   });
 
   const familles = ref([]);
@@ -80,8 +82,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   // --- MAPPING VERS LE FORMAT BACKEND (APLATISSEMENT) ---
   const buildPayload = () => {
     const code = entete.value.machineCode?.toUpperCase().replace('-', '').replace(' ', '').trim() || '';
-    const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
-      code.startsWith('SER') || code.includes('MAS19');
+    const isSansConformiteAuto = code.includes('BEE46') || code.includes('BEE47') ||
+      code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
     const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
       code.includes('MAS22');
 
@@ -98,10 +100,12 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       AfficheFuiteEtalon: finalAfficheFuiteEtalon,
       Remarques: entete.value.remarques || '',
       LegendeMoyens: entete.value.legendeMoyens || '',
-      ConfigurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
+      RefFormulaireCodeReference: entete.value.refFormulaireCodeReference || `FE-VM-${code}`,
+      ColonneDefs: typeof entete.value.configurationColonnes === 'string' ? JSON.parse(entete.value.configurationColonnes || '[]') : (entete.value.configurationColonnes || []),
       Familles: familles.value
         .filter((f, idx, self) => self.findIndex(t => t.refFamilleCorpsId === f.refFamilleCorpsId) === idx)
         .map((f, idx) => ({
+          Id: f.id,
           RefFamilleCorpsId: f.refFamilleCorpsId,
           OrdreAffiche: idx + 1,
         })),
@@ -147,9 +151,13 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       TypeLigne: typeLigne,
       LibelleRisque: ligne.libelleRisque,
       LibelleMethode: ligne.libelleMethode,
-      ColonnesSupplementaires: ligne.valeursColonnesSpecifiques && Object.keys(ligne.valeursColonnesSpecifiques).length > 0
-        ? JSON.stringify(ligne.valeursColonnesSpecifiques)
-        : null,
+      ExtraColonnes: ligne.valeursColonnesSpecifiques && Object.keys(ligne.valeursColonnesSpecifiques).length > 0
+        ? Object.entries(ligne.valeursColonnesSpecifiques).map(([key, value], idx) => ({
+          CleColonne: key,
+          ValeurColonne: value !== null && value !== undefined ? String(value) : null,
+          OrdreAffiche: idx + 1
+        }))
+        : [],
       Echeances: Array.from(mergedMap.values()).map((ech, idx) => ({
         ...ech,
         OrdreAffiche: idx + 1
@@ -209,7 +217,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const resetPlan = () => {
-    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, versionInitiale: null, statut: 'ACTIF', remarques: '', legendeMoyens: '' };
+    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, versionInitiale: null, statut: 'ACTIF', remarques: '', legendeMoyens: '', configurationColonnes: [], refFormulaireCodeReference: '' };
     familles.value = [];
     lignesConformite.value = [];
     lignesRisques.value = [];
@@ -364,6 +372,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
         configurationColonnes: data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [],
+        refFormulaireCodeReference: data.formulaire?.codeReference || `FE-VM-${data.machineCode}`,
       };
 
       familles.value = (data.familles || []).map(f => {
@@ -375,8 +384,10 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         };
       });
 
-      lignesConformite.value = (data.lignesConformite || []).map(mapPlanLigneFromBackend);
-      lignesRisques.value = (data.lignesRisques || []).map(mapPlanLigneFromBackend);
+      const toutesLesLignes = data.lignes || data.Lignes || [];
+      lignesConformite.value = toutesLesLignes.filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'CONFORMITE').map(mapPlanLigneFromBackend);
+      lignesRisques.value = toutesLesLignes.filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'RISQUE').map(mapPlanLigneFromBackend);
+      
 
       planInitialise.value = true;
       prendreSnapshot();
@@ -390,32 +401,35 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     const groups = [];
     const groupedByPerio = {};
 
-    (ligne.echeances || []).forEach(ech => {
-      const pId = ech.periodiciteId || 'none';
+    (ligne.echeances || ligne.Echeances || []).forEach(ech => {
+      const pId = ech.periodiciteId || ech.PeriodiciteId || 'none';
       if (!groupedByPerio[pId]) {
         groupedByPerio[pId] = {
           _uid: genererUid(),
-          periodiciteId: ech.periodiciteId || '',
+          periodiciteId: ech.periodiciteId || ech.PeriodiciteId || '',
           rows: []
         };
         groups.push(groupedByPerio[pId]);
       }
       groupedByPerio[pId].rows.push({
         _uid: genererUid(),
-        refMoyenDetectionId: ech.refMoyenDetectionId || '',
-        matricePieces: (ech.piecesRef || []).map(mp => ({
-          familleId: mp.familleId || null,
-          roleVerif: mp.roleVerif || '',
-          pieceRefId: mp.pieceRefId || null,
+        refMoyenDetectionId: ech.refMoyenDetectionId || ech.RefMoyenDetectionId || '',
+        matricePieces: (ech.matricePieces || ech.MatricePieces || ech.piecesRef || []).map(mp => ({
+          familleId: mp.familleId || mp.FamilleId || null,
+          roleVerif: mp.roleVerif || mp.RoleVerif || '',
+          pieceRefId: mp.pieceRefId || mp.PieceRefId || null,
         }))
       });
     });
 
     return {
       _uid: genererUid(),
-      libelleRisque: ligne.libelleRisque || '',
-      libelleMethode: ligne.libelleMethode || '',
-      valeursColonnesSpecifiques: ligne.colonnesSupplementaires ? (typeof ligne.colonnesSupplementaires === 'string' ? JSON.parse(ligne.colonnesSupplementaires) : ligne.colonnesSupplementaires) : {},
+      libelleRisque: ligne.libelleRisque || ligne.LibelleRisque || '',
+      libelleMethode: ligne.libelleMethode || ligne.LibelleMethode || '',
+      valeursColonnesSpecifiques: (ligne.extraColonnes || ligne.ExtraColonnes || []).reduce((acc, col) => {
+        acc[col.cleColonne || col.CleColonne] = col.valeurColonne || col.ValeurColonne;
+        return acc;
+      }, {}),
       groups: groups.length > 0 ? groups : [creerGroupVide()],
     };
   };
@@ -522,6 +536,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
       // Mapping des lignes
       const mapLignes = (lignesImportees) => {
+        console.log("[DEBUG mapLignes] lignesImportees :", lignesImportees);
         return lignesImportees.map(li => ({
           _uid: genererUid(),
           libelleRisque: li.libelleRisque,
@@ -548,7 +563,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
                     let correctedFamCode = mp.familleCode
                       .replace('2580A01', '25B0A01')
                       .replace('25AUA01', '25UA01');
-                    
+
                     const normMpFam = correctedFamCode.replace(/\s+/g, '').toUpperCase();
                     const importedFam = familles.value.find(f => {
                       const normFLib = f.libelle?.replace(/\s+/g, '').toUpperCase() || '';
@@ -582,8 +597,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       const checkMachineSansConformite = (machineCode) => {
         if (!machineCode) return false;
         const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-        return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
-               code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
+        return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
+          code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
       };
 
       if (checkMachineSansConformite(entete.value.machineCode)) {

@@ -13,6 +13,7 @@
             placeholder="Sélectionner un formulaire générique" 
             class="w-full md:w-1/2" 
             :disabled="disableSelection"
+            :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }"
             @change="emitUpdate">
             <template #value="slotProps">
                 <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">

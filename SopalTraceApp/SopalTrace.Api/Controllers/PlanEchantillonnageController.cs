@@ -1,5 +1,5 @@
-using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
+using SopalTrace.Application.DTOs;
 using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -7,63 +7,75 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Api.Controllers;
 
-[Route("api/plans-echantillonnage")]
 [ApiController]
+[Route("api/plans-echantillonnage")]
 public class PlanEchantillonnageController : ControllerBase
 {
-    private readonly IPlanEchanService _service;
+    private readonly IPlanEchantillonnageService _service;
 
-    public PlanEchantillonnageController(IPlanEchanService service)
+    public PlanEchantillonnageController(IPlanEchantillonnageService service)
     {
         _service = service;
     }
 
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreatePlanEchanRequestDto request)
+    [HttpGet("actif")]
+    public async Task<IActionResult> GetPlanActif()
     {
-        var id = await _service.CreerPlanAsync(request, RolesApp.Admin);
-        var data = await _service.GetPlanByIdAsync(id);
-        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Profil d'échantillonnage créé et ACTIF." });
+        var plan = await _service.GetPlanActifAsync();
+        return Ok(new { success = true, data = plan, message = plan == null ? "Aucun plan actif trouvé." : "Plan actif récupéré avec succès." });
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> Get(Guid id)
+    public async Task<IActionResult> GetPlanById(Guid id)
     {
-        var data = await _service.GetPlanByIdAsync(id);
-        return Ok(new { success = true, data });
+        var plan = await _service.GetPlanByIdAsync(id);
+        if (plan == null) return NotFound(new { success = false, message = "Plan introuvable." });
+        return Ok(new { success = true, data = plan, message = "Plan récupéré avec succès." });
     }
 
-    [HttpGet(StatutsPlan.Actif)]
-    public async Task<IActionResult> GetActif()
+    [HttpPost]
+    public async Task<IActionResult> CreatePlan([FromBody] CreatePlanEchanRequestDto request)
     {
-        var data = await _service.GetPlanActifAsync();
-        return Ok(new { success = true, data });
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var creePar = "Admin"; // TODO: Utiliser ICurrentUserService si disponible
+        var newId = await _service.CreatePlanAsync(request, creePar);
+
+        return Ok(new { success = true, data = newId, message = "Plan créé avec succès." });
     }
 
-    // NOUVEAU : Endpoint pour modifier la V2 et l'activer
     [HttpPut("{id}")]
-    public async Task<IActionResult> MettreAJourPlan(Guid id, [FromBody] UpdatePlanEchanRequestDto request)
+    public async Task<IActionResult> UpdatePlan(Guid id, [FromBody] UpdatePlanEchanRequestDto request)
     {
-        var success = await _service.MettreAJourPlanAsync(id, request);
-        if (!success) return NotFound(new { success = false, message = "Plan introuvable." });
-        
-        var data = await _service.GetPlanByIdAsync(id);
-        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Plan mis à jour et activé avec succès. L'ancienne version a été archivée." });
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        await _service.UpdatePlanAsync(id, request);
+        return Ok(new { success = true, data = id, message = "Plan mis à jour avec succès." });
+    }
+
+    [HttpPut("{id}/activer")]
+    public async Task<IActionResult> ActiverPlan(Guid id)
+    {
+        var modifiePar = "Admin"; // TODO: Utiliser ICurrentUserService si disponible
+        await _service.ActiverPlanAsync(id, modifiePar);
+        return Ok(new { success = true, data = id, message = "Plan activé avec succès." });
     }
 
     [HttpPost("nouvelle-version")]
-    public async Task<IActionResult> CreerVersion([FromBody] NouvelleVersionEchanRequestDto request)
+    public async Task<IActionResult> CreerNouvelleVersion([FromBody] NouvelleVersionEchanRequestDto request)
     {
-        var id = await _service.CreerNouvelleVersionAsync(request);
-        var data = await _service.GetPlanByIdAsync(id);
-        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Nouvelle version générée et activée avec succès." });
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var newId = await _service.CreerNouvelleVersionAsync(request);
+        return Ok(new { success = true, data = newId, message = "Nouvelle version créée avec succès." });
     }
 
     [HttpPost("restaurer")]
-    public async Task<IActionResult> Restaurer([FromBody] RestaurerEchanRequestDto request)
+    public async Task<IActionResult> RestaurerPlan([FromBody] RestaurerEchanRequestDto request)
     {
-        var id = await _service.RestaurerPlanAsync(request);
-        var data = await _service.GetPlanByIdAsync(id);
-        return Ok(new { success = true, planId = id, version = data?.Version ?? 0, message = "Plan restauré et activé avec succès." });
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var newId = await _service.RestaurerPlanAsync(request);
+        return Ok(new { success = true, data = newId, message = "Plan restauré avec succès." });
     }
 }

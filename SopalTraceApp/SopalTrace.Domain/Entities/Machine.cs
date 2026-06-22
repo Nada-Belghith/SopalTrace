@@ -17,15 +17,15 @@ public partial class Machine
 
     public bool Actif { get; set; }
 
+    public virtual ICollection<DocumentLigne> DocumentLigneMachineCodeCtrlPosteNavigations { get; set; } = new List<DocumentLigne>();
+
+    public virtual ICollection<DocumentLigne> DocumentLigneMachineCodeNavigations { get; set; } = new List<DocumentLigne>();
+
     public virtual ICollection<ExecControleOf> ExecControleOfMachineCodeNavigations { get; set; } = new List<ExecControleOf>();
 
     public virtual ICollection<ExecControleOf> ExecControleOfMachineCodePrevuNavigations { get; set; } = new List<ExecControleOf>();
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
-
-    public virtual ICollection<PlanAssemblageLigne> PlanAssemblageLignes { get; set; } = new List<PlanAssemblageLigne>();
-
-    public virtual ICollection<PlanControlePosteLigne> PlanControlePosteLignes { get; set; } = new List<PlanControlePosteLigne>();
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 

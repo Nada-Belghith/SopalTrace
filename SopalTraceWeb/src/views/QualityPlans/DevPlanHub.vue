@@ -115,9 +115,9 @@
           <div class="flex flex-wrap gap-1.5 mb-4">
             <span v-if="plan.nature && plan.nature !== 'N/A'"
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
-              <i class="pi pi-box text-[9px]"></i> {{ (plan.category === 'RC' && plan.nature === 'POSTE') ? 'RÉSULTAT DE CONTRÔLE' : plan.nature }}
+              <i class="pi pi-box text-[9px]"></i> {{ (plan.category === 'RC' && plan.nature === 'POSTE') ? 'RÉSULTAT CONTRÔLE POSTE' : plan.nature }}
             </span>
-            <span v-if="plan.type && plan.type !== 'N/A'"
+            <span v-if="plan.type && plan.type !== 'N/A' && plan.type !== 'GEN'"
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded">
               <i class="pi pi-tag text-[9px]"></i> {{ plan.type }}
             </span>
@@ -220,12 +220,24 @@ const onPage = (event) => {
 
 const tabs = [
   { id: 'ALL', label: 'Tous', short: 'Tous', icon: 'pi pi-th-large' },
-  { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' }
+  { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' },
+  { id: 'ASS', label: 'Assemblage', short: 'Ass', icon: 'pi pi-sitemap' },
+  { id: 'VM', label: 'Vérif Machine', short: 'Vérif', icon: 'pi pi-desktop' },
+  { id: 'RC', label: 'Résultat Contrôle Poste', short: 'Contrôle', icon: 'pi pi-list' },
+  { id: 'RCCF', label: 'Résultat Contrôle CF', short: 'Contrôle CF', icon: 'pi pi-check-circle' },
+  { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
+  { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
 ];
 
 const categoryStyles = {
   FAB: { label: 'Fabrication', icon: 'pi pi-cog', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300 border-slate-200', titleHoverClass: 'group-hover:text-amber-600' },
-  PRC_STRUCT: { label: 'Fabrication', icon: 'pi pi-sitemap', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300 border-slate-200', titleHoverClass: 'group-hover:text-amber-600' }
+  PRC_STRUCT: { label: 'Fabrication', icon: 'pi pi-sitemap', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300 border-slate-200', titleHoverClass: 'group-hover:text-amber-600' },
+  ASS: { label: 'Assemblage', icon: 'pi pi-sitemap', colorClass: 'bg-indigo-500', textClass: 'text-indigo-500', hoverClass: 'hover:border-indigo-300 border-slate-200', titleHoverClass: 'group-hover:text-indigo-600' },
+  VM: { label: 'Vérif Machine', icon: 'pi pi-desktop', colorClass: 'bg-emerald-500', textClass: 'text-emerald-500', hoverClass: 'hover:border-emerald-300 border-slate-200', titleHoverClass: 'group-hover:text-emerald-600' },
+  RC: { label: 'Résultat Contrôle Poste', icon: 'pi pi-list', colorClass: 'bg-teal-500', textClass: 'text-teal-500', hoverClass: 'hover:border-teal-300 border-slate-200', titleHoverClass: 'group-hover:text-teal-600' },
+  RCCF: { label: 'Résultat Contrôle CF', icon: 'pi pi-check-circle', colorClass: 'bg-cyan-500', textClass: 'text-cyan-500', hoverClass: 'hover:border-cyan-300 border-slate-200', titleHoverClass: 'group-hover:text-cyan-600' },
+  ECH: { label: 'Échantillonnage', icon: 'pi pi-check-square', colorClass: 'bg-purple-500', textClass: 'text-purple-500', hoverClass: 'hover:border-purple-300 border-slate-200', titleHoverClass: 'group-hover:text-purple-600' },
+  PF: { label: 'Produit Fini', icon: 'pi pi-box', colorClass: 'bg-blue-500', textClass: 'text-blue-500', hoverClass: 'hover:border-blue-300 border-slate-200', titleHoverClass: 'group-hover:text-blue-600' }
 };
 
 onMounted(async () => {
@@ -340,6 +352,10 @@ const archiverPlan = async (plan) => {
 const editer = (category, id) => {
   const routes = {
     FAB: `/dev/fab/plans/editer/${id}`,
+    ASS: `/dev/ass/editer/${id}`,
+    VM: `/dev/verif-machine/editer/${id}`,
+    RC: `/dev/resultat-controle/editer/${id}`,
+    RCCF: `/dev/resultat-controle-cf/editer/${id}`,
     PF: `/dev/produit-fini/editer/${id}`,
     ECH: `/dev/echantillonnage/editer/${id}`,
     PRC_STRUCT: { path: `/dev/fab/specifique`, query: { id: id } }
@@ -351,6 +367,10 @@ const editer = (category, id) => {
 const consulter = (category, id) => {
   const routes = {
     FAB: { path: `/dev/fab/plans/editer/${id}`, query: { view: 'true' } },
+    ASS: { path: `/dev/ass/editer/${id}`, query: { view: 'true' } },
+    VM: { path: `/dev/verif-machine/editer/${id}`, query: { view: 'true' } },
+    RC: { path: `/dev/resultat-controle/editer/${id}`, query: { view: 'true' } },
+    RCCF: { path: `/dev/resultat-controle-cf/editer/${id}`, query: { view: 'true' } },
     PF: { path: `/dev/produit-fini/editer/${id}`, query: { view: 'true' } },
     ECH: { path: `/dev/echantillonnage/editer/${id}`, query: { view: 'true' } },
     PRC_STRUCT: { path: `/dev/fab/specifique`, query: { view: 'true', id: id } }

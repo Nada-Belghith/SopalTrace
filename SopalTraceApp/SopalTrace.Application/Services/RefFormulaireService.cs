@@ -4,6 +4,9 @@ using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Collections.Generic;
+using SopalTrace.Application.Helpers;
 
 namespace SopalTrace.Application.Services.QualityPlans.Referentiels;
 
@@ -21,6 +24,8 @@ public class RefFormulaireService : IRefFormulaireService
         var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(id);
         if (form == null) throw new InvalidOperationException("Formulaire introuvable.");
 
+        var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference);
+
         return new RefFormulaireDto
         {
             Id = form.Id,
@@ -30,7 +35,7 @@ public class RefFormulaireService : IRefFormulaireService
             Statut = form.Statut,
             CreeLe = form.CreeLe,
             Role = form.Role,
-            ConfigurationStructureJson = form.ConfigurationStructureJson
+            ConfigurationStructureJson = ColonneJsonMapper.Serialize(cols)
         };
     }
 
@@ -39,7 +44,9 @@ public class RefFormulaireService : IRefFormulaireService
         var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(id);
         if (form == null) return false;
 
-        form.ConfigurationStructureJson = dto.ConfigurationStructureJson;
+        var parsedCols = ColonneJsonMapper.Deserialize(dto.ConfigurationStructureJson);
+        await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(form.CodeReference, parsedCols);
+
         await _unitOfWork.RefFormulaireRepository.UpdateAsync(form);
         await _unitOfWork.CommitAsync();
         return true;
@@ -52,9 +59,10 @@ public class RefFormulaireService : IRefFormulaireService
             var oldForm = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(dto.AncienId);
             if (oldForm == null) throw new InvalidOperationException("Ancien formulaire introuvable.");
 
+            var oldCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(oldForm.CodeReference);
+
             // Archiver l'ancien
-            oldForm.Statut = StatutsPlan.Archive;
-            await _unitOfWork.RefFormulaireRepository.UpdateAsync(oldForm);
+            await _unitOfWork.RefFormulaireRepository.UpdateStatutAsync(oldForm.Id, StatutsPlan.Archive);
 
             // Créer le nouveau
             var newForm = new RefFormulaire
@@ -66,8 +74,10 @@ public class RefFormulaireService : IRefFormulaireService
                 Statut = StatutsPlan.Actif,
                 CreeLe = DateTime.UtcNow,
                 Role = oldForm.Role,
-                ConfigurationStructureJson = dto.ConfigurationStructureJson ?? oldForm.ConfigurationStructureJson
             };
+
+            var parsedCols = ColonneJsonMapper.Deserialize(dto.ConfigurationStructureJson ?? ColonneJsonMapper.Serialize(oldCols));
+            await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(newForm.CodeReference, parsedCols);
 
             await _unitOfWork.RefFormulaireRepository.AddAsync(newForm);
             

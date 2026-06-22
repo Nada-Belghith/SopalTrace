@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Application.DTOs.QualityPlans.ImportExcel;
 
-public class ImportVerifMachineExcelResultDto
+public class ImportVerifMachineExcelResultDto : ImportExcelResultBaseDto
 {
     public string MachineCode { get; set; } = string.Empty;
     public string NomPlan { get; set; } = string.Empty;

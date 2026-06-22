@@ -51,6 +51,7 @@ public interface IDictionnaireQualiteRepository
     Task<System.Collections.Generic.List<Periodicite>> GetAllPeriodicitesAsync();
     Task<System.Collections.Generic.List<Instrument>> GetActiveInstrumentsAsync();
     Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync();
+    Task AddNqaAsync(Nqa entite);
     Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync();
     Task<System.Collections.Generic.List<RefRegleEchantillonnage>> GetActiveRegleEchantillonnagesAsync();
     Task<System.Collections.Generic.List<FamilleProduitFini>> GetActiveFamilleProduitFinisAsync();

@@ -11,15 +11,11 @@ public partial class PosteTravail
 
     public bool Actif { get; set; }
 
+    public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
+
     public virtual ICollection<ExecControleOf> ExecControleOfPosteCodeNavigations { get; set; } = new List<ExecControleOf>();
 
     public virtual ICollection<ExecControleOf> ExecControleOfPosteCodePrevuNavigations { get; set; } = new List<ExecControleOf>();
-
-    public virtual ICollection<PlanAssemblageEntete> PlanAssemblageEntetes { get; set; } = new List<PlanAssemblageEntete>();
-
-    public virtual ICollection<PlanControlePosteEntete> PlanControlePosteEntetes { get; set; } = new List<PlanControlePosteEntete>();
-
-    public virtual ICollection<PlanResultatControleCfEntete> PlanResultatControleCfEntetes { get; set; } = new List<PlanResultatControleCfEntete>();
 
     public virtual ICollection<Machine> CodeMachines { get; set; } = new List<Machine>();
 }

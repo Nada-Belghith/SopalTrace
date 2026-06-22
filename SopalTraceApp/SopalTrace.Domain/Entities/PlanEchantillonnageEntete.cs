@@ -15,6 +15,8 @@ public partial class PlanEchantillonnageEntete
 
     public int NqaId { get; set; }
 
+    public Guid? FormulaireId { get; set; }
+
     public int Version { get; set; }
 
     public string Statut { get; set; } = null!;
@@ -32,6 +34,8 @@ public partial class PlanEchantillonnageEntete
     public string? Remarques { get; set; }
 
     public string? LegendeMoyens { get; set; }
+
+    public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Nqa Nqa { get; set; } = null!;
 

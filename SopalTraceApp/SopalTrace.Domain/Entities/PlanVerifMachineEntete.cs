@@ -23,8 +23,6 @@ public partial class PlanVerifMachineEntete
 
     public DateTime? ModifieLe { get; set; }
 
-    public string? ConfigurationColonnesJson { get; set; }
-
     public Guid? FormulaireId { get; set; }
 
     public string? Remarques { get; set; }

@@ -186,7 +186,7 @@ import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import Toast from 'primevue/toast';
-import { pfPlanService } from '@/services/pfPlanService';
+import { documentService as pfPlanService } from '@/services/documentService';
 
 const route = useRoute();
 const router = useRouter();
@@ -224,114 +224,27 @@ const onFileSelected = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
+  event.target.value = '';
   const formData = new FormData();
   formData.append('file', file);
   if (store.entete.configurationColonnes) {
     const configJson = typeof store.entete.configurationColonnes === 'string'
       ? store.entete.configurationColonnes
       : JSON.stringify(store.entete.configurationColonnes);
+    formData.append('colonneDefsJson', configJson);
     formData.append('configurationColonnesJson', configJson);
   }
 
   try {
     isLoadingData.value = true;
-    const response = await pfPlanService.importExcel(formData);
-    const parsedData = response.data.data;
-    
-    if (parsedData) {
-      if (parsedData.remarques && parsedData.remarques.trim() !== '') {
-        store.entete.remarques = (store.entete.remarques ? store.entete.remarques + '\n' : '') + parsedData.remarques.trim();
-      }
-
-      if (parsedData.sections) {
-        sections.value = parsedData.sections.map(sec => {
-          let modeFreq = sec.modeFreq || 'SANS';
-          let regleEchantillonnageId = sec.regleEchantillonnageId || null;
-          let freqNum = sec.freqNum || 1;
-          let typeVariable = sec.typeVariable || 'HEURE';
-          let freqHours = sec.freqHours || 1;
-
-          // LOGIQUE IDENTIQUE AU PLAN FABRICATION/PISTON
-          if (sec.frequenceLibelle) {
-            const perMatch = (store.reglesEchantillonnage || []).find(p => p.libelle === sec.frequenceLibelle);
-            if (perMatch) {
-              modeFreq = 'FIXE';
-              regleEchantillonnageId = perMatch.id;
-            } else {
-              modeFreq = 'VARIABLE';
-              const libelle = sec.frequenceLibelle.toLowerCase();
-
-              if (libelle.includes('pièce') && libelle.includes('heure')) {
-                typeVariable = 'HEURE';
-                const match = libelle.match(/(\d+)\s*pièce.*\/\s*(\d+)\s*heure/);
-                if (match) {
-                  freqNum = parseInt(match[1]);
-                  freqHours = parseInt(match[2]);
-                } else {
-                  const pieceMatch = libelle.match(/(\d+)\s*pièce/);
-                  if (pieceMatch) {
-                    freqNum = parseInt(pieceMatch[1]);
-                    freqHours = 1;
-                  }
-                }
-              } else if (libelle.includes('échantillon')) {
-                 typeVariable = 'ECHANTILLON';
-                 const match = libelle.match(/(\d+)\s*échantillon/);
-                 if (match) freqNum = parseInt(match[1]);
-              } else if (libelle.includes('série')) {
-                typeVariable = 'SERIE';
-                const serieMatch = libelle.match(/série de (\d+) pièces/);
-                if (serieMatch) {
-                  freqNum = parseInt(serieMatch[1]);
-                }
-              }
-            }
-          }
-
-          let typeSectionId = sec.typeSectionId || '';
-
-          return {
-            id: sec.id || crypto.randomUUID(),
-            isFromDb: false,
-            nom: sec.nom || '',  // Texte brut Excel (nature personnalisée si typeSectionId est null)
-            libelleSection: sec.nom,
-            typeSectionId,  // null/vide si non trouvé en base
-            notes: sec.notes || '',
-            regleEchantillonnageId,
-            regleEchantillonnageLibelle: sec.frequenceLibelle,
-            modeFreq,
-            freqNum,
-            typeVariable,
-            freqHours,
-            lignes: (sec.lignes || []).map(lig => ({
-              id: lig.id || crypto.randomUUID(),
-              isFromDb: false,
-              typeCaracteristiqueId: lig.typeCaracteristiqueId,
-              typeControleId: lig.typeControleId,
-              moyenControleId: lig.moyenControleId,
-              instrumentCode: lig.instrumentCode,
-              unite: lig.unite || '',
-              limiteSpecTexte: lig.limiteSpecTexte,
-              observations: lig.observations,
-              estCritique: lig.estCritique,
-              libelleAffiche: lig.libelleAffiche,
-              imageBase64: lig.imageBase64 || null,
-              valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
-            }))
-          };
-        });
-      }
-      
-      // On recharge les dictionnaires pour s'assurer que les nouvelles caractéristiques créées par le backend soient disponibles dans les select.
-      await store.fetchDictionnaires();
-
-      toast.success('Les données ont été chargées depuis le fichier Excel.', 'Import réussi');
-    }
+    await store.importerDepuisExcel(file);
+    sections.value = JSON.parse(JSON.stringify(store.sections));
+    toast.success('Les données ont été chargées depuis le fichier Excel.', 'Import réussi');
   } catch (error) {
     toast.error(error.response?.data?.message || 'Impossible de lire le fichier.', 'Erreur d\'import');
   } finally {
     isLoadingData.value = false;
-    if (fileInput.value) fileInput.value.value = '';
+    if (event.target) event.target.value = '';
   }
 };
 

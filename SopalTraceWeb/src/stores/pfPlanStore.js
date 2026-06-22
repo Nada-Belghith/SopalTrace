@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { pfPlanService } from '@/services/pfPlanService';
+import { documentService as pfPlanService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
@@ -61,9 +61,11 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         defauthequeId: l.defauthequeId || null,
         instruction: l.instruction || null,
         observations: l.observations || null,
-        colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0
-          ? JSON.stringify(l.valeursColonnesSpecifiques)
-          : null
+        extraColonnes: Object.entries(l.valeursColonnesSpecifiques || {}).map(([k, v], idx) => ({
+          cleColonne: k,
+          valeurColonne: v ? String(v) : null,
+          ordreAffiche: idx + 1
+        }))
       }))
     }));
   };
@@ -71,7 +73,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   // --- ACTIONS ---
   const fetchDictionnaires = async () => {
     try {
-      const response = await pfPlanService.getDictionnaires();
+      const response = await referentielsService.getDictionnaires();
       const data = response.data.data;
 
       typesRobinet.value = data.typesRobinet || [];
@@ -104,8 +106,8 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   const getPlan = async (id) => {
     isLoading.value = true;
     try {
-      const response = await pfPlanService.getPlan(id);
-      const data = response.data.data;
+      const response = await pfPlanService.getPlanById(id);
+      const data = response.data?.data || response.data || response;
 
       entete.value = {
         id: data.id,
@@ -118,7 +120,12 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         creeLe: data.creeLe,
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
-        configurationColonnes: data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [],
+        configurationColonnes: (data.colonneDefs || []).map(c => ({
+          key: c.cleColonne || c.key,
+          label: c.labelAffiche || c.label,
+          type: c.typeValeur || c.type || 'Texte',
+          insertAfter: c.insertAfter || 'code_instrument'
+        })),
       };
 
       sections.value = (data.sections || []).map(s => {
@@ -148,10 +155,20 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         }
 
         if (hydrated.lignes) {
-          hydrated.lignes = hydrated.lignes.map(l => ({
-            ...l,
-            valeursColonnesSpecifiques: l.colonnesSupplementaires ? (typeof l.colonnesSupplementaires === 'string' ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires) : {}
-          }));
+          hydrated.lignes = hydrated.lignes.map(l => {
+            const valeursColonnesSpecifiques = {};
+            if (l.extraColonnes && l.extraColonnes.length > 0) {
+              l.extraColonnes.forEach(ec => {
+                valeursColonnesSpecifiques[ec.cleColonne] = ec.valeurColonne;
+              });
+            } else if (l.colonnesSupplementaires) {
+              Object.assign(valeursColonnesSpecifiques, typeof l.colonnesSupplementaires === 'string' ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires);
+            }
+            return {
+              ...l,
+              valeursColonnesSpecifiques
+            };
+          });
         }
 
         return hydrated;
@@ -165,17 +182,20 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     isLoading.value = true;
     try {
       const payload = {
+        nom: `PLAN_PF_${entete.value.familleProduitFiniCode}`,
+        designation: entete.value.familleProduitFiniLibelle,
+        typeDocumentCode: 'PLAN_PF',
         familleProduitFiniCode: entete.value.familleProduitFiniCode,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
         versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
-        configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
+        colonneDefs: entete.value.configurationColonnes || [],
         sections: mapSectionsForBackend()
       };
 
-      const response = await pfPlanService.creerPlan(payload);
-      return response.data.planId;
+      const response = await pfPlanService.create(payload);
+      return response.data?.planId || response.planId || response;
     } finally {
       isLoading.value = false;
     }
@@ -185,7 +205,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     if (!entete.value.id) return;
     isLoading.value = true;
     try {
-      await pfPlanService.archiverPlan(entete.value.id);
+      await pfPlanService.deletePlan(entete.value.id);
       entete.value.statut = 'ARCHIVE';
     } finally {
       isLoading.value = false;
@@ -198,6 +218,9 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     try {
       const payload = {
         ancienId: entete.value.id,
+        nom: `PLAN_PF_${entete.value.familleProduitFiniCode}`,
+        designation: entete.value.familleProduitFiniLibelle,
+        typeDocumentCode: 'PLAN_PF',
         familleProduitFiniCode: entete.value.familleProduitFiniCode,
         modifiePar: 'Admin',
         motifModification: motif,
@@ -205,11 +228,11 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         legendeMoyens: entete.value.legendeMoyens || '',
         versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
-        configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
+        colonneDefs: entete.value.configurationColonnes || [],
         sections: mapSectionsForBackend()
       };
-      const response = await pfPlanService.creerNouvelleVersion(entete.value.id, payload);
-      return response.data.planId;
+      const response = await pfPlanService.newPlanVersion(payload);
+      return response.data?.planId || response.planId || response;
     } finally {
       isLoading.value = false;
     }
@@ -220,12 +243,117 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     isLoading.value = true;
     try {
       const payload = {
-        planArchiveId: entete.value.id,
-        restaurePar: 'Admin',
+        documentArchiveId: entete.value.id,
         motifRestoration: motif
       };
-      const response = await pfPlanService.restaurerPlan(payload);
-      return response.data.planId;
+      const response = await pfPlanService.restorePlan(payload);
+      return response.data?.planId || response.planId || response;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const importerDepuisExcel = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (entete.value.configurationColonnes) {
+      const configJson = typeof entete.value.configurationColonnes === 'string'
+        ? entete.value.configurationColonnes
+        : JSON.stringify(entete.value.configurationColonnes);
+      formData.append('colonneDefsJson', configJson);
+      formData.append('configurationColonnesJson', configJson);
+    }
+
+    isLoading.value = true;
+    try {
+      const parsedData = await pfPlanService.importExcel(formData);
+      
+      if (parsedData) {
+        if (parsedData.remarques && parsedData.remarques.trim() !== '') {
+          entete.value.remarques = (entete.value.remarques ? entete.value.remarques + '\n' : '') + parsedData.remarques.trim();
+        }
+
+        if (parsedData.sections) {
+          sections.value = parsedData.sections.map(sec => {
+            let modeFreq = sec.modeFreq || 'SANS';
+            let regleEchantillonnageId = sec.regleEchantillonnageId || null;
+            let freqNum = sec.freqNum || 1;
+            let typeVariable = sec.typeVariable || 'HEURE';
+            let freqHours = sec.freqHours || 1;
+
+            if (sec.frequenceLibelle) {
+              const perMatch = (reglesEchantillonnage.value || []).find(p => p.libelle === sec.frequenceLibelle);
+              if (perMatch) {
+                modeFreq = 'FIXE';
+                regleEchantillonnageId = perMatch.id;
+              } else {
+                modeFreq = 'VARIABLE';
+                const libelle = sec.frequenceLibelle.toLowerCase();
+
+                if (libelle.includes('pièce') && libelle.includes('heure')) {
+                  typeVariable = 'HEURE';
+                  const match = libelle.match(/(\d+)\s*pièce.*\/\s*(\d+)\s*heure/);
+                  if (match) {
+                    freqNum = parseInt(match[1]);
+                    freqHours = parseInt(match[2]);
+                  } else {
+                    const pieceMatch = libelle.match(/(\d+)\s*pièce/);
+                    if (pieceMatch) {
+                      freqNum = parseInt(pieceMatch[1]);
+                      freqHours = 1;
+                    }
+                  }
+                } else if (libelle.includes('échantillon')) {
+                   typeVariable = 'ECHANTILLON';
+                   const match = libelle.match(/(\d+)\s*échantillon/);
+                   if (match) freqNum = parseInt(match[1]);
+                } else if (libelle.includes('série')) {
+                  typeVariable = 'SERIE';
+                  const serieMatch = libelle.match(/série de (\d+) pièces/);
+                  if (serieMatch) {
+                    freqNum = parseInt(serieMatch[1]);
+                  }
+                }
+              }
+            }
+
+            let typeSectionId = sec.typeSectionId || '';
+
+            return {
+              id: sec.id || crypto.randomUUID(),
+              isFromDb: false,
+              nom: sec.nom || '',
+              libelleSection: sec.nom,
+              typeSectionId,
+              notes: sec.notes || '',
+              regleEchantillonnageId,
+              regleEchantillonnageLibelle: sec.frequenceLibelle,
+              modeFreq,
+              freqNum,
+              typeVariable,
+              freqHours,
+              lignes: (sec.lignes || []).map(lig => ({
+                id: lig.id || crypto.randomUUID(),
+                isFromDb: false,
+                typeCaracteristiqueId: lig.typeCaracteristiqueId,
+                typeControleId: lig.typeControleId,
+                moyenControleId: lig.moyenControleId,
+                instrumentCode: lig.instrumentCode,
+                unite: lig.unite || '',
+                limiteSpecTexte: lig.limiteSpecTexte,
+                observations: lig.observations,
+                estCritique: lig.estCritique,
+                libelleAffiche: lig.libelleAffiche,
+                imageBase64: lig.imageBase64 || null,
+                valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {})
+              }))
+            };
+          });
+        }
+        
+        await fetchDictionnaires();
+      }
+      return parsedData;
     } finally {
       isLoading.value = false;
     }
@@ -235,6 +363,6 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle,
     periodicites, typesSection, instruments, postes, isDicosLoaded,
     entete, sections, isLoading, reglesEchantillonnage, formulairesReferences,
-    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan
+    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan, importerDepuisExcel
   };
 });

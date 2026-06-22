@@ -13,5 +13,5 @@ public partial class RisqueDefaut
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<PlanControlePosteLigne> PlanControlePosteLignes { get; set; } = new List<PlanControlePosteLigne>();
+    public virtual ICollection<DocumentLigne> DocumentLignes { get; set; } = new List<DocumentLigne>();
 }

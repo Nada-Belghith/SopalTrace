@@ -138,141 +138,55 @@ public partial class ExcelImportService
             else if (hasConformiteInitial) inConformite = true;
         }
 
-        ImportVerifMachineLigneDto? currentLigne = null;
+
+        var strategy = _factory.GetStrategy(result.MachineCode);
+        
+        int headerBottomIdx = rows.FindIndex(r => r.RowNumber() == map.HeaderBottomRow);
+        if (headerBottomIdx == -1) headerBottomIdx = 0;
+        
+        int startDataRow = headerBottomIdx + 1;
+        if (startDataRow >= rows.Count) startDataRow = rows.Count - 1;
+
+        // On regroupe les lignes avec la stratégie
+        var lignesLogiques = strategy.Regrouper(rows, startDataRow, rows.Count - 1, map.RisqueCol > 0 ? map.RisqueCol : 1);
+
         string lastSeenRisque = "";
         string lastSeenMethode = "";
         string lastSeenPerio = "";
 
-        for (int i = 0; i < rows.Count; i++)
+        foreach (var ll in lignesLogiques)
         {
-            var row = rows[i];
-            
-            string rawCol1 = SafeGetCellValue(row.Cell(1)); 
-            string rowFullText = string.Join(" ", row.CellsUsed()
-                .Select(c => SafeGetCellValue(c))
-                .Where(v => !string.IsNullOrWhiteSpace(v)));
+            var pRow = ll.Principale;
+            string rawColA = SafeGetCellValue(pRow.Cell(map.RisqueCol > 0 ? map.RisqueCol : 1));
+            string rawColB = SafeGetCellValue(pRow.Cell(map.MethodeCol > 0 ? map.MethodeCol : 2));
+            string rawColC = SafeGetCellValue(pRow.Cell(map.PerioCol > 0 ? map.PerioCol : 3));
 
-            string normalizedFullText = NormalizeForSearch(rowFullText);
+            string pFullText = string.Join(" ", pRow.CellsUsed().Select(c => SafeGetCellValue(c)).Where(v => !string.IsNullOrWhiteSpace(v)));
+            string normalizedFullText = NormalizeForSearch(pFullText);
 
             if (normalizedFullText.Contains("rapport") && string.IsNullOrEmpty(result.NomPlan))
             {
-                result.NomPlan = rawCol1;
-                var machineMatch = Regex.Match(rawCol1, @"([A-Z0-9-]{3,10})$");
+                result.NomPlan = rawColA;
+                var machineMatch = System.Text.RegularExpressions.Regex.Match(rawColA, @"([A-Z0-9-]{3,10})$");
                 if (machineMatch.Success) result.MachineCode = machineMatch.Value;
-            }
-
-            if (map.HeaderBottomRow > -1 && row.RowNumber() <= map.HeaderBottomRow) continue;
-
-            // 1. DÉTECTION DE CHANGEMENT DE SECTION (Header)
-            bool hasConformiteTitle = row.CellsUsed().Any(c => {
-                var val = NormalizeForSearch(SafeGetCellValue(c));
-                return MatchesAny(val, ConformiteKeywords) && !val.Contains("nonconformit");
-            });
-            
-            bool hasCaractTitle = row.CellsUsed().Any(c => {
-                var val = NormalizeForSearch(SafeGetCellValue(c));
-                return MatchesAny(val, CaractKeywords);
-            });
-
-            bool isSectionTitle = hasConformiteTitle || hasCaractTitle;
-            
-            System.IO.File.AppendAllText("import_log.txt", $"Row {row.RowNumber()} => hasConf: {hasConformiteTitle}, hasCaract: {hasCaractTitle}, text: {normalizedFullText}, isHeader={isSectionTitle || row.CellsUsed().Any(c => MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), PerioKeywords) || MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), MoyenKeywords) || MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), TypeKeywords))}\n");
-
-            bool isHeaderRow = isSectionTitle || row.CellsUsed().Any(c => {
-                var val = NormalizeForSearch(SafeGetCellValue(c));
-                return MatchesAny(val, PerioKeywords) || 
-                       MatchesAny(val, MoyenKeywords) || 
-                       MatchesAny(val, TypeKeywords);
-            });
-
-            if (isHeaderRow)
-            {
-                if (hasCaractTitle && !hasConformiteTitle) inConformite = false;
-                else if (hasConformiteTitle) inConformite = true;
-                
-                System.IO.File.AppendAllText("import_log.txt", $"Row {row.RowNumber()} isHeaderRow. inConformite set to {inConformite}\n");
-                
-                currentLigne = null;
-                
-                // Vérifier si cette ligne contient les vraies colonnes
-                bool hasColumns = row.CellsUsed().Any(c => 
-                {
-                    var val = NormalizeForSearch(SafeGetCellValue(c));
-                    return MatchesAny(val, TypeKeywords) || MatchesAny(val, PerioKeywords);
-                });
-
-                if (hasColumns)
-                {
-                    // Recalcul dynamique des colonnes UNIQUEMENT si c'est la ligne des colonnes
-                    map.RisqueCol = 0;
-                    map.MethodeCol = 0;
-                    map.PerioCol = 0;
-                    map.MoyenDetCol = null;
-                    map.PieceRefStartCol = 0;
-                    map.PieceRefEndCol = 0;
-                    map.FuiteCol = null;
-                    map.CustomCols.Clear();
-
-                    foreach (var c in row.CellsUsed())
-                    {
-                        string val = NormalizeForSearch(SafeGetCellValue(c));
-                        if (MatchesAny(val, ConformiteKeywords) && !MatchesAny(val, ObsKeywords) && !val.Contains("non")) 
-                        {
-                            if (map.RisqueCol == 0) map.RisqueCol = c.Address.ColumnNumber;
-                        }
-                        else if (MatchesAny(val, CaractKeywords)) 
-                        {
-                            if (map.RisqueCol == 0) map.RisqueCol = c.Address.ColumnNumber;
-                        }
-                        else if (MatchesAny(val, TypeKeywords)) 
-                        {
-                            if (map.MethodeCol == 0) map.MethodeCol = c.Address.ColumnNumber;
-                        }
-                        else if (MatchesAny(val, PerioKeywords)) 
-                        {
-                            if (map.PerioCol == 0) map.PerioCol = c.Address.ColumnNumber;
-                        }
-                        else if (!val.Contains("num") && (val == "moyendedetection" || val == "moyendecontrole" || (MatchesAny(val, MoyenKeywords) && MatchesAny(val, ControleKeywords)))) 
-                        {
-                            if (map.MoyenDetCol == null) map.MoyenDetCol = c.Address.ColumnNumber;
-                        }
-                        else if (val.Contains("num") || val.Contains("piece") || val.Contains("ref")) 
-                        {
-                            if ((val.Contains("piec") && (val.Contains("num") || val.Contains("ref"))) ||
-                                (val.Contains("num") && MatchesAny(val, MoyenKeywords) && MatchesAny(val, ControleKeywords)))
-                            {
-                                if (map.PieceRefStartCol == 0)
-                                {
-                                    map.PieceRefStartCol = c.Address.ColumnNumber;
-                                    if (c.IsMerged()) map.PieceRefEndCol = c.MergedRange().LastColumn().ColumnNumber();
-                                    else map.PieceRefEndCol = c.Address.ColumnNumber;
-                                }
-                            }
-                        }
-                        else if (val.Contains("fuite") && val.Contains("etalon")) 
-                        {
-                            if (map.FuiteCol == null) map.FuiteCol = c.Address.ColumnNumber;
-                        }
-                        else if (map.CustomColsDefinition.TryGetValue(val, out var customKey))
-                        {
-                            map.CustomCols[c.Address.ColumnNumber] = customKey;
-                        }
-                    }
-                }
                 continue;
             }
 
-            // 2. LECTURE DES VALEURS BRUTES
-            string rawColA = SafeGetCellValue(row.Cell(map.RisqueCol > 0 ? map.RisqueCol : 1));
-            string rawColB = SafeGetCellValue(row.Cell(map.MethodeCol > 0 ? map.MethodeCol : 2));
-            string rawColC = SafeGetCellValue(row.Cell(map.PerioCol > 0 ? map.PerioCol : 3));
-            string colD = map.MoyenDetCol.HasValue ? SafeGetCellValue(row.Cell(map.MoyenDetCol.Value)) : "";
-
-            if (IsLigneLegendePieces(rowFullText) ||
+            if (IsLigneLegendePieces(pFullText) ||
                 normalizedFullText.Contains("validepar") ||
                 normalizedFullText.Contains("matricule") ||
                 normalizedFullText.Contains("signature"))
             {
+                continue;
+            }
+
+            bool hasConformiteTitle = pRow.CellsUsed().Any(c => MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), ConformiteKeywords) && !NormalizeForSearch(SafeGetCellValue(c)).Contains("nonconformit"));
+            bool hasCaractTitle = pRow.CellsUsed().Any(c => MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), CaractKeywords));
+
+            if (hasConformiteTitle || hasCaractTitle)
+            {
+                if (hasCaractTitle && !hasConformiteTitle) inConformite = false;
+                else if (hasConformiteTitle) inConformite = true;
                 continue;
             }
 
@@ -282,165 +196,183 @@ public partial class ExcelImportService
                 normalizedColA.Contains("risquedefaut") ||
                 normalizedColA.Contains("numerodelapiece")) continue;
 
-            // 3. HÉRITAGE UNIVERSEL DES VALEURS (Architecture A ou B)
             if (!string.IsNullOrWhiteSpace(rawColA)) lastSeenRisque = rawColA;
             if (!string.IsNullOrWhiteSpace(rawColB)) lastSeenMethode = rawColB;
             if (!string.IsNullOrWhiteSpace(rawColC)) lastSeenPerio = rawColC;
 
-            string colA = string.IsNullOrWhiteSpace(rawColA) ? lastSeenRisque : rawColA;
-            string colB = string.IsNullOrWhiteSpace(rawColB) ? lastSeenMethode : rawColB;
-            string colC = string.IsNullOrWhiteSpace(rawColC) ? lastSeenPerio : rawColC;
+            string risquePrincipale = string.IsNullOrWhiteSpace(rawColA) ? lastSeenRisque : rawColA;
 
-            // Une ligne est valide si elle a un libellé OU une période OU une pièce de référence OU une colonne personnalisée
-            bool hasPieceInRow = map.PieceRefStartCol > 0 && !string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(map.PieceRefStartCol)));
+            // Constuire la liste complète des sous-lignes (incluant la ligne principale elle-même si elle a des données)
+            var allSubRows = new List<Dictionary<int, string>>();
             
-            bool hasCustomColumnInRow = false;
-            if (map.CustomCols.Count > 0)
+            var dictPrincipale = new Dictionary<int, string>();
+            int lastCol = rows.Max(r => r.LastCellUsed()?.Address.ColumnNumber ?? 1);
+            
+            for (int colIdx = 1; colIdx <= lastCol; colIdx++)
             {
+                var cell = pRow.Cell(colIdx);
+                string valeur = string.Empty;
+
+                if (cell.IsMerged())
+                    valeur = cell.MergedRange().FirstCell().GetString().Trim();
+                else
+                    valeur = cell.GetString().Trim();
+
+                dictPrincipale[colIdx] = valeur;
+            }
+            allSubRows.Add(dictPrincipale);
+            allSubRows.AddRange(ll.SousLignes);
+
+            foreach (var sRow in allSubRows)
+            {
+                string methode = sRow.TryGetValue(map.MethodeCol > 0 ? map.MethodeCol : 2, out string m) && !string.IsNullOrWhiteSpace(m) ? m : "";
+                string perio = sRow.TryGetValue(map.PerioCol > 0 ? map.PerioCol : 3, out string p) && !string.IsNullOrWhiteSpace(p) ? p : "";
+                string moyenDet = map.MoyenDetCol.HasValue && sRow.TryGetValue(map.MoyenDetCol.Value, out string md) ? md : "";
+
+                bool hasPieceInRow = map.PieceRefStartCol > 0 && sRow.TryGetValue(map.PieceRefStartCol, out string pf) && !string.IsNullOrWhiteSpace(pf);
+                
+                bool hasCustomColumnInRow = false;
                 foreach (var colIdx in map.CustomCols.Keys)
                 {
-                    if (!string.IsNullOrWhiteSpace(SafeGetCellValue(row.Cell(colIdx))))
+                    if (sRow.TryGetValue(colIdx, out string cv) && !string.IsNullOrWhiteSpace(cv))
                     {
-                        hasCustomColumnInRow = true;
-                        break;
+                        hasCustomColumnInRow = true; break;
                     }
                 }
-            }
 
-            if (string.IsNullOrWhiteSpace(colA) && string.IsNullOrWhiteSpace(colB) && string.IsNullOrWhiteSpace(colC) && !hasPieceInRow && !hasCustomColumnInRow) continue;
-
-            if (!string.IsNullOrWhiteSpace(colA) || !string.IsNullOrWhiteSpace(colB) || currentLigne == null)
-            {
-                var listToSearch = inConformite ? result.LignesConformite : result.LignesRisques;
-                var existingLigne = listToSearch.LastOrDefault(l => l.LibelleRisque == (colA ?? "") && l.LibelleMethode == (colB ?? ""));
-
-                if (existingLigne != null)
+                if (sRow == dictPrincipale)
                 {
-                    currentLigne = existingLigne;
+                    if (string.IsNullOrWhiteSpace(risquePrincipale) && string.IsNullOrWhiteSpace(rawColB) && string.IsNullOrWhiteSpace(rawColC) && !hasPieceInRow && !hasCustomColumnInRow) continue;
+                    
+                    if (string.IsNullOrWhiteSpace(methode)) methode = string.IsNullOrWhiteSpace(rawColB) ? lastSeenMethode : rawColB;
+                    if (string.IsNullOrWhiteSpace(perio)) perio = string.IsNullOrWhiteSpace(rawColC) ? lastSeenPerio : rawColC;
                 }
                 else
                 {
-                    currentLigne = new ImportVerifMachineLigneDto
-                    {
-                        LibelleRisque = colA ?? "",
-                        LibelleMethode = colB ?? ""
-                    };
-
-                    if (inConformite) result.LignesConformite.Add(currentLigne);
-                    else result.LignesRisques.Add(currentLigne);
+                    if (string.IsNullOrWhiteSpace(methode) && string.IsNullOrWhiteSpace(perio) && !hasPieceInRow && !hasCustomColumnInRow) continue;
                     
-                    System.IO.File.AppendAllText("import_log.txt", $"Row {row.RowNumber()} added {colA} to {(inConformite ? "Conformite" : "Risques")}\n");
+                    if (string.IsNullOrWhiteSpace(methode)) methode = lastSeenMethode;
+                    if (string.IsNullOrWhiteSpace(perio)) perio = lastSeenPerio;
                 }
 
-                // Add or update custom columns values
+                if (!string.IsNullOrWhiteSpace(methode)) lastSeenMethode = methode;
+                if (!string.IsNullOrWhiteSpace(perio)) lastSeenPerio = perio;
+
+                var listToSearch = inConformite ? result.LignesConformite : result.LignesRisques;
+                var currentLigne = listToSearch.LastOrDefault(l => l.LibelleRisque == (risquePrincipale ?? ""));
+
+                bool needNewLigne = false;
+                if (currentLigne == null) needNewLigne = true;
+                else if (currentLigne.LibelleMethode != (methode ?? "")) needNewLigne = true;
+                else
+                {
+                    foreach (var kvp in map.CustomCols)
+                    {
+                        if (sRow.TryGetValue(kvp.Key, out string cVal) && !string.IsNullOrWhiteSpace(cVal))
+                        {
+                            if (currentLigne.ColonnesSupplementaires.TryGetValue(kvp.Value, out string existingVal) && existingVal != cVal)
+                            {
+                                needNewLigne = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (needNewLigne)
+                {
+                    currentLigne = new ImportVerifMachineLigneDto
+                    {
+                        LibelleRisque = risquePrincipale ?? "",
+                        LibelleMethode = methode ?? ""
+                    };
+                    if (inConformite) result.LignesConformite.Add(currentLigne);
+                    else result.LignesRisques.Add(currentLigne);
+                }
+
                 if (map.CustomCols.Count > 0)
                 {
                     foreach (var kvp in map.CustomCols)
                     {
-                        string cVal = SafeGetCellValue(row.Cell(kvp.Key));
-                        if (!string.IsNullOrWhiteSpace(cVal))
+                        if (sRow.TryGetValue(kvp.Key, out string cVal) && !string.IsNullOrWhiteSpace(cVal))
                         {
                             currentLigne.ColonnesSupplementaires[kvp.Value] = cVal;
                         }
                     }
                 }
-            }
 
-            if (currentLigne != null)
-            {
-                var periodiciteLibelle = colC;
-
-                var existingEcheance = currentLigne.Echeances.FirstOrDefault(e => e.PeriodiciteLibelle == periodiciteLibelle);
-                ImportVerifMachineEcheanceDto echeance;
-
-                if (existingEcheance != null)
+                var periodiciteLibelle = perio;
+                ImportVerifMachineEcheanceDto echeance = null;
+                if (!string.IsNullOrWhiteSpace(periodiciteLibelle))
                 {
-                    echeance = existingEcheance;
-                }
-                else
-                {
-                    echeance = new ImportVerifMachineEcheanceDto
+                    var existingEcheance = currentLigne.Echeances.FirstOrDefault(e => e.PeriodiciteLibelle == periodiciteLibelle);
+                    
+                    if (existingEcheance != null) echeance = existingEcheance;
+                    else
                     {
-                        PeriodiciteLibelle = periodiciteLibelle,
-                        Rows = new List<ImportVerifMachineRowDto>()
-                    };
-
-                    var normalizedPerio = periodiciteLibelle?.Trim();
-                    if (!string.IsNullOrEmpty(normalizedPerio))
-                    {
-                        if (!_createdPerioCache.TryGetValue(normalizedPerio, out var periodicite))
+                        echeance = new ImportVerifMachineEcheanceDto { PeriodiciteLibelle = periodiciteLibelle, Rows = new List<ImportVerifMachineRowDto>() };
+                        
+                        var normalizedPerio = periodiciteLibelle?.Trim();
+                        if (!string.IsNullOrEmpty(normalizedPerio))
                         {
-                            periodicite = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync(normalizedPerio);
-                            if (periodicite == null)
+                            if (!_createdPerioCache.TryGetValue(normalizedPerio, out var periodicite))
                             {
-                                periodicite = new Periodicite { Id = Guid.NewGuid(), Code = SafeSubstring(normalizedPerio.Replace(" ", "").ToUpper(), 22) + normalizedPerio.GetHashCode().ToString("X").PadLeft(6, '0').Substring(0, 6), Libelle = SafeSubstring(normalizedPerio, 80), Actif = true };
-                                await _unitOfWork.DictionnaireQualiteRepository.AddPeriodiciteAsync(periodicite);
-                                await _unitOfWork.CommitAsync();
+                                periodicite = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync(normalizedPerio);
+                                if (periodicite == null)
+                                {
+                                    periodicite = new Periodicite { Id = Guid.NewGuid(), Code = SafeSubstring(normalizedPerio.Replace(" ", "").ToUpper(), 22) + normalizedPerio.GetHashCode().ToString("X").PadLeft(6, '0').Substring(0, 6), Libelle = SafeSubstring(normalizedPerio, 80), Actif = true };
+                                    await _unitOfWork.DictionnaireQualiteRepository.AddPeriodiciteAsync(periodicite);
+                                }
+                                _createdPerioCache[normalizedPerio] = periodicite;
                             }
-                            _createdPerioCache[normalizedPerio] = periodicite;
+                            echeance.PeriodiciteId = periodicite.Id;
                         }
-                        echeance.PeriodiciteId = periodicite.Id;
+                        
+                        currentLigne.Echeances.Add(echeance);
                     }
 
-                    currentLigne.Echeances.Add(echeance);
-                }
-
-                bool hasMoyenDet = !string.IsNullOrWhiteSpace(colD) && map.MoyenDetCol.HasValue;
-
-                if (hasMoyenDet)
-                {
-                    var moyenDet = await GetOrCreateMoyenDetectionAsync(colD);
-
-                    var newRow = new ImportVerifMachineRowDto
+                    var lastRowDto = echeance.Rows.LastOrDefault();
+                    if (lastRowDto == null || (!string.IsNullOrWhiteSpace(moyenDet) && lastRowDto.MoyenDetectionLibelle != moyenDet))
                     {
-                        MoyenDetectionLibelle = colD,
-                        MoyenDetectionId = moyenDet.Id,
-                        MatricePieces = new List<ImportVerifMachineMatriceDto>()
-                    };
+                        lastRowDto = new ImportVerifMachineRowDto { MoyenDetectionLibelle = moyenDet, MatricePieces = new List<ImportVerifMachineMatriceDto>() };
+                        
+                        if (!string.IsNullOrWhiteSpace(moyenDet)) {
+                            var moyenDetObj = await GetOrCreateMoyenDetectionAsync(moyenDet);
+                            lastRowDto.MoyenDetectionId = moyenDetObj.Id;
+                        }
+                        
+                        echeance.Rows.Add(lastRowDto);
+                    }
 
-                    echeance.Rows.Add(newRow);
-                }
-                else if (echeance.Rows.Count == 0)
-                {
-                    echeance.Rows.Add(new ImportVerifMachineRowDto
-                    {
-                        MoyenDetectionLibelle = "",
-                        MatricePieces = new List<ImportVerifMachineMatriceDto>()
-                    });
-                }
-
-                var lastRow = echeance.Rows.LastOrDefault();
-                if (lastRow != null)
-                {
                     if (map.Familles.Count > 0)
                     {
                         foreach (var kvp in map.Familles)
                         {
                             int excelCol = kvp.Key;
-                            string pieceCode = SafeGetCellValue(row.Cell(excelCol));
-                            await ProcessPieceCellAsync(pieceCode, kvp.Value, lastRow, inConformite, colD, result.MachineCode!);
+                            if (sRow.TryGetValue(excelCol, out string pieceCode) && !string.IsNullOrWhiteSpace(pieceCode))
+                            {
+                                await ProcessPieceCellAsync(pieceCode, kvp.Value, lastRowDto, inConformite, moyenDet, result.MachineCode!);
+                            }
                         }
                     }
                     else
                     {
                         int targetCol = map.PieceRefStartCol > 0 ? map.PieceRefStartCol : 4;
-                        string pieceCode = SafeGetCellValue(row.Cell(targetCol));
-                        await ProcessPieceCellAsync(pieceCode, "", lastRow, inConformite, colD, result.MachineCode!);
+                        if (sRow.TryGetValue(targetCol, out string pieceCode) && !string.IsNullOrWhiteSpace(pieceCode))
+                        {
+                            await ProcessPieceCellAsync(pieceCode, "", lastRowDto, inConformite, moyenDet, result.MachineCode!);
+                        }
                     }
-                }
 
-                if (map.FuiteCol.HasValue)
-                {
-                    string colFuite = SafeGetCellValue(row.Cell(map.FuiteCol.Value));
-                    if (!string.IsNullOrWhiteSpace(colFuite) && lastRow != null)
+                    if (map.FuiteCol.HasValue && sRow.TryGetValue(map.FuiteCol.Value, out string colFuite) && !string.IsNullOrWhiteSpace(colFuite))
                     {
                         string role = "FEC";
-                        if (colD.Contains("FENC", StringComparison.OrdinalIgnoreCase)) role = "FENC";
-                        else if (!inConformite && !colD.Contains("PRC")) role = "FENC";
+                        if (moyenDet.Contains("FENC", StringComparison.OrdinalIgnoreCase)) role = "FENC";
+                        else if (!inConformite && !moyenDet.Contains("PRC")) role = "FENC";
 
                         var fuite = await GetOrCreatePieceRefAsync(colFuite.Trim(), role, result.MachineCode!);
 
-                        lastRow.MatricePieces.Add(new ImportVerifMachineMatriceDto
+                        lastRowDto.MatricePieces.Add(new ImportVerifMachineMatriceDto
                         {
                             PieceRefCode = fuite.Code,
                             PieceRefId = fuite.Id,
@@ -451,7 +383,6 @@ public partial class ExcelImportService
                 }
             }
         }
-
         await _unitOfWork.CommitAsync();
         result.LegendeMoyens = BuildLegendeMoyensFromImport(result);
 

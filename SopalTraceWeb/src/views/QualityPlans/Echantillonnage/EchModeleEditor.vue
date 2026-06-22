@@ -24,7 +24,7 @@
           :version="store.entete.version"
           :statut="store.entete.statut"
           :is-restoring="isVersioningSaving"
-          @restaurer="onSave"
+          @restaurer="onRestaurer"
         />
 
         <!-- SECTION 1 : CONFIGURATION GÉNÉRALE -->
@@ -88,10 +88,16 @@
               <div class="space-y-3">
                 <label class="block text-[11px] font-black text-slate-500 uppercase tracking-widest">NQA</label>
                 <div class="relative w-full max-w-[120px]">
-                  <input v-model="nqaInput" type="number" step="0.01" 
-                    :readonly="isReadOnly"
-                    class="w-full py-2 px-3 bg-white border-2 border-emerald-100 rounded-xl outline-none focus:border-emerald-500 font-black text-slate-700 shadow-sm transition-all text-center text-sm" 
-                    placeholder="0.65" />
+                  <select
+                    v-model="nqaInput"
+                    :disabled="isReadOnly"
+                    class="w-full py-2 px-3 bg-white border-2 border-emerald-100 rounded-xl outline-none focus:border-emerald-500 font-black text-slate-700 shadow-sm transition-all text-center text-sm cursor-pointer appearance-none"
+                  >
+                    <option value="" disabled>-- NQA --</option>
+                    <option v-for="nqa in store.nqaList" :key="nqa.id" :value="nqa.valeurNqa">
+                      {{ nqa.valeurNqa }}
+                    </option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -115,7 +121,7 @@
             <table class="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr class="bg-slate-100 border-b-2 border-slate-200">
-                  <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-16">NÂ°</th>
+                  <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-16">N°</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-48">Effectif du lot (Tranche)</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-24">Lettre Code</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 bg-emerald-50/30">Échantillon Global (A)</th>
@@ -165,15 +171,22 @@
         />
 
         <!-- ACTIONS FINALES -->
-        <div v-if="!isReadOnly" class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end mt-6 rounded-b-xl">
-          <EditorActions 
-            :label="editorLabel"
-            loading-label="Traitement..."
-            :icon="editorIcon"
-            :variant="editorVariant"
-            :is-loading="isSaving && !showVersioningDialog"
-            @submit="onSave"
-          />
+        <div v-if="!isReadOnly" class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end gap-3 mt-6 rounded-b-xl">
+
+          <!-- Cas 1, 2 & 3 : Nouveau plan, BROUILLON, ou ACTIF → Enregistrer -->
+          <button @click="onEnregistrer" :disabled="isSaving"
+            class="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow transition-all active:scale-95 disabled:opacity-50">
+            <i :class="isSaving ? 'pi pi-spin pi-spinner' : 'pi pi-check-circle'"></i>
+            {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
+          </button>
+        </div>
+
+        <!-- Vue lecture seule (ARCHIVE) : Restaurer -->
+        <div v-if="isArchived" class="bg-amber-50 border-t border-amber-200 p-6 flex justify-end mt-6 rounded-b-xl">
+          <button @click="onRestaurer" :disabled="isVersioningSaving"
+            class="flex items-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg shadow transition-all active:scale-95 disabled:opacity-50">
+            <i class="pi pi-history"></i> Restaurer cette version
+          </button>
         </div>
       </div>
     </div>
@@ -202,6 +215,9 @@ const store = usePlanEchanStore();
 const isSaving = ref(false);
 const isVersioningSaving = ref(false);
 const showVersioningDialog = ref(false);
+
+// Seul le statut ARCHIVE ou le mode vue (?view=true) est en lecture seule.
+// Un plan ACTIF peut être modifié directement !
 const isReadOnly = computed(() => route.query.view === 'true' || store.entete.statut === 'ARCHIVE');
 const isArchived = computed(() => store.entete.statut === 'ARCHIVE');
 const isEditMode = computed(() => !!store.entete.id);
@@ -280,62 +296,28 @@ onMounted(async () => {
   }
 });
 
-const onSave = async () => {
-  if (isArchived.value) {
-    // Si on restaure une archive, on vérifie d'abord s'il y a déjÃ  un plan actif
-    const planActif = await store.getPlanActif();
-    if (planActif) {
-      confirm.require({
-        message: `Un plan d'échantillonnage est déjÃ  ACTIF (V${planActif.version}). Voulez-vous l'archiver pour restaurer cette version en tant que V${planActif.version + 1} ?`,
-        header: 'Confirmation de Restauration',
-        icon: 'pi pi-exclamation-triangle',
-        acceptLabel: 'Restaurer et Archiver',
-        rejectLabel: 'Annuler',
-        acceptClass: 'p-button-warning',
-        accept: () => {
-          showVersioningDialog.value = true;
-        }
-      });
-    } else {
-      showVersioningDialog.value = true;
-    }
-    return;
-  }
-
-  // Pour une nouvelle création
+const onEnregistrer = async () => {
   isSaving.value = true;
   try {
-    if (isEditMode.value) {
-      await store.creerNouvelleVersion('Modification via UI');
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version créée et activée.', life: 3000 });
-      router.push('/dev/hub');
+    if (store.entete.statut === 'ACTIF' && isEditMode.value) {
+      // Si le plan est déjà ACTIF et qu'on le modifie, on crée automatiquement une nouvelle version
+      await store.creerNouvelleVersion("Modification automatique via Enregistrer");
+      toast.add({ severity: 'success', summary: 'Nouvelle Version', detail: 'Modifications enregistrées. L\'ancienne version a été archivée.', life: 3000 });
     } else {
-      // Vérifier s'il y a déjÃ  un plan actif avant de créer le tout premier ou un nouveau "NQA global"
-      const planActif = await store.getPlanActif();
-      if (planActif) {
-        confirm.require({
-          message: `Un plan d'échantillonnage est déjÃ  ACTIF (V${planActif.version}). Si vous continuez, il sera archivé et remplacé par ce nouveau plan (V${planActif.version + 1}). Continuer ?`,
-          header: 'Confirmation de Création',
-          icon: 'pi pi-exclamation-triangle',
-          acceptLabel: 'Créer et Archiver',
-          rejectLabel: 'Annuler',
-          accept: async () => {
-            await store.sauvegarderPlan();
-            toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
-            router.push('/dev/hub');
-          }
-        });
-      } else {
-        await store.sauvegarderPlan();
-        toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan créé et activé.', life: 3000 });
-        router.push('/dev/hub');
-      }
+      // Nouveau plan ou BROUILLON (Le backend crée le plan directement en ACTIF et synchronise FE-ECHAN-01)
+      await store.sauvegarderPlan();
+      toast.add({ severity: 'success', summary: 'Enregistré', detail: 'Plan enregistré et activé avec succès.', life: 3000 });
     }
+    router.push('/dev/hub');
   } catch (err) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: err.response?.data?.message || 'Échec de la sauvegarde.', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Erreur', detail: err.response?.data?.message || 'Échec de l\'enregistrement.', life: 3000 });
   } finally {
     isSaving.value = false;
   }
+};
+
+const onRestaurer = () => {
+  showVersioningDialog.value = true;
 };
 
 const onVersioningConfirm = async (motif) => {
@@ -344,10 +326,7 @@ const onVersioningConfirm = async (motif) => {
   try {
     if (isArchived.value) {
       await store.restaurerPlan(motif);
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Version restaurée et activée.', life: 3000 });
-    } else {
-      await store.creerNouvelleVersion(motif);
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version générée en brouillon.', life: 3000 });
+      toast.add({ severity: 'success', summary: 'Succès', detail: 'Version restaurée et activée (v' + (store.entete.version) + ' ACTIF).', life: 4000 });
     }
     router.push('/dev/hub');
   } catch (error) {

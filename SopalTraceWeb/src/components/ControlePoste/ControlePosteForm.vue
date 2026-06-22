@@ -15,9 +15,10 @@
                 <label class="block text-[11px] font-black text-emerald-800 uppercase tracking-widest shrink-0 flex items-center">
                   <i class="pi pi-file-import mr-2 text-emerald-600 text-lg"></i> RÉF. FORMULAIRE *
                 </label>
-                <div class="w-full md:w-1/2 flex items-center gap-2">
-                    <Dropdown v-model="refFormulaireSelected" :options="store.formulairesReferences" optionLabel="codeReference" optionValue="id" 
-                            placeholder="Sélectionner un formulaire générique" class="w-full" :disabled="store.entete.isModeleTemplate">
+                  <div class="w-full md:w-1/2 flex items-center gap-2">
+                      <Dropdown v-model="refFormulaireSelected" :options="store.formulairesReferences" optionLabel="codeReference" optionValue="id" 
+                              placeholder="Sélectionner un formulaire générique" class="w-full" :disabled="store.entete.isModeleTemplate"
+                              :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                         <template #value="slotProps">
                             <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">
                                 {{ store.formulairesReferences.find(r => r.id === slotProps.value)?.codeReference }} - {{ store.formulairesReferences.find(r => r.id === slotProps.value)?.designation }}
@@ -38,7 +39,8 @@
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Poste de travail concerné</label>
                 <Dropdown v-model="store.entete.posteCode" :options="store.postes" optionLabel="libelle" optionValue="code" 
-                          placeholder="Choisir un poste" class="w-full bg-slate-50" :disabled="isReadOnly || store.entete.id" @change="onSelectionChange">
+                          placeholder="Choisir un poste" class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id" @change="onSelectionChange"
+                          :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                     <template #value="slotProps">
                         <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">
                             Poste {{ slotProps.value }} - {{ store.postes.find(p => p.code === slotProps.value)?.libelle }}
@@ -98,7 +100,7 @@
                         <thead class="bg-slate-100 text-slate-700 text-[11px] font-bold border-b border-slate-300">
                             <tr v-if="hasGroups">
                                 <th class="p-2 border-r border-slate-300 w-10 text-center" rowspan="2">N°</th>
-                                <th class="p-2 border-r border-b border-slate-300 text-center align-middle" colspan="2">
+                                <th class="p-2 border-r border-b border-slate-300 text-center align-middle" :colspan="2 + customInlineCols.length">
                                     <div class="text-[12px] font-black text-slate-800 tracking-wide uppercase">Test de Non-conformité</div>
                                 </th>
                                 <template v-for="(g, idx) in headerGroups" :key="'g'+idx">
@@ -128,6 +130,10 @@
                             <tr v-if="hasGroups">
                                 <th class="p-2 border-r border-slate-300 min-w-[120px] text-center bg-slate-50/50">Machine<br/>Banc d'essai</th>
                                 <th class="p-2 border-r border-slate-300 min-w-[150px] text-center bg-slate-50/50">Désignation du défaut</th>
+                                <!-- Colonnes custom (pppp, etc.) dans la 2ème rangée d'en-tête -->
+                                <th v-for="cc in customInlineCols" :key="'ccinline'+cc.id" class="p-2 border-r border-slate-300 text-center text-[10px] min-w-[80px] bg-slate-50/50">
+                                    {{ cc.header }}
+                                </th>
                                 <template v-for="col in allColumns" :key="'sub'+col.id">
                                     <th v-if="col.group" class="p-2 border-r border-slate-300 text-center text-[10px]">
                                         {{ col.header }}
@@ -175,7 +181,7 @@
                               </td>
 
                                 <!-- Colonnes dynamiques fusionnées -->
-                                <td v-if="index === 0" :colspan="allColumns.length" :rowspan="store.lignes.length" class="p-2 border-r align-middle text-center bg-slate-50/50">
+                                <td v-if="index === 0" :colspan="totalColCount" :rowspan="store.lignes.length" class="p-2 border-r align-middle text-center bg-slate-50/50">
                                     <span class="text-xs font-bold text-slate-400 italic tracking-wider uppercase">À remplir lors de la production</span>
                                 </td>
 
@@ -402,33 +408,22 @@ const customColumns = computed(() => {
 
 const allColumns = computed(() => {
   let cols = [...standardColumns.value];
-  customColumns.value.forEach(cc => {
-    const mappedCc = {
-      id: cc.id || cc.key,
-      header: cc.header || cc.label,
-      type: cc.type || 'TEXT',
-      group: null,
-      isCustom: true
-    };
-    
-    let insertIdx = -1;
-    if (cc.insertAfter) {
-      if (cc.insertAfter === 'col_machine' || cc.insertAfter === 'col_designation') {
-         insertIdx = 0;
-      } else {
-         insertIdx = cols.findIndex(c => c.id === cc.insertAfter);
-         if (insertIdx !== -1) insertIdx += 1;
-      }
-    }
-    
-    if (insertIdx !== -1) {
-      cols.splice(insertIdx, 0, mappedCc);
-    } else {
-      cols.push(mappedCc);
-    }
-  });
   return cols;
 });
+
+// Colonnes custom (pppp, etc.) à afficher en ligne après Machine/Désignation
+const customInlineCols = computed(() => {
+  return customColumns.value.map(cc => ({
+    id: cc.id || cc.key,
+    header: cc.header || cc.label,
+    type: cc.type || 'TEXT',
+    group: null,
+    isCustom: true
+  }));
+});
+
+// Nombre total de colonnes dans le tbody (equipes + custom)
+const totalColCount = computed(() => allColumns.value.length + customInlineCols.value.length);
 
 const headerGroups = computed(() => {
   const groups = [];
@@ -485,7 +480,7 @@ const getPreviewGroups = (cols) => {
 const hasGroups = computed(() => headerGroups.value.some(g => g.name));
 
 const onCancel = () => {
-    router.push('/dev/hub');
+    router.push('/dev/modeles');
 };
 
 onMounted(async () => {
@@ -520,10 +515,38 @@ watch(refFormulaireSelected, (newRefId) => {
     const parsed = parseDesignation(designation, [], [], store.postes || []);
 
     if (parsed.posteCode) {
-      store.entete.posteCode = parsed.posteCode;
       store.entete.formulaireId = newRefId;
       store.entete.formulaireCodeReference = selectedForm.codeReference || null;
-      onSelectionChange();
+
+      // Parser la structure (équipes + colonnes) depuis le formulaire sélectionné
+      let configColonnes = null;
+      if (selectedForm.configurationStructureJson) {
+        try {
+          const structure = JSON.parse(selectedForm.configurationStructureJson);
+          const customCols = (structure.customCols && structure.customCols.length > 0)
+            ? structure.customCols.map(c => ({
+                key: c.key || c.cleColonne,
+                label: c.label || c.labelAffiche || c.titre,
+                type: c.type || c.typeValeur || 'Texte',
+                insertAfter: c.insertAfter || 'col_designation'
+              }))
+            : [];
+          const equipes = (structure.equipes && structure.equipes.length > 0)
+            ? structure.equipes.map(e => ({ nom: e.nom, debut: e.debut, fin: e.fin }))
+            : [{ nom: 'Equipe 1', debut: 6, fin: 14 }, { nom: 'Equipe 2', debut: 14, fin: 22 }];
+          configColonnes = { equipes, customCols };
+        } catch (e) {
+          console.error('Erreur parsing configurationStructureJson:', e);
+        }
+      }
+
+      // Initialiser le nouveau plan AVEC la structure chargée
+      store.initialiserNouveauPlan(
+        parsed.posteCode,
+        newRefId,
+        selectedForm.codeReference || null,
+        configColonnes
+      );
     }
   }
 });
@@ -632,7 +655,8 @@ const handleSauvegarder = async () => {
 const handleExcelImport = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    try {
+    event.target.value = '';
+  try {
         const result = await store.importerDepuisExcel(file);
         if (result.success) {
             toast.add({
@@ -651,7 +675,6 @@ const handleExcelImport = async (event) => {
         });
     } finally {
         // Reset input pour permettre une nouvelle sélection du même fichier
-        if (fileInput.value) fileInput.value.value = '';
     }
 };
 

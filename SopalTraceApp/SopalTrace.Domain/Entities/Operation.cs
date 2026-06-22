@@ -13,6 +13,8 @@ public partial class Operation
 
     public bool Actif { get; set; }
 
+    public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
+
     public virtual ICollection<ExecControleOf> ExecControleOfs { get; set; } = new List<ExecControleOf>();
 
     public virtual ICollection<Machine> Machines { get; set; } = new List<Machine>();
@@ -20,8 +22,6 @@ public partial class Operation
     public virtual ICollection<ModeleFabricationEntete> ModeleFabricationEntetes { get; set; } = new List<ModeleFabricationEntete>();
 
     public virtual ICollection<NatureArticleOperation> NatureArticleOperations { get; set; } = new List<NatureArticleOperation>();
-
-    public virtual ICollection<PlanAssemblageEntete> PlanAssemblageEntetes { get; set; } = new List<PlanAssemblageEntete>();
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 }

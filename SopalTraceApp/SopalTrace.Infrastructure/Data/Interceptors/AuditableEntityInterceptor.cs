@@ -55,20 +55,17 @@ public class AuditableEntityInterceptor : SaveChangesInterceptor
                     creeLeProperty.CurrentValue = DateTime.Now;
                 }
                 
-                var modifieParProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "ModifiePar");
-                if (modifieParProperty != null)
-                {
-                    modifieParProperty.CurrentValue = userInfo;
-                }
-
-                var modifieLeProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "ModifieLe");
-                if (modifieLeProperty != null)
-                {
-                    modifieLeProperty.CurrentValue = DateTime.Now;
-                }
             }
             else if (entry.State == EntityState.Modified)
             {
+                var creeLeProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "CreeLe");
+                if (creeLeProperty != null && creeLeProperty.CurrentValue is DateTime creeLeValue)
+                {
+                    if ((DateTime.Now - creeLeValue).TotalSeconds < 60)
+                    {
+                        continue;
+                    }
+                }
                 var modifieParProperty = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "ModifiePar");
                 if (modifieParProperty != null)
                 {

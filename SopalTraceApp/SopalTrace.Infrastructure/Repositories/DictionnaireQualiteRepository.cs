@@ -208,6 +208,7 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
     public async Task<System.Collections.Generic.List<Periodicite>> GetAllPeriodicitesAsync() => await _context.Periodicites.ToListAsync();
     public async Task<System.Collections.Generic.List<Instrument>> GetActiveInstrumentsAsync() => await _context.Instruments.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync() => await _context.Nqas.ToListAsync();
+    public async Task AddNqaAsync(Nqa entite) => await _context.Nqas.AddAsync(entite);
     public async Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync() => await _context.Defautheques.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<RefRegleEchantillonnage>> GetActiveRegleEchantillonnagesAsync() => await _context.RefRegleEchantillonnages.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<FamilleProduitFini>> GetActiveFamilleProduitFinisAsync() => await _context.FamilleProduitFinis.Where(x => x.Actif).ToListAsync();

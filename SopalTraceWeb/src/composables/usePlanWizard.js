@@ -1,8 +1,8 @@
 import { ref, computed, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { referentielsService } from '@/services/referentielsService';
-import { fabModeleService } from '@/services/fabModeleService';
-import { fabPlanService } from '@/services/fabPlanService';
+import { documentService as fabModeleService } from '@/services/documentService';
+import { documentService as fabPlanService } from '@/services/documentService';
 import { useFabModeleStore } from '@/stores/fabModeleStore'; // Accès au dictionnaire global
 
 /**

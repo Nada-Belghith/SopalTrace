@@ -1,15 +1,15 @@
 using FluentValidation;
-using SopalTrace.Application.DTOs.QualityPlans.VerifMachine;
+using SopalTrace.Application.DTOs.QualityPlans.PlanVerifMachines;
 
 namespace SopalTrace.Application.Validators.QualityPlans;
 
 // ============================================================
-// Validator principal : CreateVerifMachineModeleDto
+// Validator principal : CreatePlanVerifMachineRequestDto
 // Validé à la création ET à la mise à jour (PUT)
 // ============================================================
-public class CreateVerifMachineModeleDtoValidator : AbstractValidator<CreateVerifMachineModeleDto>
+public class CreatePlanVerifMachineRequestDtoValidator : AbstractValidator<CreatePlanVerifMachineRequestDto>
 {
-    public CreateVerifMachineModeleDtoValidator()
+    public CreatePlanVerifMachineRequestDtoValidator()
     {
         // --- Entête ---
         RuleFor(x => x.MachineCode)
@@ -25,20 +25,20 @@ public class CreateVerifMachineModeleDtoValidator : AbstractValidator<CreateVeri
 
         // --- Validation de chaque ligne risque ---
         RuleForEach(x => x.LignesRisques)
-            .SetValidator(new VmLigneDtoValidator("Risque"));
+            .SetValidator(new CreatePlanVerifMachineLigneDtoValidator("Risque"));
 
         // --- Validation de chaque ligne conformité (si présentes) ---
         RuleForEach(x => x.LignesConformite)
-            .SetValidator(new VmLigneDtoValidator("Conformité"));
+            .SetValidator(new CreatePlanVerifMachineLigneDtoValidator("Conformité"));
     }
 }
 
 // ============================================================
 // Validator d'une ligne (Risque ou Conformité)
 // ============================================================
-public class VmLigneDtoValidator : AbstractValidator<VmLigneDto>
+public class CreatePlanVerifMachineLigneDtoValidator : AbstractValidator<CreatePlanVerifMachineLigneDto>
 {
-    public VmLigneDtoValidator(string sectionName = "Ligne")
+    public CreatePlanVerifMachineLigneDtoValidator(string sectionName = "Ligne")
     {
         RuleFor(x => x.LibelleRisque)
             .NotEmpty().WithMessage($"{sectionName} : Le libellé Test/Risque est obligatoire.")
@@ -52,31 +52,18 @@ public class VmLigneDtoValidator : AbstractValidator<VmLigneDto>
             .NotEmpty().WithMessage($"{sectionName} : Au moins une périodicité est obligatoire.");
 
         RuleForEach(x => x.Echeances)
-            .SetValidator(new VmEcheanceDtoValidator(sectionName));
+            .SetValidator(new CreatePlanVerifMachineEcheanceDtoValidator(sectionName));
     }
 }
 
 // ============================================================
 // Validator d'une échéance (périodicité + moyen)
 // ============================================================
-public class VmEcheanceDtoValidator : AbstractValidator<VmEcheanceDto>
+public class CreatePlanVerifMachineEcheanceDtoValidator : AbstractValidator<CreatePlanVerifMachineEcheanceDto>
 {
-    public VmEcheanceDtoValidator(string sectionName = "Ligne")
+    public CreatePlanVerifMachineEcheanceDtoValidator(string sectionName = "Ligne")
     {
         RuleFor(x => x.PeriodiciteId)
             .NotEmpty().WithMessage($"{sectionName} : La périodicité est obligatoire.");
-    }
-}
-
-// ============================================================
-// Validator legacy (ancien DTO CreatePlanVerifMachineDto)
-// Conservé pour rétro-compatibilité
-// ============================================================
-public class CreatePlanVerifMachineDtoValidator : AbstractValidator<CreatePlanVerifMachineDto>
-{
-    public CreatePlanVerifMachineDtoValidator()
-    {
-        RuleFor(x => x.MachineCode).NotEmpty().WithMessage("Le code machine est obligatoire.");
-        RuleFor(x => x.Nom).NotEmpty().WithMessage("Le nom du plan est obligatoire.");
     }
 }

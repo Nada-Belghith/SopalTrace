@@ -10,7 +10,7 @@
     <PlanHeader 
       v-if="store.entete"
       :id="store.entete.id"
-      title="Fiche de Contrôle de Poste"
+      title="Plan de contrôle de Poste"
       :subtitle="store.entete.nom"
       icon="pi pi-list"
       iconColorClass="text-teal-500"

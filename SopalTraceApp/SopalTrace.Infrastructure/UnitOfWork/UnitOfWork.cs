@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Infrastructure.Data;
 using SopalTrace.Infrastructure.Repositories;
+using SopalTrace.Application.Interfaces.Repositories;
 using System;
 using System.Threading.Tasks;
 
@@ -13,36 +14,18 @@ public class UnitOfWork : IUnitOfWork
     private readonly SopalTraceDbContext _context;
     private IDbContextTransaction? _transaction;
 
-    private IPlanAssRepository? _planAssRepository;
+    private IDocumentEnteteRepository? _documentEnteteRepository;
     private IUserRepository? _userRepository;
-    private IControlePosteRepository? _ControlePosteRepository;
-    private IPlanVerifMachineRepository? _planVerifMachineRepository;
-    private IPlanRccfRepository? _planRccfRepository;
-    private IPlanEchanRepository? _planEchanRepository;
-
-
     public UnitOfWork(SopalTraceDbContext context)
     {
         _context = context;
     }
 
-    public IPlanAssRepository PlanAssRepository
-        => _planAssRepository ??= new PlanAssRepository(_context);
+    public IDocumentEnteteRepository DocumentEnteteRepository
+        => _documentEnteteRepository ??= new DocumentEnteteRepository(_context);
 
     public IUserRepository UserRepository
         => _userRepository ??= new UserRepository(_context);
-
-    public IControlePosteRepository ControlePosteRepository
-        => _ControlePosteRepository ??= new ControlePosteRepository(_context);
-
-    public IPlanVerifMachineRepository PlanVerifMachineRepository
-        => _planVerifMachineRepository ??= new PlanVerifMachineRepository(_context);
-
-    public IPlanRccfRepository PlanRccfRepository
-        => _planRccfRepository ??= new PlanRccfRepository(_context);
-
-    public IPlanEchanRepository PlanEchanRepository
-        => _planEchanRepository ??= new PlanEchanRepository(_context);
 
     private IDictionnaireQualiteRepository? _dictionnaireQualiteRepository;
     public IDictionnaireQualiteRepository DictionnaireQualiteRepository
@@ -51,6 +34,14 @@ public class UnitOfWork : IUnitOfWork
     private IRefFormulaireRepository? _refFormulaireRepository;
     public IRefFormulaireRepository RefFormulaireRepository
         => _refFormulaireRepository ??= new RefFormulaireRepository(_context);
+
+    private IPlanVerifMachineEnteteRepository? _planVerifMachineEnteteRepository;
+    public IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository
+        => _planVerifMachineEnteteRepository ??= new PlanVerifMachineEnteteRepository(_context);
+
+    private IPlanEchantillonnageEnteteRepository? _planEchantillonnageEnteteRepository;
+    public IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository
+        => _planEchantillonnageEnteteRepository ??= new PlanEchantillonnageEnteteRepository(_context);
 
     public async Task BeginTransactionAsync()
     {

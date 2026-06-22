@@ -170,8 +170,8 @@ import { useAssModeleStore } from '@/stores/assModeleStore';
 import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 
-import { assModeleService } from '@/services/assModeleService';
-import { fabPlanService } from '@/services/fabPlanService';
+import { documentService as assModeleService } from '@/services/documentService';
+import { documentService as fabPlanService } from '@/services/documentService';
 import { useAssModeleVersioning } from '@/composables/useVersioning';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
@@ -376,59 +376,22 @@ const onFileSelected = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
+  event.target.value = '';
   const formData = new FormData();
   formData.append('file', file);
 
   try {
     store.isLoading = true;
-    const response = await fabPlanService.importExcel(formData);
-    const parsedData = response.data.data;
-
-    if (parsedData && parsedData.sections) {
-      const newSections = parsedData.sections.map(sec => ({
-        id: sec.id || crypto.randomUUID(),
-        isFromDb: false,
-        nom: sec.nom || '',
-        libelleSection: sec.nom,
-        typeSectionId: sec.typeSectionId,
-        modeFreq: sec.modeFreq,
-        periodiciteId: sec.periodiciteId,
-        freqNum: sec.freqNum,
-        typeVariable: sec.typeVariable,
-        freqHours: sec.freqHours,
-        lignes: sec.lignes.map(lig => ({
-          id: lig.id || crypto.randomUUID(),
-          isFromDb: false,
-          typeCaracteristiqueId: lig.typeCaracteristiqueId,
-          typeControleId: lig.typeControleId,
-          moyenControleId: lig.moyenControleId,
-          instrumentCode: lig.instrumentCode,
-          valeurNominale: lig.valeurNominale,
-          toleranceSuperieure: lig.toleranceSuperieure,
-          toleranceInferieure: lig.toleranceInferieure,
-          unite: lig.unite || '',
-          limiteSpecTexte: lig.limiteSpecTexte,
-          observations: lig.observations,
-          instruction: lig.instruction,
-          estCritique: lig.estCritique,
-          libelleAffiche: lig.libelleAffiche,
-          imageBase64: lig.imageBase64 || null
-        }))
-      }));
-
-      groupes.value = newSections;
-
-      await store.fetchDictionnaires();
-      toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Les données ont été chargées depuis le fichier Excel.', life: 4000 });
-      
-      // Réinitialiser le snapshot après l'import pour que isDirty passe à true
-      updateCurrentSnapshot(createModeleSnapshot(store.entete, groupes.value));
-    }
+    await store.importerDepuisExcel(file);
+    groupes.value = JSON.parse(JSON.stringify(store.sections));
+    toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Les données ont été chargées depuis le fichier Excel.', life: 4000 });
+    // Réinitialiser le snapshot après l'import pour que isDirty passe à true
+    updateCurrentSnapshot(createModeleSnapshot(store.entete, store.sections));
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: error.response?.data?.message || 'Impossible de lire le fichier.', life: 4000 });
   } finally {
     store.isLoading = false;
-    if (fileInput.value) fileInput.value.value = '';
+    if (event.target) event.target.value = '';
   }
 };
 
@@ -453,24 +416,29 @@ const chargerModelePourEdition = async (id) => {
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
     const res = await assModeleService.getModeleById(id);
-    const data = res.data.data || res.data;
+    const data = res?.data?.data || res?.data || res;
     
     modeleEditionId.value = data.id;
-    codeOriginal.value = data.code;
+    codeOriginal.value = data.nom;
     statut.value = data.statut;
     version.value = data.version;
     
-    store.entete.code = data.code;
+    store.entete.code = data.nom;
     store.entete.operationCode = data.operationCode;
-    store.entete.natureComposantCode = data.natureComposantCode;
-    store.entete.typeRobinetCode = data.typeRobinetCode;
-    store.entete.libelle = data.libelle;
-    store.entete.notes = data.notes || '';
+    store.entete.natureComposantCode = data.natureArticleCode;
+    store.entete.typeRobinetCode = data.libre1;
+    store.entete.libelle = data.designation;
+    store.entete.notes = data.remarques || '';
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
-    store.entete.familleProduitCode = data.familleProduitCode || '';
+    store.entete.familleProduitCode = data.familleProduitFiniCode || '';
     store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || '';
-    store.entete.configurationColonnes = data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [];
+    store.entete.configurationColonnes = (data.colonneDefs || []).map(c => ({
+      key: c.cleColonne || c.key,
+      label: c.labelAffiche || c.label,
+      type: c.typeValeur || c.type || 'Texte',
+      insertAfter: c.insertAfter || 'code_instrument'
+    }));
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
       (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -546,7 +514,7 @@ const chargerModelePourEdition = async (id) => {
           observations: lig.observations || '',
           moyenTexteLibre: lig.moyenTexteLibre || '',
           imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
+          valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : {}
         }))
       };
     });

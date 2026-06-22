@@ -163,8 +163,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { useToast } from 'primevue/usetoast';
 
-import { fabModeleService } from '@/services/fabModeleService';
-import { fabPlanService } from '@/services/fabPlanService';
+import { documentService as fabModeleService } from '@/services/documentService';
+import { documentService as fabPlanService } from '@/services/documentService';
 import { useFabModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
@@ -390,36 +390,35 @@ const chargerModelePourEdition = async (id) => {
     store.isLoading = true;
     store.loadingMessage = "Chargement du modèle...";
     const res = await fabModeleService.getModeleById(id);
-    const data = res.data.data || res.data;
+    const data = res?.data?.data || res?.data || res;
     
     modeleEditionId.value = data.id;
-    codeOriginal.value = data.code;
+    codeOriginal.value = data.nom;
     statut.value = data.statut;
     version.value = data.version;
     
-    store.entete.code = data.code;
+    store.entete.code = data.nom;
     store.entete.operationCode = data.operationCode;
-    store.entete.natureComposantCode = data.natureComposantCode;
-    store.entete.typeRobinetCode = data.typeRobinetCode;
-    store.entete.libelle = data.libelle;
-    store.entete.notes = data.notes || '';
+    store.entete.natureComposantCode = data.natureArticleCode;
+    store.entete.typeRobinetCode = data.libre1;
+    store.entete.libelle = data.designation;
+    store.entete.notes = data.remarques || '';
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
-    store.entete.familleProduitCode = data.familleProduitCode || '';
+    store.entete.familleProduitCode = data.familleProduitFiniCode || '';
     store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || 'PRC';
     
     if (isArchiveEditing.value) {
-      // Mettre à jour avec la dernière structure active pour la nouvelle version
       store.syncConfigurationFromFormulaire();
     } else {
-      // NOUVEAU COMPORTEMENT STRICT (Consultation/Archive)
-      // Ne pas appliquer le formulaire actif si on consulte juste un modèle existant
-      if (data.configurationColonnesJson) {
-        store.entete.configurationColonnes = typeof data.configurationColonnesJson === 'string'
-          ? JSON.parse(data.configurationColonnesJson)
-          : data.configurationColonnesJson;
+      if (data.colonneDefs && data.colonneDefs.length > 0) {
+        store.entete.configurationColonnes = data.colonneDefs.map(c => ({
+          key: c.cleColonne || c.key,
+          label: c.labelAffiche || c.label,
+          type: c.typeValeur || c.type || 'Texte',
+          insertAfter: c.insertAfter || 'code_instrument'
+        }));
       } else {
-        // Modèle existant sans colonnes supplémentaires -> on fige à []
         store.entete.configurationColonnes = [];
       }
     }
@@ -510,7 +509,7 @@ const chargerModelePourEdition = async (id) => {
           observations: lig.observations || '',
           moyenTexteLibre: lig.moyenTexteLibre || '',
           imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.colonnesSupplementaires ? (typeof lig.colonnesSupplementaires === 'string' ? JSON.parse(lig.colonnesSupplementaires) : lig.colonnesSupplementaires) : {}
+          valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : {}
         }))
       };
     });

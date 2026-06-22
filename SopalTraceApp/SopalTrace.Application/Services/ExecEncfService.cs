@@ -61,6 +61,7 @@ namespace SopalTrace.Application.Services
 
         public async Task<ExecEncfDto> SaveExecEncfAsync(ExecEncfDto dto)
         {
+            if (!dto.Id.HasValue) throw new Exception("ID manquant.");
             var existing = await _repository.GetExecEncfAsync(dto.Id.Value);
 
             if (existing == null)
@@ -69,7 +70,7 @@ namespace SopalTrace.Application.Services
             }
 
             // Update main fields
-            existing.Statut = dto.Statut;
+            existing.Statut = dto.Statut ?? existing.Statut;
             if (dto.Statut == "CLOTURE" && existing.DateFin == null)
             {
                 existing.DateFin = DateTime.Now;

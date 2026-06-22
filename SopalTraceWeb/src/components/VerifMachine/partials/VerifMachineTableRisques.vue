@@ -18,6 +18,9 @@
             <th :rowspan="hasSubHeaders ? 2 : 1" :colspan="(strategy.isMAS26 && store.entete.afficheMoyenDetectionRisques) ? 2 : 1" class="p-3 border-r border-slate-700 w-[12%]">Périodicité</th>
             <th v-for="cCol in getCustomColumnsAfter('risques', 'periodicite')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             <template v-if="store.entete.afficheMoyenDetectionRisques && !strategy.isMAS26">
+              <th :rowspan="hasSubHeaders ? 2 : 1" class="p-3 border-r border-slate-700 w-[12%]">
+                {{ (strategy.isArchitectureA || strategy.role === 'BEE' || strategy.isMAS19 || strategy.isSER05) ? 'Moyen de contrôle' : 'Moyen de détection' }}
+              </th>
               <th v-for="cCol in getCustomColumnsAfter('risques', 'moyen_detection')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             </template>
             <template v-if="hasFamilleHeaders">

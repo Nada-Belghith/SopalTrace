@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { assModeleService } from '@/services/assModeleService';
+import { documentService as assModeleService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
 
 export const useAssModeleStore = defineStore('assModele', () => {
@@ -140,17 +140,17 @@ export const useAssModeleStore = defineStore('assModele', () => {
   };
 
   const mapPayload = (legendeMoyens = '') => ({
-    code: entete.value.code || codeModeleAuto.value,
-    libelle: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
-    typeRobinetCode: entete.value.typeRobinetCode || null,
-    natureComposantCode: entete.value.natureComposantCode || '',
+    nom: entete.value.code || codeModeleAuto.value,
+    designation: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
+    libre1: entete.value.typeRobinetCode || null,
+    natureArticleCode: entete.value.natureComposantCode || '',
     operationCode: entete.value.operationCode || '',
     posteCode: entete.value.posteCode || null,
-    familleProduitCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
-    notes: entete.value.notes || "",
+    familleProduitFiniCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
+    remarques: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
     versionInitiale: entete.value.versionInitiale,
-    configurationColonnesJson: typeof entete.value.configurationColonnes === 'string' ? entete.value.configurationColonnes : JSON.stringify(entete.value.configurationColonnes || []),
+    colonneDefs: entete.value.configurationColonnes || [],
     refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
     sections: sections.value.map(s => ({
       ordreAffiche: s.ordreAffiche,
@@ -173,9 +173,11 @@ export const useAssModeleStore = defineStore('assModele', () => {
         estCritique: l.estCritique,
         unite: l.unite || '',
         limiteSpecTexte: l.limiteSpecTexte || null,
-        colonnesSupplementaires: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 
-          ? JSON.stringify(l.valeursColonnesSpecifiques) 
-          : null
+        extraColonnes: Object.entries(l.valeursColonnesSpecifiques || {}).map(([k, v], idx) => ({
+          cleColonne: k,
+          valeurColonne: v ? String(v) : null,
+          ordreAffiche: idx + 1
+        }))
       }))
     }))
   });
@@ -229,6 +231,66 @@ export const useAssModeleStore = defineStore('assModele', () => {
     }
   };
 
+  const importerDepuisExcel = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (entete.value.configurationColonnes) {
+      const configJson = typeof entete.value.configurationColonnes === 'string'
+        ? entete.value.configurationColonnes
+        : JSON.stringify(entete.value.configurationColonnes);
+      formData.append('colonneDefsJson', configJson);
+      formData.append('configurationColonnesJson', configJson);
+    }
+
+    isLoading.value = true;
+    try {
+      // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
+      const parsedData = await assModeleService.importExcel(formData);
+      
+      if (parsedData && parsedData.sections) {
+        if (parsedData.remarques && parsedData.remarques.trim() !== '') {
+          entete.value.notes = (entete.value.notes ? entete.value.notes + '\n' : '') + parsedData.remarques.trim();
+        }
+        
+        sections.value = parsedData.sections.map(sec => ({
+          id: sec.id || crypto.randomUUID(),
+          isFromDb: false,
+          nom: sec.nom || '',
+          libelleSection: sec.nom,
+          typeSectionId: sec.typeSectionId,
+          modeFreq: sec.modeFreq,
+          periodiciteId: sec.periodiciteId,
+          freqNum: sec.freqNum,
+          typeVariable: sec.typeVariable,
+          freqHours: sec.freqHours,
+          lignes: sec.lignes.map(lig => ({
+            id: lig.id || crypto.randomUUID(),
+            isFromDb: false,
+            typeCaracteristiqueId: lig.typeCaracteristiqueId,
+            typeControleId: lig.typeControleId,
+            moyenControleId: lig.moyenControleId,
+            instrumentCode: lig.instrumentCode,
+            valeurNominale: lig.valeurNominale,
+            toleranceSuperieure: lig.toleranceSuperieure,
+            toleranceInferieure: lig.toleranceInferieure,
+            unite: lig.unite || '',
+            limiteSpecTexte: lig.limiteSpecTexte,
+            observations: lig.observations,
+            instruction: lig.instruction,
+            estCritique: lig.estCritique,
+            libelleAffiche: lig.libelleAffiche,
+            imageBase64: lig.imageBase64 || null
+          }))
+        }));
+
+        await fetchDictionnaires();
+      }
+      return parsedData;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     operations, typesRobinet, naturesComposant,
     typesCaracteristique, typesControle, moyensControle,
@@ -246,7 +308,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft,
+    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft, importerDepuisExcel,
     isBeingLoaded
   };
 });

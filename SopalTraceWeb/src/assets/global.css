@@ -76,7 +76,7 @@
 }
 
 html {
-  font-size: 16px;
+  font-size: 90%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -361,13 +361,13 @@ a:hover {
 /* Responsive */
 @media (max-width: 1200px) {
   html {
-    font-size: 15px;
+    font-size: 85%;
   }
 }
 
 @media (max-width: 768px) {
   html {
-    font-size: 14px;
+    font-size: 80%;
   }
 
   h1 {
@@ -381,7 +381,7 @@ a:hover {
 
 @media (max-width: 640px) {
   html {
-    font-size: 14px;
+    font-size: 80%;
   }
 
   h1 {

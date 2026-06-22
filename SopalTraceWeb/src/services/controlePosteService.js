@@ -1,26 +1,33 @@
 import apiClient from './apiClient';
+import { documentService } from './documentService';
 
 export const controlePosteService = {
   // Dictionnaires (postes, machines, risques)
   getDictionnaires: () => apiClient.get('/referentiels/plans-nc'),
 
   // CRUD Plans de Non-Conformité
-  getTousLesPlans: () => apiClient.get('/plans-nc'),
+  getTousLesPlans: () => documentService.getByFilters({ typeDocumentCode: 'CTRL_POSTE' }).then(data => ({ data })),
 
-  creerControlePoste: (payload) => apiClient.post('/plans-nc', payload),
+  creerControlePoste: (payload) => {
+    payload.typeDocumentCode = 'CTRL_POSTE';
+    return documentService.create(payload).then(id => ({ data: { id } }));
+  },
 
-  getControlePoste: (id) => apiClient.get(`/plans-nc/${id}`),
+  getControlePoste: (id) => documentService.getById(id).then(data => ({ data })),
 
-  mettreAJourPlan: (id, payload) => apiClient.put(`/plans-nc/${id}`, payload),
+  mettreAJourPlan: (id, payload) => apiClient.put(`/Document/${id}`, payload),
 
-  creerNouvelleVersion: (payload) => apiClient.post('/plans-nc/nouvelle-version', payload),
+  creerNouvelleVersion: (payload) => {
+    payload.typeDocumentCode = 'CTRL_POSTE';
+    return documentService.createNewVersion(payload.ancienId || payload.documentId, payload).then(id => ({ data: { id } }));
+  },
 
-  restaurer: (payload) => apiClient.post('/plans-nc/restaurer', payload),
+  restaurer: (payload) => documentService.restaurer(payload.documentArchiveId || payload.documentId, payload).then(id => ({ data: { id } })),
 
   importerExcel: (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    return apiClient.post('/plans-nc/import-excel', formData, {
+    return apiClient.post('/ExcelImport/controle-poste', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },

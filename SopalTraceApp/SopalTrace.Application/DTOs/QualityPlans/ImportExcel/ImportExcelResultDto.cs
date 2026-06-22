@@ -3,10 +3,11 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Application.DTOs.QualityPlans.ImportExcel;
 
-public class ImportExcelResultDto
+public class ImportExcelResultDto : ImportExcelResultBaseDto
 {
     public List<ImportExcelSectionDto> Sections { get; set; } = new();
     public string Remarques { get; set; } = string.Empty;
+    public List<SopalTrace.Application.DTOs.QualityPlans.Documents.DocumentColonneDefDto> ColonneDefs { get; set; } = new();
 }
 
 public class ImportExcelSectionDto

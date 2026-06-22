@@ -17,9 +17,9 @@ public partial class PlanVerifMachineLigne
 
     public string? LibelleMethode { get; set; }
 
-    public string? ColonnesSupplementaires { get; set; }
-
     public virtual PlanVerifMachineEntete PlanEntete { get; set; } = null!;
 
     public virtual ICollection<PlanVerifMachineEcheance> PlanVerifMachineEcheances { get; set; } = new List<PlanVerifMachineEcheance>();
+
+    public virtual ICollection<PlanVerifMachineLigneExtraColonne> PlanVerifMachineLigneExtraColonnes { get; set; } = new List<PlanVerifMachineLigneExtraColonne>();
 }

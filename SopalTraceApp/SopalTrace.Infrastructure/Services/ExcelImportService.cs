@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using SopalTrace.Infrastructure.Services.ExcelImport;
 
 namespace SopalTrace.Infrastructure.Services;
 
@@ -22,6 +23,7 @@ public partial class ExcelImportService : IExcelImportService
     protected readonly Dictionary<string, PieceReference> _createdPiecesCache = new();
     protected readonly Dictionary<string, RefFamilleCorp> _createdFamiliesCache = new();
     protected readonly Dictionary<string, RefMoyenDetection> _createdMoyensCache = new();
+    protected readonly IExcelImportFactory _factory;
 
     // --- CONFIGURATION DES MOTS-CLÉS (Plus flexible) ---
     protected static readonly string[] CaractKeywords = { "caracteristique", "carac", "cote", "parametre", "defaut", "risque" };
@@ -85,10 +87,11 @@ public partial class ExcelImportService : IExcelImportService
         public int HeaderBottomRow { get; set; } = -1;
     }
 
-    public ExcelImportService(IUnitOfWork unitOfWork, IFrequencyParserService frequencyParserService)
+    public ExcelImportService(IUnitOfWork unitOfWork, IFrequencyParserService frequencyParserService, IExcelImportFactory factory)
     {
         _unitOfWork = unitOfWork;
         _frequencyParserService = frequencyParserService;
+        _factory = factory;
     }
 
     protected string SafeSubstring(string text, int maxLength)
@@ -271,7 +274,27 @@ public partial class ExcelImportService : IExcelImportService
                     else if (MatchesAny(val, MoyenKeywords)) map.MoyenCol = cIdx;
                     else if (MatchesAny(val, TypeKeywords) || (MatchesAny(val, ControleKeywords) && !MatchesAny(val, MoyenKeywords))) map.TypeCol = cIdx;
                     else if (MatchesAny(val, ObsKeywords)) map.ObsCols.Add(cIdx);
-                    else if (map.CustomColsDefinition.TryGetValue(val, out var customKey)) map.CustomCols[cIdx] = customKey;
+                    else if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        var rawHeader = SafeGetCellValue(cell);
+                        if (!string.IsNullOrWhiteSpace(rawHeader))
+                        {
+                            var customKey = SopalTrace.Application.Helpers.CleColonneHelper.Normalize(rawHeader);
+                            map.CustomCols[cIdx] = customKey;
+                            map.CustomColsDefinition[val] = customKey;
+                            
+                            if (!result.ColonneDefs.Any(c => c.CleColonne == customKey))
+                            {
+                                result.ColonneDefs.Add(new SopalTrace.Application.DTOs.QualityPlans.Documents.DocumentColonneDefDto
+                                {
+                                    CleColonne = customKey,
+                                    LabelAffiche = rawHeader.Length > 200 ? rawHeader.Substring(0, 200) : rawHeader,
+                                    TypeValeur = "TEXTE",
+                                    OrdreAffiche = cIdx
+                                });
+                            }
+                        }
+                    }
                 }
                 
                 if (map.InstCol == 5 && !SafeGetCellValue(row.Cell(map.InstCol)).ToLower().Contains("code"))
