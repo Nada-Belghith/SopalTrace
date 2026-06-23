@@ -186,7 +186,6 @@ import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import Toast from 'primevue/toast';
-import { documentService as pfPlanService } from '@/services/documentService';
 
 const route = useRoute();
 const router = useRouter();

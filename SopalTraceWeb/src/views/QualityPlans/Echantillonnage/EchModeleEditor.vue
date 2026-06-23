@@ -197,16 +197,13 @@
 import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
-import EditorActions from '@/components/Shared/EditorActions.vue';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import { usePlanEchanStore } from '@/stores/planEchanStore';
 
-const confirm = useConfirm();
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
@@ -231,23 +228,6 @@ const headerTitle = computed(() => {
 const headerSubtitle = computed(() => {
   if (isArchived.value) return "Vous consultez une archive. Restaurez-la pour l'activer.";
   return "Configuration des niveaux de contrôle ISO 2859-1";
-});
-
-const editorLabel = computed(() => {
-  if (isArchived.value) return 'Restaurer ce Plan';
-  if (isEditMode.value) return 'Enregistrer le Plan';
-  return 'Enregistrer le Plan';
-});
-
-const editorIcon = computed(() => {
-  if (isArchived.value) return 'pi pi-history';
-  if (isEditMode.value) return 'pi pi-save';
-  return 'pi pi-check';
-});
-
-const editorVariant = computed(() => {
-  if (isArchived.value) return 'warning';
-  return 'primary';
 });
 
 const nqaInput = computed({

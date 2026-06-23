@@ -461,7 +461,6 @@ const openAddPieceModalFromEvent = (eventData) => {
   openAddPieceModal(eventData.type, eventData.row, eventData.familleCorpsId, eventData.role);
 };
 
-const fileInput = ref(null);
 const handleExcelImport = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -476,7 +475,6 @@ const handleExcelImport = async (event) => {
   } catch (error) {
     console.error("Erreur import Excel:", error);
     toast.add({ severity: 'error', summary: 'Échec de l\'import', detail: error.response?.data?.message || 'Une erreur est survenue lors de la lecture du fichier.', life: 5000 });
-  } finally {
   }
 };
 
