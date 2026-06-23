@@ -1,0 +1,80 @@
+name: CI SopalTrace (Validation du Code)
+
+on:
+  push:
+    # Ce pipeline se lance à chaque push sur TOUTES les branches (très utile en dev)
+    branches: [ "**" ]
+  pull_request:
+    # Et à chaque demande de fusion vers master
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  # ==========================================
+  # JOB 1 : Vérification du Backend (.NET 8)
+  # ==========================================
+  build-and-test-backend:
+    name: Build, Test & Dockerize API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./SopalTraceApp
+    steps:
+      - name: 📥 Récupération du code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configuration de .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          
+      - name: 📦 Restauration des packages
+        run: dotnet restore ./SopalTraceApp.slnx
+        
+      - name: 🔨 Compilation du code
+        run: dotnet build ./SopalTraceApp.slnx --no-restore --configuration Release
+        
+      # ================== TES TESTS SONT ICI ==================
+      - name: 🧪 Exécution des Tests Unitaires
+        # On teste toute la solution, y compris SopalTrace.Application.Tests et SopalTrace.Domain.Tests
+        run: dotnet test ./SopalTraceApp.slnx --no-build --configuration Release --verbosity normal
+      # ==========================================================
+
+      # ================= VERIF DOCKER BACKEND ==================
+      - name: 🐳 Test de création de l'image Docker (API)
+        # On vérifie que le Dockerfile de l'API compile bien
+        run: docker build -t sopal-api-test -f ./SopalTrace.Api/Dockerfile .
+      # ==========================================================
+
+  # ==========================================
+  # JOB 2 : Vérification du Frontend (Vue.js)
+  # ==========================================
+  build-and-test-frontend:
+    name: Build, Lint & Dockerize Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./SopalTraceWeb
+    steps:
+      - name: 📥 Récupération du code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configuration de Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: 📦 Installation des dépendances NPM
+        run: npm ci || npm install
+        
+      - name: 🔍 Analyse de la qualité du code (Linting)
+        run: npm run lint --if-present
+        
+      - name: 🔨 Compilation du projet Vue.js
+        run: npm run build
+
+      # ================= VERIF DOCKER FRONTEND ==================
+      - name: 🐳 Test de création de l'image Docker (Vue.js)
+        # On vérifie que le Dockerfile Nginx compile bien avec le dossier dist/
+        run: docker build -t sopal-web-test -f Dockerfile .
+      # ==========================================================

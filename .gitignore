@@ -365,4 +365,6 @@ FodyWeavers.xsd
 # Ignorer les fichiers contenant des variables d'environnement et mots de passe
 # Ignore .env in repo root and subdirectories
 .env
+.env.*
 **/.env
+**/.env.*
