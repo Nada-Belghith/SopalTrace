@@ -134,7 +134,7 @@ public static class PlanVerifMachineMapper
             {
                 Id = l.Id,
                 OrdreAffiche = l.OrdreAffiche,
-                TypeLigne = l.TypeLigne,
+                TypeLigne = l.TypeLigne ?? string.Empty,
                 LibelleRisque = l.LibelleRisque,
                 LibelleMethode = l.LibelleMethode,
                 ExtraColonnes = l.PlanVerifMachineLigneExtraColonnes.Select(ec => new PlanVerifMachineExtraColonneDto
@@ -154,7 +154,7 @@ public static class PlanVerifMachineMapper
                     {
                         Id = m.Id,
                         FamilleId = m.FamilleId,
-                        RoleVerif = m.RoleVerif,
+                        RoleVerif = m.RoleVerif ?? string.Empty,
                         PieceRefId = m.PieceRefId
                     }).ToList()
                 }).ToList()

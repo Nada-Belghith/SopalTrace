@@ -31,13 +31,13 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
             .FirstOrDefaultAsync(p => p.Code.Trim().ToLower() == normalized);
     }
 
-    public async Task AddPeriodiciteAsync(Periodicite entite)
+    public Task AddPeriodiciteAsync(Periodicite entite)
     {
         _context.Periodicites.Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async Task<TypeSection> GetTypeSectionByLibelleAsync(string libelle)
+    public async Task<TypeSection?> GetTypeSectionByLibelleAsync(string libelle)
     {
         var normalized = libelle.Trim();
         // Recherche souple : ignore casse et espaces superflus
@@ -45,10 +45,10 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
             t.Libelle.Trim().ToLower() == normalized.ToLower());
     }
 
-    public async Task AddTypeSectionAsync(TypeSection entite)
+    public Task AddTypeSectionAsync(TypeSection entite)
     {
         _context.Set<TypeSection>().Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public async Task<System.Collections.Generic.List<TypeSection>> GetAllTypeSectionsAsync()
@@ -56,101 +56,101 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         return await _context.Set<TypeSection>().ToListAsync();
     }
 
-    public async Task<TypeCaracteristique> GetTypeCaracteristiqueByLibelleAsync(string libelle)
+    public async Task<TypeCaracteristique?> GetTypeCaracteristiqueByLibelleAsync(string libelle)
     {
         var normalized = libelle.Trim().ToLower();
         return await _context.Set<TypeCaracteristique>().FirstOrDefaultAsync(t => t.Libelle.Trim().ToLower() == normalized);
     }
 
-    public async Task AddTypeCaracteristiqueAsync(TypeCaracteristique entite)
+    public Task AddTypeCaracteristiqueAsync(TypeCaracteristique entite)
     {
         _context.Set<TypeCaracteristique>().Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async Task<TypeControle> GetTypeControleByLibelleAsync(string libelle)
+    public async Task<TypeControle?> GetTypeControleByLibelleAsync(string libelle)
     {
         var normalized = libelle.Trim().ToLower();
         return await _context.Set<TypeControle>().FirstOrDefaultAsync(t => t.Libelle.Trim().ToLower() == normalized);
     }
 
-    public async Task AddTypeControleAsync(TypeControle entite)
+    public Task AddTypeControleAsync(TypeControle entite)
     {
         _context.Set<TypeControle>().Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async Task<MoyenControle> GetMoyenControleByLibelleAsync(string libelle)
+    public async Task<MoyenControle?> GetMoyenControleByLibelleAsync(string libelle)
     {
         var normalized = libelle.Trim().ToLower();
         return await _context.Set<MoyenControle>().FirstOrDefaultAsync(t => t.Libelle.Trim().ToLower() == normalized);
     }
 
-    public async Task AddMoyenControleAsync(MoyenControle entite)
+    public Task AddMoyenControleAsync(MoyenControle entite)
     {
         _context.Set<MoyenControle>().Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async Task<Instrument> GetInstrumentByCodeAsync(string codeInstrument)
+    public async Task<Instrument?> GetInstrumentByCodeAsync(string codeInstrument)
     {
         var normalizedCode = codeInstrument.Trim();
         return await _context.Set<Instrument>().FirstOrDefaultAsync(t => t.CodeInstrument == normalizedCode);
     }
 
-    public async Task AddInstrumentAsync(Instrument entite)
+    public Task AddInstrumentAsync(Instrument entite)
     {
         _context.Set<Instrument>().Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async Task<RefRegleEchantillonnage> GetRegleEchantillonnageByLibelleAsync(string libelle)
+    public async Task<RefRegleEchantillonnage?> GetRegleEchantillonnageByLibelleAsync(string libelle)
     {
         var normalized = libelle.Trim();
         return await _context.RefRegleEchantillonnages.FirstOrDefaultAsync(r => 
             r.Libelle.Trim().ToLower() == normalized.ToLower());
     }
 
-    public async Task AddRegleEchantillonnageAsync(RefRegleEchantillonnage entite)
+    public Task AddRegleEchantillonnageAsync(RefRegleEchantillonnage entite)
     {
         _context.RefRegleEchantillonnages.Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async Task<PieceReference> GetPieceReferenceByCodeAsync(string code)
+    public async Task<PieceReference?> GetPieceReferenceByCodeAsync(string code)
     {
         var normalizedCode = code.Trim().ToUpper();
         return await _context.PieceReferences.FirstOrDefaultAsync(p => p.Code == normalizedCode);
     }
 
-    public async Task AddPieceReferenceAsync(PieceReference entite)
+    public Task AddPieceReferenceAsync(PieceReference entite)
     {
         _context.PieceReferences.Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
     
-    public async Task<RefFamilleCorp> GetFamilleCorpsByCodeAsync(string code)
+    public async Task<RefFamilleCorp?> GetFamilleCorpsByCodeAsync(string code)
     {
         var normalizedCode = code.Trim().ToUpper();
         return await _context.RefFamilleCorps.FirstOrDefaultAsync(f => f.Code == normalizedCode);
     }
 
-    public async Task AddFamilleCorpsAsync(RefFamilleCorp entite)
+    public Task AddFamilleCorpsAsync(RefFamilleCorp entite)
     {
         _context.RefFamilleCorps.Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
-    public async Task<RefMoyenDetection> GetMoyenDetectionByLibelleAsync(string libelle)
+    public async Task<RefMoyenDetection?> GetMoyenDetectionByLibelleAsync(string libelle)
     {
         var normalized = libelle.Trim();
         return await _context.RefMoyenDetections.FirstOrDefaultAsync(m => m.Designation == normalized || m.Code == normalized);
     }
 
-    public async Task AddMoyenDetectionAsync(RefMoyenDetection entite)
+    public Task AddMoyenDetectionAsync(RefMoyenDetection entite)
     {
         _context.RefMoyenDetections.Add(entite);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public async Task<RisqueDefaut?> GetRisqueDefautByLibelleAsync(string libelle)
@@ -182,7 +182,7 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         return await _context.RisqueDefauts.FirstOrDefaultAsync(r => r.CodeDefaut == normalized);
     }
 
-    public async Task AddRisqueDefautAsync(RisqueDefaut entite)
+    public Task AddRisqueDefautAsync(RisqueDefaut entite)
     {
         // On vérifie juste si on ne l'a pas déjà ajouté dans cette même requête
         var normalizedLibelle = entite.LibelleDefaut.Trim().ToLowerInvariant();
@@ -196,6 +196,7 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         {
             _context.RisqueDefauts.Add(entite);
         }
+        return Task.CompletedTask;
     }
     public async Task<System.Collections.Generic.List<TypeRobinet>> GetActiveTypeRobinetsAsync() => await _context.TypeRobinets.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<NatureArticle>> GetActiveNatureArticlesFabriqueAsync() => await _context.NatureArticles.Where(x => x.Actif && x.Origine == "FABRIQUE").ToListAsync();

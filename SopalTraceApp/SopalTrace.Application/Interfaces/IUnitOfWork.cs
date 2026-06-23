@@ -14,6 +14,8 @@ namespace SopalTrace.Application.Interfaces;
     IRefFormulaireRepository RefFormulaireRepository { get; }
     IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository { get; }
     IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository { get; }
+    IModeleFabricationEnteteRepository ModeleFabricationEnteteRepository { get; }
+    IPlanFabricationEnteteRepository PlanFabricationEnteteRepository { get; }
 
     Task BeginTransactionAsync();
     Task<int> CommitAsync();

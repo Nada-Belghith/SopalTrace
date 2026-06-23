@@ -14,7 +14,7 @@ public class HubService : IHubService
 {
     private readonly SopalTraceDbContext _context;
 
-    private string GetCategoryFromTypeDocumentCode(string typeDocumentCode)
+    private string GetCategoryFromTypeDocumentCode(string? typeDocumentCode)
     {
         if (string.IsNullOrEmpty(typeDocumentCode)) return "INCONNU";
         if (typeDocumentCode.Contains("FAB")) return "FAB";
@@ -56,6 +56,30 @@ public class HubService : IHubService
                 m.Version,
                 m.Statut ?? StatutsPlan.Actif,
                 m.Remarques ?? "Document Générique.",
+                m.Formulaire != null ? m.Formulaire.CodeReference : null,
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null
+            ));
+        }
+
+        var fabModeles = await _context.ModeleFabricationEntetes
+            .AsNoTracking()
+            .Include(d => d.Formulaire)
+            .Where(d => d.Statut == StatutsPlan.Actif || d.Statut == StatutsPlan.Archive || d.Statut == StatutsPlan.Brouillon)
+            .ToListAsync();
+
+        foreach(var m in fabModeles)
+        {
+            result.Add(new HubModeleDto(
+                m.Id,
+                "FAB",
+                m.Libelle ?? m.Code ?? "Modèle de Fabrication",
+                m.NatureArticleCode ?? "N/A",
+                m.FamilleProduitFiniCode ?? "GEN",
+                m.OperationCode ?? "N/A",
+                "N/A",
+                m.Version,
+                m.Statut ?? StatutsPlan.Actif,
+                m.Notes ?? "Modèle de Fabrication.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
                 m.Formulaire != null ? m.Formulaire.Version : (int?)null
             ));
@@ -138,6 +162,32 @@ public class HubService : IHubService
                 p.Remarques ?? "Plan de contrôle instancié",
                 p.Nom,
                 p.TypeDocumentCode ?? "INCONNU",
+                p.Formulaire != null ? p.Formulaire.CodeReference : null,
+                p.Formulaire != null ? p.Formulaire.Version : (int?)null
+            ));
+        }
+
+        var fabPlans = await _context.PlanFabricationEntetes
+            .AsNoTracking()
+            .Include(d => d.Formulaire)
+            .Where(d => d.Statut == StatutsPlan.Actif || d.Statut == StatutsPlan.Archive || d.Statut == StatutsPlan.Brouillon)
+            .ToListAsync();
+
+        foreach(var p in fabPlans)
+        {
+            result.Add(new HubPlanDto(
+                p.Id,
+                "FAB",
+                p.Nom ?? p.Designation ?? "Plan par Article",
+                p.CodeArticleSageVersionne ?? "N/A",
+                p.Designation ?? "N/A",
+                p.OperationCode ?? "N/A",
+                p.OperationCode ?? "N/A", 
+                p.Version,
+                p.Statut ?? StatutsPlan.Actif,
+                p.Remarques ?? "Plan de fabrication instancié",
+                p.Nom,
+                "PLAN_FAB",
                 p.Formulaire != null ? p.Formulaire.CodeReference : null,
                 p.Formulaire != null ? p.Formulaire.Version : (int?)null
             ));

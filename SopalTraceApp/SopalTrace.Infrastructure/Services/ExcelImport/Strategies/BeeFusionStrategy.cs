@@ -11,7 +11,7 @@ public class BeeFusionStrategy : IFusionStrategy
     public List<LigneLogique> Regrouper(List<IXLRow> lignesPhysiques, int startRow, int endRow, int colRefIndex)
     {
         var result = new List<LigneLogique>();
-        LigneLogique currentLigne = null;
+        LigneLogique? currentLigne = null;
 
         for (int i = startRow; i <= endRow; i++)
         {

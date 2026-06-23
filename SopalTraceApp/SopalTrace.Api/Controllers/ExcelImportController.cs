@@ -23,7 +23,7 @@ public class ExcelImportController : ControllerBase
     }
 
     [HttpPost("plan")]
-    public async Task<IActionResult> ImportPlanExcel(IFormFile file, [FromForm] string configurationColonnesJson = null)
+    public async Task<IActionResult> ImportPlanExcel(IFormFile file, [FromForm] string? configurationColonnesJson = null)
     {
         if (file == null || file.Length == 0)
         {
@@ -40,7 +40,7 @@ public class ExcelImportController : ControllerBase
     }
 
     [HttpPost("verif-machine")]
-    public async Task<IActionResult> ImportVerifMachineExcel(IFormFile file, [FromForm] string configurationColonnesJson = null)
+    public async Task<IActionResult> ImportVerifMachineExcel(IFormFile file, [FromForm] string? configurationColonnesJson = null)
     {
         if (file == null || file.Length == 0)
         {
@@ -57,7 +57,7 @@ public class ExcelImportController : ControllerBase
     }
 
     [HttpPost("controle-poste")]
-    public async Task<IActionResult> ImportControlePosteExcel(IFormFile file, [FromForm] string configurationColonnesJson = null)
+    public async Task<IActionResult> ImportControlePosteExcel(IFormFile file, [FromForm] string? configurationColonnesJson = null)
     {
         if (file == null || file.Length == 0)
         {

@@ -23,6 +23,7 @@ public class DocumentEnteteDto
     public DateTime? ModifieLe { get; set; }
     public string? NatureArticleCode { get; set; }
     public string? FamilleProduitFiniCode { get; set; }
+    public Guid? ModeleSourceId { get; set; }
     public string? PosteCode { get; set; }
     public string? PosteLibelle { get; set; }
     public string? Libre1 { get; set; }
@@ -143,6 +144,8 @@ public class CreateDocumentRequestDto
     public List<SopalTrace.Application.Helpers.ColonneJsonDto> ColonneDefs { get; set; } = new();
 
     public List<CreateDocumentSectionDto> Sections { get; set; } = new();
+
+    public Guid? ModeleSourceId { get; set; }
 }
 
 public class CreateDocumentSectionDto
@@ -227,6 +230,8 @@ public class UpdateDocumentRequestDto
     public string? ConfigurationColonnesJson { get; set; }
     public string? RefFormulaireCodeReference { get; set; }
     
+    public string? OperationCode { get; set; }
+
     public List<UpdateDocumentSectionDto> Sections { get; set; } = new();
 }
 

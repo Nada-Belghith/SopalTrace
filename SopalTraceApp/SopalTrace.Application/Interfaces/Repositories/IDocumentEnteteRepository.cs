@@ -41,4 +41,6 @@ public interface IDocumentEnteteRepository
         string? posteCode = null,
         string? natureComposantCode = null,
         string? familleProduitCode = null);
+
+    Task<IEnumerable<DocumentEntete>> GetByFormulaireIdAsync(Guid formulaireId);
 }

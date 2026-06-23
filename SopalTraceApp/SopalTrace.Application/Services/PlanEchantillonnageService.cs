@@ -96,6 +96,8 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
         }
 
         var entity = request.ToEntity();
+        if (entity == null) throw new Exception("Requête invalide ou entité nulle.");
+        
         entity.NqaId = await ResolveNqaId(request.NqaId, request.ValeurNqa);
 
         entity.Id = Guid.NewGuid();

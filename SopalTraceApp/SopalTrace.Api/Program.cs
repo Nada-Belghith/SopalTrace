@@ -100,6 +100,8 @@ builder.Services.AddScoped<IDocumentEnteteRepository, DocumentEnteteRepository>(
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
 builder.Services.AddScoped<IPlanEchantillonnageService, PlanEchantillonnageService>();
+builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
+builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
 
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecEncfRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfService, SopalTrace.Application.Services.ExecEncfService>();

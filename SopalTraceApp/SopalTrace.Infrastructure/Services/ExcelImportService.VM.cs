@@ -16,7 +16,7 @@ public partial class ExcelImportService
     // =========================================================================
     // VERIF MACHINE (inchangé)
     // =========================================================================
-    protected virtual VerifMachineColumnMapping BuildVMMap(List<IXLRow> rows, int startIdx, string configurationColonnesJson = null)
+    protected virtual VerifMachineColumnMapping BuildVMMap(List<IXLRow> rows, int startIdx, string? configurationColonnesJson = null)
     {
         var map = new VerifMachineColumnMapping();
         var searchRows = rows.Skip(startIdx).Take(8).ToList();
@@ -108,7 +108,7 @@ public partial class ExcelImportService
         return map;
     }
 
-    public virtual async Task<ImportVerifMachineExcelResultDto> ParseVerifMachineExcelAsync(Stream excelStream, string fileName, string configurationColonnesJson = null)
+    public virtual async Task<ImportVerifMachineExcelResultDto> ParseVerifMachineExcelAsync(Stream excelStream, string fileName, string? configurationColonnesJson = null)
     {
         ResetCaches();
         var result = new ImportVerifMachineExcelResultDto();
@@ -225,16 +225,16 @@ public partial class ExcelImportService
 
             foreach (var sRow in allSubRows)
             {
-                string methode = sRow.TryGetValue(map.MethodeCol > 0 ? map.MethodeCol : 2, out string m) && !string.IsNullOrWhiteSpace(m) ? m : "";
-                string perio = sRow.TryGetValue(map.PerioCol > 0 ? map.PerioCol : 3, out string p) && !string.IsNullOrWhiteSpace(p) ? p : "";
-                string moyenDet = map.MoyenDetCol.HasValue && sRow.TryGetValue(map.MoyenDetCol.Value, out string md) ? md : "";
+                string methode = sRow.TryGetValue(map.MethodeCol > 0 ? map.MethodeCol : 2, out string? m) && !string.IsNullOrWhiteSpace(m) ? m : "";
+                string perio = sRow.TryGetValue(map.PerioCol > 0 ? map.PerioCol : 3, out string? p) && !string.IsNullOrWhiteSpace(p) ? p : "";
+                string moyenDet = map.MoyenDetCol.HasValue && sRow.TryGetValue(map.MoyenDetCol.Value, out string? md) ? md : "";
 
-                bool hasPieceInRow = map.PieceRefStartCol > 0 && sRow.TryGetValue(map.PieceRefStartCol, out string pf) && !string.IsNullOrWhiteSpace(pf);
+                bool hasPieceInRow = map.PieceRefStartCol > 0 && sRow.TryGetValue(map.PieceRefStartCol, out string? pf) && !string.IsNullOrWhiteSpace(pf);
                 
                 bool hasCustomColumnInRow = false;
                 foreach (var colIdx in map.CustomCols.Keys)
                 {
-                    if (sRow.TryGetValue(colIdx, out string cv) && !string.IsNullOrWhiteSpace(cv))
+                    if (sRow.TryGetValue(colIdx, out string? cv) && !string.IsNullOrWhiteSpace(cv))
                     {
                         hasCustomColumnInRow = true; break;
                     }
@@ -268,9 +268,9 @@ public partial class ExcelImportService
                 {
                     foreach (var kvp in map.CustomCols)
                     {
-                        if (sRow.TryGetValue(kvp.Key, out string cVal) && !string.IsNullOrWhiteSpace(cVal))
+                        if (sRow.TryGetValue(kvp.Key, out string? cVal) && !string.IsNullOrWhiteSpace(cVal))
                         {
-                            if (currentLigne.ColonnesSupplementaires.TryGetValue(kvp.Value, out string existingVal) && existingVal != cVal)
+                            if (currentLigne.ColonnesSupplementaires.TryGetValue(kvp.Value, out string? existingVal) && existingVal != cVal)
                             {
                                 needNewLigne = true;
                                 break;
@@ -294,18 +294,18 @@ public partial class ExcelImportService
                 {
                     foreach (var kvp in map.CustomCols)
                     {
-                        if (sRow.TryGetValue(kvp.Key, out string cVal) && !string.IsNullOrWhiteSpace(cVal))
+                        if (sRow.TryGetValue(kvp.Key, out string? cVal) && !string.IsNullOrWhiteSpace(cVal))
                         {
-                            currentLigne.ColonnesSupplementaires[kvp.Value] = cVal;
+                            currentLigne!.ColonnesSupplementaires[kvp.Value] = cVal;
                         }
                     }
                 }
 
                 var periodiciteLibelle = perio;
-                ImportVerifMachineEcheanceDto echeance = null;
+                ImportVerifMachineEcheanceDto? echeance = null;
                 if (!string.IsNullOrWhiteSpace(periodiciteLibelle))
                 {
-                    var existingEcheance = currentLigne.Echeances.FirstOrDefault(e => e.PeriodiciteLibelle == periodiciteLibelle);
+                    var existingEcheance = currentLigne!.Echeances.FirstOrDefault(e => e.PeriodiciteLibelle == periodiciteLibelle);
                     
                     if (existingEcheance != null) echeance = existingEcheance;
                     else
@@ -349,7 +349,7 @@ public partial class ExcelImportService
                         foreach (var kvp in map.Familles)
                         {
                             int excelCol = kvp.Key;
-                            if (sRow.TryGetValue(excelCol, out string pieceCode) && !string.IsNullOrWhiteSpace(pieceCode))
+                            if (sRow.TryGetValue(excelCol, out string? pieceCode) && !string.IsNullOrWhiteSpace(pieceCode))
                             {
                                 await ProcessPieceCellAsync(pieceCode, kvp.Value, lastRowDto, inConformite, moyenDet, result.MachineCode!);
                             }
@@ -358,13 +358,13 @@ public partial class ExcelImportService
                     else
                     {
                         int targetCol = map.PieceRefStartCol > 0 ? map.PieceRefStartCol : 4;
-                        if (sRow.TryGetValue(targetCol, out string pieceCode) && !string.IsNullOrWhiteSpace(pieceCode))
+                        if (sRow.TryGetValue(targetCol, out string? pieceCode) && !string.IsNullOrWhiteSpace(pieceCode))
                         {
                             await ProcessPieceCellAsync(pieceCode, "", lastRowDto, inConformite, moyenDet, result.MachineCode!);
                         }
                     }
 
-                    if (map.FuiteCol.HasValue && sRow.TryGetValue(map.FuiteCol.Value, out string colFuite) && !string.IsNullOrWhiteSpace(colFuite))
+                    if (map.FuiteCol.HasValue && sRow.TryGetValue(map.FuiteCol.Value, out string? colFuite) && !string.IsNullOrWhiteSpace(colFuite))
                     {
                         string role = "FEC";
                         if (moyenDet.Contains("FENC", StringComparison.OrdinalIgnoreCase)) role = "FENC";

@@ -6,9 +6,9 @@ namespace SopalTrace.Application.Interfaces.Execution
 {
     public interface IExecEncfRepository
     {
-        Task<ExecControleOf> GetExecEncfAsync(Guid id);
-        Task<ExecControleOf> GetEnCoursExecEncfByOfAsync(string numeroOf, string posteCode);
-        Task<MfgheadOrdreFabrication> GetOfDetailsAsync(string numeroOf);
+        Task<ExecControleOf?> GetExecEncfAsync(Guid id);
+        Task<ExecControleOf?> GetEnCoursExecEncfByOfAsync(string numeroOf, string posteCode);
+        Task<MfgheadOrdreFabrication?> GetOfDetailsAsync(string numeroOf);
         Task AddExecEncfAsync(ExecControleOf entity);
         Task SaveChangesAsync();
         

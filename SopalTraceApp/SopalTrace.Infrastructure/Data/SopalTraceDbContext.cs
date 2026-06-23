@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Domain.Entities;
@@ -66,6 +66,8 @@ public partial class SopalTraceDbContext : DbContext
 
     public virtual DbSet<ModeleFabricationLigne> ModeleFabricationLignes { get; set; }
 
+    public virtual DbSet<ModeleFabricationLigneExtraColonne> ModeleFabricationLigneExtraColonnes { get; set; }
+
     public virtual DbSet<ModeleFabricationSection> ModeleFabricationSections { get; set; }
 
     public virtual DbSet<MoyenControle> MoyenControles { get; set; }
@@ -91,6 +93,8 @@ public partial class SopalTraceDbContext : DbContext
     public virtual DbSet<PlanFabricationEntete> PlanFabricationEntetes { get; set; }
 
     public virtual DbSet<PlanFabricationLigne> PlanFabricationLignes { get; set; }
+
+    public virtual DbSet<PlanFabricationLigneExtraColonne> PlanFabricationLigneExtraColonnes { get; set; }
 
     public virtual DbSet<PlanFabricationSection> PlanFabricationSections { get; set; }
 
@@ -1093,6 +1097,25 @@ public partial class SopalTraceDbContext : DbContext
                 .HasConstraintName("FK__Modele_Fa__TypeC__1A9EF37A");
         });
 
+        modelBuilder.Entity<ModeleFabricationLigneExtraColonne>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__Modele_F__ExtraCol__3214EC07");
+
+            entity.ToTable("Modele_Fabrication_Ligne_ExtraColonne");
+
+            entity.HasIndex(e => new { e.LigneId, e.CleColonne }, "UQ__Modele_F__ExtraCol_LigneCol").IsUnique();
+
+            entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CleColonne)
+                .HasMaxLength(60)
+                .IsUnicode(false);
+            entity.Property(e => e.ValeurColonne).HasMaxLength(500);
+
+            entity.HasOne(d => d.Ligne).WithMany(p => p.ModeleFabricationLigneExtraColonnes)
+                .HasForeignKey(d => d.LigneId)
+                .HasConstraintName("FK__Modele_Fa__Ligne__ExtraCol");
+        });
+
         modelBuilder.Entity<ModeleFabricationSection>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Modele_F__3214EC077251BEFA");
@@ -1479,6 +1502,25 @@ public partial class SopalTraceDbContext : DbContext
             entity.HasOne(d => d.TypeControle).WithMany(p => p.PlanFabricationLignes)
                 .HasForeignKey(d => d.TypeControleId)
                 .HasConstraintName("FK__Plan_Fabr__TypeC__3BFFE745");
+        });
+
+        modelBuilder.Entity<PlanFabricationLigneExtraColonne>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__Plan_Fab__ExtraCol__3214EC07");
+
+            entity.ToTable("Plan_Fabrication_Ligne_ExtraColonne");
+
+            entity.HasIndex(e => new { e.LigneId, e.CleColonne }, "UQ__Plan_Fab__ExtraCol_LigneCol").IsUnique();
+
+            entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CleColonne)
+                .HasMaxLength(60)
+                .IsUnicode(false);
+            entity.Property(e => e.ValeurColonne).HasMaxLength(500);
+
+            entity.HasOne(d => d.Ligne).WithMany(p => p.PlanFabricationLigneExtraColonnes)
+                .HasForeignKey(d => d.LigneId)
+                .HasConstraintName("FK__Plan_Fab__Ligne__ExtraCol");
         });
 
         modelBuilder.Entity<PlanFabricationSection>(entity =>

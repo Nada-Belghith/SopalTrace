@@ -82,8 +82,8 @@ public class FormulaireStructureService : IFormulaireStructureService
         var dtos = new List<FormulaireReferenceItemDto>();
         foreach (var f in formulaires)
         {
-            var cols = await _formulaireRepository.GetColonnesActivesByCodeReferenceAsync(f.CodeReference);
-            var equipes = await _formulaireRepository.GetEquipesActivesByCodeReferenceAsync(f.CodeReference);
+            var cols = await _formulaireRepository.GetColonnesActivesByCodeReferenceAsync(f.CodeReference ?? string.Empty);
+            var equipes = await _formulaireRepository.GetEquipesActivesByCodeReferenceAsync(f.CodeReference ?? string.Empty);
             dtos.Add(new FormulaireReferenceItemDto(
                 f.Id,
                 f.CodeReference?.Trim() ?? string.Empty,
@@ -118,7 +118,7 @@ public class FormulaireStructureService : IFormulaireStructureService
         }
         else
         {
-            formulaireActuel = await _formulaireRepository.GetFormulaireActifByRoleAsync(roleTrimmed);
+            formulaireActuel = await _formulaireRepository.GetFormulaireActifByRoleAsync(roleTrimmed ?? string.Empty);
         }
 
         var parsedRoot = ColonneJsonMapper.DeserializeRoot(configurationStructureJson);
@@ -133,8 +133,8 @@ public class FormulaireStructureService : IFormulaireStructureService
                 await _formulaireRepository.UpdateStatutAsync(formulaireActuel.Id, StatutsPlan.Actif);
 
                 // Synchronisation des colonnes directement en DB
-                await _formulaireRepository.SyncColonnesAsync(formulaireActuel.CodeReference, parsedRoot.CustomCols);
-                await _formulaireRepository.SyncEquipesAsync(formulaireActuel.CodeReference, parsedRoot.Equipes);
+                await _formulaireRepository.SyncColonnesAsync(formulaireActuel.CodeReference ?? string.Empty, parsedRoot.CustomCols);
+                await _formulaireRepository.SyncEquipesAsync(formulaireActuel.CodeReference ?? string.Empty, parsedRoot.Equipes);
 
                 return (formulaireActuel.Id, formulaireActuel.Version);
             }
@@ -161,6 +161,39 @@ public class FormulaireStructureService : IFormulaireStructureService
                 // ── Cas ACTIF → ARCHIVE + nouvelle version ──
                 await _formulaireRepository.UpdateStatutAsync(formulaireActuel.Id, StatutsPlan.Archive);
 
+                // Auto-archive the linked generic documents
+                var linkedDocs = await _unitOfWork.DocumentEnteteRepository.GetByFormulaireIdAsync(formulaireActuel.Id);
+                foreach(var doc in linkedDocs)
+                {
+                    if (doc.Statut != StatutsPlan.Archive)
+                    {
+                        doc.Statut = StatutsPlan.Archive;
+                        await _unitOfWork.DocumentEnteteRepository.UpdateAsync(doc);
+                    }
+                }
+
+                // Auto-archive the linked ModeleFabrication documents
+                var linkedModels = await _unitOfWork.ModeleFabricationEnteteRepository.GetByFormulaireIdAsync(formulaireActuel.Id);
+                foreach(var model in linkedModels)
+                {
+                    if (model.Statut != StatutsPlan.Archive)
+                    {
+                        model.Statut = StatutsPlan.Archive;
+                        await _unitOfWork.ModeleFabricationEnteteRepository.UpdateAsync(model);
+                    }
+                }
+
+                // Auto-archive the linked PlanFabrication documents
+                var linkedPlans = await _unitOfWork.PlanFabricationEnteteRepository.GetByFormulaireIdAsync(formulaireActuel.Id);
+                foreach(var plan in linkedPlans)
+                {
+                    if (plan.Statut != StatutsPlan.Archive)
+                    {
+                        plan.Statut = StatutsPlan.Archive;
+                        await _unitOfWork.PlanFabricationEnteteRepository.UpdateAsync(plan);
+                    }
+                }
+
                 var maxVersion = await _formulaireRepository.GetMaxVersionByCodeReferenceAsync(formulaireActuel.CodeReference);
 
                 var newVersion = (versionInitiale.HasValue && versionInitiale.Value > maxVersion)
@@ -183,8 +216,8 @@ public class FormulaireStructureService : IFormulaireStructureService
                 await _unitOfWork.CommitAsync();
 
                 // Ajouter les colonnes au nouveau formulaire
-                await _formulaireRepository.SyncColonnesAsync(nouveauFormulaire.CodeReference, parsedRoot.CustomCols);
-                await _formulaireRepository.SyncEquipesAsync(nouveauFormulaire.CodeReference, parsedRoot.Equipes);
+                await _formulaireRepository.SyncColonnesAsync(nouveauFormulaire.CodeReference ?? string.Empty, parsedRoot.CustomCols);
+                await _formulaireRepository.SyncEquipesAsync(nouveauFormulaire.CodeReference ?? string.Empty, parsedRoot.Equipes);
 
                 return (nouveauFormulaire.Id, newVersion);
             }
@@ -192,7 +225,7 @@ public class FormulaireStructureService : IFormulaireStructureService
         else
         {
             // ── Aucun formulaire existant : toute première création ──
-            var code = !string.IsNullOrWhiteSpace(codeRefTrimmed) ? codeRefTrimmed : roleTrimmed ?? role;
+            var code = !string.IsNullOrWhiteSpace(codeRefTrimmed) ? codeRefTrimmed : (roleTrimmed ?? role ?? string.Empty);
             var nouveauFormulaire = new RefFormulaire
             {
                 Id = Guid.NewGuid(),
@@ -207,8 +240,8 @@ public class FormulaireStructureService : IFormulaireStructureService
             await _formulaireRepository.AddAsync(nouveauFormulaire);
             await _unitOfWork.CommitAsync();
 
-            await _formulaireRepository.SyncColonnesAsync(nouveauFormulaire.CodeReference, parsedRoot.CustomCols);
-            await _formulaireRepository.SyncEquipesAsync(nouveauFormulaire.CodeReference, parsedRoot.Equipes);
+            await _formulaireRepository.SyncColonnesAsync(nouveauFormulaire.CodeReference ?? string.Empty, parsedRoot.CustomCols);
+            await _formulaireRepository.SyncEquipesAsync(nouveauFormulaire.CodeReference ?? string.Empty, parsedRoot.Equipes);
 
             return (nouveauFormulaire.Id, 0);
         }

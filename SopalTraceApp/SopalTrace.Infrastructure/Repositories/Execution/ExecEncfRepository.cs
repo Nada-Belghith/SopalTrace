@@ -18,7 +18,7 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             _context = context;
         }
 
-        public async Task<ExecControleOf> GetExecEncfAsync(Guid id)
+        public async Task<ExecControleOf?> GetExecEncfAsync(Guid id)
         {
             return await _context.ExecControleOfs
                 .Include(e => e.ExecPieceTypes)
@@ -29,7 +29,7 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .FirstOrDefaultAsync(e => e.Id == id);
         }
 
-        public async Task<ExecControleOf> GetEnCoursExecEncfByOfAsync(string numeroOf, string posteCode)
+        public async Task<ExecControleOf?> GetEnCoursExecEncfByOfAsync(string numeroOf, string posteCode)
         {
             return await _context.ExecControleOfs
                 .Include(e => e.ExecPieceTypes)
@@ -42,7 +42,7 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<MfgheadOrdreFabrication> GetOfDetailsAsync(string numeroOf)
+        public async Task<MfgheadOrdreFabrication?> GetOfDetailsAsync(string numeroOf)
         {
             return await _context.MfgheadOrdreFabrications
                 .Include(o => o.CodeArticleNavigation)

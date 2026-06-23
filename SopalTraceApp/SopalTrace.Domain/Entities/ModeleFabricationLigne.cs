@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -62,4 +62,6 @@ public partial class ModeleFabricationLigne
     public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 
     public virtual TypeControle? TypeControle { get; set; }
+
+    public virtual ICollection<ModeleFabricationLigneExtraColonne> ModeleFabricationLigneExtraColonnes { get; set; } = new List<ModeleFabricationLigneExtraColonne>();
 }

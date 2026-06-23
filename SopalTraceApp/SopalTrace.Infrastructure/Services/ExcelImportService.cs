@@ -132,7 +132,7 @@ public partial class ExcelImportService : IExcelImportService
         catch { return ""; }
     }
 
-    public async Task<ImportExcelResultDto> ParsePlanExcelAsync(Stream excelStream, string fileName, string configurationColonnesJson = null)
+    public async Task<ImportExcelResultDto> ParsePlanExcelAsync(Stream excelStream, string fileName, string? configurationColonnesJson = null)
     {
         if (fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             return await ParseCsvAsync(excelStream);
@@ -186,7 +186,7 @@ public partial class ExcelImportService : IExcelImportService
             catch { }
         }
 
-        ImportExcelSectionDto currentSection = null;
+        ImportExcelSectionDto? currentSection = null;
 
         for (int i = 0; i < rows.Count; i++)
         {
@@ -469,7 +469,7 @@ public partial class ExcelImportService : IExcelImportService
         return await CompleteParseLigneAsync(ligne, typeControle, moyenControle, limiteSpec);
     }
 
-    private async Task<ImportExcelLigneDto> ParseLigneAsync(IXLRow row, PlanColumnMapping map, Dictionary<int, string> imagesByRow = null)
+    private async Task<ImportExcelLigneDto> ParseLigneAsync(IXLRow row, PlanColumnMapping map, Dictionary<int, string>? imagesByRow = null)
     {
         var ligne = new ImportExcelLigneDto();
         if (imagesByRow != null && imagesByRow.TryGetValue(row.RowNumber(), out var img))

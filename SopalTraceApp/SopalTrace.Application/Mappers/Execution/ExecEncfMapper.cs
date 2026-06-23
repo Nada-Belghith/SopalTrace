@@ -6,7 +6,7 @@ namespace SopalTrace.Application.Mappers.Execution
 {
     public static class ExecEncfMapper
     {
-        public static ExecEncfDto ToDto(ExecControleOf entity)
+        public static ExecEncfDto? ToDto(ExecControleOf? entity)
         {
             if (entity == null) return null;
 
@@ -54,16 +54,16 @@ namespace SopalTrace.Application.Mappers.Execution
             };
         }
 
-        public static ExecControleOf ToEntity(ExecEncfDto dto)
+        public static ExecControleOf? ToEntity(ExecEncfDto? dto)
         {
             if (dto == null) return null;
 
             return new ExecControleOf
             {
                 Id = dto.Id ?? System.Guid.NewGuid(),
-                NumeroOf = dto.NumeroOf,
-                OperationCode = dto.OperationCode,
-                PosteCode = dto.PosteCode,
+                NumeroOf = dto.NumeroOf ?? string.Empty,
+                OperationCode = dto.OperationCode ?? string.Empty,
+                PosteCode = dto.PosteCode ?? string.Empty,
                 MachineCode = dto.MachineCode,
                 NumEquipe = dto.NumEquipe,
                 PlanSourceId = dto.PlanSourceId,
@@ -74,7 +74,7 @@ namespace SopalTrace.Application.Mappers.Execution
             };
         }
 
-        public static ExecPieceType ToEntity(ExecPieceTypeDto dto)
+        public static ExecPieceType? ToEntity(ExecPieceTypeDto? dto)
         {
             if (dto == null) return null;
 
@@ -83,13 +83,13 @@ namespace SopalTrace.Application.Mappers.Execution
                 Id = dto.Id ?? System.Guid.NewGuid(),
                 ExecControleOfid = dto.ExecControleOFId,
                 HeureValidation = dto.HeureValidation,
-                Resultat = dto.Resultat,
+                Resultat = dto.Resultat ?? string.Empty,
                 Remarque = dto.Remarque,
-                MatriculeOperateur = dto.MatriculeOperateur
+                MatriculeOperateur = dto.MatriculeOperateur ?? string.Empty
             };
         }
 
-        public static ExecControleTranche ToEntity(ExecControleTrancheDto dto)
+        public static ExecControleTranche? ToEntity(ExecControleTrancheDto? dto)
         {
             if (dto == null) return null;
 
@@ -97,10 +97,10 @@ namespace SopalTrace.Application.Mappers.Execution
             {
                 Id = dto.Id ?? System.Guid.NewGuid(),
                 ExecControleOfid = dto.ExecControleOFId,
-                TrancheHoraire = dto.TrancheHoraire,
+                TrancheHoraire = dto.TrancheHoraire ?? string.Empty,
                 HeureDebut = dto.HeureDebut,
                 HeureFin = dto.HeureFin,
-                ResultatFinal = dto.ResultatFinal,
+                ResultatFinal = dto.ResultatFinal ?? string.Empty,
                 DetailsNc = dto.DetailsNC,
                 ActionsCorrection = dto.ActionsCorrection,
                 MatriculeApprobateur = dto.MatriculeApprobateur

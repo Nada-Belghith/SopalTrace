@@ -60,6 +60,13 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
         return await query.ToListAsync();
     }
 
+    public async Task<IEnumerable<DocumentEntete>> GetByFormulaireIdAsync(Guid formulaireId)
+    {
+        return await _context.DocumentEntetes
+            .Where(d => d.FormulaireId == formulaireId)
+            .ToListAsync();
+    }
+
     public async Task AddAsync(DocumentEntete document)
     {
         await _context.DocumentEntetes.AddAsync(document);
@@ -75,7 +82,7 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
         return Task.CompletedTask;
     }
 
-    public async Task DeleteAsync(DocumentEntete document)
+    public Task DeleteAsync(DocumentEntete document)
     {
         if (document.DocumentSections != null)
         {
@@ -96,6 +103,7 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
             _context.DocumentSections.RemoveRange(document.DocumentSections);
         }
         _context.DocumentEntetes.Remove(document);
+        return Task.CompletedTask;
     }
 
     public void RemoveSection(DocumentSection section)

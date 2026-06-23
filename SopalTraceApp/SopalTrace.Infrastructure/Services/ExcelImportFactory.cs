@@ -18,7 +18,7 @@ public class ExcelImportFactory : IExcelImportFactory
     {
         if (string.IsNullOrWhiteSpace(machineCode))
         {
-            return _strategies.FirstOrDefault(i => i.MachineCode == "DEFAULT");
+            return _strategies.FirstOrDefault(i => i.MachineCode == "DEFAULT")!;
         }
 
         var machineUpper = machineCode.ToUpper();
@@ -26,6 +26,6 @@ public class ExcelImportFactory : IExcelImportFactory
         // Find the specific strategy if it exists (e.g. BEE47 matches BEE role)
         var strategy = _strategies.FirstOrDefault(i => machineUpper.Contains(i.MachineCode));
         
-        return strategy ?? _strategies.FirstOrDefault(i => i.MachineCode == "DEFAULT");
+        return strategy ?? _strategies.FirstOrDefault(i => i.MachineCode == "DEFAULT")!;
     }
 }

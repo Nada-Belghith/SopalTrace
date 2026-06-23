@@ -43,6 +43,14 @@ public class UnitOfWork : IUnitOfWork
     public IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository
         => _planEchantillonnageEnteteRepository ??= new PlanEchantillonnageEnteteRepository(_context);
 
+    private IModeleFabricationEnteteRepository? _modeleFabricationEnteteRepository;
+    public IModeleFabricationEnteteRepository ModeleFabricationEnteteRepository
+        => _modeleFabricationEnteteRepository ??= new ModeleFabricationEnteteRepository(_context);
+
+    private IPlanFabricationEnteteRepository? _planFabricationEnteteRepository;
+    public IPlanFabricationEnteteRepository PlanFabricationEnteteRepository
+        => _planFabricationEnteteRepository ??= new PlanFabricationEnteteRepository(_context);
+
     public async Task BeginTransactionAsync()
     {
         _transaction = await _context.Database.BeginTransactionAsync();

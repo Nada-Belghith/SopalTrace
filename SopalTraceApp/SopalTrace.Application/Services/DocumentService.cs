@@ -95,7 +95,32 @@ public class DocumentService : IDocumentService
         }
 
         Guid? formulaireId = null;
-        if (!string.IsNullOrWhiteSpace(formCodeRef))
+
+        // Héritage automatique pour la fabrication (Responsable DI)
+        if (request.TypeDocumentCode == "MODELE_FAB" || request.TypeDocumentCode == "PLAN_FAB")
+        {
+            var formStruct = await _formulaireStructureService.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION");
+            if (formStruct != null)
+            {
+                formulaireId = formStruct.Id;
+                
+                // Si la requête contient une mise à jour de la configuration des colonnes
+                var colsJson = request.ConfigurationColonnesJson ?? (request.ColonneDefs != null && request.ColonneDefs.Any()
+                    ? System.Text.Json.JsonSerializer.Serialize(request.ColonneDefs, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })
+                    : null);
+
+                if (colsJson != null)
+                {
+                    await _formulaireStructureService.UpdateFormulaireStructureAsync(
+                        "EN_COURS_DE_FABRICATION", 
+                        colsJson, 
+                        formStruct.CodeReference, 
+                        request.VersionInitiale
+                    );
+                }
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(formCodeRef))
         {
             var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(formCodeRef);
             

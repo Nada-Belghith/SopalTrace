@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -68,4 +68,6 @@ public partial class PlanFabricationLigne
     public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 
     public virtual TypeControle? TypeControle { get; set; }
+
+    public virtual ICollection<PlanFabricationLigneExtraColonne> PlanFabricationLigneExtraColonnes { get; set; } = new List<PlanFabricationLigneExtraColonne>();
 }

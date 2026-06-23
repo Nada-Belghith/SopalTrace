@@ -17,13 +17,13 @@ namespace SopalTrace.Application.Services
             _repository = repository;
         }
 
-        public async Task<ExecEncfDto> GetExecEncfAsync(Guid id)
+        public async Task<ExecEncfDto?> GetExecEncfAsync(Guid id)
         {
             var entity = await _repository.GetExecEncfAsync(id);
             return ExecEncfMapper.ToDto(entity);
         }
 
-        public async Task<ExecEncfDto> GetOrCreateExecEncfByOfAsync(string numeroOf, string posteCode)
+        public async Task<ExecEncfDto?> GetOrCreateExecEncfByOfAsync(string numeroOf, string posteCode)
         {
             var existingExec = await _repository.GetEnCoursExecEncfByOfAsync(numeroOf, posteCode);
 
@@ -59,7 +59,7 @@ namespace SopalTrace.Application.Services
             return await GetExecEncfAsync(newExec.Id);
         }
 
-        public async Task<ExecEncfDto> SaveExecEncfAsync(ExecEncfDto dto)
+        public async Task<ExecEncfDto?> SaveExecEncfAsync(ExecEncfDto dto)
         {
             if (!dto.Id.HasValue) throw new Exception("ID manquant.");
             var existing = await _repository.GetExecEncfAsync(dto.Id.Value);
@@ -82,7 +82,10 @@ namespace SopalTrace.Application.Services
             {
                 ptDto.ExecControleOFId = existing.Id;
                 var pt = ExecEncfMapper.ToEntity(ptDto);
-                await _repository.AddPieceType(pt);
+                if (pt != null)
+                {
+                    await _repository.AddPieceType(pt);
+                }
             }
 
             // Update Tranches
@@ -91,7 +94,10 @@ namespace SopalTrace.Application.Services
             {
                 trDto.ExecControleOFId = existing.Id;
                 var tr = ExecEncfMapper.ToEntity(trDto);
-                await _repository.AddTranche(tr);
+                if (tr != null)
+                {
+                    await _repository.AddTranche(tr);
+                }
             }
 
             await _repository.SaveChangesAsync();

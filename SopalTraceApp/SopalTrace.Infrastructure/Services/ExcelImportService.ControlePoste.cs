@@ -17,7 +17,7 @@ public partial class ExcelImportService
     //   Ligne en-tête : | N° | Machine / Banc d'essai | Désignation du défaut |
     //   Données : | 1 | MAS26 | ABSENCE/MAUVAIS MONTAGE JOINT ANTI-FUITE |
     // =========================================================================
-    public Task<ImportNcExcelResultDto> ParseControlePosteExcelAsync(Stream excelStream, string fileName, string configurationColonnesJson = null)
+    public Task<ImportNcExcelResultDto> ParseControlePosteExcelAsync(Stream excelStream, string fileName, string? configurationColonnesJson = null)
     {
         var result = new ImportNcExcelResultDto();
         using var workbook = new XLWorkbook(excelStream);

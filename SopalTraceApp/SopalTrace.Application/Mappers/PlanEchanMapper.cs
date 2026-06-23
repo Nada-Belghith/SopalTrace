@@ -6,7 +6,7 @@ namespace SopalTrace.Application.Mappers;
 
 public static class PlanEchanMapper
 {
-    public static PlanEchanResponseDto ToResponseDto(this PlanEchantillonnageEntete entity)
+    public static PlanEchanResponseDto? ToResponseDto(this PlanEchantillonnageEntete? entity)
     {
         if (entity == null) return null;
 
@@ -42,7 +42,7 @@ public static class PlanEchanMapper
         };
     }
 
-    public static PlanEchantillonnageEntete ToEntity(this CreatePlanEchanRequestDto dto)
+    public static PlanEchantillonnageEntete? ToEntity(this CreatePlanEchanRequestDto? dto)
     {
         if (dto == null) return null;
 

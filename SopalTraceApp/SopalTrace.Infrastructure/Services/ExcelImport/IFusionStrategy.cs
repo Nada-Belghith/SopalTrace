@@ -5,7 +5,7 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport;
 
 public class LigneLogique
 {
-    public IXLRow Principale { get; set; }
+    public IXLRow Principale { get; set; } = null!;
     public List<Dictionary<int, string>> SousLignes { get; set; } = new();
 }
 
