@@ -64,4 +64,5 @@ public interface IDictionnaireQualiteRepository
     Task<Article?> GetArticleByCodeNormaliseAsync(string codeNormalise);
     Task<System.Collections.Generic.IReadOnlyList<Article>> SearchArticlesSfAsync(string query, int maxResults = 15);
     Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise);
+    Task<string?> GetFamilleProduitCodeForArticleAsync(string codeNormalise);
 }

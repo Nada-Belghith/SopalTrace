@@ -526,8 +526,7 @@ CREATE TABLE dbo.Modele_Fabrication_Entete (
     Notes                  NVARCHAR(MAX),
     LegendeMoyens          NVARCHAR(MAX),
     CreePar                VARCHAR(20)  NOT NULL,
-    CreeLe                 DATETIME     NOT NULL DEFAULT GETDATE(),
-    UNIQUE (Code, Libelle, Version)
+    CreeLe                 DATETIME     NOT NULL DEFAULT GETDATE()
 );
 GO
 
@@ -565,9 +564,18 @@ CREATE TABLE dbo.Modele_Fabrication_Ligne (
     Libre4                NVARCHAR(255),
     Libre5                NVARCHAR(255),
     CONSTRAINT CK_ModFab_Ligne_Moyen_XOR CHECK (
-        (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NULL)
-        OR (MoyenControleId IS NULL   AND MoyenTexteLibre IS NOT NULL)
+        NOT (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NOT NULL)
     )
+);
+GO
+
+CREATE TABLE dbo.Modele_Fabrication_Ligne_ExtraColonne (
+    Id            UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    LigneId       UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Modele_Fabrication_Ligne(Id) ON DELETE CASCADE,
+    CleColonne    VARCHAR(60)   NOT NULL,
+    ValeurColonne NVARCHAR(500),
+    OrdreAffiche  INT           NOT NULL DEFAULT 0,
+    UNIQUE (LigneId, CleColonne)
 );
 GO
 
@@ -633,9 +641,18 @@ CREATE TABLE dbo.Plan_Fabrication_Ligne (
     Libre4                NVARCHAR(255),
     Libre5                NVARCHAR(255),
     CONSTRAINT CK_PlanFab_Ligne_Moyen_XOR CHECK (
-        (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NULL)
-        OR (MoyenControleId IS NULL   AND MoyenTexteLibre IS NOT NULL)
+        NOT (MoyenControleId IS NOT NULL AND MoyenTexteLibre IS NOT NULL)
     )
+);
+GO
+
+CREATE TABLE dbo.Plan_Fabrication_Ligne_ExtraColonne (
+    Id            UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    LigneId       UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Fabrication_Ligne(Id) ON DELETE CASCADE,
+    CleColonne    VARCHAR(60)   NOT NULL,
+    ValeurColonne NVARCHAR(500),
+    OrdreAffiche  INT           NOT NULL DEFAULT 0,
+    UNIQUE (LigneId, CleColonne)
 );
 GO
 

@@ -13,4 +13,5 @@ public interface IPlanVerifMachineEnteteRepository
     Task AddAsync(PlanVerifMachineEntete entity);
     Task UpdateAsync(PlanVerifMachineEntete entity);
     Task DeleteAsync(PlanVerifMachineEntete entity);
+    Task<IEnumerable<PlanVerifMachineEntete>> GetByFormulaireIdAsync(Guid formulaireId);
 }

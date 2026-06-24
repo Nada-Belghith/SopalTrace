@@ -19,7 +19,6 @@
           icon="pi pi-file-edit"
           iconColorClass="text-blue-500"
           :is-read-only="isReadOnly"
-          :version="plan?.version"
           :statut="plan?.statut"
           :is-restoring="isVersioningSaving"
           @restaurer="onEditorSubmit"
@@ -201,8 +200,8 @@
   import { useToast } from 'primevue/usetoast';
   import { useConfirm } from 'primevue/useconfirm';
 
-  import { documentService as fabPlanService } from '@/services/documentService';
-  import { documentService as fabModeleService } from '@/services/documentService';
+  import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
+  import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
   import { useFabPlanVersioning } from '@/composables/useVersioning';
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
@@ -283,24 +282,23 @@
 
   const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
 
-  const codeArticleBase = ref('');
-
-  watch(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value, (newCode) => {
-    if (!codeArticleBase.value && newCode) {
-      const match = newCode.match(/^(.*?)(\.\d+)?$/);
-      codeArticleBase.value = match ? match[1] : newCode;
-    }
-  }, { immediate: true });
+  const codeArticleBase = computed(() => {
+    const code = plan.value?.codeArticleSageVersionne || wizard.codeArticleSage.value || plan.value?.codeArticleSage || '';
+    const match = code.match(/^(.*?)(\.\w+)?$/);
+    return match ? match[1] : code;
+  });
 
   const codeArticleSuffix = computed({
     get: () => {
-      return plan.value?.codeArticleSage?.substring(codeArticleBase.value.length) || '';
+      const code = plan.value?.codeArticleSageVersionne || plan.value?.codeArticleSage || '';
+      return code.substring(codeArticleBase.value.length) || '';
     },
     set: (val) => {
       if (plan.value) {
         let suffix = val || '';
         if (suffix && !suffix.startsWith('.')) suffix = '.' + suffix;
-        plan.value.codeArticleSage = codeArticleBase.value + suffix;
+        plan.value.codeArticleSageVersionne = codeArticleBase.value + suffix;
+        plan.value.codeArticleSage = plan.value.codeArticleSageVersionne; // Garder les deux synchros pour la vue
       }
     }
   });
@@ -484,7 +482,9 @@
   watch([wizard.codeArticleSage, wizard.operationCode, wizard.posteCode], async ([code, op, poste]) => {
     if (code && op && (!wizard.requiertPoste.value || poste)) {
       try {
-        const res = await fabPlanService.verifierEtatPlan(code, null, op, poste);
+        const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+        const nature = wizard.natureComposantCode.value;
+        const res = await fabPlanService.verifierEtatPlan(code, famille, nature, null, op, poste);
         const etat = res?.data || res;
 
         if (etat.hasBrouillon) {
@@ -527,9 +527,11 @@
       const modeleId = sourceType === 'MODELE' ? wizard.selectedSourceId.value : null;
       const codeArticle = wizard.codeArticleSage.value;
       const operationCode = wizard.operationCode.value;
+      const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+      const nature = wizard.natureComposantCode.value;
 
       // Unifié: on vérifie l'état peu importe qu'on clone ou utilise un modèle
-      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, modeleId, operationCode, wizard.posteCode.value);
+      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, famille, nature, modeleId, operationCode, wizard.posteCode.value);
       const etat = resVal.data;
 
       if (etat.hasBrouillon) {
@@ -566,7 +568,6 @@
     const sourceType = wizard.sourceType.value;
     const sourceId = (sourceType === 'CLONE') ? wizard.selectedSourceId.value : modeleId;
 
-    console.log(`[WIZARD] Génération - Type: ${sourceType}, SourceID: ${sourceId}`);
 
     try {
       if (sourceType === 'CLONE') {
@@ -1236,7 +1237,8 @@
         router.replace(`/dev/fab/plans/editer/${currentPlanId}`);
 
         const newPlanRes = await fabPlanService.getPlanById(currentPlanId);
-        syncIdsFromDb(newPlanRes.data.data);
+        const dataPlan = newPlanRes?.data?.data || newPlanRes?.data || newPlanRes;
+        syncIdsFromDb(dataPlan);
 
         planCreationPayload.value = null;
       } catch (err) {
@@ -1322,8 +1324,10 @@
       
       const opCode = plan.value?.operationCode || wizard.operationCode.value;
       const pCode = plan.value?.posteCode || wizard.posteCode.value;
+      const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+      const nature = wizard.natureComposantCode.value;
       
-      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, null, opCode, pCode);
+      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, famille, nature, null, opCode, pCode);
       const etat = resVal.data;
 
       if (etat.hasActif && (!plan.value?.id || etat.actifId !== plan.value.id)) {
@@ -1439,9 +1443,10 @@
           motifModification: motif || 'Modification de la structure du plan',
           codeArticleSage: plan.value?.codeArticleSage
         });
-        const newPlanId = newVersionPlan.data.planId;
+        const newPlanId = newVersionPlan.id || newVersionPlan.planId || newVersionPlan.data?.id || newVersionPlan.data?.planId;
         const clonedPlanRes = await fabPlanService.getPlanById(newPlanId);
-        syncIdsFromDb(clonedPlanRes.data.data);
+        const dataPlan = clonedPlanRes?.data?.data || clonedPlanRes?.data || clonedPlanRes;
+        syncIdsFromDb(dataPlan);
         await enregistrerValeurs(newPlanId, true);
       } else if (versioningMode.value === 'restore') {
         await restaurerArchive(motif);

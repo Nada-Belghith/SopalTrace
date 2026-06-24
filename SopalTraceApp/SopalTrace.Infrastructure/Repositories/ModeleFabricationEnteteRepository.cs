@@ -27,6 +27,7 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
             query = query
                 .Include(m => m.ModeleFabricationSections)
                     .ThenInclude(s => s.ModeleFabricationLignes)
+                        .ThenInclude(l => l.ModeleFabricationLigneExtraColonnes)
                 .Include(m => m.Formulaire);
         }
 
@@ -41,7 +42,8 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
         {
             query = query
                 .Include(m => m.ModeleFabricationSections)
-                    .ThenInclude(s => s.ModeleFabricationLignes);
+                    .ThenInclude(s => s.ModeleFabricationLignes)
+                        .ThenInclude(l => l.ModeleFabricationLigneExtraColonnes);
         }
 
         return await query.ToListAsync();
@@ -93,6 +95,7 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
         return await query
             .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.ModeleFabricationLignes)
+                    .ThenInclude(l => l.ModeleFabricationLigneExtraColonnes)
             .FirstOrDefaultAsync();
     }
     
@@ -111,7 +114,10 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
             query = query.Where(m => m.OperationCode == operationCode);
 
         if (!string.IsNullOrWhiteSpace(familleProduitCode))
-            query = query.Where(m => m.FamilleProduitFiniCode == familleProduitCode);
+        {
+            query = query.Where(m => m.FamilleProduitFiniCode == familleProduitCode || 
+                                     _context.FamilleProduitFinis.Any(f => f.Code == m.FamilleProduitFiniCode && f.TypeRobinetCode == familleProduitCode));
+        }
 
         if (!string.IsNullOrWhiteSpace(statut) && statut != "ALL")
             query = query.Where(m => m.Statut == statut);
@@ -119,6 +125,7 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
         return await query
             .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.ModeleFabricationLignes)
+                    .ThenInclude(l => l.ModeleFabricationLigneExtraColonnes)
             .ToListAsync();
     }
 
@@ -137,7 +144,10 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
             query = query.Where(m => m.NatureArticleCode == natureComposantCode);
 
         if (!string.IsNullOrWhiteSpace(familleProduitCode))
-            query = query.Where(m => m.FamilleProduitFiniCode == familleProduitCode);
+        {
+            query = query.Where(m => m.FamilleProduitFiniCode == familleProduitCode || 
+                                     _context.FamilleProduitFinis.Any(f => f.Code == m.FamilleProduitFiniCode && f.TypeRobinetCode == familleProduitCode));
+        }
 
         if (await query.AnyAsync())
         {

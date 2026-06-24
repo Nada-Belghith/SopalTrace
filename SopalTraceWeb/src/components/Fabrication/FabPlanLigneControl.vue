@@ -4,10 +4,10 @@
       <td v-if="col.key === 'caracteristique'" class="p-2 align-top">
         <div :class="[
           'w-full flex flex-col rounded border overflow-hidden transition-colors',
-          (isArchived || localLigne.modeleLigneSourceId) ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-300 focus-within:border-blue-500'
+          isArchived ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-300 focus-within:border-blue-500'
         ]">
           <!-- Zone texte -->
-          <template v-if="localLigne.modeleLigneSourceId || isArchived">
+          <template v-if="isArchived">
             <div v-if="localLigne.libelleAffiche" class="px-2 py-1.5 text-[11px] text-slate-900 font-bold overflow-hidden text-ellipsis whitespace-nowrap cursor-not-allowed" :title="localLigne.libelleAffiche">
               {{ localLigne.libelleAffiche }}
             </div>
@@ -21,7 +21,7 @@
           <div v-if="localLigne.imageBase64" class="relative group/img px-2 pb-1.5 pt-0.5 bg-transparent w-fit">
              <img :src="localLigne.imageBase64" alt="Croquis" class="max-w-[120px] max-h-[60px] w-auto h-auto object-contain rounded" />
              <!-- Delete button on hover -->
-             <button v-if="!isArchived && !localLigne.modeleLigneSourceId" @click.stop="() => { localLigne.imageBase64 = null; }" class="absolute -top-1 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/img:opacity-100 transition-opacity" title="Supprimer l'image">
+             <button v-if="!isArchived" @click.stop="() => { localLigne.imageBase64 = null; }" class="absolute -top-1 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/img:opacity-100 transition-opacity" title="Supprimer l'image">
                <i class="pi pi-times text-[9px]"></i>
              </button>
           </div>

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { documentService as pfPlanService } from '@/services/documentService';
+import { planFabricationService as pfPlanService } from '@/services/planFabricationService';
 import { referentielsService } from '@/services/referentielsService';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 

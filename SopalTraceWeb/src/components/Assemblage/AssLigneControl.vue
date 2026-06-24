@@ -103,7 +103,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { useAssModeleStore } from '@/stores/assModeleStore';
+import { useAssPlanStore } from '@/stores/assPlanStore';
 import { usePfPlanStore } from '@/stores/pfPlanStore';
 
 const props = defineProps({
@@ -115,7 +115,7 @@ const props = defineProps({
 
 const isReadOnly = computed(() => props.isReadOnly);
 const emit = defineEmits(['remove', 'update']);
-const assStore = useAssModeleStore();
+const assStore = useAssPlanStore();
 const pfStore = usePfPlanStore();
 const store = props.operationCode === 'PF' ? pfStore : assStore;
 

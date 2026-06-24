@@ -20,5 +20,6 @@ public interface IDocumentService
     Task<Guid> CreerNouvelleVersionDocumentAsync(NouvelleVersionDocumentRequestDto request);
     Task<Guid> RestaurerDocumentArchiveAsync(RestaurerDocumentRequestDto request);
     Task<bool> MettreAJourDocumentAsync(Guid id, UpdateDocumentRequestDto request);
-    Task<bool> SupprimerDocumentAsync(Guid id);
+    Task<bool> SupprimerDocumentAsync(Guid documentId);
+    Task ArchiverDocumentsByFormulaireAsync(Guid formulaireId);
 }

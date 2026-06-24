@@ -23,10 +23,9 @@ public class DocumentController : ControllerBase
     public async Task<IActionResult> GetById(Guid id)
     {
         var document = await _documentService.GetDocumentByIdAsync(id);
-        if (document == null)
-            return NotFound(new { message = "Document introuvable." });
-            
-        return Ok(document);
+        if (document != null) return Ok(document);
+
+        return NotFound(new { message = "Document introuvable." });
     }
 
     [HttpGet]
@@ -52,8 +51,8 @@ public class DocumentController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateDocumentRequestDto request)
     {
-        var id = await _documentService.CreerDocumentAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = id }, new { id = id });
+        var docId = await _documentService.CreerDocumentAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = docId }, new { id = docId });
     }
 
     [HttpPost("{id:guid}/version")]
@@ -62,8 +61,8 @@ public class DocumentController : ControllerBase
         if (id != request.AncienId)
             return BadRequest(new { message = "L'ID du document ne correspond pas." });
 
-        var newId = await _documentService.CreerNouvelleVersionDocumentAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = newId }, new { id = newId });
+        var newDocId = await _documentService.CreerNouvelleVersionDocumentAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = newDocId }, new { id = newDocId });
     }
 
     [HttpPut("{id:guid}")]

@@ -1,6 +1,6 @@
-import { documentService as fabModeleService } from '@/services/documentService';
-import { documentService as assModeleService } from '@/services/documentService';
-import { documentService as fabPlanService } from '@/services/documentService';
+import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
+import { documentService as assPlanService } from '@/services/documentService';
+import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 
 export function useFabModeleVersioning() {
   const creerNouvelleVersionModele = (payload) => fabModeleService.newModeleVersion(payload);
@@ -10,12 +10,11 @@ export function useFabModeleVersioning() {
   return { creerNouvelleVersionModele, restaurerModele, upgradeModele };
 }
 
-export function useAssModeleVersioning() {
-  const creerNouvelleVersionModele = (payload) => assModeleService.newModeleVersion(payload);
-  const restaurerModele = (payload) => assModeleService.restoreModele(payload);
-  // Note: upgradeModele n'existe pas dans assModeleService
+export function useAssPlanVersioning() {
+  const creerNouvelleVersionPlan = (payload) => assPlanService.newPlanVersion(payload);
+  const restaurerPlan = (payload) => assPlanService.restorePlan(payload);
 
-  return { creerNouvelleVersionModele, restaurerModele };
+  return { creerNouvelleVersionPlan, restaurerPlan };
 }
 
 export function useFabPlanVersioning() {

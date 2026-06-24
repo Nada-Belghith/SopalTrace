@@ -44,7 +44,7 @@
         <div class="p-6 md:p-8">
           <div class="flex flex-col md:flex-row items-center justify-between p-6 bg-slate-50 border-b border-slate-200">
             <div class="flex-1 w-full md:w-auto">
-              <AssModeleHeader :is-edit-mode="isEditMode" :is-read-only="isReadOnly">
+              <assPlanHeader :is-edit-mode="isEditMode" :is-read-only="isReadOnly">
                 <template #actions>
                   <button v-if="!isReadOnly" @click="() => fileInput.click()" class="px-4 py-2 bg-[#059669] text-white hover:bg-[#047857] rounded-lg border border-[#059669] text-xs font-bold flex items-center gap-2 transition-colors shadow-sm">
                     <i class="pi pi-file-excel"></i>
@@ -56,7 +56,7 @@
                   </button>
                   <input type="file" ref="fileInput" @change="onFileSelected" accept=".xlsx,.xls" class="hidden" />
                 </template>
-              </AssModeleHeader>
+              </assPlanHeader>
             </div>
           </div>
 
@@ -166,13 +166,13 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAssModeleStore } from '@/stores/assModeleStore';
+import { useAssPlanStore } from '@/stores/assPlanStore';
 import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 
-import { documentService as assModeleService } from '@/services/documentService';
-import { documentService as fabPlanService } from '@/services/documentService';
-import { useAssModeleVersioning } from '@/composables/useVersioning';
+import { documentService as assPlanService } from '@/services/documentService';
+import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
+import { useAssPlanVersioning } from '@/composables/useVersioning';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
@@ -180,7 +180,7 @@ import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import PlanReadView from '@/components/Shared/PlanReadView.vue';
-import AssModeleHeader from '@/components/Assemblage/AssModeleHeader.vue';
+import assPlanHeader from '@/components/Assemblage/assPlanHeader.vue';
 import AssTableHeader from '@/components/Assemblage/AssTableHeader.vue';
 import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import AssLigneControl from '@/components/Assemblage/AssLigneControl.vue'; 
@@ -191,7 +191,7 @@ import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 
-const store = useAssModeleStore();
+const store = useAssPlanStore();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
@@ -218,6 +218,8 @@ const showVersioningDialog = ref(false);
 const showColumnModal = ref(false);
 const versioningMode = ref('ASS');
 const isAutoVersioning = ref(false);
+const isArchiveEditing = ref(route.query.draft === 'true');
+const isUpgradeMode = computed(() => route.query.upgrade === 'true');
 
 const { 
   showLegendValidation, 
@@ -227,7 +229,7 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerModele } = useAssModeleVersioning();
+const { restaurerPlan, creerNouvelleVersionPlan } = useAssPlanVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -283,7 +285,7 @@ const isEditMode = computed(() => !!modeleEditionId.value);
 const isArchived = computed(() => statut.value === 'ARCHIVE');
 
 // 🔒 NOUVEAU : On verrouille tout si c'est une archive OU si on est en mode aperçu (view)
-const isReadOnly = computed(() => (isEditMode.value && isArchived.value) || isForcedView.value);
+const isReadOnly = computed(() => (isEditMode.value && isArchived.value && !isArchiveEditing.value && !isUpgradeMode.value) || isForcedView.value);
 
 
 const codeAffiche = computed(() => {
@@ -415,7 +417,7 @@ const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
-    const res = await assModeleService.getModeleById(id);
+    const res = await assPlanService.getModeleById(id);
     const data = res?.data?.data || res?.data || res;
     
     modeleEditionId.value = data.id;
@@ -433,12 +435,16 @@ const chargerModelePourEdition = async (id) => {
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitFiniCode || '';
     store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || '';
-    store.entete.configurationColonnes = (data.colonneDefs || []).map(c => ({
-      key: c.cleColonne || c.key,
-      label: c.labelAffiche || c.label,
-      type: c.typeValeur || c.type || 'Texte',
-      insertAfter: c.insertAfter || 'code_instrument'
-    }));
+    if (isArchiveEditing.value || isUpgradeMode.value) {
+      store.syncConfigurationFromFormulaire();
+    } else {
+      store.entete.configurationColonnes = (data.colonneDefs || []).map(c => ({
+        key: c.cleColonne || c.key,
+        label: c.labelAffiche || c.label,
+        type: c.typeValeur || c.type || 'Texte',
+        insertAfter: c.insertAfter || 'code_instrument'
+      }));
+    }
 
     const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
       (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
@@ -559,7 +565,7 @@ const sauvegarderDirectement = async () => {
   store.isLoading = true;
   try {
     // Vérifier si un modèle actif existe déjà pour ces critères (Nature, Opération, Poste)
-    const resExist = await assModeleService.getModelesByFilters(
+    const resExist = await assPlanService.getModelesByFilters(
       null, // typeRobinet (optionnel)
       store.entete.natureComposantCode,
       store.entete.operationCode,
@@ -614,8 +620,7 @@ const restaurerArchive = async (motif) => {
   store.isLoading = true;
   try {
     const type = route.query.type || null;
-    const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
-    await restaurerModele(payloadRestore, type);
+    await restaurerPlan({ documentArchiveId: modeleEditionId.value, motifRestoration: motif });
     toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
@@ -634,10 +639,19 @@ const onEditorSubmitClick = () => {
 };
 
 const onEditorSubmit = async () => {
-  if (isArchived.value) {
-    versioningMode.value = 'restore';
+  if (isUpgradeMode.value) {
+    versioningMode.value = 'new-version';
     showVersioningDialog.value = true;
-  } else if (statut.value === 'ACTIF') {
+  } else if (isArchived.value && !isArchiveEditing.value) {
+    isArchiveEditing.value = true;
+    
+    // On retire 'view' pour sortir du mode consultation forcée
+    const newQuery = { ...route.query, draft: 'true' };
+    delete newQuery.view;
+    
+    router.replace({ query: newQuery });
+    toast.add({ severity: 'info', summary: 'Mode Édition Activé', detail: 'Modifiez la structure, puis cliquez sur "Enregistrer la Nouvelle Version" en bas.', life: 5000 });
+  } else if (isArchived.value || statut.value === 'ACTIF') {
     versioningMode.value = 'new-version';
     showVersioningDialog.value = true;
   } else {
@@ -665,7 +679,7 @@ const activerPlanCourant = async () => {
     await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
     
     // Ensuite on active le modèle
-    await assModeleService.activerModele(modeleEditionId.value);
+    await assPlanService.activerModele(modeleEditionId.value);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });
     

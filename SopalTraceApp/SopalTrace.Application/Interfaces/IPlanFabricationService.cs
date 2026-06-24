@@ -12,5 +12,7 @@ public interface IPlanFabricationService
     Task<Guid> CreerNouvelleVersionPlanAsync(NouvelleVersionDocumentRequestDto request);
     Task<bool> MettreAJourPlanAsync(Guid id, UpdateDocumentRequestDto request);
     Task<Guid> RestaurerPlanArchiveAsync(RestaurerDocumentRequestDto request);
+    Task<IReadOnlyList<DocumentEnteteDto>> GetPlansByFiltersAsync(string? natureComposantCode = null, string? operationCode = null, string? familleProduitCode = null, string? statut = null, string? codeArticleSageVersionne = null);
     Task<bool> SupprimerPlanAsync(Guid id);
+    Task ArchiverPlansByFormulaireAsync(Guid formulaireId);
 }

@@ -56,13 +56,13 @@ const router = createRouter({
         {
           path: 'ass/nouveau',
           name: 'dev-ass-create',
-          component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/Assemblage/AssPlanEditor.vue'),
           meta: { roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'ass/editer/:id',
           name: 'dev-ass-edit',
-          component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/Assemblage/AssPlanEditor.vue'),
           meta: { roles: ['ADMIN', 'RESPONSABLE', 'SUPERVISEUR_QUALITE'] }
         },
 
@@ -117,7 +117,7 @@ const router = createRouter({
         // {
         //   path: 'assemblage/nouveau',
         //   name: 'dev-ass-create',
-        //   component: () => import('@/views/QualityPlans/Assemblage/AssModeleEditor.vue'),
+        //   component: () => import('@/views/QualityPlans/Assemblage/AssPlanEditor.vue'),
         // },
 
         // 4. ÉDITEUR PRODUIT FINI

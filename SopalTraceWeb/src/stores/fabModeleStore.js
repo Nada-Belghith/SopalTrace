@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { documentService as fabModeleService } from '@/services/documentService';
+import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
 import { referentielsService } from '@/services/referentielsService';
 import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
 

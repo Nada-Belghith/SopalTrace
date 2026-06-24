@@ -27,6 +27,7 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
             query = query
                 .Include(p => p.PlanFabricationSections)
                     .ThenInclude(s => s.PlanFabricationLignes)
+                        .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
                 .Include(p => p.Formulaire)
                 .Include(p => p.ModeleSource);
         }
@@ -42,7 +43,8 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
         {
             query = query
                 .Include(p => p.PlanFabricationSections)
-                    .ThenInclude(s => s.PlanFabricationLignes);
+                    .ThenInclude(s => s.PlanFabricationLignes)
+                        .ThenInclude(l => l.PlanFabricationLigneExtraColonnes);
         }
 
         return await query.ToListAsync();
@@ -75,6 +77,11 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
         _context.PlanFabricationLignes.Remove(ligne);
     }
 
+    public void RemoveExtraColonne(PlanFabricationLigneExtraColonne extraColonne)
+    {
+        _context.Set<PlanFabricationLigneExtraColonne>().Remove(extraColonne);
+    }
+
     public async Task<IEnumerable<PlanFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId)
     {
         return await _context.PlanFabricationEntetes
@@ -94,6 +101,7 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
         return await query
             .Include(p => p.PlanFabricationSections)
                 .ThenInclude(s => s.PlanFabricationLignes)
+                    .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
             .FirstOrDefaultAsync();
     }
     
@@ -112,6 +120,7 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
         return await query
             .Include(p => p.PlanFabricationSections)
                 .ThenInclude(s => s.PlanFabricationLignes)
+                    .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
             .ToListAsync();
     }
 

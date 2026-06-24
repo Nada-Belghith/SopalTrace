@@ -294,6 +294,16 @@
               {{ modele.libelle || modele.code }} ({{ modele.code }})
             </option>
           </select>
+
+          <button
+            v-if="wizard.availableModeles.value.length > 0"
+            @click="$emit('load-model', { wizard })"
+            :disabled="!wizard.selectedSourceId.value || wizard.isGenerating?.value || wizard.isGeneratingPlan?.value"
+            class="w-full mt-3 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center gap-2 text-[10px] h-[42px]"
+          >
+            <i :class="(wizard.isGenerating?.value || wizard.isGeneratingPlan?.value) ? 'pi pi-spin pi-spinner' : 'pi pi-window-maximize'"></i>
+            {{ (wizard.isGenerating?.value || wizard.isGeneratingPlan?.value) ? 'Création en cours...' : 'Créer depuis ce Modèle' }}
+          </button>
         </div>
 
         <div v-if="wizard.sourceType.value === 'CLONE'" class="animate-in fade-in">

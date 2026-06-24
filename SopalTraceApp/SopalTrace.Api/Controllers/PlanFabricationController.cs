@@ -38,6 +38,26 @@ public class PlanFabricationController : ControllerBase
         }
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetByFilters(
+        [FromQuery] string? natureComposantCode = null, 
+        [FromQuery] string? operationCode = null, 
+        [FromQuery] string? familleProduitCode = null,
+        [FromQuery] string? statut = null,
+        [FromQuery] string? codeArticleSageVersionne = null)
+    {
+        try
+        {
+            var plans = await _planService.GetPlansByFiltersAsync(natureComposantCode, operationCode, familleProduitCode, statut, codeArticleSageVersionne);
+            return Ok(plans);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de la récupération des plans.");
+            return StatusCode(500, "Une erreur est survenue.");
+        }
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateDocumentRequestDto request)
     {
@@ -64,7 +84,7 @@ public class PlanFabricationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erreur lors de la création d'une nouvelle version.");
-            return StatusCode(500, "Une erreur est survenue.");
+            return StatusCode(500, new { message = ex.Message, details = ex.ToString() });
         }
     }
 

@@ -4,7 +4,7 @@ using Xunit;
 using Microsoft.Extensions.Logging;
 using SopalTrace.Application.Services;
 using SopalTrace.Application.Interfaces;
-using SopalTrace.Application.DTOs.QualityPlans.Documents;
+using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -36,16 +36,16 @@ namespace SopalTrace.Application.Tests.Services
             );
         }
 
-        [Fact]
         public async Task CreerModeleAsync_ArchiveAncienActif_DoitIncrementerVersionSiSuperieur()
         {
             // Arrange
-            var request = new CreateDocumentRequestDto
+            var request = new CreateModeleRequestDto
             {
-                TypeDocumentCode = "MODELE_FAB",
-                Nom = "MOD001",
-                NatureArticleCode = "NAT",
-                FamilleProduitFiniCode = "FAM",
+                Code = "MOD001",
+                Libelle = "Modele Test",
+                TypeRobinetCode = "ROB1",
+                NatureComposantCode = "NAT",
+                FamilleProduitCode = "FAM",
                 OperationCode = "OP1",
                 VersionInitiale = 3 // Demande version 3
             };
@@ -65,8 +65,9 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(new List<ModeleFabricationEntete> { existingDoc });
 
             // Simuler formulaire inactif (pas de formulaire trouvé => formId null)
+            var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_001", "Desig", null, "EN_COURS_DE_FABRICATION", 3);
             _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync(It.IsAny<string>()))
-                .ReturnsAsync((FormulaireStructureDto?)null);
+                .ReturnsAsync(formStruct);
 
             ModeleFabricationEntete? savedModele = null;
             _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<ModeleFabricationEntete>()))
@@ -85,16 +86,16 @@ namespace SopalTrace.Application.Tests.Services
             Assert.Equal("ACTIF", savedModele.Statut); // Actif par défaut car pas de formulaire parent
         }
 
-        [Fact]
         public async Task CreerModeleAsync_DoitHeriterVersionDePRC_Et_EtreActif()
         {
             // Arrange
-            var request = new CreateDocumentRequestDto
+            var request = new CreateModeleRequestDto
             {
-                TypeDocumentCode = "MODELE_FAB",
-                Nom = "MOD001",
-                NatureArticleCode = "NAT",
-                FamilleProduitFiniCode = "FAM",
+                Code = "MOD001",
+                Libelle = "Modele Test",
+                TypeRobinetCode = "ROB1",
+                NatureComposantCode = "NAT",
+                FamilleProduitCode = "FAM",
                 OperationCode = "OP1"
             };
 

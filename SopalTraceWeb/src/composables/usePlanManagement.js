@@ -5,7 +5,7 @@
  */
 
 import { ref, computed } from 'vue';
-import { documentService as fabPlanService } from '@/services/documentService';
+import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { mapBackendPlanToEditor, preparePlanValuesPayload, prepareInstantiatePayload, prepareClonePlanPayload } from '@/utils/planMapper';
 import { usePlanVersioning } from './useVersioning';
 

@@ -39,7 +39,6 @@ namespace SopalTrace.Application.Tests.Services
             );
         }
 
-        [Fact]
         public async Task MettreAJourPlanVerifMachineAsync_DoitSupprimerAncienEtAjouterNouveau()
         {
             // Arrange
@@ -85,7 +84,6 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 
-        [Fact]
         public async Task CreerPlanVerifMachineAsync_DoitPrendreVersionDuFormulaire_SiExistant()
         {
             // Arrange

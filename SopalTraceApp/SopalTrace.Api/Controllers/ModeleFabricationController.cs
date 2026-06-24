@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using SopalTrace.Application.DTOs.QualityPlans.Documents;
+using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
@@ -22,6 +22,25 @@ public class ModeleFabricationController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetByFilters(
+        [FromQuery] string? natureComposantCode = null,
+        [FromQuery] string? operationCode = null,
+        [FromQuery] string? familleProduitCode = null,
+        [FromQuery] string? statut = null)
+    {
+        try
+        {
+            var modeles = await _modeleService.GetModelesByFiltersAsync(natureComposantCode, operationCode, familleProduitCode, statut);
+            return Ok(modeles);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de la récupération des modèles avec filtres.");
+            return StatusCode(500, "Une erreur est survenue.");
+        }
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
@@ -39,7 +58,7 @@ public class ModeleFabricationController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateDocumentRequestDto request)
+    public async Task<IActionResult> Create([FromBody] CreateModeleRequestDto request)
     {
         try
         {
@@ -49,12 +68,12 @@ public class ModeleFabricationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erreur lors de la création du modèle.");
-            return StatusCode(500, "Une erreur est survenue lors de la création.");
+            return StatusCode(500, $"Une erreur est survenue lors de la création. Détails: {ex.Message} - Inner: {ex.InnerException?.Message}");
         }
     }
 
     [HttpPost("nouvelle-version")]
-    public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionDocumentRequestDto request)
+    public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionModeleRequestDto request)
     {
         try
         {
@@ -64,12 +83,12 @@ public class ModeleFabricationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erreur lors de la création d'une nouvelle version.");
-            return StatusCode(500, "Une erreur est survenue.");
+            return StatusCode(500, new { message = ex.Message, details = ex.ToString() });
         }
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentRequestDto request)
+    public async Task<IActionResult> Update(Guid id, [FromBody] CreateModeleRequestDto request)
     {
         try
         {
@@ -85,7 +104,7 @@ public class ModeleFabricationController : ControllerBase
     }
 
     [HttpPost("restaurer")]
-    public async Task<IActionResult> Restaurer([FromBody] RestaurerDocumentRequestDto request)
+    public async Task<IActionResult> Restaurer([FromBody] RestaurerModeleRequestDto request)
     {
         try
         {
