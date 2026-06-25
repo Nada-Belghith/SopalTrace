@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Moq;
-using SopalTrace.Application.DTOs.QualityPlans.Documents;
+using SopalTrace.Application.DTOs.QualityPlans.Fabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Services;
@@ -48,10 +48,13 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(new FormulaireStructureDto(formId, "FE-PRC", "PRC", null, "EN_COURS_DE_FABRICATION", 1));
 
             // 3. Instanciation du vrai service à tester
+            var frequencyParserServiceMock = new Mock<IFrequencyParserService>();
+
             _planFabricationService = new PlanFabricationService(
                 unitOfWork,
                 _currentUserServiceMock.Object,
-                _formulaireStructureServiceMock.Object
+                _formulaireStructureServiceMock.Object,
+                frequencyParserServiceMock.Object
             );
         }
 
@@ -69,7 +72,7 @@ namespace SopalTrace.Application.Tests.Services
             // ==========================================
             string codeArticle = "ART-TEST-001";
 
-            var createReq = new CreateDocumentRequestDto
+            var createReq = new CreatePlanFabricationRequestDto
             {
                 TypeDocumentCode = "PLAN_FAB",
                 Nom = codeArticle,
@@ -89,15 +92,14 @@ namespace SopalTrace.Application.Tests.Services
             // ==========================================
             // ACT (Exécution du métier à tester)
             // ==========================================
-            var newVersionReq = new NouvelleVersionDocumentRequestDto
+            var newVersionReq = new NouvelleVersionPlanFabricationRequestDto
             {
                 AncienId = premierPlanId,
                 TypeDocumentCode = "PLAN_FAB",
-                Nom = codeArticle
+                Nom = codeArticle,
+                OperationCode = "OP1"
             };
-
-            // Création de la nouvelle version (duplication)
-            Guid deuxiemePlanId = await _planFabricationService.CreerNouvelleVersionPlanAsync(newVersionReq);
+            var deuxiemePlanId = await _planFabricationService.CreerNouvelleVersionPlanAsync(newVersionReq);
 
             // ==========================================
             // ASSERT (Vérification des résultats attendus)

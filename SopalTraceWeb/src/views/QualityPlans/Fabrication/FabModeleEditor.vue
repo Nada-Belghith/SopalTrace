@@ -168,7 +168,7 @@ import { planFabricationService as fabPlanService } from '@/services/planFabrica
 import { useFabModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
-import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
+import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 import {
   nettoyerNomSection,
   normalizeTypeSectionId,
@@ -228,7 +228,7 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerModele, creerNouvelleVersionModele } = useFabModeleVersioning();
+const { restaurerModele } = useFabModeleVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -412,15 +412,22 @@ const chargerModelePourEdition = async (id) => {
     if (isArchiveEditing.value || isUpgradeMode.value) {
       store.syncConfigurationFromFormulaire();
     } else {
-      if (data.colonneDefs && data.colonneDefs.length > 0) {
-        store.entete.configurationColonnes = data.colonneDefs.map(c => ({
+      let configParsed = null;
+      if (data.configurationColonnesJson) {
+        try {
+          configParsed = JSON.parse(data.configurationColonnesJson);
+        } catch(e) {}
+      }
+
+      if (configParsed && configParsed.length > 0) {
+        store.entete.configurationColonnes = configParsed.map(c => ({
           key: c.cleColonne || c.key,
           label: c.labelAffiche || c.label,
           type: c.typeValeur || c.type || 'Texte',
           insertAfter: c.insertAfter || 'code_instrument'
         }));
       } else {
-        store.entete.configurationColonnes = [];
+        store.syncConfigurationFromFormulaire();
       }
     }
 
@@ -430,17 +437,17 @@ const chargerModelePourEdition = async (id) => {
 
     groupes.value = sectionsTriees.map(sec => {
       let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
-      
-      const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-      if (texteParse) {
-        freqData = parseFrequenceLibelle(texteParse, []);
+      if (sec.periodiciteId) {
+        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
+        if (resolved) {
+          freqData = resolved;
+        }
       }
-      
-      if (freqData.modeFreq === 'VARIABLE') {
-        freqData.periodiciteId = sec.periodiciteId || null;
-      } else if (freqData.modeFreq === 'SANS' && sec.periodiciteId) {
-        freqData.modeFreq = 'VARIABLE';
-        freqData.periodiciteId = sec.periodiciteId;
+      if (freqData.modeFreq === 'SANS') {
+        const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
+        if (texteParse) {
+          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+        }
       }
       
       if (sec.regleEchantillonnageId) {
@@ -510,7 +517,9 @@ const chargerModelePourEdition = async (id) => {
           observations: lig.observations || '',
           moyenTexteLibre: lig.moyenTexteLibre || '',
           imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : {}
+          valeursColonnesSpecifiques: lig.extraColonnes 
+            ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
+            : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {})
         }))
       };
     });

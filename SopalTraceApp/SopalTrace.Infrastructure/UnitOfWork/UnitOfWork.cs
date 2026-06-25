@@ -88,6 +88,12 @@ public class UnitOfWork : IUnitOfWork
         }
     }
 
+    /// <summary>Sauvegarde immédiate les changements tracked (ex: suppressions) sans fermer la transaction.</summary>
+    public async Task<int> FlushDeletesAsync()
+    {
+        return await _context.SaveChangesAsync();
+    }
+
     public async Task RollbackAsync()
     {
         try

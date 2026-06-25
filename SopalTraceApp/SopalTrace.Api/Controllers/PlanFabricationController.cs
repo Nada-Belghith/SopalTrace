@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using SopalTrace.Application.DTOs.QualityPlans.Fabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Documents;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -59,7 +60,7 @@ public class PlanFabricationController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateDocumentRequestDto request)
+    public async Task<IActionResult> Create([FromBody] CreatePlanFabricationRequestDto request)
     {
         try
         {
@@ -74,7 +75,7 @@ public class PlanFabricationController : ControllerBase
     }
 
     [HttpPost("nouvelle-version")]
-    public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionDocumentRequestDto request)
+    public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionPlanFabricationRequestDto request)
     {
         try
         {
@@ -89,7 +90,7 @@ public class PlanFabricationController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentRequestDto request)
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePlanFabricationRequestDto request)
     {
         try
         {

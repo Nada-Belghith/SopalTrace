@@ -14,15 +14,18 @@ public class ModeleFabricationService : IModeleFabricationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IFormulaireStructureService _formulaireStructureService;
+    private readonly IFrequencyParserService _frequencyParserService;
 
     public ModeleFabricationService(
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IFormulaireStructureService formulaireStructureService)
+        IFormulaireStructureService formulaireStructureService,
+        IFrequencyParserService frequencyParserService)
     {
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _formulaireStructureService = formulaireStructureService;
+        _frequencyParserService = frequencyParserService;
     }
 
     public async Task<ModeleResponseDto?> GetModeleByIdAsync(Guid id)
@@ -61,6 +64,17 @@ public class ModeleFabricationService : IModeleFabricationService
             }
         }
 
+        if (request.Sections != null)
+        {
+            foreach (var s in request.Sections)
+            {
+                if (!s.PeriodiciteId.HasValue && !string.IsNullOrEmpty(s.LibelleSection))
+                {
+                    s.PeriodiciteId = await _frequencyParserService.ResolveOrCreatePeriodiciteFromTextAsync(s.LibelleSection);
+                }
+            }
+        }
+
         var modele = ModeleFabricationMapper.ToEntity(request, user, formStruct.Id);
         modele.Version = formStruct.Version; // Force version to match form
         
@@ -92,6 +106,7 @@ public class ModeleFabricationService : IModeleFabricationService
                             {
                                 Id = Guid.NewGuid(),
                                 LigneId = lig.Id,
+                                Ligne = lig,
                                 CleColonne = colDef.CleColonne,
                                 ValeurColonne = null,
                                 OrdreAffiche = lig.ModeleFabricationLigneExtraColonnes.Count + 1
@@ -148,10 +163,12 @@ public class ModeleFabricationService : IModeleFabricationService
                         Instruction = l.Instruction,
                         Observations = l.Observations,
                         ImageBase64 = l.ImageBase64,
-                        ColonnesSupplementaires = l.ModeleFabricationLigneExtraColonnes != null && l.ModeleFabricationLigneExtraColonnes.Any()
-                            ? System.Text.Json.JsonSerializer.Serialize(l.ModeleFabricationLigneExtraColonnes
-                                .GroupBy(c => c.CleColonne).ToDictionary(g => g.Key, g => g.First().ValeurColonne))
-                            : null
+                        ExtraColonnes = l.ModeleFabricationLigneExtraColonnes.Select(c => new CreateModeleExtraColonneDto
+                        {
+                            CleColonne = c.CleColonne,
+                            ValeurColonne = c.ValeurColonne,
+                            OrdreAffiche = c.OrdreAffiche
+                        }).ToList()
                     }).ToList()
                 }).ToList()
         };
@@ -172,6 +189,17 @@ public class ModeleFabricationService : IModeleFabricationService
         if (form != null)
         {
             activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference))?.ToList();
+        }
+
+        if (request.Sections != null)
+        {
+            foreach (var s in request.Sections)
+            {
+                if (!s.PeriodiciteId.HasValue && !string.IsNullOrEmpty(s.LibelleSection))
+                {
+                    s.PeriodiciteId = await _frequencyParserService.ResolveOrCreatePeriodiciteFromTextAsync(s.LibelleSection);
+                }
+            }
         }
 
         var newEntityData = ModeleFabricationMapper.ToEntity(request, _currentUserService.UserInfo ?? "", formStruct.Id);
@@ -200,6 +228,7 @@ public class ModeleFabricationService : IModeleFabricationService
                                 {
                                     Id = Guid.NewGuid(),
                                     LigneId = lig.Id,
+                                    Ligne = lig,
                                     CleColonne = colDef.CleColonne,
                                     ValeurColonne = null,
                                     OrdreAffiche = lig.ModeleFabricationLigneExtraColonnes.Count + 1
@@ -224,6 +253,7 @@ public class ModeleFabricationService : IModeleFabricationService
                 foreach (var section in modele.ModeleFabricationSections.ToList())
                     _unitOfWork.ModeleFabricationEnteteRepository.RemoveSection(section);
                 modele.ModeleFabricationSections.Clear();
+                await _unitOfWork.FlushDeletesAsync();
             }
             else
             {
@@ -251,6 +281,7 @@ public class ModeleFabricationService : IModeleFabricationService
                                 {
                                     Id = Guid.NewGuid(),
                                     LigneId = lig.Id,
+                                    Ligne = lig,
                                     CleColonne = colDef.CleColonne,
                                     ValeurColonne = null,
                                     OrdreAffiche = lig.ModeleFabricationLigneExtraColonnes.Count + 1
@@ -306,9 +337,12 @@ public class ModeleFabricationService : IModeleFabricationService
                     Instruction = l.Instruction,
                     Observations = l.Observations,
                     ImageBase64 = l.ImageBase64,
-                    ColonnesSupplementaires = l.ModeleFabricationLigneExtraColonnes != null && l.ModeleFabricationLigneExtraColonnes.Any()
-                        ? System.Text.Json.JsonSerializer.Serialize(l.ModeleFabricationLigneExtraColonnes.ToDictionary(c => c.CleColonne, c => c.ValeurColonne))
-                        : null
+                    ExtraColonnes = l.ModeleFabricationLigneExtraColonnes.Select(c => new CreateModeleExtraColonneDto
+                    {
+                        CleColonne = c.CleColonne,
+                        ValeurColonne = c.ValeurColonne,
+                        OrdreAffiche = c.OrdreAffiche
+                    }).ToList()
                 }).ToList()
             }).ToList()
         };

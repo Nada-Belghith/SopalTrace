@@ -121,28 +121,20 @@ public static class ModeleFabricationMapper
                             ImageBase64 = ligDto.ImageBase64
                         };
 
-                        if (!string.IsNullOrWhiteSpace(ligDto.ColonnesSupplementaires))
+                        if (ligDto.ExtraColonnes != null && ligDto.ExtraColonnes.Any())
                         {
-                            try
+                            foreach (var ext in ligDto.ExtraColonnes)
                             {
-                                var extras = JsonSerializer.Deserialize<Dictionary<string, string>>(ligDto.ColonnesSupplementaires);
-                                if (extras != null)
+                                ligEntite.ModeleFabricationLigneExtraColonnes.Add(new ModeleFabricationLigneExtraColonne
                                 {
-                                    int ordre = 1;
-                                    foreach (var kvp in extras)
-                                    {
-                                        ligEntite.ModeleFabricationLigneExtraColonnes.Add(new ModeleFabricationLigneExtraColonne
-                                        {
-                                            Id = Guid.NewGuid(),
-                                            LigneId = ligEntite.Id,
-                                            CleColonne = kvp.Key,
-                                            ValeurColonne = kvp.Value,
-                                            OrdreAffiche = ordre++
-                                        });
-                                    }
-                                }
+                                    Id = Guid.NewGuid(),
+                                    LigneId = ligEntite.Id,
+                                    Ligne = ligEntite,
+                                    CleColonne = ext.CleColonne,
+                                    ValeurColonne = ext.ValeurColonne,
+                                    OrdreAffiche = ext.OrdreAffiche
+                                });
                             }
-                            catch { }
                         }
 
                         secEntite.ModeleFabricationLignes.Add(ligEntite);

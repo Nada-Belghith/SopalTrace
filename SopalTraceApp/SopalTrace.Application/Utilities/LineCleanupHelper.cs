@@ -76,6 +76,7 @@ public static class LineCleanupHelper
     /// </summary>
     public static void CleanupPlanFabLine(SopalTrace.Domain.Entities.PlanFabricationLigne ligne)
     {
+        if (ligne.CaracteristiqueId == System.Guid.Empty) ligne.CaracteristiqueId = null;
         if (ligne.TypeCaracteristiqueId == System.Guid.Empty) ligne.TypeCaracteristiqueId = null;
         if (ligne.TypeControleId == System.Guid.Empty) ligne.TypeControleId = null;
         if (ligne.MoyenControleId == System.Guid.Empty) ligne.MoyenControleId = null;

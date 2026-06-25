@@ -79,3 +79,41 @@ export function parseFrequenceLibelle(libelle, periodicites = []) {
 
   return result; // modeFreq sera 'SANS' si on arrive ici
 }
+
+export function resolveFrequencyFromPeriodiciteId(periodiciteId, periodicites = []) {
+  if (!periodiciteId) return null;
+  const perio = (periodicites || []).find(p => {
+    const pId = p.id || p.Id;
+    return pId && typeof pId === 'string' && typeof periodiciteId === 'string' && pId.toLowerCase() === periodiciteId.toLowerCase();
+  });
+  if (!perio) return null;
+
+  let modeFreq = 'VARIABLE';
+  let freqNum = perio.frequenceNum !== undefined ? perio.frequenceNum : (perio.FrequenceNum !== undefined ? perio.FrequenceNum : 1);
+  let typeVariable = 'HEURE';
+  let freqHours = 1;
+
+  const unite = (perio.frequenceUnite || perio.FrequenceUnite || '').toUpperCase();
+  if (!unite) {
+    modeFreq = 'SANS';
+  } else if (unite.includes('HEURE') || unite.includes('PCT_HEURE')) {
+    typeVariable = 'HEURE';
+    if (unite.includes('4_HEURE')) {
+      freqHours = 4;
+    } else {
+      freqHours = 1;
+    }
+  } else if (unite === 'SERIE') {
+    typeVariable = 'SERIE';
+  } else if (unite === 'ECHANTILLON') {
+    typeVariable = 'ECHANTILLON';
+  }
+
+  return {
+    modeFreq,
+    periodiciteId,
+    freqNum,
+    typeVariable,
+    freqHours
+  };
+}

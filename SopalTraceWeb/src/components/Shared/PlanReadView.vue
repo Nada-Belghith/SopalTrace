@@ -190,14 +190,20 @@ function buildFreqLabel(section) {
   }
 
   if (section.modeFreq === 'FIXE' && section.periodiciteId) {
-    const period = (props.periodicites || []).find(p => p.id === section.periodiciteId);
-    if (period) return period.libelle;
+    const period = (props.periodicites || []).find(p => {
+      const pId = p.id || p.Id;
+      return pId && typeof pId === 'string' && typeof section.periodiciteId === 'string' && pId.toLowerCase() === section.periodiciteId.toLowerCase();
+    });
+    if (period) return period.libelle || period.Libelle;
   }
 
   // Chercher dans periodicites par periodiciteId même sans modeFreq=FIXE
   if (section.periodiciteId) {
-    const period = (props.periodicites || []).find(p => p.id === section.periodiciteId);
-    if (period) return period.libelle;
+    const period = (props.periodicites || []).find(p => {
+      const pId = p.id || p.Id;
+      return pId && typeof pId === 'string' && typeof section.periodiciteId === 'string' && pId.toLowerCase() === section.periodiciteId.toLowerCase();
+    });
+    if (period) return period.libelle || period.Libelle;
   }
 
   return '';
