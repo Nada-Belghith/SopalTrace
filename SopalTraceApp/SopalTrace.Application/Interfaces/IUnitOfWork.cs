@@ -19,6 +19,8 @@ namespace SopalTrace.Application.Interfaces;
 
     Task BeginTransactionAsync();
     Task<int> CommitAsync();
+    /// <summary>Sauvegarde immédiate sans fermer la transaction — utile pour flush les suppressions avant réinsertion.</summary>
+    Task<int> FlushDeletesAsync();
     Task RollbackAsync();
 
     Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation);

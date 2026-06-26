@@ -209,7 +209,7 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
           ordreAffichage: 5
         };
         const res = await createPeriodiciteCallback(payloadFreq);
-        g.periodiciteId = res.data.periodiciteId || res.data.id;
+        g.periodiciteId = res.data.data || res.data.periodiciteId || res.data.id || res.data;
         // Note: Le composant doit mettre à jour store.periodicites lui-même
       }
     }
@@ -223,7 +223,14 @@ export async function prepareModeleDataAndFrequencies(sections, existingPeriodic
     libelleSection: g.libelleSection,
     periodiciteId: g.periodiciteId,
     frequenceLibelle: g.periodiciteId
-      ? ((existingPeriodicites || []).find(p => p.id === g.periodiciteId)?.libelle || g.frequenceLibelle || '')
+      ? ((existingPeriodicites || []).find(p => {
+        const pId = p.id || p.Id;
+        return pId && typeof pId === 'string' && typeof g.periodiciteId === 'string' && pId.toLowerCase() === g.periodiciteId.toLowerCase();
+      })?.libelle ||
+        (existingPeriodicites || []).find(p => {
+          const pId = p.id || p.Id;
+          return pId && typeof pId === 'string' && typeof g.periodiciteId === 'string' && pId.toLowerCase() === g.periodiciteId.toLowerCase();
+        })?.Libelle || g.frequenceLibelle || '')
       : (g.frequenceLibelle || ''),
     lignes: g.lignes.map((l, lIdx) => ({
       id: l.isFromDb ? l.id : null,

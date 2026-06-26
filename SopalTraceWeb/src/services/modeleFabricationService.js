@@ -45,9 +45,7 @@ export const modeleFabricationService = {
           instruction: l.instruction,
           observations: l.observations,
           imageBase64: l.imageBase64,
-          colonnesSupplementaires: l.extraColonnes && l.extraColonnes.length > 0
-            ? JSON.stringify(l.extraColonnes.reduce((acc, c) => ({ ...acc, [c.cleColonne]: c.valeurColonne }), {}))
-            : null
+          extraColonnes: l.extraColonnes || []
         })) : []
       })) : []
     };
@@ -61,6 +59,11 @@ export const modeleFabricationService = {
       ...payload
     };
     const response = await apiClient.post(`/ModeleFabrication/nouvelle-version`, req);
+    return { data: { modeleId: response.data.id } };
+  },
+
+  async upgradeModele(id) {
+    const response = await apiClient.post(`/ModeleFabrication/nouvelle-version`, { ancienId: id });
     return { data: { modeleId: response.data.id } };
   },
 
@@ -85,6 +88,15 @@ export const modeleFabricationService = {
       restaurePar: payload.creePar || 'SYSTEM'
     };
     const response = await apiClient.post(`/ModeleFabrication/restaurer`, req);
+    return response.data;
+  },
+
+  async importExcel(formData) {
+    const response = await apiClient.post('/ExcelImport/plan', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return response.data;
   }
 }

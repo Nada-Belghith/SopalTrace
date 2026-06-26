@@ -174,7 +174,7 @@ import { documentService as assPlanService } from '@/services/documentService';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { useAssPlanVersioning } from '@/composables/useVersioning';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
-import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
+import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
@@ -452,17 +452,17 @@ const chargerModelePourEdition = async (id) => {
 
     groupes.value = sectionsTriees.map(sec => {
       let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
-      
-      const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-      if (texteParse) {
-        freqData = parseFrequenceLibelle(texteParse, []);
+      if (sec.periodiciteId) {
+        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
+        if (resolved) {
+          freqData = resolved;
+        }
       }
-      
-      if (freqData.modeFreq === 'VARIABLE') {
-        freqData.periodiciteId = sec.periodiciteId || null;
-      } else if (freqData.modeFreq === 'SANS' && sec.periodiciteId) {
-        freqData.modeFreq = 'VARIABLE';
-        freqData.periodiciteId = sec.periodiciteId;
+      if (freqData.modeFreq === 'SANS') {
+        const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
+        if (texteParse) {
+          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+        }
       }
       
       if (sec.regleEchantillonnageId) {

@@ -55,12 +55,19 @@ public record SectionModeleEditDto
     public required int OrdreAffiche { get; init; }
     public required string LibelleSection { get; init; }
     public Guid? TypeSectionId { get; init; }
-    public Guid? PeriodiciteId { get; init; }
+    public Guid? PeriodiciteId { get; set; }
     public string? FrequenceLibelle { get; init; } = null;
     public Guid? RegleEchantillonnageId { get; init; }
     public string? RegleEchantillonnageLibelle { get; init; }
     public string? Notes { get; init; } = null;
     public List<LigneModeleEditDto> Lignes { get; init; } = new();
+}
+
+public record CreateModeleExtraColonneDto
+{
+    public required string CleColonne { get; init; }
+    public string? ValeurColonne { get; init; }
+    public required int OrdreAffiche { get; init; }
 }
 
 public record LigneModeleEditDto
@@ -78,7 +85,7 @@ public record LigneModeleEditDto
     public bool EstCritique { get; init; } = false;
     public string? LimiteSpecTexte { get; init; } = null;
     public string? MoyenTexteLibre { get; init; } = null;
-    public string? ColonnesSupplementaires { get; init; } = null;
+    public List<CreateModeleExtraColonneDto> ExtraColonnes { get; init; } = new();
     public string? ImageBase64 { get; init; } = null;
 }
 
