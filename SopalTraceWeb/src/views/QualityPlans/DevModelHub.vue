@@ -51,7 +51,6 @@
             <select v-model="vueActuelle" class="appearance-none bg-slate-50 border-t border-slate-200 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer">
               <option value="ALL">Tous les statuts</option>
               <option value="ACTIF">Actifs</option>
-              <option v-if="isModeleFabRoute" value="BROUILLON">Brouillons</option>
               <option value="ARCHIVE">Archivés</option>
             </select>
             <i class="pi pi-angle-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>

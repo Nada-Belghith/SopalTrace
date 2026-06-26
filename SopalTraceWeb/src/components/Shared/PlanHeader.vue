@@ -21,7 +21,6 @@
 
     <div class="flex flex-wrap items-center gap-3">
       <template v-if="id">
-        <span v-if="version" class="px-2.5 py-1 bg-slate-100 text-slate-600 text-[11px] font-black uppercase rounded-md tracking-wider border border-slate-200">v{{ version }}</span>
         <span class="text-[10px] font-black uppercase tracking-widest border px-3 py-1 rounded-full shadow-sm" 
               :class="statut === 'ACTIF' ? 'text-emerald-700 border-emerald-200 bg-emerald-100' : 
                       statut === 'BROUILLON' ? 'text-amber-700 border-amber-200 bg-amber-100' : 

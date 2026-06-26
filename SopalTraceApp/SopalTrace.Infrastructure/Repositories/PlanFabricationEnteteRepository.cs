@@ -82,6 +82,12 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
         _context.Set<PlanFabricationLigneExtraColonne>().Remove(extraColonne);
     }
 
+    /// <summary>Insert une nouvelle section directement dans le DbSet — EntityState.Added garanti.</summary>
+    public void AddSection(PlanFabricationSection section)
+    {
+        _context.PlanFabricationSections.Add(section);
+    }
+
     public async Task<IEnumerable<PlanFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId)
     {
         return await _context.PlanFabricationEntetes

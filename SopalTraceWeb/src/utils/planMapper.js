@@ -129,7 +129,8 @@ export function prepareInstantiatePayload(modeleSourceId, codeArticleSage, desig
     codeArticleSage,
     designation,
     nom: `PC-${codeArticleSage}`,
-    creePar: 'ADMIN' // Sera remplacé par JWT en prod
+    creePar: 'ADMIN', // Sera remplacé par JWT en prod
+    statut: 'BROUILLON'
   };
 }
 

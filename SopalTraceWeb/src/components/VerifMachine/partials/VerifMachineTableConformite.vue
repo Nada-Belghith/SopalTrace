@@ -118,7 +118,7 @@
               <div class="flex flex-col gap-2">
                   <div class="flex items-center gap-1">
                       <div v-if="props.isReadOnly" class="text-[11px] font-black uppercase text-slate-700 whitespace-normal leading-tight px-2 py-1">
-                          {{ store.periodicites.find(p => p.id === group.periodiciteId)?.libelle || '--' }}
+                          {{ store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteId || '').toString().toLowerCase())?.libelle || store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteId || '').toString().toLowerCase())?.Libelle || '--' }}
                       </div>
                       <select v-else v-model="group.periodiciteId" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm">
                           <option value="">-- PERIODE --</option>

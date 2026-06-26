@@ -18,6 +18,7 @@ namespace SopalTrace.Application.Tests.Services
         private readonly Mock<IUnitOfWork> _mockUnitOfWork;
         private readonly Mock<ICurrentUserService> _mockCurrentUserService;
         private readonly Mock<IFormulaireStructureService> _mockFormulaireStructureService;
+        private readonly Mock<IFrequencyParserService> _mockFrequencyParserService;
 
         private readonly ModeleFabricationService _service;
 
@@ -26,13 +27,15 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork = new Mock<IUnitOfWork>();
             _mockCurrentUserService = new Mock<ICurrentUserService>();
             _mockFormulaireStructureService = new Mock<IFormulaireStructureService>();
+            _mockFrequencyParserService = new Mock<IFrequencyParserService>();
 
             _mockCurrentUserService.Setup(s => s.UserInfo).Returns("USER123");
 
             _service = new ModeleFabricationService(
                 _mockUnitOfWork.Object,
                 _mockCurrentUserService.Object,
-                _mockFormulaireStructureService.Object
+                _mockFormulaireStructureService.Object,
+                _mockFrequencyParserService.Object
             );
         }
 

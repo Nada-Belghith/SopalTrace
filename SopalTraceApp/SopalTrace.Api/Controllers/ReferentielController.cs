@@ -130,7 +130,7 @@ public class ReferentielController : ControllerBase
         try
         {
             var result = await _referentielService.CreatePeriodiciteAsync(request);
-            return Ok(new { success = true, data = result });
+            return Ok(new { success = true, data = result, id = result, periodiciteId = result });
         }
         catch (Exception ex)
         {

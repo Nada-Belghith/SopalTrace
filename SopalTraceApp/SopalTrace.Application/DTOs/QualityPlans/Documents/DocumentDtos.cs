@@ -146,10 +146,12 @@ public class CreateDocumentRequestDto
     public List<CreateDocumentSectionDto> Sections { get; set; } = new();
 
     public Guid? ModeleSourceId { get; set; }
+    public string? Statut { get; set; }
 }
 
 public class CreateDocumentSectionDto
 {
+    public Guid? Id { get; set; }
     public int OrdreAffiche { get; set; }
     public string LibelleSection { get; set; } = string.Empty;
     public Guid? TypeSectionId { get; set; }
@@ -164,6 +166,7 @@ public class CreateDocumentSectionDto
 
 public class CreateDocumentLigneDto
 {
+    public Guid? Id { get; set; }
     public int OrdreAffiche { get; set; }
     public Guid? CaracteristiqueId { get; set; }
     public string? LibelleAffiche { get; set; }
@@ -232,16 +235,5 @@ public class UpdateDocumentRequestDto
     
     public string? OperationCode { get; set; }
 
-    public List<UpdateDocumentSectionDto> Sections { get; set; } = new();
-}
-
-public class UpdateDocumentSectionDto : CreateDocumentSectionDto
-{
-    public Guid? Id { get; set; }
-    public new List<UpdateDocumentLigneDto> Lignes { get; set; } = new();
-}
-
-public class UpdateDocumentLigneDto : CreateDocumentLigneDto
-{
-    public Guid? Id { get; set; }
+    public List<CreateDocumentSectionDto> Sections { get; set; } = new();
 }

@@ -45,11 +45,13 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(new FormulaireStructureDto(formId, "FE-PRC", "PRC", null, "EN_COURS_DE_FABRICATION", 1));
 
             var unitOfWork = new UnitOfWork(_context);
+            var frequencyParserServiceMock = new Mock<IFrequencyParserService>();
 
             _modeleFabricationService = new ModeleFabricationService(
                 unitOfWork,
                 _currentUserServiceMock.Object,
-                _formulaireStructureServiceMock.Object
+                _formulaireStructureServiceMock.Object,
+                frequencyParserServiceMock.Object
             );
         }
 

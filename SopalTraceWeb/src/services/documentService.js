@@ -82,5 +82,14 @@ export const documentService = {
   async createPeriodicite(payload) {
     const response = await apiClient.post('/referentiels/periodicites', payload);
     return response.data;
+  },
+
+  async importExcel(formData) {
+    const response = await apiClient.post('/ExcelImport/plan', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
   }
 }
