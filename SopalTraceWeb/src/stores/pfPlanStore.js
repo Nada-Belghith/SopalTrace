@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { planFabricationService as pfPlanService } from '@/services/planFabricationService';
+import { documentService as pfPlanService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 
@@ -39,18 +39,41 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   const isLoading = ref(false);
 
   // --- UTILITAIRES DE MAPPING ---
+  const resolvePeriodiciteId = (s) => {
+    if (s.periodiciteId) return s.periodiciteId;
+    if (!s.frequenceLibelle && !(s.freqNum && s.typeVariable)) return null;
+
+    // Try to find matching periodicite from the dictionary
+    const periodicite = (periodicites.value || []).find(p => {
+      const pid = p.id || p.Id;
+      const pLib = (p.libelle || p.Libelle || '').toLowerCase();
+      const pNum = p.frequenceNum ?? p.FrequenceNum;
+      const pUnite = (p.frequenceUnite || p.FrequenceUnite || '').toUpperCase();
+
+      if (s.frequenceLibelle && pLib === s.frequenceLibelle.toLowerCase()) return true;
+      if (pNum !== undefined && pNum === s.freqNum && pUnite === (s.typeVariable || '').toUpperCase()) return true;
+      return false;
+    });
+
+    return periodicite ? (periodicite.id || periodicite.Id) : null;
+  };
+
   const mapSectionsForBackend = () => {
     return (sections.value || []).map((s, sIdx) => ({
       id: s.id,
       typeSectionId: s.typeSectionId || null,
+      // libelleSection is the freshly computed label (set by verifierVariables + nextTick in PlanSectionHeader)
       libelleSection: s.libelleSection || s.nom || `Section ${sIdx + 1}`,
       regleEchantillonnageId: s.regleEchantillonnageId || null,
-      regleEchantillonnageLibelle: s.regleEchantillonnageLibelle || (s.modeFreq === 'VARIABLE' ? s.libelleSection?.split('(').pop()?.replace(')', '') : null),
+      regleEchantillonnageLibelle: s.regleEchantillonnageLibelle || null,
+      // Resolve periodiciteId from dictionary if not already set (fixes null periodiciteId in DB)
+      periodiciteId: resolvePeriodiciteId(s),
+      frequenceLibelle: s.frequenceLibelle || null,
       notes: s.notes || null,
-      ordreAffiche: s.ordreAffiche ?? sIdx,
+      ordreAffiche: sIdx + 1,
       lignes: (s.lignes || []).map((l, lIdx) => ({
         id: l.id,
-        ordreAffiche: l.ordreAffiche ?? lIdx,
+        ordreAffiche: lIdx + 1,
         typeCaracteristiqueId: l.typeCaracteristiqueId || null,
         libelleAffiche: l.libelleAffiche || null,
         typeControleId: l.typeControleId || null,
@@ -106,7 +129,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
   const getPlan = async (id) => {
     isLoading.value = true;
     try {
-      const response = await pfPlanService.getPlanById(id);
+      const response = await pfPlanService.getById(id);
       const data = response.data?.data || response.data || response;
 
       entete.value = {
@@ -128,51 +151,72 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         })),
       };
 
-      sections.value = (data.sections || []).map(s => {
-        const hydrated = { ...s };
+      sections.value = (data.sections || [])
+        .sort((a, b) => (a.ordreAffiche ?? 9999) - (b.ordreAffiche ?? 9999))
+        .map(s => {
+          const hydrated = { ...s };
 
-        if (s.regleEchantillonnageId) {
-          const regle = reglesEchantillonnage.value.find(r => r.id === s.regleEchantillonnageId);
-          const libelle = regle ? regle.libelle : (s.regleEchantillonnageLibelle || '');
+          if (s.regleEchantillonnageId) {
+            const regle = reglesEchantillonnage.value.find(r => (r.id || r.Id) === s.regleEchantillonnageId);
+            const libelle = regle ? (regle.libelle || regle.Libelle) : (s.regleEchantillonnageLibelle || '');
 
-          // Détection du mode
-          const parsingResult = parseFrequenceLibelle(libelle, periodicites.value);
-          Object.assign(hydrated, parsingResult);
+            // FIX: Si on a un ID de règle d'échantillonnage, on FORCE le mode FIXE
+            hydrated.modeFreq = 'FIXE';
+            hydrated.frequenceLibelle = libelle;
+            hydrated.regleEchantillonnageLibelle = libelle;
+          } else if (s.typeSectionId) {
+            // Section avec un type défini
+            hydrated.modeFreq = s.modeFreq || 'SANS';
 
-          // FIX: Si on a un ID de règle d'échantillonnage, on FORCE le mode FIXE
-          // même si le libellé contient des mots clés comme "pièce" (ex: "1 pièce / heure")
-          hydrated.modeFreq = 'FIXE';
-        } else if (s.libelleSection && s.libelleSection.includes('(')) {
-          hydrated.modeFreq = 'VARIABLE';
-          const extractedFrequence = s.libelleSection.split('(').pop()?.replace(')', '');
-          if (extractedFrequence) {
-            const parsingResult = parseFrequenceLibelle(extractedFrequence, periodicites.value);
-            Object.assign(hydrated, parsingResult);
-          }
-          hydrated.modeFreq = 'VARIABLE';
-        } else {
-          hydrated.modeFreq = 'SANS';
-        }
-
-        if (hydrated.lignes) {
-          hydrated.lignes = hydrated.lignes.map(l => {
-            const valeursColonnesSpecifiques = {};
-            if (l.extraColonnes && l.extraColonnes.length > 0) {
-              l.extraColonnes.forEach(ec => {
-                valeursColonnesSpecifiques[ec.cleColonne] = ec.valeurColonne;
-              });
-            } else if (l.colonnesSupplementaires) {
-              Object.assign(valeursColonnesSpecifiques, typeof l.colonnesSupplementaires === 'string' ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires);
+            // Fallback: si periodiciteId n'est pas retourné par l'API (null en DB)
+            // mais que libelleSection contient une fréquence entre parenthèses, on la parse
+            if (!s.periodiciteId && !s.regleEchantillonnageId && s.libelleSection && s.libelleSection.includes('(')) {
+              // Extraire SEULEMENT la dernière paire de parenthèses (ex: "(2 échantillons)")
+              const match = s.libelleSection.match(/\(([^)]+)\)\s*$/);
+              if (match) {
+                const extractedFrequence = match[1].trim();
+                if (extractedFrequence) {
+                  const parsingResult = parseFrequenceLibelle(extractedFrequence, periodicites.value);
+                  if (parsingResult && parsingResult.modeFreq && parsingResult.modeFreq !== 'SANS') {
+                    Object.assign(hydrated, parsingResult);
+                  }
+                }
+              }
             }
-            return {
-              ...l,
-              valeursColonnesSpecifiques
-            };
-          });
-        }
+          } else if (s.libelleSection && s.libelleSection.includes('(') && !s.typeSectionId) {
+            // Fallback uniquement pour les sections sans typeSectionId et sans règle
+            hydrated.modeFreq = 'VARIABLE';
+            const extractedFrequence = s.libelleSection.split('(').pop()?.replace(')', '');
+            if (extractedFrequence) {
+              const parsingResult = parseFrequenceLibelle(extractedFrequence, periodicites.value);
+              Object.assign(hydrated, parsingResult);
+            }
+            hydrated.modeFreq = 'VARIABLE';
+          } else {
+            hydrated.modeFreq = s.modeFreq || 'SANS';
+          }
 
-        return hydrated;
-      });
+          if (hydrated.lignes) {
+            hydrated.lignes = hydrated.lignes
+              .sort((a, b) => (a.ordreAffiche ?? 9999) - (b.ordreAffiche ?? 9999))
+              .map(l => {
+                const valeursColonnesSpecifiques = {};
+                if (l.extraColonnes && l.extraColonnes.length > 0) {
+                  l.extraColonnes.forEach(ec => {
+                    valeursColonnesSpecifiques[ec.cleColonne] = ec.valeurColonne;
+                  });
+                } else if (l.colonnesSupplementaires) {
+                  Object.assign(valeursColonnesSpecifiques, typeof l.colonnesSupplementaires === 'string' ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires);
+                }
+                return {
+                  ...l,
+                  valeursColonnesSpecifiques
+                };
+              });
+          }
+
+          return hydrated;
+        });
     } finally {
       isLoading.value = false;
     }
@@ -205,7 +249,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     if (!entete.value.id) return;
     isLoading.value = true;
     try {
-      await pfPlanService.deletePlan(entete.value.id);
+      await pfPlanService.deleteDocument(entete.value.id);
       entete.value.statut = 'ARCHIVE';
     } finally {
       isLoading.value = false;
@@ -231,7 +275,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         colonneDefs: entete.value.configurationColonnes || [],
         sections: mapSectionsForBackend()
       };
-      const response = await pfPlanService.newPlanVersion(payload);
+      const response = await pfPlanService.createNewVersion(payload.ancienId, payload);
       return response.data?.planId || response.planId || response;
     } finally {
       isLoading.value = false;
@@ -246,7 +290,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
         documentArchiveId: entete.value.id,
         motifRestoration: motif
       };
-      const response = await pfPlanService.restorePlan(payload);
+      const response = await pfPlanService.restaurer(payload.documentArchiveId, payload);
       return response.data?.planId || response.planId || response;
     } finally {
       isLoading.value = false;
@@ -267,7 +311,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     isLoading.value = true;
     try {
       const parsedData = await pfPlanService.importExcel(formData);
-      
+
       if (parsedData) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
           entete.value.remarques = (entete.value.remarques ? entete.value.remarques + '\n' : '') + parsedData.remarques.trim();
@@ -304,9 +348,9 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
                     }
                   }
                 } else if (libelle.includes('échantillon')) {
-                   typeVariable = 'ECHANTILLON';
-                   const match = libelle.match(/(\d+)\s*échantillon/);
-                   if (match) freqNum = parseInt(match[1]);
+                  typeVariable = 'ECHANTILLON';
+                  const match = libelle.match(/(\d+)\s*échantillon/);
+                  if (match) freqNum = parseInt(match[1]);
                 } else if (libelle.includes('série')) {
                   typeVariable = 'SERIE';
                   const serieMatch = libelle.match(/série de (\d+) pièces/);
@@ -350,7 +394,7 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
             };
           });
         }
-        
+
         await fetchDictionnaires();
       }
       return parsedData;

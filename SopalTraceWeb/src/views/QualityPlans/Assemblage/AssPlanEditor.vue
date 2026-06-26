@@ -417,7 +417,7 @@ const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
-    const res = await assPlanService.getModeleById(id);
+    const res = await assPlanService.getPlanById(id);
     const data = res?.data?.data || res?.data || res;
     
     modeleEditionId.value = data.id;
@@ -587,7 +587,7 @@ const sauvegarderDirectement = async () => {
     }
 
     store.sections = await preparerDonneesEtFrequences();
-    const resData = await store.saveModele(store.entete.legendeMoyens);
+    const resData = await store.savePlan(store.entete.legendeMoyens);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle (V${resData?.version ?? 0}) créé et activé !`, life: 3000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
@@ -659,7 +659,7 @@ const onEditorSubmit = async () => {
     if (!validerLegendeMoyens()) return;
 
     try {
-      await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
+      await store.updatePlan(modeleEditionId.value, store.entete.legendeMoyens);
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Brouillon mis à jour avec succès', life: 3000 });
       initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
       setTimeout(() => router.push(returnUrl.value), 1500);
@@ -675,10 +675,10 @@ const activerPlanCourant = async () => {
 
   try {
     // Toujours sauvegarder la dernière version du brouillon avant activation
-    await store.updateModele(modeleEditionId.value, store.entete.legendeMoyens);
+    await store.updatePlan(modeleEditionId.value, store.entete.legendeMoyens);
     
     // Ensuite on active le modèle
-    await assPlanService.activerModele(modeleEditionId.value);
+    await assPlanService.activerPlan(modeleEditionId.value);
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });
     

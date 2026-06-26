@@ -7,12 +7,12 @@ export function eqId(a, b) {
 
 export function findTypeSection(typesSection, typeSectionId) {
   if (!typeSectionId || !typesSection?.length) return null;
-  return typesSection.find(t => eqId(t.id, typeSectionId)) || null;
+  return typesSection.find(t => eqId(t.id || t.Id, typeSectionId)) || null;
 }
 
 export function normalizeTypeSectionId(typeSectionId, typesSection) {
   const match = findTypeSection(typesSection, typeSectionId);
-  return match?.id || typeSectionId || '';
+  return match ? (match.id || match.Id) : (typeSectionId || '');
 }
 
 export function isGenericSectionTitle(title) {

@@ -28,7 +28,11 @@ export function useEditorSections() {
   };
 
   const mettreAJourSection = (index, updatedSection) => {
-    sections.value[index] = updatedSection;
+    if (sections.value[index]) {
+      Object.assign(sections.value[index], updatedSection);
+    } else {
+      sections.value.splice(index, 1, { ...updatedSection });
+    }
   };
 
   const ajouterLigneASection = (sectionIndex) => {

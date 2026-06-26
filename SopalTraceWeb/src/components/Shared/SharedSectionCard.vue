@@ -43,12 +43,11 @@ const isSyncingFromParent = ref(false);
 
 watch(() => props.groupe, (newGroupe) => {
   if (!newGroupe) return;
-  const sourceSource = JSON.stringify(newGroupe);
-  const sourceLocale = JSON.stringify(localGroupe.value);
-  
-  if (sourceSource !== sourceLocale) {
+  // Only sync from parent if it's a truly different section (id changed)
+  // or if localGroupe is empty. Avoid overwriting our own emitted update.
+  if (newGroupe.id !== localGroupe.value?.id) {
     isSyncingFromParent.value = true;
-    localGroupe.value = JSON.parse(sourceSource);
+    localGroupe.value = JSON.parse(JSON.stringify(newGroupe));
     setTimeout(() => { isSyncingFromParent.value = false; }, 0);
   }
 }, { deep: true });
