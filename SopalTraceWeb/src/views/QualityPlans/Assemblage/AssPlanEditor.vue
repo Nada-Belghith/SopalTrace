@@ -229,7 +229,7 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerPlan, creerNouvelleVersionPlan } = useAssPlanVersioning();
+const { restaurerPlan } = useAssPlanVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -619,7 +619,6 @@ const sauvegarderV2 = async (motif) => {
 const restaurerArchive = async (motif) => {
   store.isLoading = true;
   try {
-    const type = route.query.type || null;
     await restaurerPlan({ documentArchiveId: modeleEditionId.value, motifRestoration: motif });
     toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
