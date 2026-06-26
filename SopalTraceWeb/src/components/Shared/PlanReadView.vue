@@ -175,6 +175,13 @@ function resolveCustomValue(ligne, colKey) {
 function buildFreqLabel(section) {
   // Si frequenceLibelle est directement disponible, on l'utilise
   if (section.frequenceLibelle) return section.frequenceLibelle;
+  
+  if (section.regleEchantillonnageId && props.reglesEchantillonnage) {
+    const regle = props.reglesEchantillonnage.find(r => r.id === section.regleEchantillonnageId);
+    if (regle) return regle.libelle;
+  }
+  
+  if (section.regleEchantillonnageLibelle) return section.regleEchantillonnageLibelle;
 
   // Sinon on reconstruit depuis les champs parsés
   if (section.modeFreq === 'VARIABLE') {

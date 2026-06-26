@@ -9,9 +9,9 @@
               {{ label }} {{ index + 1 }}
           </span>
           
-          <select v-model="localSection.typeSectionId" :disabled="isReadOnly" class="w-48 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
+          <select v-model="localSection.typeSectionId" @change="verifierVariables" :disabled="isReadOnly" class="w-48 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
             <option value="" disabled>--{{ defaultTitle }}--</option>
-            <option v-for="ts in (typesSection || [])" :key="ts.id" :value="ts.id">{{ ts.libelle }}</option>
+            <option v-for="ts in (typesSection || [])" :key="ts.id || ts.Id" :value="ts.id || ts.Id">{{ ts.libelle || ts.Libelle }}</option>
           </select>
 
           <input v-model="localSection.nom" 
@@ -75,7 +75,7 @@
           <div v-if="localSection.modeFreq === 'FIXE'" class="flex items-center animate-in fade-in slide-in-from-left-4">
               <select v-model="localSection.regleEchantillonnageId" @change="verifierVariables" :disabled="isReadOnly" class="w-80 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
                 <option :value="null" disabled>Sélectionner la règle...</option>
-                <option v-for="r in (reglesEchantillonnage || [])" :key="r.id" :value="r.id">{{ r.libelle.substring(0, 45) }}{{ r.libelle.length > 45 ? '...' : '' }}</option>
+                <option v-for="r in (reglesEchantillonnage || [])" :key="r.id || r.Id" :value="r.id || r.Id">{{ (r.libelle || r.Libelle || '').substring(0, 45) }}{{ (r.libelle || r.Libelle || '').length > 45 ? '...' : '' }}</option>
               </select>
           </div>
         </div>
@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted } from 'vue';
+import { ref, watch, computed, onMounted, nextTick } from 'vue';
 import { findTypeSection, normalizeTypeSectionId } from '@/utils/sectionTitleUtils';
 
 const props = defineProps({
@@ -122,12 +122,11 @@ const isSyncingFromParent = ref(false);
 
 watch(() => props.section, (newSection) => {
   if (!newSection) return;
-  const sourceSource = JSON.stringify(newSection);
-  const sourceLocale = JSON.stringify(localSection.value);
-  
-  if (sourceSource !== sourceLocale) {
+  // Only sync from parent if a different section is loaded (id changed)
+  // This prevents the parent from overwriting the user's local edits
+  if (newSection.id !== localSection.value?.id) {
     isSyncingFromParent.value = true;
-    localSection.value = JSON.parse(sourceSource);
+    localSection.value = JSON.parse(JSON.stringify(newSection));
 
     if (localSection.value.typeSectionId) {
       localSection.value.typeSectionId = normalizeTypeSectionId(
@@ -158,7 +157,7 @@ watch(localSection, (newVal) => {
 
 const est100Pourcent = computed(() => {
   const typeSec = findTypeSection(props.typesSection, localSection.value.typeSectionId);
-  if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) return true;
+  if (typeSec && (typeSec.libelle || typeSec.Libelle || '').toUpperCase().includes('100%')) return true;
 
   const libFreq = (localSection.value.frequenceLibelle || '').toLowerCase();
   if (libFreq.includes('100%')) return true;
@@ -181,13 +180,14 @@ const titreCalcule = computed(() => {
   let baseTitle = props.defaultTitle;
   
   if (typeSec) {
+    const typeSecLibelle = typeSec.libelle || typeSec.Libelle || '';
     // Eviter la duplication si le typeSec.libelle inclut déjà le defaultTitle
-    if (typeSec.libelle.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
-      baseTitle = typeSec.libelle;
-    } else if (props.defaultTitle.toLowerCase().includes(typeSec.libelle.toLowerCase())) {
+    if (typeSecLibelle.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
+      baseTitle = typeSecLibelle;
+    } else if (props.defaultTitle.toLowerCase().includes(typeSecLibelle.toLowerCase())) {
       baseTitle = props.defaultTitle;
     } else {
-      baseTitle = `${props.defaultTitle} ${typeSec.libelle}`;
+      baseTitle = `${props.defaultTitle} ${typeSecLibelle}`;
     }
   }
 
@@ -255,8 +255,8 @@ const frequenceCalculee = computed(() => {
 
 const regleCalculee = computed(() => {
   if (localSection.value.regleEchantillonnageId) {
-    const regle = (props.reglesEchantillonnage || []).find(r => r.id === localSection.value.regleEchantillonnageId);
-    if (regle) return regle.libelle;
+    const regle = (props.reglesEchantillonnage || []).find(r => (r.id || r.Id) === localSection.value.regleEchantillonnageId);
+    if (regle) return regle.libelle || regle.Libelle;
   }
   return localSection.value.regleEchantillonnageLibelle || "";
 });
@@ -313,9 +313,12 @@ const verifierVariables = (isUserAction = true) => {
 
   if (localSection.value.isFromDb) return;
 
-  localSection.value.libelleSection = libelleSectionComplet.value;
-  localSection.value.frequenceLibelle = frequenceCalculee.value;
-  localSection.value.regleEchantillonnageLibelle = regleCalculee.value;
+  // Use nextTick to ensure v-model changes are committed before reading computed values
+  nextTick(() => {
+    localSection.value.libelleSection = libelleSectionComplet.value;
+    localSection.value.frequenceLibelle = frequenceCalculee.value;
+    localSection.value.regleEchantillonnageLibelle = regleCalculee.value;
+  });
 };
 
 const handleModeFreqChange = () => {
@@ -336,7 +339,12 @@ watch(() => localSection.value.typeSectionId, (newId) => {
     return;
   }
   const typeSec = findTypeSection(props.typesSection, newId);
-  if (typeSec && typeSec.libelle.toUpperCase().includes('100%')) {
+  const typeSecLibelle = typeSec ? (typeSec.libelle || typeSec.Libelle || '') : '';
+  
+  // Clear the old stored libelleSection so it doesn't get concatenated with the new one
+  localSection.value.libelleSection = '';
+  
+  if (typeSecLibelle.toUpperCase().includes('100%')) {
     localSection.value.modeFreq = 'VARIABLE';
     localSection.value.freqNum = 100;
     localSection.value.typeVariable = 'HEURE';

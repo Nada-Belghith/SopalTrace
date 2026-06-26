@@ -38,6 +38,17 @@ export const documentService = {
   // ----------------------------------------------------
   // ALIASES FOR PLAN_ASS (Used by AssPlan components)
   // ----------------------------------------------------
+  async getModelesByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null, familleProduitCode = null) {
+    const params = {
+      typeDocumentCode: 'PLAN_ASS',
+      natureComposantCode,
+      operationCode,
+      posteCode,
+      familleProduitCode: familleProduitCode || typeRobinet
+    };
+    return await this.getByFilters(params);
+  },
+
   async getPlansByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null) {
     return await this.getByFilters({ typeDocumentCode: 'PLAN_ASS', natureComposantCode, operationCode, posteCode });
   },
