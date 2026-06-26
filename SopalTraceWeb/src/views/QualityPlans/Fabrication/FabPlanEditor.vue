@@ -334,7 +334,9 @@
       } else if (fromExistingData.configurationColonnesJson) {
         try {
           configParsed = JSON.parse(fromExistingData.configurationColonnesJson);
-        } catch (e) {}
+        } catch (e) {
+          console.error('Erreur parsing configurationColonnesJson:', e);
+        }
       }
 
       if (configParsed && configParsed.length > 0) {

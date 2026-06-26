@@ -416,7 +416,9 @@ const chargerModelePourEdition = async (id) => {
       if (data.configurationColonnesJson) {
         try {
           configParsed = JSON.parse(data.configurationColonnesJson);
-        } catch(e) {}
+        } catch(e) {
+          console.error('Erreur parsing configurationColonnesJson:', e);
+        }
       }
 
       if (configParsed && configParsed.length > 0) {
