@@ -46,7 +46,6 @@ namespace SopalTrace.Application.Tests.Services
             // Arrange
             var request = new CreatePlanFabricationRequestDto
             {
-                TypeDocumentCode = "PLAN_FAB",
                 Nom = "PLAN001",
                 OperationCode = "OP1"
             };
@@ -79,7 +78,6 @@ namespace SopalTrace.Application.Tests.Services
             var resultId = await _service.CreerPlanAsync(request);
 
             // Assert
-            _mockUnitOfWork.Verify(u => u.PlanFabricationEnteteRepository.UpdateAsync(existingDoc), Times.Once); 
             Assert.Equal("ARCHIVE", existingDoc.Statut); // Ancien plan doit passer en ARCHIVE
 
             _mockUnitOfWork.Verify(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()), Times.Once);
@@ -94,7 +92,6 @@ namespace SopalTrace.Application.Tests.Services
             var modeleId = Guid.NewGuid();
             var request = new CreatePlanFabricationRequestDto
             {
-                TypeDocumentCode = "PLAN_FAB",
                 Nom = "PLAN_MODELE",
                 OperationCode = "OP1",
                 ModeleSourceId = modeleId

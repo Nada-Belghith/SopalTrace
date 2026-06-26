@@ -74,7 +74,6 @@ namespace SopalTrace.Application.Tests.Services
 
             var createReq = new CreatePlanFabricationRequestDto
             {
-                TypeDocumentCode = "PLAN_FAB",
                 Nom = codeArticle,
                 Designation = "Plan de test unitaire",
                 OperationCode = "OP1",
@@ -95,7 +94,6 @@ namespace SopalTrace.Application.Tests.Services
             var newVersionReq = new NouvelleVersionPlanFabricationRequestDto
             {
                 AncienId = premierPlanId,
-                TypeDocumentCode = "PLAN_FAB",
                 Nom = codeArticle,
                 OperationCode = "OP1"
             };
