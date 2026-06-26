@@ -144,6 +144,9 @@
               <button v-if="plan.statut === 'ACTIF'" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
                 <i class="pi pi-pencil"></i>
               </button>
+              <button v-if="plan.statut === 'ARCHIVE'" @click.stop="upgrader(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Mettre à jour vers le dernier PRC">
+                <i class="pi pi-arrow-up"></i>
+              </button>
               <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Archiver">
                 <i class="pi pi-box"></i>
               </button>
@@ -312,6 +315,14 @@ const editer = (category, id) => {
   };
   if (routes[category]) router.push(routes[category]);
   else toast.warn('Édition non disponible.', 'Catégorie inconnue');
+};
+
+const upgrader = (category, id) => {
+  const routes = {
+    FAB: { path: `/dev/fab/plans/editer/${id}`, query: { upgrade: 'true' } }
+  };
+  if (routes[category]) router.push(routes[category]);
+  else toast.warn('Mise à jour non disponible.', 'Catégorie inconnue');
 };
 
 const consulter = (category, id) => {

@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { documentService as assModeleService } from '@/services/documentService';
+import { documentService as assPlanService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
 
-export const useAssModeleStore = defineStore('assModele', () => {
+export const useAssPlanStore = defineStore('assPlan', () => {
   // --- DICTIONNAIRES ---
   const operations = ref([]);
   const typesRobinet = ref([]);
@@ -41,7 +41,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
   const isBeingLoaded = ref(false); // ✅ Empêche les watchers de cascade pendant le chargement
   const version = ref(0);
 
-  const codeModeleAuto = computed(() => {
+  const codePlanAuto = computed(() => {
     const op = entete.value.operationCode || 'XXX';
     const nat = entete.value.natureComposantCode || 'XXX';
     const fam = entete.value.familleProduitCode ? `-${entete.value.familleProduitCode}` : '';
@@ -140,8 +140,8 @@ export const useAssModeleStore = defineStore('assModele', () => {
   };
 
   const mapPayload = (legendeMoyens = '') => ({
-    nom: entete.value.code || codeModeleAuto.value,
-    designation: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
+    nom: entete.value.code || codePlanAuto.value,
+    designation: entete.value.libelle || `Modèle ${codePlanAuto.value} V${version.value}`,
     libre1: entete.value.typeRobinetCode || null,
     natureArticleCode: entete.value.natureComposantCode || '',
     operationCode: entete.value.operationCode || '',
@@ -182,12 +182,12 @@ export const useAssModeleStore = defineStore('assModele', () => {
     }))
   });
 
-  const saveModele = async (legendeMoyens = '') => {
+  const savePlan = async (legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await assModeleService.createModele(payload);
-      return res.data; // Return the whole data which includes modeleId and version
+      const res = await assPlanService.createPlan(payload);
+      return res.data; // Return the whole data which includes PlanId and version
     } finally {
       isLoading.value = false;
     }
@@ -202,29 +202,29 @@ export const useAssModeleStore = defineStore('assModele', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await assModeleService.newModeleVersion(payload);
-      return res.data; // Return full data with modeleId and version
+      const res = await assPlanService.newPlanVersion(payload);
+      return res.data; // Return full data with PlanId and version
     } finally {
       isLoading.value = false;
     }
   };
 
-  const updateModele = async (id, legendeMoyens = '') => {
+  const updatePlan = async (id, legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await assModeleService.updateModeleValeurs(id, payload);
+      const res = await assPlanService.updatePlanValeurs(id, payload);
       return res.data;
     } finally {
       isLoading.value = false;
     }
   };
 
-  const activerModeleDraft = async (id) => {
+  const activerPlanDraft = async (id) => {
     isLoading.value = true;
     try {
-      const res = await assModeleService.activerModele(id);
+      const res = await assPlanService.activerPlan(id);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -245,7 +245,7 @@ export const useAssModeleStore = defineStore('assModele', () => {
     isLoading.value = true;
     try {
       // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
-      const parsedData = await assModeleService.importExcel(formData);
+      const parsedData = await assPlanService.importExcel(formData);
       
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
@@ -303,12 +303,12 @@ export const useAssModeleStore = defineStore('assModele', () => {
     isDicosLoaded,
     
     // État Modèle
-    entete, sections, isLoading, version, codeModeleAuto,    
+    entete, sections, isLoading, version, codePlanAuto,    
     // Actions
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft, importerDepuisExcel,
+    removeSection, addLigneLibre, removeLigne, savePlan, creerNouvelleVersion, updatePlan, activerPlanDraft, importerDepuisExcel,
     isBeingLoaded
   };
 });

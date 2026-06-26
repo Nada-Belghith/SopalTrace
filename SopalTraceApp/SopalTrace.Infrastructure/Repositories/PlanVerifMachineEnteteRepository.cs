@@ -58,6 +58,13 @@ public class PlanVerifMachineEnteteRepository : IPlanVerifMachineEnteteRepositor
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<PlanVerifMachineEntete>> GetByFormulaireIdAsync(Guid formulaireId)
+    {
+        return await _context.PlanVerifMachineEntetes
+            .Where(p => p.FormulaireId == formulaireId)
+            .ToListAsync();
+    }
+
     public async Task AddAsync(PlanVerifMachineEntete entity)
     {
         await _context.PlanVerifMachineEntetes.AddAsync(entity);

@@ -164,8 +164,11 @@ const est100Pourcent = computed(() => {
   if (libFreq.includes('100%')) return true;
 
   if (localSection.value.periodiciteId) {
-    const p = (props.periodicites || []).find(per => per.id === localSection.value.periodiciteId);
-    if (p && p.libelle.toLowerCase().includes('100%')) return true;
+    const p = (props.periodicites || []).find(per => {
+      const perId = per.id || per.Id;
+      return perId && typeof perId === 'string' && typeof localSection.value.periodiciteId === 'string' && perId.toLowerCase() === localSection.value.periodiciteId.toLowerCase();
+    });
+    if (p && (p.libelle || p.Libelle || '').toLowerCase().includes('100%')) return true;
   }
 
   return localSection.value.freqNum === 100 && 
@@ -240,8 +243,11 @@ const frequenceCalculee = computed(() => {
   } 
   
   if (localSection.value.periodiciteId) {
-    const period = (props.periodicites || []).find(p => p.id === localSection.value.periodiciteId);
-    if (period) return period.libelle;
+    const period = (props.periodicites || []).find(p => {
+      const pId = p.id || p.Id;
+      return pId && typeof pId === 'string' && typeof localSection.value.periodiciteId === 'string' && pId.toLowerCase() === localSection.value.periodiciteId.toLowerCase();
+    });
+    if (period) return period.libelle || period.Libelle;
   }
   
   return "";

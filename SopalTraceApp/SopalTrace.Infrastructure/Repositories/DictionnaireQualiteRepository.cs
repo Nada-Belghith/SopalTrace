@@ -241,6 +241,34 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         return typeRobinet;
     }
 
+    public async Task<string?> GetFamilleProduitCodeForArticleAsync(string codeNormalise)
+    {
+        // Chercher d'abord si l'article est lui-même un ProduitFini
+        var familleDirect = await _context.ProduitFinis
+            .Where(x => x.CodeArticle == codeNormalise)
+            .Join(_context.FamilleProduitFinis,
+                  p => p.TypeRobinetCode,
+                  f => f.TypeRobinetCode,
+                  (p, f) => f.Code)
+            .FirstOrDefaultAsync();
+
+        if (!string.IsNullOrEmpty(familleDirect))
+            return familleDirect;
+
+        // Sinon, chercher via la nomenclature (composant d'un PF)
+        return await _context.BomdNomenclatures
+            .Where(n => n.CodeComposant == codeNormalise)
+            .Join(_context.ProduitFinis,
+                  n => n.ArticleParent,
+                  p => p.CodeArticle,
+                  (n, p) => p)
+            .Join(_context.FamilleProduitFinis,
+                  p => p.TypeRobinetCode,
+                  f => f.TypeRobinetCode,
+                  (p, f) => f.Code)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<System.Collections.Generic.IReadOnlyList<Article>> SearchArticlesSfAsync(string query, int maxResults = 15)
     {
         if (string.IsNullOrWhiteSpace(query))

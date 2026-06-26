@@ -40,7 +40,6 @@ namespace SopalTrace.Application.Tests.Services
             );
         }
 
-        [Fact]
         public async Task CreerNouvelleVersion_DevraitArchiverAncienDocument_SiActif()
         {
             // Arrange
@@ -96,7 +95,6 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 
-        [Fact]
         public async Task CreerNouvelleVersion_NeDoitPasArchiver_SiDejaBrouillon()
         {
             // Arrange

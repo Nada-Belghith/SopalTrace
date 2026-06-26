@@ -1,4 +1,5 @@
 using SopalTrace.Domain.Constants;
+using SopalTrace.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.Hub;
 using SopalTrace.Application.Interfaces;
@@ -281,52 +282,196 @@ public class HubService : IHubService
 
     public async Task<bool> ChangerStatutModeleAsync(string category, Guid id, string statut)
     {
-        var m = await _context.DocumentEntetes.FindAsync(id);
-        if (m is null) return false;
-        m.Statut = statut;
+        category = category?.ToUpperInvariant() ?? "";
+        if (category == "FAB")
+        {
+            var m = await _context.ModeleFabricationEntetes.FindAsync(id);
+            if (m is null) return false;
+            m.Statut = statut;
+        }
+        else if (category == "VM")
+        {
+            var m = await _context.PlanVerifMachineEntetes.FindAsync(id);
+            if (m is null) return false;
+            m.Statut = statut;
+        }
+        else if (category == "ECH")
+        {
+            var m = await _context.PlanEchantillonnageEntetes.FindAsync(id);
+            if (m is null) return false;
+            m.Statut = statut;
+        }
+        else
+        {
+            var m = await _context.DocumentEntetes.FindAsync(id);
+            if (m is null) return false;
+            m.Statut = statut;
+        }
+
         await _context.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> ChangerStatutPlanAsync(string category, Guid id, string statut)
     {
-        var p = await _context.DocumentEntetes.FindAsync(id);
-        if (p is null) return false;
-
-        if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
+        category = category?.ToUpperInvariant() ?? "";
+        if (category == "FAB")
         {
-            return false;
+            var p = await _context.PlanFabricationEntetes.FindAsync(id);
+            if (p is null) return false;
+
+            if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
+            {
+                return false;
+            }
+
+            if (statut == StatutsPlan.Actif)
+            {
+                var otherActivePlans = await _context.PlanFabricationEntetes
+                    .Where(x => x.CodeArticleSageVersionne == p.CodeArticleSageVersionne 
+                             && x.OperationCode == p.OperationCode 
+                             && x.Statut == StatutsPlan.Actif 
+                             && x.Id != p.Id)
+                    .ToListAsync();
+                foreach (var activePlan in otherActivePlans)
+                {
+                    activePlan.Statut = StatutsPlan.Archive;
+                }
+            }
+
+            p.Statut = statut;
+        }
+        else if (category == "VM")
+        {
+            var p = await _context.PlanVerifMachineEntetes.FindAsync(id);
+            if (p is null) return false;
+
+            if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
+            {
+                return false;
+            }
+
+            p.Statut = statut;
+        }
+        else if (category == "ECH")
+        {
+            var p = await _context.PlanEchantillonnageEntetes.FindAsync(id);
+            if (p is null) return false;
+
+            if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
+            {
+                return false;
+            }
+
+            p.Statut = statut;
+        }
+        else
+        {
+            var p = await _context.DocumentEntetes.FindAsync(id);
+            if (p is null) return false;
+
+            if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
+            {
+                return false;
+            }
+
+            p.Statut = statut;
         }
 
-        p.Statut = statut;
         await _context.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> SupprimerBrouillonPlanAsync(string category, Guid id)
     {
-        var plan = await _context.DocumentEntetes
-            .Include(p => p.DocumentSections)
-                .ThenInclude(s => s.DocumentLignes)
-                    .ThenInclude(l => l.DocumentLigneExtraColonnes)
-            .FirstOrDefaultAsync(p => p.Id == id);
-
-        if (plan is null) return false;
-        if (plan.Statut != StatutsPlan.Brouillon) return false;
-
-        foreach (var section in plan.DocumentSections)
+        category = category?.ToUpperInvariant() ?? "";
+        if (category == "FAB")
         {
-            foreach (var ligne in section.DocumentLignes)
+            var plan = await _context.PlanFabricationEntetes
+                .Include(p => p.PlanFabricationSections)
+                    .ThenInclude(s => s.PlanFabricationLignes)
+                        .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (plan is null) return false;
+            if (plan.Statut != StatutsPlan.Brouillon) return false;
+
+            foreach (var section in plan.PlanFabricationSections)
             {
-                _context.DocumentLigneExtraColonnes.RemoveRange(ligne.DocumentLigneExtraColonnes);
+                foreach (var ligne in section.PlanFabricationLignes)
+                {
+                    _context.Set<PlanFabricationLigneExtraColonne>().RemoveRange(ligne.PlanFabricationLigneExtraColonnes);
+                }
+                _context.PlanFabricationLignes.RemoveRange(section.PlanFabricationLignes);
             }
-            _context.DocumentLignes.RemoveRange(section.DocumentLignes);
+            _context.PlanFabricationSections.RemoveRange(plan.PlanFabricationSections);
+            _context.PlanFabricationEntetes.Remove(plan);
+
+            await _context.SaveChangesAsync();
+            return true;
         }
+        else if (category == "VM")
+        {
+            var plan = await _context.PlanVerifMachineEntetes
+                .Include(v => v.PlanVerifMachineLignes)
+                    .ThenInclude(l => l.PlanVerifMachineLigneExtraColonnes)
+                .Include(v => v.PlanVerifMachineFamilles)
+                .FirstOrDefaultAsync(p => p.Id == id);
 
-        _context.DocumentSections.RemoveRange(plan.DocumentSections);
-        _context.DocumentEntetes.Remove(plan);
+            if (plan is null) return false;
+            if (plan.Statut != StatutsPlan.Brouillon) return false;
 
-        await _context.SaveChangesAsync();
-        return true;
+            foreach (var ligne in plan.PlanVerifMachineLignes)
+            {
+                _context.Set<PlanVerifMachineLigneExtraColonne>().RemoveRange(ligne.PlanVerifMachineLigneExtraColonnes);
+            }
+            _context.PlanVerifMachineLignes.RemoveRange(plan.PlanVerifMachineLignes);
+            _context.PlanVerifMachineFamilles.RemoveRange(plan.PlanVerifMachineFamilles);
+            _context.PlanVerifMachineEntetes.Remove(plan);
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        else if (category == "ECH")
+        {
+            var plan = await _context.PlanEchantillonnageEntetes
+                .Include(p => p.PlanEchantillonnageRegles)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (plan is null) return false;
+            if (plan.Statut != StatutsPlan.Brouillon) return false;
+
+            _context.PlanEchantillonnageRegles.RemoveRange(plan.PlanEchantillonnageRegles);
+            _context.PlanEchantillonnageEntetes.Remove(plan);
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        else
+        {
+            var plan = await _context.DocumentEntetes
+                .Include(p => p.DocumentSections)
+                    .ThenInclude(s => s.DocumentLignes)
+                        .ThenInclude(l => l.DocumentLigneExtraColonnes)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (plan is null) return false;
+            if (plan.Statut != StatutsPlan.Brouillon) return false;
+
+            foreach (var section in plan.DocumentSections)
+            {
+                foreach (var ligne in section.DocumentLignes)
+                {
+                    _context.DocumentLigneExtraColonnes.RemoveRange(ligne.DocumentLigneExtraColonnes);
+                }
+                _context.DocumentLignes.RemoveRange(section.DocumentLignes);
+            }
+
+            _context.DocumentSections.RemoveRange(plan.DocumentSections);
+            _context.DocumentEntetes.Remove(plan);
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
     }
 }

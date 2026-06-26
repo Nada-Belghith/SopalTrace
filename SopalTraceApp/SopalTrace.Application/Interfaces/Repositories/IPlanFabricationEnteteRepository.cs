@@ -15,6 +15,9 @@ public interface IPlanFabricationEnteteRepository
 
     void RemoveSection(PlanFabricationSection section);
     void RemoveLigne(PlanFabricationLigne ligne);
+    void RemoveExtraColonne(PlanFabricationLigneExtraColonne extraColonne);
+    /// <summary>Insert une nouvelle section directement dans le DbSet (EntityState.Added garanti).</summary>
+    void AddSection(PlanFabricationSection section);
 
     Task<IEnumerable<PlanFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId);
 

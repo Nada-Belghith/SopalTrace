@@ -61,11 +61,12 @@ public class DocumentService : IDocumentService
             }
             else
             {
-                // Archive the existing active document
-                if (existingDoc.Statut == "ACTIF")
+                // Archive ALL existing active documents with the same name
+                var activeDocs = existingDocs.Where(d => d.Nom == request.Nom && d.Statut == "ACTIF").ToList();
+                foreach (var act in activeDocs)
                 {
-                    existingDoc.Statut = "ARCHIVE";
-                    await _unitOfWork.DocumentEnteteRepository.UpdateAsync(existingDoc);
+                    act.Statut = "ARCHIVE";
+                    await _unitOfWork.DocumentEnteteRepository.UpdateAsync(act);
                 }
                 
                 var maxVersion = existingDoc.Version;
@@ -265,11 +266,14 @@ public class DocumentService : IDocumentService
         var ancienDoc = await _unitOfWork.DocumentEnteteRepository.GetByIdAsync(request.AncienId, includeRelations: true);
         if (ancienDoc == null) throw new Exception("Ancien document introuvable.");
 
-        // Archiver l'ancien si actif
-        if (ancienDoc.Statut == "ACTIF")
+        // Archiver tous les documents actifs avec le même nom
+        var allDocs = await _unitOfWork.DocumentEnteteRepository.GetByFiltersAsync(request.TypeDocumentCode, request.NatureArticleCode, request.OperationCode, request.PosteCode, request.FamilleProduitFiniCode, "ACTIF");
+        var activeDocs = allDocs.Where(d => d.Nom == request.Nom).ToList();
+        
+        foreach (var act in activeDocs)
         {
-            ancienDoc.Statut = "ARCHIVE";
-            await _unitOfWork.DocumentEnteteRepository.UpdateAsync(ancienDoc);
+            act.Statut = "ARCHIVE";
+            await _unitOfWork.DocumentEnteteRepository.UpdateAsync(act);
         }
 
         var newVersion = await _unitOfWork.DocumentEnteteRepository.GetLatestVersionAsync(
@@ -717,5 +721,15 @@ public class DocumentService : IDocumentService
         if (string.IsNullOrWhiteSpace(text)) return text;
         var regex = new System.Text.RegularExpressions.Regex(@"([ -]*)V\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return regex.Replace(text, string.Empty);
+    }
+
+    public async Task ArchiverDocumentsByFormulaireAsync(Guid formulaireId)
+    {
+        var documents = await _unitOfWork.DocumentEnteteRepository.GetByFormulaireIdAsync(formulaireId);
+        foreach (var doc in documents.Where(d => d.Statut == "ACTIF"))
+        {
+            doc.Statut = "ARCHIVE";
+            await _unitOfWork.DocumentEnteteRepository.UpdateAsync(doc);
+        }
     }
 }

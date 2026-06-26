@@ -51,7 +51,6 @@
             <select v-model="vueActuelle" class="appearance-none bg-slate-50 border-t border-slate-200 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer">
               <option value="ALL">Tous les statuts</option>
               <option value="ACTIF">Actifs</option>
-              <option v-if="isModeleFabRoute" value="BROUILLON">Brouillons</option>
               <option value="ARCHIVE">Archivés</option>
             </select>
             <i class="pi pi-angle-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
@@ -165,6 +164,9 @@
             <div class="flex items-center gap-1 transition-opacity">
                <button v-if="!isReadOnlyGenericHub && (plan.statut === 'ACTIF' || plan.statut === 'BROUILLON')" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
                  <i class="pi pi-pencil"></i>
+               </button>
+               <button v-if="!isReadOnlyGenericHub && plan.statut === 'ARCHIVE'" @click.stop="upgrader(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Mettre à jour vers le dernier PRC">
+                 <i class="pi pi-arrow-up"></i>
                </button>
                <button v-if="!isReadOnlyGenericHub && plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Archiver">
                  <i class="pi pi-box"></i>
@@ -326,8 +328,11 @@ const operationsDisponibles = computed(() => {
   return Array.from(ops).sort();
 });
 
-watch([activeTab, searchQuery, selectedOperation, vueActuelle], () => {
+watch([activeTab], () => {
   selectedOperation.value = '';
+});
+
+watch([activeTab, searchQuery, selectedOperation, vueActuelle], () => {
   // Reset to first page on filter change
   first.value = 0;
 });
@@ -374,6 +379,15 @@ const editer = (category, id) => {
     'PF': { path: `/dev/produit-fini/editer/${id}` }
   };
   if (routes[category]) router.push(routes[category]);
+  else toast.add({ severity: 'warn', summary: 'Non disponible', detail: 'Édition non configurée pour cette catégorie.', life: 3000 });
+};
+
+const upgrader = (category, id) => {
+  const routes = {
+    'FAB': { path: `/dev/fab/editer/${id}`, query: { upgrade: 'true' } }
+  };
+  if (routes[category]) router.push(routes[category]);
+  else toast.add({ severity: 'warn', summary: 'Non disponible', detail: 'Mise à jour non configurée pour cette catégorie.', life: 3000 });
 };
 
 const consulter = (category, id) => {

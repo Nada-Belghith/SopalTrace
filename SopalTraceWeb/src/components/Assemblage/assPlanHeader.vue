@@ -112,10 +112,10 @@
 
 <script setup>
 import { computed, watch, ref } from 'vue';
-import { useAssModeleStore } from '@/stores/assModeleStore';
+import { useAssPlanStore } from '@/stores/assPlanStore';
 import { parseDesignation } from '@/utils/designationParser';
 
-const store = useAssModeleStore();
+const store = useAssPlanStore();
 const props = defineProps({
   isEditMode: {
     type: Boolean,

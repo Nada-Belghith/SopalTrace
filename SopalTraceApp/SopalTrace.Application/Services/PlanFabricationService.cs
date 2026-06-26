@@ -1,3 +1,4 @@
+using SopalTrace.Application.DTOs.QualityPlans.Fabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Documents;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Entities;
@@ -13,26 +14,28 @@ public class PlanFabricationService : IPlanFabricationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IFormulaireStructureService _formulaireStructureService;
+    private readonly IFrequencyParserService _frequencyParserService;
 
     public PlanFabricationService(
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IFormulaireStructureService formulaireStructureService)
+        IFormulaireStructureService formulaireStructureService,
+        IFrequencyParserService frequencyParserService)
     {
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _formulaireStructureService = formulaireStructureService;
+        _frequencyParserService = frequencyParserService;
     }
 
-    public async Task<DocumentEnteteDto?> GetPlanByIdAsync(Guid id)
+    public async Task<PlanFabricationEnteteDto?> GetPlanByIdAsync(Guid id)
     {
         var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
         if (plan == null) return null;
 
-        return new DocumentEnteteDto
+        return new PlanFabricationEnteteDto
         {
             Id = plan.Id,
-            TypeDocumentCode = "PLAN_FAB",
             Nom = plan.Nom,
             Designation = plan.Designation,
             Version = plan.Version,
@@ -45,11 +48,15 @@ public class PlanFabricationService : IPlanFabricationService
             CreePar = plan?.CreePar ?? "",
             CreeLe = plan?.CreeLe ?? DateTime.UtcNow,
             ModeleSourceId = plan?.ModeleSourceId,
-            Sections = plan?.PlanFabricationSections?.Select(s => new DocumentSectionDto
+            Sections = plan?.PlanFabricationSections?.Select(s => new PlanFabricationSectionDto
             {
                 Id = s.Id,
                 LibelleSection = s.LibelleSection,
-                Lignes = s.PlanFabricationLignes?.Select(l => new DocumentLigneDto
+                OrdreAffiche = s.OrdreAffiche,
+                TypeSectionId = s.TypeSectionId,
+                PeriodiciteId = s.PeriodiciteId,
+                RegleEchantillonnageId = s.RegleEchantillonnageId,
+                Lignes = s.PlanFabricationLignes?.Select(l => new PlanFabricationLigneDto
                 {
                     Id = l.Id,
                     OrdreAffiche = l.OrdreAffiche,
@@ -58,7 +65,7 @@ public class PlanFabricationService : IPlanFabricationService
                     TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                     TypeControleId = l.TypeControleId,
                     MoyenControleId = l.MoyenControleId,
-                    MoyenTexteLibre = l.MoyenTexteLibre,
+                    MoyenTexteLibre = string.IsNullOrWhiteSpace(l.MoyenTexteLibre) ? null : l.MoyenTexteLibre,
                     InstrumentCode = l.InstrumentCode,
                     PeriodiciteId = l.PeriodiciteId,
                     LimiteSpecTexte = l.LimiteSpecTexte,
@@ -66,17 +73,48 @@ public class PlanFabricationService : IPlanFabricationService
                     Instruction = l.Instruction,
                     Observations = l.Observations,
                     ImageBase64 = l.ImageBase64,
-                    ExtraColonnes = l.PlanFabricationLigneExtraColonnes?.Select(c => new DocumentExtraColonneDto {
+                    ExtraColonnes = l.PlanFabricationLigneExtraColonnes?.Select(c => new PlanFabricationLigneExtraColonneDto
+                    {
+                        Id = c.Id,
                         CleColonne = c.CleColonne,
                         ValeurColonne = c.ValeurColonne,
                         OrdreAffiche = c.OrdreAffiche
-                    }).ToList() ?? new List<DocumentExtraColonneDto>()
-                }).ToList() ?? new List<DocumentLigneDto>()
-            }).ToList() ?? new List<DocumentSectionDto>()
+                    }).ToList() ?? new List<PlanFabricationLigneExtraColonneDto>()
+                }).ToList() ?? new List<PlanFabricationLigneDto>()
+            }).ToList() ?? new List<PlanFabricationSectionDto>()
         };
     }
 
-    public async Task<Guid> CreerPlanAsync(CreateDocumentRequestDto request)
+    public async Task<IReadOnlyList<PlanFabricationEnteteDto>> GetPlansByFiltersAsync(string? natureComposantCode = null, string? operationCode = null, string? familleProduitCode = null, string? statut = null, string? codeArticleSageVersionne = null)
+    {
+        var plans = await _unitOfWork.PlanFabricationEnteteRepository.GetByFiltersAsync(operationCode);
+        
+        if (!string.IsNullOrWhiteSpace(statut))
+        {
+            plans = plans.Where(p => p.Statut == statut);
+        }
+
+        if (!string.IsNullOrWhiteSpace(codeArticleSageVersionne))
+        {
+            plans = plans.Where(p => p.CodeArticleSageVersionne == codeArticleSageVersionne);
+        }
+
+        return plans.Select(p => new PlanFabricationEnteteDto
+        {
+            Id = p.Id,
+            Nom = p.CodeArticleSageVersionne,
+            Designation = p.Designation ?? p.Remarques,
+            Version = p.Version,
+            Statut = p.Statut,
+            OperationCode = p.OperationCode,
+            FormulaireId = p.FormulaireId,
+            FormulaireCodeReference = p.Formulaire?.CodeReference,
+            CreePar = p.CreePar ?? "",
+            CreeLe = p.CreeLe,
+        }).ToList();
+    }
+
+    public async Task<Guid> CreerPlanAsync(CreatePlanFabricationRequestDto request)
     {
         var user = _currentUserService.UserInfo ?? "";
         var existingDocs = await _unitOfWork.PlanFabricationEnteteRepository.GetByFiltersAsync(request.OperationCode);
@@ -102,11 +140,15 @@ public class PlanFabricationService : IPlanFabricationService
             }
             else
             {
-                if (existingDoc.Statut == "ACTIF")
+                if (request.Statut != "BROUILLON")
                 {
-                    existingDoc.Statut = "ARCHIVE";
-                    await _unitOfWork.PlanFabricationEnteteRepository.UpdateAsync(existingDoc);
+                    var activeDocs = existingDocs.Where(d => d.CodeArticleSageVersionne == codeArticleSageVersionne && d.Statut == "ACTIF").ToList();
+                    foreach (var act in activeDocs)
+                    {
+                        act.Statut = "ARCHIVE";
+                    }
                 }
+                
                 var maxVersion = existingDoc.Version;
                 finalVersion = (request.VersionInitiale.HasValue && request.VersionInitiale.Value > maxVersion) ? request.VersionInitiale.Value : (maxVersion + 1);
             }
@@ -119,14 +161,17 @@ public class PlanFabricationService : IPlanFabricationService
             formulaireId = formStruct.Id;
         }
 
+        var iterCount = existingDocs.Count(d => d.CodeArticleSageVersionne == codeArticleSageVersionne);
+        var baseNom = System.Text.RegularExpressions.Regex.Replace(request.Nom ?? "", @"\.\d+$", "");
+
         var plan = new PlanFabricationEntete
         {
             Id = Guid.NewGuid(),
             CodeArticleSageVersionne = codeArticleSageVersionne,
-            Nom = codeArticleSageVersionne,
+            Nom = $"{baseNom}.{iterCount}",
             Designation = request.Designation,
             Version = finalVersion,
-            Statut = (existingDoc != null && existingDoc.Statut == "BROUILLON" && !forceArchive) ? "BROUILLON" : "ACTIF",
+            Statut = !string.IsNullOrWhiteSpace(request.Statut) ? request.Statut : ((existingDoc != null && existingDoc.Statut == "BROUILLON" && !forceArchive) ? "BROUILLON" : "ACTIF"),
             OperationCode = request.OperationCode,
             FormulaireId = formulaireId,
             LegendeMoyens = request.LegendeMoyens,
@@ -151,7 +196,12 @@ public class PlanFabricationService : IPlanFabricationService
                         {
                             Id = Guid.NewGuid(),
                             PlanEnteteId = plan.Id,
-                            LibelleSection = s.LibelleSection ?? ""
+                            PlanEntete = plan,
+                            LibelleSection = s.LibelleSection ?? "",
+                            OrdreAffiche = s.OrdreAffiche,
+                            TypeSectionId = s.TypeSectionId,
+                            PeriodiciteId = s.PeriodiciteId ?? (await _frequencyParserService.ResolveOrCreatePeriodiciteFromTextAsync(s.LibelleSection ?? string.Empty)),
+                            RegleEchantillonnageId = s.RegleEchantillonnageId
                         };
                         
                         if (s.Lignes != null)
@@ -161,14 +211,17 @@ public class PlanFabricationService : IPlanFabricationService
                                 var planLigne = new PlanFabricationLigne
                                 {
                                     Id = Guid.NewGuid(),
+                                    PlanEnteteId = plan.Id,
+                                    PlanEntete = plan,
                                     SectionId = planSec.Id,
+                                    Section = planSec,
                                     OrdreAffiche = l.OrdreAffiche,
                                     CaracteristiqueId = l.CaracteristiqueId,
                                     LibelleAffiche = l.LibelleAffiche,
                                     TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                                     TypeControleId = l.TypeControleId,
                                     MoyenControleId = l.MoyenControleId,
-                                    MoyenTexteLibre = l.MoyenTexteLibre,
+                                    MoyenTexteLibre = string.IsNullOrWhiteSpace(l.MoyenTexteLibre) ? null : l.MoyenTexteLibre,
                                     InstrumentCode = l.InstrumentCode,
                                     PeriodiciteId = l.PeriodiciteId,
                                     LimiteSpecTexte = l.LimiteSpecTexte,
@@ -177,6 +230,8 @@ public class PlanFabricationService : IPlanFabricationService
                                     Observations = l.Observations,
                                     ImageBase64 = l.ImageBase64
                                 };
+
+                                SopalTrace.Application.Utilities.LineCleanupHelper.CleanupPlanFabLine(planLigne);
 
                                 if (activeCols != null)
                                 {
@@ -187,6 +242,7 @@ public class PlanFabricationService : IPlanFabricationService
                                         {
                                             Id = Guid.NewGuid(),
                                             LigneId = planLigne.Id,
+                                            Ligne = planLigne,
                                             CleColonne = colDef.CleColonne,
                                             ValeurColonne = val,
                                             OrdreAffiche = 0
@@ -208,58 +264,181 @@ public class PlanFabricationService : IPlanFabricationService
         return plan.Id;
     }
 
-    public async Task<Guid> CreerNouvelleVersionPlanAsync(NouvelleVersionDocumentRequestDto request)
+    public async Task<Guid> CreerNouvelleVersionPlanAsync(NouvelleVersionPlanFabricationRequestDto request)
     {
         var existingPlan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(request.AncienId, includeRelations: true);
         if (existingPlan == null) throw new Exception("Plan introuvable");
-
-        var createReq = new CreateDocumentRequestDto
+        var createReq = new CreatePlanFabricationRequestDto
         {
-            TypeDocumentCode = "PLAN_FAB",
             Nom = existingPlan.CodeArticleSageVersionne,
             Designation = existingPlan.Designation,
             OperationCode = existingPlan.OperationCode,
             VersionInitiale = request.VersionInitiale,
-            LegendeMoyens = existingPlan.LegendeMoyens,
-            RefFormulaireCodeReference = existingPlan.Formulaire?.CodeReference,
-            ModeleSourceId = existingPlan.ModeleSourceId,
-            Sections = existingPlan.PlanFabricationSections.Select(s => new CreateDocumentSectionDto
-            {
-                LibelleSection = s.LibelleSection,
-                Lignes = s.PlanFabricationLignes.Select(l => new CreateDocumentLigneDto
+            LegendeMoyens = request.LegendeMoyens ?? existingPlan.LegendeMoyens,
+            RefFormulaireCodeReference = request.RefFormulaireCodeReference ?? existingPlan.Formulaire?.CodeReference,
+            ModeleSourceId = request.ModeleSourceId ?? existingPlan.ModeleSourceId,
+            ConfigurationColonnesJson = request.ConfigurationColonnesJson,
+            Sections = request.Sections != null && request.Sections.Any()
+                ? request.Sections
+                : existingPlan.PlanFabricationSections.Select(s => new CreatePlanFabricationSectionDto
                 {
-                    OrdreAffiche = l.OrdreAffiche,
-                    CaracteristiqueId = l.CaracteristiqueId,
-                    LibelleAffiche = l.LibelleAffiche,
-                    TypeCaracteristiqueId = l.TypeCaracteristiqueId,
-                    TypeControleId = l.TypeControleId,
-                    MoyenControleId = l.MoyenControleId,
-                    MoyenTexteLibre = l.MoyenTexteLibre,
-                    InstrumentCode = l.InstrumentCode,
-                    PeriodiciteId = l.PeriodiciteId,
-                    LimiteSpecTexte = l.LimiteSpecTexte,
-                    EstCritique = l.EstCritique,
-                    Instruction = l.Instruction,
-                    Observations = l.Observations,
-                    ImageBase64 = l.ImageBase64,
-                    ExtraColonnes = l.PlanFabricationLigneExtraColonnes.Select(c => new CreateDocumentExtraColonneDto { CleColonne = c.CleColonne, ValeurColonne = c.ValeurColonne }).ToList()
+                    LibelleSection = s.LibelleSection,
+                    OrdreAffiche = s.OrdreAffiche,
+                    TypeSectionId = s.TypeSectionId,
+                    PeriodiciteId = s.PeriodiciteId,
+                    RegleEchantillonnageId = s.RegleEchantillonnageId,
+                    Lignes = s.PlanFabricationLignes.Select(l => new CreatePlanFabricationLigneDto
+                    {
+                        OrdreAffiche = l.OrdreAffiche,
+                        CaracteristiqueId = l.CaracteristiqueId,
+                        LibelleAffiche = l.LibelleAffiche,
+                        TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                        TypeControleId = l.TypeControleId,
+                        MoyenControleId = l.MoyenControleId,
+                        MoyenTexteLibre = string.IsNullOrWhiteSpace(l.MoyenTexteLibre) ? null : l.MoyenTexteLibre,
+                        InstrumentCode = l.InstrumentCode,
+                        PeriodiciteId = l.PeriodiciteId,
+                        LimiteSpecTexte = l.LimiteSpecTexte,
+                        EstCritique = l.EstCritique,
+                        Instruction = l.Instruction,
+                        Observations = l.Observations,
+                        ImageBase64 = l.ImageBase64,
+                        ExtraColonnes = l.PlanFabricationLigneExtraColonnes.Select(c => new CreatePlanFabricationExtraColonneDto { CleColonne = c.CleColonne, ValeurColonne = c.ValeurColonne }).ToList()
+                    }).ToList()
                 }).ToList()
-            }).ToList()
         };
 
         return await CreerPlanAsync(createReq);
     }
 
-    public async Task<bool> MettreAJourPlanAsync(Guid id, UpdateDocumentRequestDto request)
+    public async Task<bool> MettreAJourPlanAsync(Guid id, UpdatePlanFabricationRequestDto request)
     {
         var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
         if (plan == null) return false;
 
+        // Mettre à jour les champs de l'entête
         plan.Remarques = request.Remarques;
         plan.LegendeMoyens = request.LegendeMoyens;
         plan.OperationCode = request.OperationCode ?? plan.OperationCode;
+        plan.ModifiePar = _currentUserService.UserInfo ?? "";
+        plan.ModifieLe = DateTime.UtcNow;
 
-        await _unitOfWork.PlanFabricationEnteteRepository.UpdateAsync(plan);
+        // La version reste toujours celle du formulaire PRC associé
+        var formStruct = await _formulaireStructureService.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION");
+        List<SopalTrace.Domain.Entities.RefFormulaireColonneDef>? activeCols = null;
+        if (formStruct != null)
+        {
+            plan.FormulaireId = formStruct.Id;
+            plan.Version = formStruct.Version;
+            var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(formStruct.Id);
+            if (form != null)
+                activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference))?.ToList();
+        }
+
+        // Supprimer les anciennes sections et lignes explicitement
+        if (plan.PlanFabricationSections != null && plan.PlanFabricationSections.Any())
+        {
+            foreach (var section in plan.PlanFabricationSections.ToList())
+            {
+                if (section.PlanFabricationLignes != null)
+                {
+                    foreach (var ligne in section.PlanFabricationLignes.ToList())
+                    {
+                        if (ligne.PlanFabricationLigneExtraColonnes != null)
+                        {
+                            foreach (var ext in ligne.PlanFabricationLigneExtraColonnes.ToList())
+                            {
+                                _unitOfWork.PlanFabricationEnteteRepository.RemoveExtraColonne(ext);
+                            }
+                            ligne.PlanFabricationLigneExtraColonnes.Clear();
+                        }
+                        _unitOfWork.PlanFabricationEnteteRepository.RemoveLigne(ligne);
+                    }
+                    section.PlanFabricationLignes.Clear();
+                }
+                _unitOfWork.PlanFabricationEnteteRepository.RemoveSection(section);
+            }
+
+            plan.PlanFabricationSections.Clear();
+            await _unitOfWork.FlushDeletesAsync();
+        }
+
+        if (plan.PlanFabricationSections == null)
+        {
+            plan.PlanFabricationSections = new List<PlanFabricationSection>();
+        }
+
+        if (request.Sections != null)
+        {
+            foreach (var s in request.Sections)
+            {
+                var sectionId = Guid.NewGuid();
+                var planSec = new PlanFabricationSection
+                {
+                    Id = sectionId,
+                    PlanEnteteId = plan.Id,
+                    LibelleSection = s.LibelleSection ?? "",
+                    OrdreAffiche = s.OrdreAffiche,
+                    TypeSectionId = s.TypeSectionId,
+                    PeriodiciteId = s.PeriodiciteId ?? (await _frequencyParserService.ResolveOrCreatePeriodiciteFromTextAsync(s.LibelleSection ?? string.Empty)),
+                    RegleEchantillonnageId = s.RegleEchantillonnageId,
+                    PlanFabricationLignes = new List<PlanFabricationLigne>()
+                };
+
+                if (s.Lignes != null)
+                {
+                    foreach (var l in s.Lignes)
+                    {
+                        var ligneId = Guid.NewGuid();
+                        var planLigne = new PlanFabricationLigne
+                        {
+                            Id = ligneId,
+                            PlanEnteteId = plan.Id,
+                            SectionId = sectionId,
+                            OrdreAffiche = l.OrdreAffiche,
+                            CaracteristiqueId = l.CaracteristiqueId,
+                            LibelleAffiche = l.LibelleAffiche,
+                            TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                            TypeControleId = l.TypeControleId,
+                            MoyenControleId = l.MoyenControleId,
+                            MoyenTexteLibre = string.IsNullOrWhiteSpace(l.MoyenTexteLibre) ? null : l.MoyenTexteLibre,
+                            InstrumentCode = l.InstrumentCode,
+                            PeriodiciteId = l.PeriodiciteId,
+                            LimiteSpecTexte = l.LimiteSpecTexte,
+                            EstCritique = l.EstCritique,
+                            Instruction = l.Instruction,
+                            Observations = l.Observations,
+                            ImageBase64 = l.ImageBase64,
+                            PlanFabricationLigneExtraColonnes = new List<PlanFabricationLigneExtraColonne>()
+                        };
+
+                        SopalTrace.Application.Utilities.LineCleanupHelper.CleanupPlanFabLine(planLigne);
+
+                        if (activeCols != null)
+                        {
+                            foreach (var colDef in activeCols)
+                            {
+                                string? val = l.ExtraColonnes?.FirstOrDefault(c => c.CleColonne == colDef.CleColonne)?.ValeurColonne;
+                                planLigne.PlanFabricationLigneExtraColonnes.Add(new PlanFabricationLigneExtraColonne
+                                {
+                                    Id = Guid.NewGuid(),
+                                    LigneId = ligneId,
+                                    CleColonne = colDef.CleColonne,
+                                    ValeurColonne = val,
+                                    OrdreAffiche = 0
+                                });
+                            }
+                        }
+                        planSec.PlanFabricationLignes.Add(planLigne);
+                    }
+                }
+
+                // Utiliser AddSection pour que EF Core reconnaisse les nouvelles sections comme "Added"
+                // (après un Clear(), le tracking est perdu)
+                _unitOfWork.PlanFabricationEnteteRepository.AddSection(planSec);
+            }
+        }
+
         await _unitOfWork.CommitAsync();
         return true;
     }
@@ -271,9 +450,8 @@ public class PlanFabricationService : IPlanFabricationService
 
         var maxVersion = await _unitOfWork.PlanFabricationEnteteRepository.GetLatestVersionAsync(plan.CodeArticleSageVersionne, plan.OperationCode);
         
-        var createReq = new CreateDocumentRequestDto
+        var createReq = new CreatePlanFabricationRequestDto
         {
-            TypeDocumentCode = "PLAN_FAB",
             Nom = plan.CodeArticleSageVersionne,
             Designation = plan.Designation,
             OperationCode = plan.OperationCode,
@@ -281,10 +459,14 @@ public class PlanFabricationService : IPlanFabricationService
             LegendeMoyens = plan.LegendeMoyens,
             RefFormulaireCodeReference = plan.Formulaire?.CodeReference,
             ModeleSourceId = plan.ModeleSourceId,
-            Sections = plan.PlanFabricationSections.Select(s => new CreateDocumentSectionDto
+            Sections = plan.PlanFabricationSections.Select(s => new CreatePlanFabricationSectionDto
             {
                 LibelleSection = s.LibelleSection,
-                Lignes = s.PlanFabricationLignes.Select(l => new CreateDocumentLigneDto
+                OrdreAffiche = s.OrdreAffiche,
+                TypeSectionId = s.TypeSectionId,
+                PeriodiciteId = s.PeriodiciteId,
+                RegleEchantillonnageId = s.RegleEchantillonnageId,
+                Lignes = s.PlanFabricationLignes.Select(l => new CreatePlanFabricationLigneDto
                 {
                     OrdreAffiche = l.OrdreAffiche,
                     CaracteristiqueId = l.CaracteristiqueId,
@@ -292,7 +474,7 @@ public class PlanFabricationService : IPlanFabricationService
                     TypeCaracteristiqueId = l.TypeCaracteristiqueId,
                     TypeControleId = l.TypeControleId,
                     MoyenControleId = l.MoyenControleId,
-                    MoyenTexteLibre = l.MoyenTexteLibre,
+                    MoyenTexteLibre = string.IsNullOrWhiteSpace(l.MoyenTexteLibre) ? null : l.MoyenTexteLibre,
                     InstrumentCode = l.InstrumentCode,
                     PeriodiciteId = l.PeriodiciteId,
                     LimiteSpecTexte = l.LimiteSpecTexte,
@@ -300,7 +482,7 @@ public class PlanFabricationService : IPlanFabricationService
                     Instruction = l.Instruction,
                     Observations = l.Observations,
                     ImageBase64 = l.ImageBase64,
-                    ExtraColonnes = l.PlanFabricationLigneExtraColonnes.Select(c => new CreateDocumentExtraColonneDto { CleColonne = c.CleColonne, ValeurColonne = c.ValeurColonne }).ToList()
+                    ExtraColonnes = l.PlanFabricationLigneExtraColonnes.Select(c => new CreatePlanFabricationExtraColonneDto { CleColonne = c.CleColonne, ValeurColonne = c.ValeurColonne }).ToList()
                 }).ToList()
             }).ToList()
         };
@@ -316,5 +498,15 @@ public class PlanFabricationService : IPlanFabricationService
         await _unitOfWork.PlanFabricationEnteteRepository.DeleteAsync(plan);
         await _unitOfWork.CommitAsync();
         return true;
+    }
+
+    public async Task ArchiverPlansByFormulaireAsync(Guid formulaireId)
+    {
+        var plansFabrication = await _unitOfWork.PlanFabricationEnteteRepository.GetByFormulaireIdAsync(formulaireId);
+        foreach (var plan in plansFabrication.Where(p => p.Statut == "ACTIF"))
+        {
+            plan.Statut = "ARCHIVE";
+        }
+        await _unitOfWork.CommitAsync();
     }
 }

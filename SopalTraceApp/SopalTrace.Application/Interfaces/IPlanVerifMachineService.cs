@@ -12,4 +12,5 @@ public interface IPlanVerifMachineService
     Task<IEnumerable<PlanVerifMachineEnteteDto>> GetAllPlansAsync();
     Task<IEnumerable<PlanVerifMachineEnteteDto>> GetPlansByMachineCodeAsync(string machineCode);
     Task MettreAJourPlanVerifMachineAsync(Guid id, UpdatePlanVerifMachineRequestDto request);
+    Task ArchiverPlansByFormulaireAsync(Guid formulaireId);
 }

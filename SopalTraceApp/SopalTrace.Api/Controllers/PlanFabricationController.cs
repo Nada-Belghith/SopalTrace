@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using SopalTrace.Application.DTOs.QualityPlans.Fabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Documents;
 using SopalTrace.Application.Interfaces;
 using System;
@@ -38,8 +39,28 @@ public class PlanFabricationController : ControllerBase
         }
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetByFilters(
+        [FromQuery] string? natureComposantCode = null, 
+        [FromQuery] string? operationCode = null, 
+        [FromQuery] string? familleProduitCode = null,
+        [FromQuery] string? statut = null,
+        [FromQuery] string? codeArticleSageVersionne = null)
+    {
+        try
+        {
+            var plans = await _planService.GetPlansByFiltersAsync(natureComposantCode, operationCode, familleProduitCode, statut, codeArticleSageVersionne);
+            return Ok(plans);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de la récupération des plans.");
+            return StatusCode(500, "Une erreur est survenue.");
+        }
+    }
+
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateDocumentRequestDto request)
+    public async Task<IActionResult> Create([FromBody] CreatePlanFabricationRequestDto request)
     {
         try
         {
@@ -54,7 +75,7 @@ public class PlanFabricationController : ControllerBase
     }
 
     [HttpPost("nouvelle-version")]
-    public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionDocumentRequestDto request)
+    public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionPlanFabricationRequestDto request)
     {
         try
         {
@@ -64,12 +85,12 @@ public class PlanFabricationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erreur lors de la création d'une nouvelle version.");
-            return StatusCode(500, "Une erreur est survenue.");
+            return StatusCode(500, new { message = ex.Message, details = ex.ToString() });
         }
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentRequestDto request)
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePlanFabricationRequestDto request)
     {
         try
         {

@@ -38,8 +38,8 @@ jobs:
         run: dotnet build ./SopalTraceApp.slnx --no-restore --configuration Release
         
       # ================== TES TESTS SONT ICI ==================
-      - name: 🧪 Exécution des Tests Unitaires
-        # On teste toute la solution, y compris SopalTrace.Application.Tests et SopalTrace.Domain.Tests
+      - name: 🧪 Exécution des Tests Unitaires & Intégration
+        # On teste toute la solution, y compris SopalTrace.Application.Tests (Unit & Intégration) et SopalTrace.Domain.Tests
         run: dotnet test ./SopalTraceApp.slnx --no-build --configuration Release --verbosity normal
       # ==========================================================
 

@@ -13,10 +13,23 @@ namespace SopalTrace.Application.Services.QualityPlans.Referentiels;
 public class RefFormulaireService : IRefFormulaireService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IModeleFabricationService _modeleFabricationService;
+    private readonly IPlanFabricationService _planFabricationService;
+    private readonly IDocumentService _documentService;
+    private readonly IPlanVerifMachineService _planVerifMachineService;
 
-    public RefFormulaireService(IUnitOfWork unitOfWork)
+    public RefFormulaireService(
+        IUnitOfWork unitOfWork,
+        IModeleFabricationService modeleFabricationService,
+        IPlanFabricationService planFabricationService,
+        IDocumentService documentService,
+        IPlanVerifMachineService planVerifMachineService)
     {
         _unitOfWork = unitOfWork;
+        _modeleFabricationService = modeleFabricationService;
+        _planFabricationService = planFabricationService;
+        _documentService = documentService;
+        _planVerifMachineService = planVerifMachineService;
     }
 
     public async Task<RefFormulaireDto> GetByIdAsync(Guid id)
@@ -80,6 +93,13 @@ public class RefFormulaireService : IRefFormulaireService
             await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(newForm.CodeReference, parsedCols);
 
             await _unitOfWork.RefFormulaireRepository.AddAsync(newForm);
+
+            // === AUTO-ARCHIVAGE ===
+            // Déléguer l'archivage aux services métier concernés
+            await _modeleFabricationService.ArchiverModelesByFormulaireAsync(oldForm.Id);
+            await _planFabricationService.ArchiverPlansByFormulaireAsync(oldForm.Id);
+            await _documentService.ArchiverDocumentsByFormulaireAsync(oldForm.Id);
+            await _planVerifMachineService.ArchiverPlansByFormulaireAsync(oldForm.Id);
             
             return newForm.Id;
         });

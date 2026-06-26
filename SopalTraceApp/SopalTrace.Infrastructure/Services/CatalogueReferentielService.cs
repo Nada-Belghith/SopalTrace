@@ -182,12 +182,15 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             return null;
 
         string? typeRobinetCode = await _repository.GetTypeRobinetCodeForArticleAsync(code);
+        string? familleProduitCode = await _repository.GetFamilleProduitCodeForArticleAsync(code);
 
         return new ArticleDto(
             article.CodeArticle,
             article.Designation,
             typeRobinetCode,
-            article.NatureArticleCode
+            article.NatureArticleCode,
+            null,
+            familleProduitCode
         );
     }
 

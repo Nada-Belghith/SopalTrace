@@ -114,7 +114,8 @@ public record ArticleDto(
     string? Designation,
     string? TypeRobinetCode,
     string? NatureComposantCode,
-    List<string>? ValidOperations = null
+    List<string>? ValidOperations = null,
+    string? FamilleProduitCode = null
 );
 public record MachinePosteDto(
     string Code,

@@ -163,12 +163,12 @@ import { useRoute, useRouter } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { useToast } from 'primevue/usetoast';
 
-import { documentService as fabModeleService } from '@/services/documentService';
-import { documentService as fabPlanService } from '@/services/documentService';
+import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
+import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { useFabModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
-import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
+import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 import {
   nettoyerNomSection,
   normalizeTypeSectionId,
@@ -218,6 +218,7 @@ const showColumnModal = ref(false);
 const versioningMode = ref('FAB');
 const isAutoVersioning = ref(false);
 const isArchiveEditing = ref(route.query.draft === 'true');
+const isUpgradeMode = computed(() => route.query.upgrade === 'true');
 
 const { 
   showLegendValidation, 
@@ -271,7 +272,7 @@ const isEditMode = computed(() => !!modeleEditionId.value);
 const isArchived = computed(() => statut.value === 'ARCHIVE');
 
 // 🔒 NOUVEAU : On verrouille tout si c'est une archive non éditée OU si on est en mode aperçu (view)
-const isReadOnly = computed(() => (isEditMode.value && isArchived.value && !isArchiveEditing.value) || isForcedView.value);
+const isReadOnly = computed(() => (isEditMode.value && isArchived.value && !isArchiveEditing.value && !isUpgradeMode.value) || isForcedView.value);
 
 
 const codeAffiche = computed(() => {
@@ -408,18 +409,27 @@ const chargerModelePourEdition = async (id) => {
     store.entete.familleProduitCode = data.familleProduitFiniCode || '';
     store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || 'PRC';
     
-    if (isArchiveEditing.value) {
+    if (isArchiveEditing.value || isUpgradeMode.value) {
       store.syncConfigurationFromFormulaire();
     } else {
-      if (data.colonneDefs && data.colonneDefs.length > 0) {
-        store.entete.configurationColonnes = data.colonneDefs.map(c => ({
+      let configParsed = null;
+      if (data.configurationColonnesJson) {
+        try {
+          configParsed = JSON.parse(data.configurationColonnesJson);
+        } catch(e) {
+          console.error('Erreur parsing configurationColonnesJson:', e);
+        }
+      }
+
+      if (configParsed && configParsed.length > 0) {
+        store.entete.configurationColonnes = configParsed.map(c => ({
           key: c.cleColonne || c.key,
           label: c.labelAffiche || c.label,
           type: c.typeValeur || c.type || 'Texte',
           insertAfter: c.insertAfter || 'code_instrument'
         }));
       } else {
-        store.entete.configurationColonnes = [];
+        store.syncConfigurationFromFormulaire();
       }
     }
 
@@ -429,17 +439,17 @@ const chargerModelePourEdition = async (id) => {
 
     groupes.value = sectionsTriees.map(sec => {
       let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
-      
-      const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-      if (texteParse) {
-        freqData = parseFrequenceLibelle(texteParse, []);
+      if (sec.periodiciteId) {
+        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
+        if (resolved) {
+          freqData = resolved;
+        }
       }
-      
-      if (freqData.modeFreq === 'VARIABLE') {
-        freqData.periodiciteId = sec.periodiciteId || null;
-      } else if (freqData.modeFreq === 'SANS' && sec.periodiciteId) {
-        freqData.modeFreq = 'VARIABLE';
-        freqData.periodiciteId = sec.periodiciteId;
+      if (freqData.modeFreq === 'SANS') {
+        const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
+        if (texteParse) {
+          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+        }
       }
       
       if (sec.regleEchantillonnageId) {
@@ -509,7 +519,9 @@ const chargerModelePourEdition = async (id) => {
           observations: lig.observations || '',
           moyenTexteLibre: lig.moyenTexteLibre || '',
           imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : {}
+          valeursColonnesSpecifiques: lig.extraColonnes 
+            ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
+            : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {})
         }))
       };
     });
@@ -620,7 +632,10 @@ const onEditorSubmitClick = () => {
 };
 
 const onEditorSubmit = async () => {
-  if (isArchived.value && !isArchiveEditing.value) {
+  if (isUpgradeMode.value) {
+    versioningMode.value = 'new-version';
+    showVersioningDialog.value = true;
+  } else if (isArchived.value && !isArchiveEditing.value) {
     isArchiveEditing.value = true;
     
     // On retire 'view' pour sortir du mode consultation forcée

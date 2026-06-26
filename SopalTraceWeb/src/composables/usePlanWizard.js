@@ -1,8 +1,8 @@
 import { ref, computed, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { referentielsService } from '@/services/referentielsService';
-import { documentService as fabModeleService } from '@/services/documentService';
-import { documentService as fabPlanService } from '@/services/documentService';
+import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
+import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { useFabModeleStore } from '@/stores/fabModeleStore'; // Accès au dictionnaire global
 
 /**
@@ -115,6 +115,7 @@ export function usePlanWizard() {
 
     if (!codeStr) return;
 
+    if (isCheckingArticle.value) return; // Prevent duplicate calls
     isCheckingArticle.value = true;
     try {
       const response = await referentielsService.getArticleFromERP(codeStr);
@@ -124,6 +125,7 @@ export function usePlanWizard() {
       designationArticle.value = articleData.designation || '';
       typeRobinetCode.value = articleData.typeRobinetCode || '';
       natureComposantCode.value = articleData.natureComposantCode || '';
+      familleCode.value = articleData.familleProduitCode || articleData.FamilleProduitCode || '';
       isArticleValid.value = true;
 
       // 🔧 Récupérer estGenerique depuis la table naturesComposant du store
@@ -259,14 +261,22 @@ export function usePlanWizard() {
     isLoadingSources.value = true;
     try {
       const response = await fabModeleService.getModelesByFilters(
-        typeRobinetCode.value,
+        familleCode.value || typeRobinetCode.value,
         natureComposantCode.value,
         operationCode.value,
         posteCode.value || undefined
       );
-      // Exclure les modèles génériques stricto sensu (isGenerique === 1)
-      const modeles = response.data?.data || response.data || [];
-      availableModeles.value = modeles.filter(m => m.isGenerique === 0 || m.isGenerique === undefined);
+      // Exclure les modèles génériques stricto sensu (isGenerique === 1) et n'afficher que les modèles ACTIF
+      const modeles = Array.isArray(response) ? response : (response.data?.data || response.data || []);
+      availableModeles.value = modeles.filter(m =>
+        (m.isGenerique === 0 || m.isGenerique === undefined) &&
+        (String(m.statut || m.Statut || '').trim().toUpperCase() === 'ACTIF')
+      );
+
+      // Auto-sélectionner s'il n'y a qu'un seul modèle
+      if (availableModeles.value.length === 1) {
+        selectedSourceId.value = availableModeles.value[0].id;
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des modèles filtrés:', error);
       availableModeles.value = [];
@@ -288,12 +298,12 @@ export function usePlanWizard() {
     try {
       // Filtrer par Type, Nature et Opération pour proposer des plans pertinents à cloner
       const response = await fabPlanService.getPlansByFilters(
-        typeRobinetCode.value,
+        familleCode.value || typeRobinetCode.value,
         natureComposantCode.value,
         operationCode.value,
         posteCode.value || undefined
       );
-      const allPlans = response.data?.data || response.data || [];
+      const allPlans = Array.isArray(response) ? response : (response.data?.data || response.data || []);
 
       // Récupérer la version de la structure PRC active (Role EN_COURS_DE_FABRICATION)
       const activePrcVersion = store.formulairesReferences?.find(r => String(r.statut || r.Statut || '').trim().toUpperCase() === 'ACTIF')?.version;
@@ -301,7 +311,20 @@ export function usePlanWizard() {
       availablePlans.value = allPlans.filter(p => {
         // Exclure les archives et les plans de ce même article (on ne se clone pas soi-même)
         if (p.statut === 'ARCHIVE') return false;
-        if (p.codeArticleSage === codeArticleSage.value) return false;
+        
+        const nomPlan = p.nom || p.Nom || p.codeArticleSageVersionne || '';
+        // Récupérer la partie avant le point s'il y a une version (ex: "n-25B0A01.0" -> "n-25B0A01")
+        const baseNom = nomPlan.split('.')[0].trim().toLowerCase();
+        
+        let rawTargetCode = codeArticleSage.value;
+        if (typeof rawTargetCode === 'object' && rawTargetCode !== null) {
+          rawTargetCode = rawTargetCode.codeArticle;
+        }
+        const targetCode = String(rawTargetCode || '').trim().toLowerCase();
+        
+        if (baseNom === targetCode || String(p.codeArticleSage || '').trim().toLowerCase() === targetCode) {
+          return false;
+        }
 
         // FILTRE STRICT : On ne propose de cloner que les plans liés à la version active de la structure PRC
         if (activePrcVersion !== undefined) {
@@ -400,7 +423,8 @@ export function usePlanWizard() {
           familleCode: familleCode.value || null,
           refFormulaireCodeReference: refFormulaireCodeReference.value || 'PRC',
           nom: `PC-${codeArticleSage.value}${posteCode.value ? '-P' + posteCode.value : ''}`,
-          creePar: 'ADMIN_QUALITE'
+          creePar: 'ADMIN_QUALITE',
+          statut: 'BROUILLON'
         };
         return await fabPlanService.instantiatePlan(payload);
       } else {

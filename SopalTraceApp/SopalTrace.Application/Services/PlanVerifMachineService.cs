@@ -110,10 +110,15 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         entite.Statut = finalStatut;
         entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
 
-        // Si le plan existait, on le supprime d'abord dans le contexte EF Core
-        if (existingDoc != null)
+        // Archiver tous les plans existants actifs pour cette machine
+        var allExistingDocs = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
+        string baseNomToArchive = RemoveVersionSuffix(request.Nom).TrimEnd('-').Trim();
+        var activeDocs = allExistingDocs.Where(d => RemoveVersionSuffix(d.Nom).TrimEnd('-').Trim() == baseNomToArchive && d.Statut == "ACTIF").ToList();
+        
+        foreach (var act in activeDocs)
         {
-            await _unitOfWork.PlanVerifMachineEnteteRepository.DeleteAsync(existingDoc);
+            act.Statut = "ARCHIVE";
+            await _unitOfWork.PlanVerifMachineEnteteRepository.UpdateAsync(act);
         }
         
         await _unitOfWork.PlanVerifMachineEnteteRepository.AddAsync(entite);
@@ -186,5 +191,15 @@ public class PlanVerifMachineService : IPlanVerifMachineService
     {
         string baseText = RemoveVersionSuffix(text);
         return $"{baseText} - V{newVersion}";
+    }
+
+    public async Task ArchiverPlansByFormulaireAsync(Guid formulaireId)
+    {
+        var plans = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByFormulaireIdAsync(formulaireId);
+        foreach (var plan in plans.Where(p => p.Statut == "ACTIF"))
+        {
+            plan.Statut = "ARCHIVE";
+            await _unitOfWork.PlanVerifMachineEnteteRepository.UpdateAsync(plan);
+        }
     }
 }

@@ -19,7 +19,6 @@
           icon="pi pi-file-edit"
           iconColorClass="text-blue-500"
           :is-read-only="isReadOnly"
-          :version="plan?.version"
           :statut="plan?.statut"
           :is-restoring="isVersioningSaving"
           @restaurer="onEditorSubmit"
@@ -201,13 +200,13 @@
   import { useToast } from 'primevue/usetoast';
   import { useConfirm } from 'primevue/useconfirm';
 
-  import { documentService as fabPlanService } from '@/services/documentService';
-  import { documentService as fabModeleService } from '@/services/documentService';
+  import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
+  import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
   import { useFabPlanVersioning } from '@/composables/useVersioning';
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
   import { prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
-  import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
+  import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 
   import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
@@ -281,26 +280,25 @@
       : 'Modifiez les valeurs. L\'ancienne version sera archivée automatiquement.';
   });
 
-  const codeAffiche = computed(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
+  const codeAffiche = computed(() => plan.value?.codeArticleSageVersionne || plan.value?.nom || plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
 
-  const codeArticleBase = ref('');
-
-  watch(() => plan.value?.codeArticleSage || wizard.codeArticleSage.value, (newCode) => {
-    if (!codeArticleBase.value && newCode) {
-      const match = newCode.match(/^(.*?)(\.\d+)?$/);
-      codeArticleBase.value = match ? match[1] : newCode;
-    }
-  }, { immediate: true });
+  const codeArticleBase = computed(() => {
+    const code = plan.value?.codeArticleSageVersionne || wizard.codeArticleSage.value || plan.value?.codeArticleSage || '';
+    const match = code.match(/^(.*?)(\.\w+)?$/);
+    return match ? match[1] : code;
+  });
 
   const codeArticleSuffix = computed({
     get: () => {
-      return plan.value?.codeArticleSage?.substring(codeArticleBase.value.length) || '';
+      const code = plan.value?.codeArticleSageVersionne || plan.value?.codeArticleSage || '';
+      return code.substring(codeArticleBase.value.length) || '';
     },
     set: (val) => {
       if (plan.value) {
         let suffix = val || '';
         if (suffix && !suffix.startsWith('.')) suffix = '.' + suffix;
-        plan.value.codeArticleSage = codeArticleBase.value + suffix;
+        plan.value.codeArticleSageVersionne = codeArticleBase.value + suffix;
+        plan.value.codeArticleSage = plan.value.codeArticleSageVersionne; // Garder les deux synchros pour la vue
       }
     }
   });
@@ -329,10 +327,22 @@
     const code = codeRef || wizard.refFormulaireCodeReference?.value || plan.value?.codeReferenceFormulaire || 'PRC';
     
     if (fromExistingData) {
-      if (fromExistingData.colonneDefs) {
-        store.entete.configurationColonnes = fromExistingData.colonneDefs;
+      let configParsed = null;
+
+      if (fromExistingData.colonneDefs && fromExistingData.colonneDefs.length > 0) {
+        configParsed = fromExistingData.colonneDefs;
+      } else if (fromExistingData.configurationColonnesJson) {
+        try {
+          configParsed = JSON.parse(fromExistingData.configurationColonnesJson);
+        } catch (e) {
+          console.error('Erreur parsing configurationColonnesJson:', e);
+        }
+      }
+
+      if (configParsed && configParsed.length > 0) {
+        store.entete.configurationColonnes = configParsed;
       } else {
-        store.entete.configurationColonnes = [];
+        store.applyFormulaireConfiguration(code);
       }
       store.entete.refFormulaireCodeReference = code;
     } else {
@@ -446,7 +456,7 @@
     const modRes = await fabModeleService.getModeleById(modeleId);
     const data = modRes?.data?.data || modRes?.data || modRes;
     plan.value = {
-      statut: 'BROUILLON',
+      statut: 'ACTIF',
       codeArticleSage: codeArticle,
       designation: wizard.designationArticle.value,
       version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
@@ -466,7 +476,8 @@
       colonneDefs: store.effectiveConfigurationColonnes,
       creePar: 'ADMIN_QUALITE',
       remarques: data.notes || '',
-      legendeMoyens: data.legendeMoyens || ''
+      legendeMoyens: data.legendeMoyens || '',
+      statut: 'ACTIF'
     };
     plan.value = {
       ...plan.value,
@@ -481,40 +492,50 @@
 
   // 🔥 SURVEILLANCE DES BROUILLONS EN AMONT
   // Dès que le couple Article/Opération est saisi, on vérifie s'il y a un brouillon
-  watch([wizard.codeArticleSage, wizard.operationCode, wizard.posteCode], async ([code, op, poste]) => {
+  let debounceTimeout = null;
+  watch([wizard.codeArticleSage, wizard.operationCode, wizard.posteCode], ([code, op, poste]) => {
     if (code && op && (!wizard.requiertPoste.value || poste)) {
-      try {
-        const res = await fabPlanService.verifierEtatPlan(code, null, op, poste);
-        const etat = res?.data || res;
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(async () => {
+        try {
+          const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+          const nature = wizard.natureComposantCode.value;
+          const res = await fabPlanService.verifierEtatPlan(code, famille, nature, null, op, poste);
+          const etat = res?.data || res;
 
-        if (etat.hasBrouillon) {
-          confirm.require({
-            message: `Un brouillon existe déjà pour cet article/opération. Voulez-vous reprendre le brouillon existant ou créer un nouveau plan ? (Note: Créer un nouveau supprimera définitivement le brouillon actuel).`,
-            header: 'Brouillon Existant',
-            icon: 'pi pi-copy text-amber-500',
-            acceptLabel: 'Reprendre le Brouillon',
-            rejectLabel: 'Créer un Nouveau',
-            acceptClass: 'p-button-warning',
-            rejectClass: 'p-button-secondary p-button-outlined',
-            accept: async () => {
-              planId.value = etat.brouillonId;
-              isFromWizard.value = true;
-              router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
-              await chargerPlan(etat.brouillonId);
-            },
-            reject: async () => {
-              try {
-                await fabPlanService.deletePlan(etat.brouillonId);
-                toast.add({ severity: 'info', summary: 'Nouveau Plan', detail: 'Ancien brouillon supprimé. Vous pouvez choisir votre méthode.' });
-              } catch (err) {
-                console.error(err);
+          if (etat.hasBrouillon) {
+            confirm.require({
+              message: `Un brouillon de plan existe déjà pour l'article ${code} / opération ${op}. Que souhaitez-vous faire ?`,
+              header: '📋 Brouillon Existant',
+              icon: 'pi pi-copy text-amber-500',
+              acceptLabel: '↩ Récupérer le brouillon',
+              rejectLabel: '🗑 Supprimer & Créer un nouveau',
+              acceptClass: 'p-button-warning',
+              rejectClass: 'p-button-danger p-button-outlined',
+              accept: async () => {
+                // Récupérer le brouillon existant → ouvrir directement dans l'éditeur
+                planId.value = etat.brouillonId;
+                isFromWizard.value = false;
+                await chargerPlan(etat.brouillonId);
+                router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
+                toast.add({ severity: 'info', summary: 'Brouillon récupéré', detail: 'Vous pouvez continuer la saisie et activer ce plan.', life: 4000 });
+              },
+              reject: async () => {
+                // Supprimer le brouillon et laisser l'utilisateur continuer le wizard
+                try {
+                  await fabPlanService.deletePlan(etat.brouillonId);
+                  toast.add({ severity: 'info', summary: 'Brouillon supprimé', detail: 'Vous pouvez maintenant choisir votre méthode de création.', life: 3000 });
+                } catch (err) {
+                  console.error('Erreur suppression brouillon:', err);
+                  toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer le brouillon.', life: 4000 });
+                }
               }
-            }
-          });
+            });
+          }
+        } catch (err) {
+          console.error("Erreur check draft amont", err);
         }
-      } catch (err) {
-        console.error("Erreur check draft amont", err);
-      }
+      }, 600);
     }
   });
 
@@ -527,13 +548,42 @@
       const modeleId = sourceType === 'MODELE' ? wizard.selectedSourceId.value : null;
       const codeArticle = wizard.codeArticleSage.value;
       const operationCode = wizard.operationCode.value;
+      const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+      const nature = wizard.natureComposantCode.value;
 
       // Unifié: on vérifie l'état peu importe qu'on clone ou utilise un modèle
-      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, modeleId, operationCode, wizard.posteCode.value);
+      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, famille, nature, modeleId, operationCode, wizard.posteCode.value);
       const etat = resVal.data;
 
       if (etat.hasBrouillon) {
-        // Redondant car géré par le watcher plus haut, mais conservé par sécurité
+        // Un brouillon existe → demander à l'utilisateur ce qu'il veut faire
+        isGeneratingPlan.value = false;
+        confirm.require({
+          message: `Un brouillon de plan existe déjà pour l'article ${codeArticle} / opération ${operationCode}. Que souhaitez-vous faire ?`,
+          header: '📋 Brouillon Existant',
+          icon: 'pi pi-copy text-amber-500',
+          acceptLabel: '↩ Récupérer le brouillon',
+          rejectLabel: '🗑 Supprimer & Créer un nouveau',
+          acceptClass: 'p-button-warning',
+          rejectClass: 'p-button-danger p-button-outlined',
+          accept: async () => {
+            planId.value = etat.brouillonId;
+            isFromWizard.value = false;
+            await chargerPlan(etat.brouillonId);
+            router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
+            toast.add({ severity: 'info', summary: 'Brouillon récupéré', detail: 'Vous pouvez continuer la saisie et activer ce plan.', life: 4000 });
+          },
+          reject: async () => {
+            try {
+              await fabPlanService.deletePlan(etat.brouillonId);
+              toast.add({ severity: 'info', summary: 'Brouillon supprimé', detail: 'Vous pouvez maintenant générer un nouveau plan.', life: 3000 });
+              // Relancer la génération
+              await executerGenerationWizard(modeleId, codeArticle);
+            } catch (err) {
+              console.error('Erreur suppression brouillon:', err);
+            }
+          }
+        });
         return;
       } 
       else if (etat.hasActif) {
@@ -565,9 +615,6 @@
   const executerGenerationWizard = async (modeleId, codeArticle) => {
     const sourceType = wizard.sourceType.value;
     const sourceId = (sourceType === 'CLONE') ? wizard.selectedSourceId.value : modeleId;
-
-    console.log(`[WIZARD] Génération - Type: ${sourceType}, SourceID: ${sourceId}`);
-
     try {
       if (sourceType === 'CLONE') {
         if (!sourceId) {
@@ -578,12 +625,13 @@
 
         // Clonage en MÉMOIRE
         const res = await fabPlanService.getPlanById(sourceId);
-        const data = res?.data?.data || res?.data || res;
+        const rawData = res?.data?.data || res?.data || res;
         
-        if (!data) throw new Error("Plan source introuvable.");
+        if (!rawData) throw new Error("Plan source introuvable.");
+        const data = normaliserDonneesPlan(rawData);
 
         plan.value = {
-          statut: 'BROUILLON',
+          statut: 'ACTIF',
           nom: `Plan de contrôle en cours de fabrication ${wizard.designationArticle.value || data.designation}${wizard.posteCode.value ? ' (' + wizard.posteCode.value + ')' : ''}`,
           codeArticleSage: codeArticle || data.codeArticleSage,
           designation: wizard.designationArticle.value || data.designation,
@@ -608,6 +656,7 @@
             refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
             colonneDefs: store.effectiveConfigurationColonnes,
             creePar: 'ADMIN_QUALITE',
+            statut: 'ACTIF',
             sections: sections.value.map((s, idx) => ({
               ordreAffiche: idx + 1,
               libelleSection: s.nom || s.libelleSection || '',
@@ -639,7 +688,7 @@
       } else if (sourceType === 'VIERGE') {
         syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
         plan.value = {
-          statut: 'BROUILLON',
+          statut: 'ACTIF',
           codeArticleSage: codeArticle,
           designation: wizard.designationArticle.value,
           version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
@@ -656,7 +705,8 @@
           designation: wizard.designationArticle.value,
           refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
           colonneDefs: store.effectiveConfigurationColonnes,
-          creePar: 'ADMIN_QUALITE'
+          creePar: 'ADMIN_QUALITE',
+          statut: 'ACTIF'
         };
         sections.value = [];
         isFromWizard.value = true;
@@ -677,6 +727,16 @@
     } finally {
       isGeneratingPlan.value = false;
     }
+  };
+
+  const normaliserDonneesPlan = (data) => {
+    if (!data) return data;
+    if (data.nom) {
+      data.codeArticleSageVersionne = data.nom;
+      const match = data.nom.match(/^(.*?)(\.\w+)?$/);
+      data.codeArticleSage = match ? match[1] : data.nom;
+    }
+    return data;
   };
 
   const nettoyerNomSection = (libelleSection, typeSectionId, freqLib = '', regleLib = '') => {
@@ -747,13 +807,16 @@
 
           // Bascule dans l'éditeur comme brouillon en mémoire
           planCreationPayload.value = {
+            modeleSourceId: null, // Pas de modèle source pour l'import Excel
             codeArticleSage: parsedData.codeArticleSage || (typeof wizard.codeArticleSage.value === 'object' ? wizard.codeArticleSage.value.codeArticle : wizard.codeArticleSage.value),
             designation: parsedData.designation || wizard.designationArticle.value,
             operationCode: parsedData.operationCode || wizard.operationCode.value,
             natureComposantCode: wizard.natureComposantCode.value || '',
             posteCode: wizard.posteCode.value || null,
+            refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
             nom: '',
             creePar: 'ADMIN_QUALITE',
+            statut: 'BROUILLON',
             sections: mappedSections.map(s => ({
               ...s,
               typeSectionId: (s.typeSectionId && s.typeSectionId !== "") ? s.typeSectionId : null,
@@ -770,16 +833,6 @@
 
           isFromWizard.value = true;
           planId.value = 'nouveau';
-
-          planCreationPayload.value = {
-            modeleSourceId: null, // Pas de modèle source pour l'import Excel
-            codeArticleSage: parsedData.codeArticleSage || wizard.codeArticleSage.value,
-            operationCode: parsedData.operationCode || wizard.operationCode.value,
-            posteCode: wizard.posteCode.value || null,
-            designation: parsedData.designation || wizard.designationArticle.value,
-            refFormulaireCodeReference: wizard.refFormulaireCodeReference?.value || 'PRC',
-            creePar: 'ADMIN_QUALITE'
-          };
 
           // Initialisation du statut pour l'UI
           plan.value = {
@@ -806,9 +859,17 @@
   const mapModeleDataToSections = (modeleModel) => {
     return (modeleModel.sections || []).map(sec => {
       let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
+      if (sec.periodiciteId) {
+        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
+        if (resolved) {
+          freqData = resolved;
+        }
+      }
       const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-      if (texteParse) {
-        freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+      if (freqData.modeFreq === 'SANS') {
+        if (texteParse) {
+          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+        }
       }
 
       let modeFreq = freqData.modeFreq;
@@ -887,7 +948,9 @@
           estCritique: lig.estCritique,
           libelleAffiche: lig.libelleAffiche,
           imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : (lig.valeursColonnesSpecifiques || {})
+          valeursColonnesSpecifiques: lig.extraColonnes 
+            ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
+            : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {}))
         }))
       };
     });
@@ -907,7 +970,7 @@
       }
 
       if (!isClone) {
-        plan.value = data;
+        plan.value = normaliserDonneesPlan(data);
         legendeMoyens.value = data.legendeMoyens || '';
         remarques.value = data.remarques || '';
         const codeRef = data.codeReferenceFormulaire || wizard.refFormulaireCodeReference?.value || 'PRC';
@@ -923,9 +986,17 @@
 
       sections.value = sectionsTriees.map(sec => {
         let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
+        if (sec.periodiciteId) {
+          const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
+          if (resolved) {
+            freqData = resolved;
+          }
+        }
         const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-        if (texteParse) {
-          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+        if (freqData.modeFreq === 'SANS') {
+          if (texteParse) {
+            freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+          }
         }
 
         let modeFreq = freqData.modeFreq;
@@ -1011,7 +1082,9 @@
             estCritique: lig.estCritique,
             libelleAffiche: lig.libelleAffiche,
             imageBase64: lig.imageBase64 || null,
-            valeursColonnesSpecifiques: lig.extraColonnes ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) : (lig.valeursColonnesSpecifiques || {})
+            valeursColonnesSpecifiques: lig.extraColonnes 
+              ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
+              : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {}))
           }))
         };
       });
@@ -1030,7 +1103,7 @@
     if (!dbPlanData) return;
 
     // Synchroniser l'objet plan principal pour avoir les bonnes métadonnées (nom, version, etc.)
-    plan.value = dbPlanData;
+    plan.value = normaliserDonneesPlan(dbPlanData);
 
     if (!dbPlanData.sections) return;
 
@@ -1106,7 +1179,11 @@
           finalFrequenceLibelle = originalSection.frequenceLibelle || '';
         }
       } else if (originalSection.periodiciteId) {
-        finalFrequenceLibelle = (store.periodicites || []).find(p => p.id === originalSection.periodiciteId)?.libelle || '';
+        const matchingPeriod = (store.periodicites || []).find(p => {
+          const pId = p.id || p.Id;
+          return pId && typeof pId === 'string' && typeof originalSection.periodiciteId === 'string' && pId.toLowerCase() === originalSection.periodiciteId.toLowerCase();
+        });
+        finalFrequenceLibelle = matchingPeriod ? (matchingPeriod.libelle || matchingPeriod.Libelle || '') : '';
       }
 
       // 2. Libellé de règle d'échantillonnage
@@ -1184,11 +1261,13 @@
           planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
         const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
-        currentPlanId = instRes.data.planId || instRes.data.id;
+        const instData = instRes?.data?.data || instRes?.data || instRes;
+        currentPlanId = instData.planId || instData.id;
         planId.value = currentPlanId;
         aEteCreePendantCetteSession.value = true;
         const newPlanRes = await fabPlanService.getPlanById(currentPlanId);
-        syncIdsFromDb(newPlanRes.data.data);
+        const dataPlan = newPlanRes?.data?.data || newPlanRes?.data || newPlanRes;
+        syncIdsFromDb(dataPlan);
         planCreationPayload.value = null;
       }
 
@@ -1196,7 +1275,8 @@
 
       await prepareModeleDataAndFrequencies(sections.value, store.periodicites, async (payload) => {
         const res = await fabPlanService.createPeriodicite(payload);
-        store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payload });
+        const resData = res?.data?.data || res?.data || res;
+        store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payload });
         return res;
       });
 
@@ -1218,7 +1298,7 @@
     }
   };
 
-  const declencherSauvegarde = async () => {
+  const declencherSauvegarde = async (isActivating = false) => {
     let currentPlanId = planId.value;
 
     if (currentPlanId === 'nouveau' && planCreationPayload.value) {
@@ -1226,41 +1306,81 @@
         if (versionInitiale.value !== null) {
           planCreationPayload.value.versionInitiale = versionInitiale.value;
         }
-        // Assure-toi qu'on envoie le code modifié (ex: avec .4)
         if (plan.value?.codeArticleSage) {
           planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
-        const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
-        currentPlanId = instRes.data.planId || instRes.data.id;
-        planId.value = currentPlanId;
-        router.replace(`/dev/fab/plans/editer/${currentPlanId}`);
 
-        const newPlanRes = await fabPlanService.getPlanById(currentPlanId);
-        syncIdsFromDb(newPlanRes.data.data);
+        // 1. Préparer d'abord les périodicités (si certaines ont été saisies à la main)
+        await prepareModeleDataAndFrequencies(
+          sections.value,
+          store.periodicites || [],
+          async (payloadFreq) => {
+            const res = await fabPlanService.createPeriodicite(payloadFreq);
+            const resData = res?.data?.data || res?.data || res;
+            store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+            return res;
+          }
+        );
+
+        // 2. Assigner le statut définitif et les autres champs
+        if (isActivating) {
+          planCreationPayload.value.statut = 'ACTIF';
+        }
+        
+        const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
+        planCreationPayload.value.nom = finalNom;
+        planCreationPayload.value.legendeMoyens = legendeMoyens.value;
+        planCreationPayload.value.remarques = remarques.value;
+
+        // 3. Injecter les sections construites dans le payload AVANT de créer le plan
+        if (!planCreationPayload.value.modeleSourceId) {
+          const sectionsPayload = construirePayloadService(isActivating ? false : (plan.value?.statut === 'BROUILLON'));
+          if (sectionsPayload && sectionsPayload.length > 0) {
+            planCreationPayload.value.sections = sectionsPayload;
+          }
+        }
+
+        const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
+        const instData = instRes?.data?.data || instRes?.data || instRes;
+        currentPlanId = instData.planId || instData.id;
+        planId.value = currentPlanId;
 
         planCreationPayload.value = null;
+
+        // Le plan est déjà créé et sauvegardé avec toutes ses données et le bon statut.
+        if (isActivating) {
+          toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan a été créé et activé directement.', life: 4000 });
+        } else {
+          toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Le brouillon a été créé avec succès.', life: 3000 });
+        }
+
+        isExitingEditor.value = true;
+        router.push('/dev/hub-plans');
+        return; // FIN DE L'ACTION POUR UN NOUVEAU PLAN
       } catch (err) {
-        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible d\'instancier le brouillon', life: 6000 });
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de créer le plan', life: 6000 });
         throw err;
       }
     }
 
-    await enregistrerValeurs(currentPlanId, true);
+    // SI LE PLAN EXISTE DÉJÀ (Mise à jour)
+    await enregistrerValeurs(currentPlanId, true, isActivating);
   };
 
-  const enregistrerValeurs = async (currentPlanId, redirectToHub = true) => {
+  const enregistrerValeurs = async (currentPlanId, redirectToHub = true, isActivating = false) => {
     try {
       await prepareModeleDataAndFrequencies(
         sections.value,
         store.periodicites || [],
         async (payloadFreq) => {
           const res = await fabPlanService.createPeriodicite(payloadFreq);
-          store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
+          const resData = res?.data?.data || res?.data || res;
+          store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
           return res;
         }
       );
 
-      const payload = construirePayloadService(false);
+      const payload = construirePayloadService(isActivating ? false : (plan.value?.statut === 'BROUILLON'));
       const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
 
       const payloadData = {
@@ -1268,9 +1388,13 @@
         colonneDefs: planConfigurationColonnes.value
       };
 
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, true, finalNom, 'Admin', plan.value?.codeArticleSage);
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, isActivating, finalNom, 'Admin', plan.value?.codeArticleSage);
 
-      toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
+      if (isActivating) {
+        toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
+      } else {
+        toast.add({ severity: 'info', summary: 'Données sauvegardées', detail: 'Vos modifications ont été enregistrées.', life: 3000 });
+      }
 
       if (redirectToHub) {
         isExitingEditor.value = true;
@@ -1290,6 +1414,8 @@
     isSaving.value = true;
 
     try {
+      if (planCreationPayload.value) planCreationPayload.value.statut = 'BROUILLON';
+      if (plan.value) plan.value.statut = 'BROUILLON';
       // Forcer la sauvegarde manuelle (bypass le flag isSaving interne)
       await sauvegarderBrouillonSilencieux(true, true);
       isExitingEditor.value = true;
@@ -1322,27 +1448,29 @@
       
       const opCode = plan.value?.operationCode || wizard.operationCode.value;
       const pCode = plan.value?.posteCode || wizard.posteCode.value;
+      const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+      const nature = wizard.natureComposantCode.value;
       
-      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, null, opCode, pCode);
+      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, famille, nature, null, opCode, pCode);
       const etat = resVal.data;
 
-      if (etat.hasActif && (!plan.value?.id || etat.actifId !== plan.value.id)) {
+      if (etat.existeActif && (!plan.value?.id || etat.actifId !== plan.value.id)) {
         confirm.require({
-          message: `Attention : Un plan ACTIF (Version ${etat.actifVersion}) existe déjà. L'activation de ce nouveau plan archivera automatiquement l'ancien. Voulez-vous continuer ?`,
+          message: `Attention : Un plan ACTIF existe déjà pour cet article. L'activation de ce nouveau plan archivera automatiquement l'ancien. Voulez-vous continuer ?`,
           header: 'Confirmation d\'Activation',
           icon: 'pi pi-exclamation-triangle text-amber-500',
           acceptLabel: 'Oui, Archiver & Activer',
           rejectLabel: 'Annuler',
           acceptClass: 'p-button-success',
           accept: async () => {
-            await declencherSauvegarde();
+            await declencherSauvegarde(true);
           },
           reject: () => {
             isSaving.value = false;
           }
         });
       } else {
-        await declencherSauvegarde();
+        await declencherSauvegarde(true);
       }
     } catch (error) {
       console.error('Erreur dans onActivatePlan:', error);
@@ -1439,10 +1567,11 @@
           motifModification: motif || 'Modification de la structure du plan',
           codeArticleSage: plan.value?.codeArticleSage
         });
-        const newPlanId = newVersionPlan.data.planId;
+        const newPlanId = newVersionPlan.id || newVersionPlan.planId || newVersionPlan.data?.id || newVersionPlan.data?.planId;
         const clonedPlanRes = await fabPlanService.getPlanById(newPlanId);
-        syncIdsFromDb(clonedPlanRes.data.data);
-        await enregistrerValeurs(newPlanId, true);
+        const dataPlan = clonedPlanRes?.data?.data || clonedPlanRes?.data || clonedPlanRes;
+        syncIdsFromDb(dataPlan);
+        await enregistrerValeurs(newPlanId, false, true);
       } else if (versioningMode.value === 'restore') {
         await restaurerArchive(motif);
       }
@@ -1451,8 +1580,12 @@
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Une erreur est survenue lors de l\'opération de versioning.', life: 4000 });
     } finally {
       isVersioningSaving.value = false;
-      // Toujours s'assurer que le flag global de sauvegarde est remis à false
       isSaving.value = false;
+      if (versioningMode.value === 'new-version') {
+        toast.add({ severity: 'success', summary: 'Nouvelle version publiée', detail: 'Le plan a été archivé et une nouvelle version ACTIF a été créée.', life: 5000 });
+        isExitingEditor.value = true;
+        router.push('/dev/hub-plans');
+      }
     }
   };
 
