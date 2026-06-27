@@ -141,33 +141,6 @@ public class HubService : IHubService
     {
         var result = new List<HubPlanDto>();
 
-        var documents = await _context.DocumentEntetes
-            .AsNoTracking()
-            .Include(d => d.Formulaire)
-            .Include(d => d.TypeDocumentCodeNavigation)
-            .Where(d => d.Statut == StatutsPlan.Actif || d.Statut == StatutsPlan.Archive || d.Statut == StatutsPlan.Brouillon)
-            .ToListAsync();
-
-        foreach(var p in documents)
-        {
-            result.Add(new HubPlanDto(
-                p.Id,
-                GetCategoryFromTypeDocumentCode(p.TypeDocumentCode),
-                p.Nom ?? p.Designation ?? "Plan",
-                p.FamilleProduitFiniCode ?? "N/A",
-                p.Designation ?? "N/A",
-                p.OperationCode ?? "N/A",
-                p.OperationCode ?? "N/A", // Wait, this was a duplicate OperationCode in the original? We'll keep it as is.
-                p.Version,
-                p.Statut ?? StatutsPlan.Actif,
-                p.Remarques ?? "Plan de contrôle instancié",
-                p.Nom,
-                p.TypeDocumentCode ?? "INCONNU",
-                p.Formulaire != null ? p.Formulaire.CodeReference : null,
-                p.Formulaire != null ? p.Formulaire.Version : (int?)null
-            ));
-        }
-
         var fabPlans = await _context.PlanFabricationEntetes
             .AsNoTracking()
             .Include(d => d.Formulaire)
@@ -189,58 +162,6 @@ public class HubService : IHubService
                 p.Remarques ?? "Plan de fabrication instancié",
                 p.Nom,
                 "PLAN_FAB",
-                p.Formulaire != null ? p.Formulaire.CodeReference : null,
-                p.Formulaire != null ? p.Formulaire.Version : (int?)null
-            ));
-        }
-
-        var vmPlans = await _context.PlanVerifMachineEntetes
-            .AsNoTracking()
-            .Include(v => v.Formulaire)
-            .Where(v => v.Statut == StatutsPlan.Actif || v.Statut == StatutsPlan.Archive || v.Statut == StatutsPlan.Brouillon)
-            .ToListAsync();
-
-        foreach(var p in vmPlans)
-        {
-            result.Add(new HubPlanDto(
-                p.Id,
-                "VM",
-                p.Nom ?? "Verif Machine",
-                "N/A",
-                "N/A",
-                "N/A",
-                p.MachineCode ?? "N/A",
-                p.Version ?? 1,
-                p.Statut ?? StatutsPlan.Actif,
-                p.Remarques ?? "Plan de vérification machine",
-                p.Nom,
-                "VM",
-                p.Formulaire != null ? p.Formulaire.CodeReference : null,
-                p.Formulaire != null ? p.Formulaire.Version : (int?)null
-            ));
-        }
-
-        var echanPlans = await _context.PlanEchantillonnageEntetes
-            .AsNoTracking()
-            .Include(v => v.Formulaire)
-            .Where(v => v.Statut == StatutsPlan.Actif || v.Statut == StatutsPlan.Archive || v.Statut == StatutsPlan.Brouillon)
-            .ToListAsync();
-
-        foreach(var p in echanPlans)
-        {
-            result.Add(new HubPlanDto(
-                p.Id,
-                "ECH",
-                "Plan d'Échantillonnage",
-                "N/A",
-                "N/A",
-                "N/A",
-                "N/A",
-                p.Version,
-                p.Statut,
-                p.Remarques ?? "Plan d'échantillonnage",
-                "Echantillonnage",
-                "ECHANTILLONNAGE",
                 p.Formulaire != null ? p.Formulaire.CodeReference : null,
                 p.Formulaire != null ? p.Formulaire.Version : (int?)null
             ));

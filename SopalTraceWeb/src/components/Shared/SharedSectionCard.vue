@@ -54,17 +54,22 @@ watch(() => props.groupe, (newGroupe) => {
 
 const handleSectionUpdate = (updatedSection) => {
   if (isSyncingFromParent.value) return;
-  localGroupe.value = { ...updatedSection };
-  emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
+  const freshGroupe = JSON.parse(JSON.stringify(props.groupe));
+  const { lignes, ...headerProps } = updatedSection;
+  Object.assign(freshGroupe, headerProps);
+  localGroupe.value = { ...freshGroupe };
+  emit('update-groupe', freshGroupe);
 };
 
 watch(() => props.operationCode, (newOp) => {
   if (isReadOnly.value) return;
   if (newOp !== 'ASS' && newOp !== 'PF') {
     if (localGroupe.value.modeFreq === 'FIXE') {
-      localGroupe.value.modeFreq = 'SANS';
-      localGroupe.value.regleEchantillonnageId = null;
-      emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
+      const freshGroupe = JSON.parse(JSON.stringify(props.groupe));
+      freshGroupe.modeFreq = 'SANS';
+      freshGroupe.regleEchantillonnageId = null;
+      localGroupe.value = { ...freshGroupe };
+      emit('update-groupe', freshGroupe);
     }
   }
 });
@@ -91,8 +96,9 @@ const ajouterLigne = () => {
     estCritique: false,
     valeursColonnesSpecifiques: {}
   };
-  
-  localGroupe.value.lignes = [...(localGroupe.value.lignes || []), nouvelleLigne];
-  emit('update-groupe', JSON.parse(JSON.stringify(localGroupe.value)));
+  const freshGroupe = JSON.parse(JSON.stringify(props.groupe));
+  freshGroupe.lignes = [...(freshGroupe.lignes || []), nouvelleLigne];
+  localGroupe.value = { ...freshGroupe };
+  emit('update-groupe', freshGroupe);
 };
 </script>

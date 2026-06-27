@@ -204,7 +204,7 @@ const router = useRouter();
 const toast = useAppToast();
 const confirm = useAppConfirm();
 
-const activeTab = ref('ALL');
+const activeTab = ref('FAB');
 const searchQuery = ref('');
 const selectedOperation = ref('');
 const vueActuelle = ref('ACTIF');
@@ -219,14 +219,7 @@ const onPage = (event) => {
 };
 
 const tabs = [
-  { id: 'ALL', label: 'Tous', short: 'Tous', icon: 'pi pi-th-large' },
   { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' },
-  { id: 'ASS', label: 'Assemblage', short: 'Ass', icon: 'pi pi-sitemap' },
-  { id: 'VM', label: 'Vérif Machine', short: 'Vérif', icon: 'pi pi-desktop' },
-  { id: 'RC', label: 'Résultat Contrôle Poste', short: 'Contrôle', icon: 'pi pi-list' },
-  { id: 'RCCF', label: 'Résultat Contrôle CF', short: 'Contrôle CF', icon: 'pi pi-check-circle' },
-  { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
-  { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
 ];
 
 const categoryStyles = {

@@ -10,7 +10,7 @@
           <i :class="[icon, iconColorClass]"></i>
           <span>
             <template v-if="isReadOnly">Consultation : </template>
-            <template v-else-if="!id || statut === 'BROUILLON'">Création : </template>
+            <template v-else-if="!id || id === 'nouveau' || statut === 'BROUILLON'">Création : </template>
             <template v-else>Édition : </template>
             {{ title }}
           </span>

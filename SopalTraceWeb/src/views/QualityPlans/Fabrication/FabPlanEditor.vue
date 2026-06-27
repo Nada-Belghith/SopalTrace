@@ -61,7 +61,10 @@
             <!-- Removed Configuration du plan pour versionInitiale -->
 
             <div class="mb-4">
-              <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">Structure des lignes de contrôle</h3>
+              <h1 class="text-xl font-extrabold text-slate-800 flex items-center gap-3">
+                <i class="pi pi-file-edit text-blue-600 text-2xl"></i>
+                Édition : Plan de Fabrication
+              </h1>
             </div>
 
             <template v-if="!hasValidStructure">
@@ -1260,6 +1263,12 @@
         if (plan.value?.codeArticleSage) {
           planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
+        
+        const sectionsPayload = construirePayloadService(true);
+        if (sectionsPayload && sectionsPayload.length > 0) {
+          planCreationPayload.value.sections = sectionsPayload;
+        }
+
         const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
         const instData = instRes?.data?.data || instRes?.data || instRes;
         currentPlanId = instData.planId || instData.id;
@@ -1333,11 +1342,9 @@
         planCreationPayload.value.remarques = remarques.value;
 
         // 3. Injecter les sections construites dans le payload AVANT de créer le plan
-        if (!planCreationPayload.value.modeleSourceId) {
-          const sectionsPayload = construirePayloadService(isActivating ? false : (plan.value?.statut === 'BROUILLON'));
-          if (sectionsPayload && sectionsPayload.length > 0) {
-            planCreationPayload.value.sections = sectionsPayload;
-          }
+        const sectionsPayload = construirePayloadService(isActivating ? false : (plan.value?.statut === 'BROUILLON'));
+        if (sectionsPayload && sectionsPayload.length > 0) {
+          planCreationPayload.value.sections = sectionsPayload;
         }
 
         const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
