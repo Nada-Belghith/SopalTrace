@@ -55,7 +55,8 @@ watch(() => props.groupe, (newGroupe) => {
 const handleSectionUpdate = (updatedSection) => {
   if (isSyncingFromParent.value) return;
   const freshGroupe = JSON.parse(JSON.stringify(props.groupe));
-  const { lignes, ...headerProps } = updatedSection;
+  const headerProps = { ...updatedSection };
+  delete headerProps.lignes;
   Object.assign(freshGroupe, headerProps);
   localGroupe.value = { ...freshGroupe };
   emit('update-groupe', freshGroupe);
