@@ -5,8 +5,12 @@ using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
 
+using SopalTrace.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+
 namespace SopalTrace.Api.Controllers;
 
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
 [ApiController]
 [Route("api/plans-echantillonnage")]
 public class PlanEchantillonnageController : ControllerBase

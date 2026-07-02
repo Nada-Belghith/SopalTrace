@@ -244,8 +244,9 @@ CREATE TABLE dbo.UtilisateursApp (
     MotDePasseHash        VARCHAR(255) NOT NULL,
     RoleApp               VARCHAR(50)  NOT NULL,
     IntituleMetier        VARCHAR(100),
-    CodeRecuperation      VARCHAR(6),
+    CodeRecuperationHash VARCHAR(255),
     DateExpirationCode    DATETIME,
+    NombreTentativesCode  INT          NOT NULL DEFAULT 0,
     DateCreation          DATETIME     DEFAULT GETDATE(),
     DateDerniereConnexion DATETIME,
     EstActif              BIT          DEFAULT 1
@@ -913,6 +914,7 @@ CREATE TABLE dbo.Exec_ControleOF (
     TypePlan         VARCHAR(10) NOT NULL CHECK (TypePlan IN ('FAB','DOC')),
     Statut           VARCHAR(20) NOT NULL DEFAULT 'EN_COURS'
         CHECK (Statut IN ('EN_COURS','CLOTURE')),
+    EstEnReglage     BIT         NOT NULL DEFAULT 0,
     DateDebut        DATETIME    NOT NULL DEFAULT GETDATE(),
     DateFin          DATETIME
 );
@@ -934,35 +936,48 @@ CREATE TABLE dbo.Exec_ControleTranche (
     TrancheHoraire       VARCHAR(20)  NOT NULL,
     HeureDebut           DATETIME     NOT NULL,
     HeureFin             DATETIME     NOT NULL,
-    ResultatFinal        VARCHAR(2)   CHECK (ResultatFinal IN ('C','NC')),
+    ResultatFinal        VARCHAR(10)  CHECK (ResultatFinal IN ('C','NC','REGLAGE')),
     DetailsNC            VARCHAR(500),
     ActionsCorrection    VARCHAR(500),
     MatriculeApprobateur VARCHAR(20)
 );
 GO
 
-CREATE TABLE dbo.Exec_Prelevement (
-    Id                    UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    ExecControleTrancheId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleTranche(Id) ON DELETE CASCADE,
-    HeurePrevue           DATETIME    NOT NULL,
-    HeureSaisie           DATETIME,
-    ResultatGlobal        VARCHAR(2)  CHECK (ResultatGlobal IN ('C','NC')),
-    MatriculeOperateur    VARCHAR(20)
+CREATE TABLE dbo.Exec_Prelevement_Intermediaire (
+    Id                UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ExecControleOFId  UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
+    SectionId         UNIQUEIDENTIFIER NOT NULL,
+    TrancheHoraire    VARCHAR(20)  NOT NULL,
+    NumeroOccurrence  INT          NOT NULL,
+    HeureNotifPrevue  DATETIME     NOT NULL,
+    HeureReponse      DATETIME     NULL,
+    Resultat          VARCHAR(10)  NULL CHECK (Resultat IN ('C','NC','REGLAGE')),
+    EstEnRetard       BIT          NOT NULL DEFAULT 0,
+    EstRepondu        BIT          NOT NULL DEFAULT 0,
+    CreeLe            DATETIME     NOT NULL DEFAULT GETDATE(),
+    UNIQUE (ExecControleOFId, SectionId, TrancheHoraire, NumeroOccurrence)
 );
 GO
 
-CREATE TABLE dbo.Exec_Prelevement_Ligne (
-    Id            UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PrelevementId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_Prelevement(Id) ON DELETE CASCADE,
-    LignePlanId   UNIQUEIDENTIFIER NOT NULL,
-    Resultat      VARCHAR(2)   CHECK (Resultat IN ('C','NC')),
-    ValeurMesuree FLOAT,
-    Remarque      VARCHAR(500)
+
+-- ================================================================================
+-- PARTIE 16 : SYSTÈME D'ALERTES
+-- ================================================================================
+
+CREATE TABLE dbo.Alertes (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TypeAlerte VARCHAR(50) NOT NULL,
+    CleEntite VARCHAR(100) NOT NULL,
+    DonneesContexte NVARCHAR(MAX) NOT NULL,
+    Destinataires VARCHAR(500) NOT NULL,
+    DateAlerte DATETIME NOT NULL DEFAULT GETDATE(),
+    EstResolu BIT NOT NULL DEFAULT 0,
+    DateResolution DATETIME NULL
 );
 GO
 
 -- ================================================================================
--- PARTIE 16 : TRIGGERS ISO 9001
+-- PARTIE 17 : TRIGGERS ISO 9001
 --
 -- Rôle unique : interdire DELETE physique sur les tables de référence.
 -- Aucune logique métier ici. Tout le métier est dans le backend C#.

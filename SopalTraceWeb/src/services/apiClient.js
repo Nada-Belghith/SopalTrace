@@ -50,13 +50,15 @@ apiClient.interceptors.response.use(
           logger.warn(`Validation échouée (${apiError.status})`, apiError.details); 
           break;
         case 401:
-          apiError.message = "Session expirée, veuillez vous reconnecter.";
-          logger.warn("Non autorisé (401). Déconnexion requise.");
+          apiError.message = "Session expirée ou code invalide.";
+          logger.warn("Non autorisé (401).");
           
           // Déconnexion automatique si on reçoit un 401
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          if (window.location.pathname !== '/login') {
+          
+          // Ne pas rediriger si on est déjà sur login ou forgot-password
+          if (window.location.pathname !== '/login' && window.location.pathname !== '/forgot-password') {
             window.location.href = '/login';
           }
           break;

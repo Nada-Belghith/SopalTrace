@@ -207,22 +207,27 @@ const toggleMobileMenu = () => {
           </ul>
         </template>
 
-        <!-- SECTION : PRODUCTION (OPERATEUR) -->
+        <!-- SECTION : EXÉCUTION DES OF (OPERATEUR) -->
         <template v-if="authStore.userRole === 'OPERATEUR'">
           <div class="px-6 mb-2">
-            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Production</p>
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Exécution des OF</p>
           </div>
           <ul class="space-y-1 px-3 mb-6">
             <li>
-              <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                <i class="pi pi-table"></i> Plans par article
+              <router-link to="/operateur/of-semi-fini" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-bold">
+                <i class="pi pi-cog"></i> OF de Prod Semi-Fini
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/operateur/of-fini" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-bold">
+                <i class="pi pi-box"></i> OF de Prod Fini
               </router-link>
             </li>
           </ul>
         </template>
 
         <!-- SECTION 3 : ANALYSES -->
-        <template v-if="authStore.userRole !== 'MAGASINIER'">
+        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE' || authStore.userRole === 'ADMIN' || authStore.isResponsable">
           <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
             <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Analyses</p>
           </div>

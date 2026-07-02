@@ -5,9 +5,11 @@ using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
 
+using SopalTrace.Domain.Constants;
+
 namespace SopalTrace.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.SuperviseurQualite)]
 [ApiController]
 [Route("api/[controller]")]
 public class DocumentController : ControllerBase
@@ -48,6 +50,7 @@ public class DocumentController : ControllerBase
         return Ok(documents);
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateDocumentRequestDto request)
     {
@@ -55,6 +58,7 @@ public class DocumentController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = docId }, new { id = docId });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("{id:guid}/version")]
     public async Task<IActionResult> CreateNewVersion(Guid id, [FromBody] NouvelleVersionDocumentRequestDto request)
     {
@@ -65,6 +69,7 @@ public class DocumentController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = newDocId }, new { id = newDocId });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateDocument(Guid id, [FromBody] UpdateDocumentRequestDto request)
     {
@@ -75,6 +80,7 @@ public class DocumentController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("{id:guid}/restaurer")]
     public async Task<IActionResult> Restaurer(Guid id, [FromBody] RestaurerDocumentRequestDto request)
     {
@@ -85,6 +91,7 @@ public class DocumentController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = newId }, new { id = newId });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {

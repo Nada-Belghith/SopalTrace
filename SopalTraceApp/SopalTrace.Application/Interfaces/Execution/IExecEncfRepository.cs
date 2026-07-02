@@ -12,10 +12,9 @@ namespace SopalTrace.Application.Interfaces.Execution
         Task AddExecEncfAsync(ExecControleOf entity);
         Task SaveChangesAsync();
         
-        // Expose repository context methods for nested lists update
-        Task RemovePieceTypes(System.Collections.Generic.IEnumerable<ExecPieceType> items);
         Task RemoveTranches(System.Collections.Generic.IEnumerable<ExecControleTranche> items);
-        Task AddPieceType(ExecPieceType item);
         Task AddTranche(ExecControleTranche item);
+        Task RemovePieceTypes(System.Collections.Generic.IEnumerable<ExecPieceType> items);
+        Task AddPieceType(ExecPieceType item);
     }
 }

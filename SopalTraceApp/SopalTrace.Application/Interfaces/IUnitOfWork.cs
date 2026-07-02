@@ -16,6 +16,7 @@ namespace SopalTrace.Application.Interfaces;
     IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository { get; }
     IModeleFabricationEnteteRepository ModeleFabricationEnteteRepository { get; }
     IPlanFabricationEnteteRepository PlanFabricationEnteteRepository { get; }
+    IAlerteRepository AlerteRepository { get; }
 
     Task BeginTransactionAsync();
     Task<int> CommitAsync();

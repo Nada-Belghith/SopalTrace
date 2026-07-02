@@ -145,6 +145,13 @@ const form = reactive({
   confirmPassword: ''
 });
 
+const isValidPassword = (pwd) => {
+  if (pwd.length < 8) return false;
+  if (!/[A-Z]/.test(pwd)) return false;
+  if (!/[0-9]/.test(pwd)) return false;
+  return true;
+};
+
 const handleRegister = async () => {
   if (form.password !== form.confirmPassword) {
     toast.add({
@@ -152,6 +159,16 @@ const handleRegister = async () => {
       summary: 'Erreur',
       detail: 'Les mots de passe ne correspondent pas',
       life: 3000
+    });
+    return;
+  }
+
+  if (!isValidPassword(form.password)) {
+    toast.add({
+      severity: 'error',
+      summary: 'Mot de passe faible',
+      detail: 'Le mot de passe doit contenir au moins 8 caractères, dont 1 majuscule et 1 chiffre.',
+      life: 5000
     });
     return;
   }

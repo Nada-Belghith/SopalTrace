@@ -7,8 +7,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.Authorization;
+
 namespace SopalTrace.Api.Controllers;
 
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.Magasinier)]
 [Route("api/magasinier")]
 [ApiController]
 public class MagasinierController : ControllerBase

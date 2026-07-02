@@ -194,7 +194,8 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
         string? operationCode = null,
         string? posteCode = null,
         string? natureComposantCode = null,
-        string? familleProduitCode = null)
+        string? familleProduitCode = null,
+        Guid? formulaireId = null)
     {
         var baseNom = GetBaseNom(nom);
         var query = _context.DocumentEntetes
@@ -220,6 +221,11 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
         if (!string.IsNullOrEmpty(familleProduitCode))
         {
             query = query.Where(d => d.FamilleProduitFiniCode == familleProduitCode);
+        }
+
+        if (formulaireId.HasValue)
+        {
+            query = query.Where(d => d.FormulaireId == formulaireId.Value);
         }
 
         var docs = await query.ToListAsync();

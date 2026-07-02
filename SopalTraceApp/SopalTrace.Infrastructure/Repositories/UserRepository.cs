@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,14 @@ public class UserRepository : IUserRepository
 
     public async Task<bool> ExistsByEmailAsync(string email) =>
         await _context.UtilisateursApps.AnyAsync(u => u.Email == email);
+
+    public async Task<List<string>> GetEmailsByRoleAsync(string roleApp)
+    {
+        return await _context.UtilisateursApps
+            .Where(u => u.RoleApp == roleApp && u.EstActif == true)
+            .Select(u => u.Email)
+            .ToListAsync();
+    }
 
     public async Task CreateUserAsync(string matricule, string nomComplet, string email, string passwordHash, string roleApp, string intituleMetier)
     {
@@ -65,6 +74,12 @@ public class UserRepository : IUserRepository
     {
         return await _context.UtilisateursApps
             .FirstOrDefaultAsync(u => u.Email == email);
+    }
+
+    public async Task<UtilisateursApp?> GetUserByMatriculeAsync(string matricule)
+    {
+        return await _context.UtilisateursApps
+            .FirstOrDefaultAsync(u => u.Matricule == matricule);
     }
 
     public async Task<UtilisateursApp?> GetByIdAsync(Guid id) =>

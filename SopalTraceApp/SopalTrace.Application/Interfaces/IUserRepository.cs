@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using SopalTrace.Domain.Entities; 
 
@@ -14,11 +15,13 @@ public interface IUserRepository
     Task<UtilisateursApp?> GetByIdAsync(Guid id);
     Task<UtilisateursApp?> GetUserByRefreshTokenAsync(string refreshToken);
     Task UpdateUserAsync(UtilisateursApp user);
+    Task<List<string>> GetEmailsByRoleAsync(string roleApp);
 
     // Refresh token helpers
     Task AddRefreshTokenAsync(string userId, string token, string jwtId, DateTime expiration);
     Task<bool> ValidateRefreshTokenAsync(string token, string userId);
     Task RevokeRefreshTokenAsync(string token);
     Task<UtilisateursApp?> GetUserByEmailAsync(string email);
+    Task<UtilisateursApp?> GetUserByMatriculeAsync(string matricule);
     Task RevokeAllTokensForUserAsync(Guid userId);
 }

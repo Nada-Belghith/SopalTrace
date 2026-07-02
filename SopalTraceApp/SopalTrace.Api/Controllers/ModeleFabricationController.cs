@@ -6,11 +6,13 @@ using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
 
+using SopalTrace.Domain.Constants;
+
 namespace SopalTrace.Api.Controllers;
 
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI)]
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
 public class ModeleFabricationController : ControllerBase
 {
     private readonly IModeleFabricationService _modeleService;

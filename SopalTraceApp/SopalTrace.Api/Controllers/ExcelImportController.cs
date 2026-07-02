@@ -6,9 +6,11 @@ using SopalTrace.Infrastructure.Services.ExcelImport;
 using System.IO;
 using System.Threading.Tasks;
 
+using SopalTrace.Domain.Constants;
+
 namespace SopalTrace.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
 [ApiController]
 [Route("api/[controller]")]
 public class ExcelImportController : ControllerBase

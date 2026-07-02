@@ -1,4 +1,5 @@
 using SopalTrace.Application.DTOs.Execution;
+using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Interfaces.Execution;
 using SopalTrace.Application.Mappers.Execution;
 using SopalTrace.Domain.Entities;
@@ -11,10 +12,12 @@ namespace SopalTrace.Application.Services
     public class ExecEncfService : IExecEncfService
     {
         private readonly IExecEncfRepository _repository;
+        private readonly IOccurrenceService _occurrenceService;
 
-        public ExecEncfService(IExecEncfRepository repository)
+        public ExecEncfService(IExecEncfRepository repository, IOccurrenceService occurrenceService)
         {
             _repository = repository;
+            _occurrenceService = occurrenceService;
         }
 
         public async Task<ExecEncfDto?> GetExecEncfAsync(Guid id)
@@ -78,6 +81,7 @@ namespace SopalTrace.Application.Services
 
             // Update PieceTypes
             await _repository.RemovePieceTypes(existing.ExecPieceTypes);
+            bool hasConformePieceType = false;
             foreach (var ptDto in dto.PiecesTypes)
             {
                 ptDto.ExecControleOFId = existing.Id;
@@ -85,7 +89,17 @@ namespace SopalTrace.Application.Services
                 if (pt != null)
                 {
                     await _repository.AddPieceType(pt);
+                    if (pt.Resultat == "C")
+                    {
+                        hasConformePieceType = true;
+                    }
                 }
+            }
+
+            if (hasConformePieceType && existing.EstEnReglage)
+            {
+                existing.EstEnReglage = false;
+                await _occurrenceService.ShiftOccurrencesApresPauseAsync(existing.Id);
             }
 
             // Update Tranches

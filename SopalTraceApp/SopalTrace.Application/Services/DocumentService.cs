@@ -39,10 +39,38 @@ public class DocumentService : IDocumentService
         var existingDocs = await _unitOfWork.DocumentEnteteRepository.GetByFiltersAsync(
             request.TypeDocumentCode, request.NatureArticleCode, request.OperationCode, request.PosteCode, request.FamilleProduitFiniCode);
             
+        string? formCodeRef = request.RefFormulaireCodeReference;
+
+        // Auto-generate RefFormulaireCodeReference for specific plans if not provided
+        if (string.IsNullOrWhiteSpace(formCodeRef))
+        {
+            if (request.TypeDocumentCode == "CTRL_POSTE" && !string.IsNullOrWhiteSpace(request.PosteCode))
+                formCodeRef = $"FE-RC-{request.PosteCode.Trim()}";
+            else if (request.TypeDocumentCode == "PLAN_PF" && !string.IsNullOrWhiteSpace(request.FamilleProduitFiniCode))
+                formCodeRef = $"FE-PF-{request.FamilleProduitFiniCode.Trim()}";
+            else if (request.TypeDocumentCode == "PLAN_ASS" && !string.IsNullOrWhiteSpace(request.NatureArticleCode))
+                formCodeRef = $"FE-ASS-{request.NatureArticleCode.Trim()}";
+        }
+
+        Guid? knownFormulaireId = null;
+        if (!string.IsNullOrWhiteSpace(formCodeRef))
+        {
+            var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(formCodeRef);
+            knownFormulaireId = form?.Id;
+        }
+
         string baseNom = RemoveVersionSuffix(request.Nom).TrimEnd('-').Trim();
-        var existingDoc = existingDocs.Where(d => RemoveVersionSuffix(d.Nom).TrimEnd('-').Trim() == baseNom)
-                                      .OrderByDescending(d => d.Version)
-                                      .FirstOrDefault();
+        var query = existingDocs.Where(d => RemoveVersionSuffix(d.Nom).TrimEnd('-').Trim() == baseNom);
+
+        if (!string.IsNullOrWhiteSpace(formCodeRef))
+        {
+            if (!knownFormulaireId.HasValue)
+                query = query.Where(d => false); // The form family doesn't exist yet
+            else
+                query = query.Where(d => d.FormulaireId == knownFormulaireId.Value);
+        }
+
+        var existingDoc = query.OrderByDescending(d => d.Version).FirstOrDefault();
 
         bool forceArchive = request.VersionInitiale.HasValue && request.VersionInitiale.Value != (existingDoc?.Version ?? -1);
         int finalVersion = request.VersionInitiale ?? 0;
@@ -76,24 +104,7 @@ public class DocumentService : IDocumentService
             }
         }
 
-        string? formCodeRef = request.RefFormulaireCodeReference;
 
-        // Auto-generate RefFormulaireCodeReference for specific plans if not provided
-        if (string.IsNullOrWhiteSpace(formCodeRef))
-        {
-            if (request.TypeDocumentCode == "CTRL_POSTE" && !string.IsNullOrWhiteSpace(request.PosteCode))
-            {
-                formCodeRef = $"FE-RC-{request.PosteCode.Trim()}";
-            }
-            else if (request.TypeDocumentCode == "PLAN_PF" && !string.IsNullOrWhiteSpace(request.FamilleProduitFiniCode))
-            {
-                formCodeRef = $"FE-PF-{request.FamilleProduitFiniCode.Trim()}";
-            }
-            else if (request.TypeDocumentCode == "PLAN_ASS" && !string.IsNullOrWhiteSpace(request.NatureArticleCode))
-            {
-                formCodeRef = $"FE-ASS-{request.NatureArticleCode.Trim()}";
-            }
-        }
 
         Guid? formulaireId = null;
 
@@ -266,9 +277,13 @@ public class DocumentService : IDocumentService
         var ancienDoc = await _unitOfWork.DocumentEnteteRepository.GetByIdAsync(request.AncienId, includeRelations: true);
         if (ancienDoc == null) throw new Exception("Ancien document introuvable.");
 
-        // Archiver tous les documents actifs avec le même nom
+        // Archiver l'ancien document s'il est actif, ou le document actif de la même famille (même nom de base ET même FormulaireId)
         var allDocs = await _unitOfWork.DocumentEnteteRepository.GetByFiltersAsync(request.TypeDocumentCode, request.NatureArticleCode, request.OperationCode, request.PosteCode, request.FamilleProduitFiniCode, "ACTIF");
-        var activeDocs = allDocs.Where(d => d.Nom == request.Nom).ToList();
+        var baseNomRequest = System.Text.RegularExpressions.Regex.Replace(request.Nom ?? "", @"([ -]*)V\d+$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).TrimEnd('-').Trim();
+        var activeDocs = allDocs.Where(d => 
+            System.Text.RegularExpressions.Regex.Replace(d.Nom ?? "", @"([ -]*)V\d+$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).TrimEnd('-').Trim() == baseNomRequest
+            && d.FormulaireId == ancienDoc.FormulaireId
+        ).ToList();
         
         foreach (var act in activeDocs)
         {
@@ -276,13 +291,7 @@ public class DocumentService : IDocumentService
             await _unitOfWork.DocumentEnteteRepository.UpdateAsync(act);
         }
 
-        var newVersion = await _unitOfWork.DocumentEnteteRepository.GetLatestVersionAsync(
-            request.TypeDocumentCode, 
-            request.Nom, 
-            request.OperationCode,
-            request.PosteCode,
-            request.NatureArticleCode,
-            request.FamilleProduitFiniCode) + 1;
+        var newVersion = ancienDoc.Version + 1;
 
         string? formCodeRef = request.RefFormulaireCodeReference;
         if (string.IsNullOrWhiteSpace(formCodeRef) && ancienDoc.FormulaireId.HasValue)
@@ -324,7 +333,7 @@ public class DocumentService : IDocumentService
                 role,
                 colsJson, 
                 formCodeRef,
-                null // Laissez RefFormulaire calculer sa propre version
+                newVersion // Forcer la création d'une nouvelle version du Formulaire pour s'aligner avec le Document
             );
 
             if (result.HasValue)

@@ -4,6 +4,7 @@ using SopalTrace.Application.Interfaces;
 using SopalTrace.Domain.Exceptions;
 using SopalTrace.Domain.Constants;
 using System.Security.Cryptography;
+using System.Linq;
 
 namespace SopalTrace.Application.Services;
 
@@ -31,6 +32,9 @@ public class AuthService : IAuthService
     public async Task<(AuthResponseDto Response, string RefreshToken)> RegisterAsync(RegisterRequestDto request)
     {
         _logger.LogInformation("Tentative d'inscription pour le matricule {Matricule}", request.Matricule);
+
+        if (!EstMotDePasseRobuste(request.MotDePasse))
+            throw new WeakPasswordException();
 
         await EnsureUserDoesNotExistAsync(request.Matricule, request.Email);
         var employeErp = await GetAndValidateErpUserAsync(request.Matricule);
@@ -96,10 +100,15 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetUserByEmailAsync(request.Email);
         if (user == null) return;
 
+        // Limiter à 1 demande par email toutes les 60 secondes
+        if (user.DateExpirationCode > DateTime.UtcNow.AddMinutes(14))
+            return; // une demande récente existe déjà, ignorer silencieusement
+
         string code = new Random().Next(100000, 999999).ToString();
 
-        user.CodeRecuperation = code;
+        user.CodeRecuperationHash = _securityService.HashPassword(code);
         user.DateExpirationCode = DateTime.UtcNow.AddMinutes(15);
+        user.NombreTentativesCode = 0;
         await _userRepository.UpdateUserAsync(user);
 
         await _emailService.SendResetCodeEmailAsync(request.Email, code);
@@ -112,18 +121,31 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetUserByEmailAsync(request.Email);
 
         if (user == null ||
-            user.CodeRecuperation != request.Code ||
+            string.IsNullOrEmpty(user.CodeRecuperationHash) ||
             user.DateExpirationCode < DateTime.UtcNow)
         {
             throw new InvalidTokenException();
         }
 
-        if (request.NouveauMotDePasse.Length < 6)
+        if (user.NombreTentativesCode >= 5)
+        {
+            throw new TooManyAttemptsException();
+        }
+
+        if (!_securityService.VerifyPassword(request.Code, user.CodeRecuperationHash))
+        {
+            user.NombreTentativesCode++;
+            await _userRepository.UpdateUserAsync(user);
+            throw new InvalidTokenException();
+        }
+
+        if (!EstMotDePasseRobuste(request.NouveauMotDePasse))
             throw new WeakPasswordException();
 
         user.MotDePasseHash = _securityService.HashPassword(request.NouveauMotDePasse);
-        user.CodeRecuperation = null;
+        user.CodeRecuperationHash = null;
         user.DateExpirationCode = null;
+        user.NombreTentativesCode = 0;
 
         await _userRepository.UpdateUserAsync(user);
         await RevokeUserTokensAsync(user.Id, user.Matricule);
@@ -164,5 +186,13 @@ public class AuthService : IAuthService
         }
 
         _logger.LogInformation("Tous les tokens (Logout) ont été révoqués pour l'utilisateur {UserId}", userId);
+    }
+
+    private bool EstMotDePasseRobuste(string mdp)
+    {
+        if (mdp.Length < 8) return false;
+        if (!mdp.Any(char.IsUpper)) return false;
+        if (!mdp.Any(char.IsDigit)) return false;
+        return true;
     }
 }

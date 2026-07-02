@@ -51,6 +51,10 @@ public class UnitOfWork : IUnitOfWork
     public IPlanFabricationEnteteRepository PlanFabricationEnteteRepository
         => _planFabricationEnteteRepository ??= new PlanFabricationEnteteRepository(_context);
 
+    private IAlerteRepository? _alerteRepository;
+    public IAlerteRepository AlerteRepository
+        => _alerteRepository ??= new AlerteRepository(_context);
+
     public async Task BeginTransactionAsync()
     {
         _transaction = await _context.Database.BeginTransactionAsync();

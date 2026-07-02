@@ -15,17 +15,20 @@ public class PlanFabricationService : IPlanFabricationService
     private readonly ICurrentUserService _currentUserService;
     private readonly IFormulaireStructureService _formulaireStructureService;
     private readonly IFrequencyParserService _frequencyParserService;
+    private readonly IEmailService _emailService;
 
     public PlanFabricationService(
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IFormulaireStructureService formulaireStructureService,
-        IFrequencyParserService frequencyParserService)
+        IFrequencyParserService frequencyParserService,
+        IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _formulaireStructureService = formulaireStructureService;
         _frequencyParserService = frequencyParserService;
+        _emailService = emailService;
     }
 
     public async Task<PlanFabricationEnteteDto?> GetPlanByIdAsync(Guid id)
@@ -117,6 +120,19 @@ public class PlanFabricationService : IPlanFabricationService
     public async Task<Guid> CreerPlanAsync(CreatePlanFabricationRequestDto request)
     {
         var user = _currentUserService.UserInfo ?? "";
+        string? currentUserEmail = null;
+        var currentUserMatricule = _currentUserService.Matricule;
+
+        if (!string.IsNullOrEmpty(currentUserMatricule))
+        {
+            var dbUser = await _unitOfWork.UserRepository.GetUserByMatriculeAsync(currentUserMatricule);
+            if (dbUser != null)
+            {
+                user = $"{dbUser.Matricule} - {dbUser.NomComplet}";
+                currentUserEmail = dbUser.Email;
+            }
+        }
+
         var existingDocs = await _unitOfWork.PlanFabricationEnteteRepository.GetByFiltersAsync(request.OperationCode);
         
         var codeArticleSageVersionne = request.Nom;
@@ -260,6 +276,55 @@ public class PlanFabricationService : IPlanFabricationService
 
         await _unitOfWork.PlanFabricationEnteteRepository.AddAsync(plan);
         await _unitOfWork.CommitAsync();
+
+        try
+        {
+            // Résolution automatique des alertes PLAN_MANQUANT pour cet article
+            var alertes = await _unitOfWork.AlerteRepository.GetNonResoluesParArticleAsync(codeArticleSageVersionne ?? "");
+            if (alertes.Any())
+            {
+                foreach (var alerte in alertes)
+                {
+                    alerte.EstResolu = true;
+                    alerte.DateResolution = DateTime.UtcNow;
+                    await _unitOfWork.AlerteRepository.UpdateAsync(alerte);
+
+                    // Envoyer un email aux destinataires initiaux (Responsables DI)
+                    var emails = alerte.Destinataires.Split(',')
+                                        .Where(d => !string.IsNullOrWhiteSpace(d))
+                                        .Select(d => d.Trim())
+                                        .Where(d => string.IsNullOrEmpty(currentUserEmail) || !d.Equals(currentUserEmail, StringComparison.OrdinalIgnoreCase))
+                                        .Distinct()
+                                        .ToList();
+
+                    var sujet = $"[Résolu] Le plan manquant a été créé pour {codeArticleSageVersionne}";
+                    var corps = $"<p>Bonjour,</p><p>Le plan de fabrication pour l'article <b>{codeArticleSageVersionne}</b> a été créé par <b>{user}</b>.</p><p>L'alerte associée a été automatiquement marquée comme résolue.</p>";
+
+                    foreach (var email in emails)
+                    {
+                        try { await _emailService.EnvoyerAsync(email, sujet, corps, isHtml: true); } catch { }
+                    }
+
+                    // Extraire l'email de l'opérateur pour lui envoyer une notification
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(alerte.DonneesContexte))
+                        {
+                            var contexte = System.Text.Json.JsonSerializer.Deserialize<SopalTrace.Application.Alertes.PlanManquantContexte>(alerte.DonneesContexte);
+                            if (contexte != null && !string.IsNullOrWhiteSpace(contexte.EmailOperateur))
+                            {
+                                var sujetOp = $"Le plan {codeArticleSageVersionne} est maintenant disponible";
+                                var corpsOp = $"<p>Bonjour {contexte.NomOperateur},</p><p>Le plan que vous avez signalé manquant pour l'article <b>{codeArticleSageVersionne}</b> a été créé.</p><p>Vous pouvez dès à présent retourner sur la plateforme et démarrer votre Ordre de Fabrication.</p>";
+                                await _emailService.EnvoyerAsync(contexte.EmailOperateur, sujetOp, corpsOp, isHtml: true);
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                await _unitOfWork.CommitAsync();
+            }
+        }
+        catch { /* Ne pas bloquer la création du plan si la résolution échoue */ }
 
         return plan.Id;
     }

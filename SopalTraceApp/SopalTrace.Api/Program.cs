@@ -105,12 +105,20 @@ builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
 
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecEncfRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfService, SopalTrace.Application.Services.ExecEncfService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOperateurRepository, SopalTrace.Infrastructure.Repositories.Execution.OperateurRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOccurrenceRepository, SopalTrace.Infrastructure.Repositories.Execution.OccurrenceRepository>();
+builder.Services.AddScoped<IOperateurService, SopalTrace.Application.Services.OperateurService>();
+builder.Services.AddScoped<IOccurrenceService, SopalTrace.Application.Services.OccurrenceService>();
 builder.Services.AddScoped<IErpService, SqlErpService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Alertes
+builder.Services.AddScoped<SopalTrace.Application.Alertes.IAlerteDefinition<SopalTrace.Application.Alertes.PlanManquantContexte>, SopalTrace.Application.Alertes.AlertePlanManquantDefinition>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.PlanManquantContexte>>();
 builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 builder.Services.AddScoped<IFrequencyParserService, FrequencyParserService>();
 builder.Services.AddScoped<IRefFormulaireRepository, RefFormulaireRepository>();

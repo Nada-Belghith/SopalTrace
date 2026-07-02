@@ -55,83 +55,88 @@
         </div>
       </section>
 
+      <!-- ─── APPROBATION PIÈCES TYPES ─── -->
+      <section class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
+        <div class="bg-slate-800 px-4 py-3 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="bg-emerald-500/20 text-emerald-300 text-[10px] font-black px-2 py-1 rounded border border-emerald-500/30 uppercase tracking-widest">
+              APPROB.
+            </span>
+            <h3 class="text-sm font-bold text-slate-100 uppercase tracking-wide">Approbation des pièces types</h3>
+          </div>
+          <button @click="addPieceType"
+                  class="text-emerald-400 hover:text-emerald-300 text-[11px] font-black uppercase tracking-widest flex items-center gap-1 transition-colors">
+            <i class="pi pi-plus text-xs"></i> Ajouter ligne
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[1200px]">
+            <thead class="bg-[#0f1923] text-white border-b border-slate-700 sticky top-0 z-10">
+              <tr class="text-[11px] font-black uppercase tracking-wider">
+                <th class="p-3 w-[20%] border-r border-slate-200">Heure</th>
+                <th class="p-3 w-[20%] text-center border-r border-slate-200">Résultat</th>
+                <th class="p-3 w-[30%] border-r border-slate-200">Signature (Matricule)</th>
+                <th class="p-3">Remarque</th>
+                <th class="p-3 w-10 text-center"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="(pt, idx) in piecesTypesDisplay" :key="idx"
+                  class="hover:bg-slate-50/60 transition-colors group">
+                <td class="p-2 border-r border-slate-100">
+                  <input type="text" v-model="pt.heureValidation"
+                         placeholder="ex: 10:00"
+                         class="w-full bg-transparent border border-transparent focus:border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:bg-white transition-all" />
+                </td>
+                <td class="p-2 border-r border-slate-100 text-center">
+                  <div class="flex items-center justify-center gap-2">
+                    <button @click="pt.resultat = pt.resultat === 'C' ? null : 'C'"
+                            :class="pt.resultat === 'C'
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-300 font-black'
+                              : 'bg-white text-slate-400 border-slate-200 hover:border-emerald-300 hover:text-emerald-600'"
+                            class="w-10 h-8 rounded border text-xs font-bold transition-all">C</button>
+                    <button @click="pt.resultat = pt.resultat === 'NC' ? null : 'NC'"
+                            :class="pt.resultat === 'NC'
+                              ? 'bg-red-100 text-red-700 border-red-300 font-black'
+                              : 'bg-white text-slate-400 border-slate-200 hover:border-red-300 hover:text-red-500'"
+                            class="w-10 h-8 rounded border text-xs font-bold transition-all">NC</button>
+                  </div>
+                </td>
+                <td class="p-2 border-r border-slate-100">
+                  <input type="text" v-model="pt.matriculeOperateur"
+                         placeholder="Matricule..."
+                         class="w-full bg-transparent border border-transparent focus:border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:bg-white transition-all" />
+                </td>
+                <td class="p-2">
+                  <input type="text" v-model="pt.remarque"
+                         placeholder="Observation..."
+                         class="w-full bg-transparent border border-transparent focus:border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:bg-white transition-all" />
+                </td>
+                <td class="p-2 text-center">
+                  <button v-if="pt._isReal" @click="removePieceType(idx)"
+                          class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all p-1 rounded hover:bg-red-50">
+                    <i class="pi pi-trash text-xs"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+          <p class="text-[10px] text-slate-400 italic">
+            NB: L'approbation de la pièce type se fait : au démarrage série, après intervention maintenance et après arrêt pour réglage.
+          </p>
+          <p v-if="store.execData.estEnReglage" class="text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+            ⚠️ OF en pause. Validez une pièce avec "C" pour reprendre.
+          </p>
+        </div>
+      </section>
+
       <template v-if="store.planSourceData && store.planSourceData.sections">
         <template v-for="(sec, index) in store.planSourceData.sections" :key="index">
           
-          <!-- ─── APPROBATION PIÈCES TYPES ─── -->
-          <section v-if="sec.sectionType === 'APPROBATION'" class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
-            <div class="bg-slate-800 px-4 py-3 flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <span class="bg-emerald-500/20 text-emerald-300 text-[10px] font-black px-2 py-1 rounded border border-emerald-500/30 uppercase tracking-widest">
-                  SEC {{ index + 1 }}
-                </span>
-                <h3 class="text-sm font-bold text-slate-100 uppercase tracking-wide">{{ sec.libelleAffiche || 'Approbation des pièces types' }}</h3>
-              </div>
-              <button @click="addPieceType"
-                      class="text-emerald-400 hover:text-emerald-300 text-[11px] font-black uppercase tracking-widest flex items-center gap-1 transition-colors">
-                <i class="pi pi-plus text-xs"></i> Ajouter ligne
-              </button>
-            </div>
 
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse min-w-[1200px]">
-                <thead class="bg-[#0f1923] text-white border-b border-slate-700 sticky top-0 z-10">
-                  <tr class="text-[11px] font-black uppercase tracking-wider">
-                    <th class="p-3 w-[20%] border-r border-slate-200">Heure</th>
-                    <th class="p-3 w-[20%] text-center border-r border-slate-200">Résultat</th>
-                    <th class="p-3 w-[30%] border-r border-slate-200">Signature (Matricule)</th>
-                    <th class="p-3">Remarque</th>
-                    <th class="p-3 w-10 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="(pt, idx) in piecesTypesDisplay" :key="idx"
-                      class="hover:bg-slate-50/60 transition-colors group">
-                    <td class="p-2 border-r border-slate-100">
-                      <input type="text" v-model="pt.heureValidation"
-                             placeholder="ex: 10:00"
-                             class="w-full bg-transparent border border-transparent focus:border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:bg-white transition-all" />
-                    </td>
-                    <td class="p-2 border-r border-slate-100 text-center">
-                      <div class="flex items-center justify-center gap-2">
-                        <button @click="pt.resultat = pt.resultat === 'C' ? null : 'C'"
-                                :class="pt.resultat === 'C'
-                                  ? 'bg-emerald-100 text-emerald-700 border-emerald-300 font-black'
-                                  : 'bg-white text-slate-400 border-slate-200 hover:border-emerald-300 hover:text-emerald-600'"
-                                class="w-10 h-8 rounded border text-xs font-bold transition-all">C</button>
-                        <button @click="pt.resultat = pt.resultat === 'NC' ? null : 'NC'"
-                                :class="pt.resultat === 'NC'
-                                  ? 'bg-red-100 text-red-700 border-red-300 font-black'
-                                  : 'bg-white text-slate-400 border-slate-200 hover:border-red-300 hover:text-red-500'"
-                                class="w-10 h-8 rounded border text-xs font-bold transition-all">NC</button>
-                      </div>
-                    </td>
-                    <td class="p-2 border-r border-slate-100">
-                      <input type="text" v-model="pt.matriculeOperateur"
-                             placeholder="Matricule..."
-                             class="w-full bg-transparent border border-transparent focus:border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:bg-white transition-all" />
-                    </td>
-                    <td class="p-2">
-                      <input type="text" v-model="pt.remarque"
-                             placeholder="Observation..."
-                             class="w-full bg-transparent border border-transparent focus:border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:bg-white transition-all" />
-                    </td>
-                    <td class="p-2 text-center">
-                      <button v-if="pt._isReal" @click="removePieceType(idx)"
-                              class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all p-1 rounded hover:bg-red-50">
-                        <i class="pi pi-trash text-xs"></i>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="px-4 py-2 bg-slate-50 border-t border-slate-100">
-              <p class="text-[10px] text-slate-400 italic">
-                NB: L'approbation de la pièce type se fait : au démarrage série, après intervention maintenance et après arrêt pour réglage.
-              </p>
-            </div>
-          </section>
 
           <!-- ─── REGLAGE (Caractéristiques à contrôler aux réglages) ─── -->
           <section v-if="sec.sectionType === 'REGLAGE' || sec.sectionType === 'CUSTOM' || sec.sectionType === 'LOT_POSTE'" class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">

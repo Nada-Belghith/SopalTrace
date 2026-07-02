@@ -19,9 +19,11 @@ public partial class UtilisateursApp
 
     public string? IntituleMetier { get; set; }
 
-    public string? CodeRecuperation { get; set; }
+    public string? CodeRecuperationHash { get; set; }
 
     public DateTime? DateExpirationCode { get; set; }
+
+    public int NombreTentativesCode { get; set; }
 
     public DateTime? DateCreation { get; set; }
 

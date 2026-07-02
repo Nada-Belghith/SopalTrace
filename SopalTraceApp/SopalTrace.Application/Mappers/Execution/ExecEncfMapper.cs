@@ -29,16 +29,6 @@ namespace SopalTrace.Application.Mappers.Execution
                 DesignationArticle = entity.NumeroOfNavigation?.CodeArticleNavigation?.Designation,
                 Atelier = entity.PosteCodeNavigation?.Libelle,
 
-                PiecesTypes = entity.ExecPieceTypes?.Select(p => new ExecPieceTypeDto
-                {
-                    Id = p.Id,
-                    ExecControleOFId = p.ExecControleOfid,
-                    HeureValidation = p.HeureValidation,
-                    Resultat = p.Resultat,
-                    Remarque = p.Remarque,
-                    MatriculeOperateur = p.MatriculeOperateur
-                }).ToList() ?? new System.Collections.Generic.List<ExecPieceTypeDto>(),
-
                 Tranches = entity.ExecControleTranches?.Select(t => new ExecControleTrancheDto
                 {
                     Id = t.Id,
@@ -50,7 +40,17 @@ namespace SopalTrace.Application.Mappers.Execution
                     DetailsNC = t.DetailsNc,
                     ActionsCorrection = t.ActionsCorrection,
                     MatriculeApprobateur = t.MatriculeApprobateur
-                }).OrderBy(t => t.HeureDebut).ToList() ?? new System.Collections.Generic.List<ExecControleTrancheDto>()
+                }).OrderBy(t => t.HeureDebut).ToList() ?? new System.Collections.Generic.List<ExecControleTrancheDto>(),
+                
+                PiecesTypes = entity.ExecPieceTypes?.Select(p => new ExecPieceTypeDto
+                {
+                    Id = p.Id,
+                    ExecControleOFId = p.ExecControleOfid,
+                    HeureValidation = p.HeureValidation,
+                    Resultat = p.Resultat,
+                    Remarque = p.Remarque,
+                    MatriculeOperateur = p.MatriculeOperateur
+                }).OrderBy(p => p.HeureValidation).ToList() ?? new System.Collections.Generic.List<ExecPieceTypeDto>()
             };
         }
 
@@ -74,21 +74,6 @@ namespace SopalTrace.Application.Mappers.Execution
             };
         }
 
-        public static ExecPieceType? ToEntity(ExecPieceTypeDto? dto)
-        {
-            if (dto == null) return null;
-
-            return new ExecPieceType
-            {
-                Id = dto.Id ?? System.Guid.NewGuid(),
-                ExecControleOfid = dto.ExecControleOFId,
-                HeureValidation = dto.HeureValidation,
-                Resultat = dto.Resultat ?? string.Empty,
-                Remarque = dto.Remarque,
-                MatriculeOperateur = dto.MatriculeOperateur ?? string.Empty
-            };
-        }
-
         public static ExecControleTranche? ToEntity(ExecControleTrancheDto? dto)
         {
             if (dto == null) return null;
@@ -104,6 +89,21 @@ namespace SopalTrace.Application.Mappers.Execution
                 DetailsNc = dto.DetailsNC,
                 ActionsCorrection = dto.ActionsCorrection,
                 MatriculeApprobateur = dto.MatriculeApprobateur
+            };
+        }
+
+        public static ExecPieceType? ToEntity(ExecPieceTypeDto? dto)
+        {
+            if (dto == null) return null;
+
+            return new ExecPieceType
+            {
+                Id = dto.Id ?? System.Guid.NewGuid(),
+                ExecControleOfid = dto.ExecControleOFId,
+                HeureValidation = dto.HeureValidation,
+                Resultat = dto.Resultat,
+                Remarque = dto.Remarque,
+                MatriculeOperateur = dto.MatriculeOperateur
             };
         }
     }

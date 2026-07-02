@@ -369,8 +369,9 @@ INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, Quantit
 
 INSERT INTO dbo.AUTILIS (USR_0, INTUSR_0, ENAFLG_0, CODMET_0, ADDEML_0) VALUES 
 ('11111', 'Nada Belghith', 2, 'RESPONSABLE_DI', 'nada.belghith@enis.tn'),
+('77777', 'Nada Belghith2', 2, 'RESPONSABLE_DI', 'nada.belghith@enis.u-sfax.tn'),
 ('22222', 'Res Qualite Test', 2, 'RESPONSABLE_QUALITE', 'resqualite@sopal.com'),
-('55555', 'Operateur Test', 2, 'OPERATEUR', 'operateur@sopal.com'),
+('55555', 'Operateur Test', 2, 'OPERATEUR', 'belghithnada@gmail.com'),
 ('33333', 'Magasinier Test', 2, 'MAGASINIER', 'magasinier@sopal.com'),
 ('44444', 'Superviseur Test', 2, 'SUPERVISEUR_QUALITE', 'superviseur@sopal.com'),
 ('66666', 'Admin Doc', 2, 'ADMIN', 'admin@sopal.com');
@@ -506,6 +507,35 @@ VALUES
 INSERT INTO dbo.Mag_QuickControl_Rapport (Id, NumeroOF, CodeArticle, NumeroRapportQC, DateScan)
 VALUES 
     (NEWID(), 'OF24120004', 'M1180RP', '61946', '2024-12-09');
+
+-- =================================================================================
+-- TEST SCENARIO : OF n-25B0A01 COMPLET (Magasin -> Opérateur)
+-- =================================================================================
+-- 1. Ordre de fabrication (Sage ERP)
+INSERT INTO dbo.MFGHEAD_OrdreFabrication 
+    (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF, DateDebut, DateFin)
+VALUES 
+    ('OF2606N25B0', 'n-25B0A01', 2000, 2000, 0, 'EN_COURS', '2026-06-29', '2026-06-30');
+
+-- 2. Besoins OF (Matière Première)
+INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, QuantiteSortie) 
+VALUES ('OF2606N25B0', 'M1180RP', 2000, 0);
+
+-- 3. Préparation Magasinier
+DECLARE @PrepIdN25B0 UNIQUEIDENTIFIER = NEWID();
+INSERT INTO dbo.Mag_PreparationOF (Id, NumeroOF, MatriculeMagasinier, Statut, DateDebut, DateFin)
+VALUES 
+    (@PrepIdN25B0, 'OF2606N25B0', '33333', 'EN_COURS', '2026-06-29', '2026-06-29');
+
+-- 4. Lot scanné par le magasinier
+INSERT INTO dbo.Mag_PreparationOF_Lot (Id, PreparationOFId, CodeArticle, NumeroLotScanne, Quantite, DateScan)
+VALUES 
+    (NEWID(), @PrepIdN25B0, 'M1180RP', 'LOT-N25B0-TEST', 2000, '2026-06-29');
+
+-- 5. Rapport de Quick Control Magasin
+INSERT INTO dbo.Mag_QuickControl_Rapport (Id, NumeroOF, CodeArticle, NumeroRapportQC, DateScan)
+VALUES 
+    (NEWID(), 'OF2606N25B0', 'M1180RP', 'QC-99999', '2026-06-29');
 
 -- =================================================================================
 -- 23. SEED DATA - FORMULAIRES DE REFERENCE

@@ -27,6 +27,8 @@ public partial class ExecControleOf
 
     public string Statut { get; set; } = null!;
 
+    public bool EstEnReglage { get; set; }
+
     public DateTime DateDebut { get; set; }
 
     public DateTime? DateFin { get; set; }
@@ -34,6 +36,8 @@ public partial class ExecControleOf
     public virtual ICollection<ExecControleTranche> ExecControleTranches { get; set; } = new List<ExecControleTranche>();
 
     public virtual ICollection<ExecPieceType> ExecPieceTypes { get; set; } = new List<ExecPieceType>();
+
+    public virtual ICollection<ExecPrelevementIntermediaire> ExecPrelevementIntermediaires { get; set; } = new List<ExecPrelevementIntermediaire>();
 
     public virtual Machine? MachineCodeNavigation { get; set; }
 

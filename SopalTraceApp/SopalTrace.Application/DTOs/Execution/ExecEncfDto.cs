@@ -22,8 +22,9 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? DesignationArticle { get; set; }
         public string? Atelier { get; set; }
 
-        public List<ExecPieceTypeDto> PiecesTypes { get; set; } = new List<ExecPieceTypeDto>();
+
         public List<ExecControleTrancheDto> Tranches { get; set; } = new List<ExecControleTrancheDto>();
+        public List<ExecPieceTypeDto> PiecesTypes { get; set; } = new List<ExecPieceTypeDto>();
     }
 
     public class ExecPieceTypeDto
@@ -35,6 +36,7 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? Remarque { get; set; }
         public string? MatriculeOperateur { get; set; }
     }
+
 
     public class ExecControleTrancheDto
     {

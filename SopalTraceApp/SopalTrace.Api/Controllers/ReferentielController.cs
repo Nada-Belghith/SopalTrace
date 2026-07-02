@@ -3,8 +3,12 @@ using SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces;
 using System.Threading.Tasks;
 
+using SopalTrace.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+
 namespace SopalTrace.Api.Controllers;
 
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
 [Route("api/referentiels")]
 [ApiController]
 public class ReferentielController : ControllerBase

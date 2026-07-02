@@ -5,8 +5,11 @@ using SopalTrace.Application.Interfaces.Execution;
 using System;
 using System.Threading.Tasks;
 
+using SopalTrace.Domain.Constants;
+
 namespace SopalTrace.Api.Controllers.Execution
 {
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.Operateur + "," + RolesApp.SuperviseurQualite)]
     [ApiController]
     [Route("api/exec/encf")]
     public class ExecEncfController : ControllerBase

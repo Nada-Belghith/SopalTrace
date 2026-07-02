@@ -59,11 +59,7 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             await _context.SaveChangesAsync();
         }
 
-        public Task RemovePieceTypes(IEnumerable<ExecPieceType> items)
-        {
-            _context.ExecPieceTypes.RemoveRange(items);
-            return Task.CompletedTask;
-        }
+
 
         public Task RemoveTranches(IEnumerable<ExecControleTranche> items)
         {
@@ -71,15 +67,23 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             return Task.CompletedTask;
         }
 
-        public Task AddPieceType(ExecPieceType item)
-        {
-            _context.ExecPieceTypes.Add(item);
-            return Task.CompletedTask;
-        }
+
 
         public Task AddTranche(ExecControleTranche item)
         {
             _context.ExecControleTranches.Add(item);
+            return Task.CompletedTask;
+        }
+
+        public Task RemovePieceTypes(IEnumerable<ExecPieceType> items)
+        {
+            _context.ExecPieceTypes.RemoveRange(items);
+            return Task.CompletedTask;
+        }
+
+        public Task AddPieceType(ExecPieceType item)
+        {
+            _context.ExecPieceTypes.Add(item);
             return Task.CompletedTask;
         }
     }

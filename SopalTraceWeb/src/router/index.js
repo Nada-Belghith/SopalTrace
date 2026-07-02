@@ -30,7 +30,7 @@ const router = createRouter({
     {
       path: '/dev',
       component: MainLayout,
-      meta: { requiresAuth: true }, // Toutes les routes sous /dev demandent une connexion
+      meta: { requiresAuth: true, roles: ['ADMIN', 'RESPONSABLE_DI', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE', 'RESPONSABLE'] }, // Empêche l'accès à l'OPERATEUR par défaut
       children: [
         // 1. LE HUB (Le choix du type de plan - Image 1)
         {
@@ -182,6 +182,24 @@ const router = createRouter({
       ]
     },
     {
+      path: '/operateur',
+      name: 'operateur-root',
+      component: MainLayout,
+      meta: { requiresAuth: true, roles: ['ADMIN', 'OPERATEUR'] },
+      children: [
+        {
+          path: 'of-semi-fini',
+          name: 'operateur-of-semi-fini',
+          component: () => import('@/views/Operateur/OperateurDashboardView.vue')
+        },
+        {
+          path: 'of-fini',
+          name: 'operateur-of-fini',
+          component: () => import('@/views/Operateur/OperateurDashboardView.vue')
+        }
+      ]
+    },
+    {
       path: '/magasinier',
       name: 'magasinier-root',
       component: MainLayout,
@@ -223,19 +241,21 @@ router.beforeEach(async (to, from) => {
   if (to.name === 'login' && authStore.isAuthenticated) {
     if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
     if (authStore.userRole === 'SUPERVISEUR_QUALITE') return { name: 'superviseur-dashboard' };
-    if (authStore.userRole === 'OPERATEUR') return { name: 'operateur-dashboard' }; // adjust if operator route exists
+    if (authStore.userRole === 'OPERATEUR') return { name: 'operateur-of-semi-fini' };
     return { name: 'dev-hub' };
   }
 
   const requiredRoles = to.meta.roles;
   if (requiredRoles && !authStore.hasAccess(requiredRoles)) {
     // PREVENT INFINITE REDIRECT: if we're already trying to go to the fallback, stop redirecting.
-    const fallbackRoute = authStore.userRole === 'MAGASINIER' ? 'magasinier-scan-of' : (authStore.userRole === 'SUPERVISEUR_QUALITE' ? 'superviseur-dashboard' : 'dev-hub');
+    let fallbackRoute = 'dev-hub';
+    if (authStore.userRole === 'MAGASINIER') fallbackRoute = 'magasinier-scan-of';
+    else if (authStore.userRole === 'SUPERVISEUR_QUALITE') fallbackRoute = 'superviseur-dashboard';
+    else if (authStore.userRole === 'OPERATEUR') fallbackRoute = 'operateur-of-semi-fini';
+
     if (to.name !== fallbackRoute) {
       return { name: fallbackRoute };
     }
-    // If the fallback route ITSELF requires roles the user doesn't have, they are completely unauthorized.
-    // Ideally redirect to an unauthorized page. Here we just let them go to the page but it might be blank.
   }
 
   return true;
