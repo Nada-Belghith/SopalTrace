@@ -45,8 +45,8 @@ public class OperateurController : ControllerBase
     [HttpGet("plan/existe")]
     public async Task<IActionResult> VerifierPlanActif([FromQuery] string articleCode)
     {
-        var existe = await _operateurService.VerifierPlanActifAsync(articleCode);
-        return Ok(new { existe });
+        var result = await _operateurService.VerifierPlanActifAsync(articleCode);
+        return Ok(result);
     }
 
     [HttpPut("plan/ligne/{ligneId:guid}")]
@@ -54,6 +54,14 @@ public class OperateurController : ControllerBase
     {
         var result = await _operateurService.UpdatePlanLigneAsync(ligneId, dto);
         if (!result) return BadRequest(new { Message = "Impossible de mettre à jour la ligne du plan." });
+        return Ok();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/ignorer")]
+    public async Task<IActionResult> IgnorerTranche(Guid execControleOfId, string trancheHoraire)
+    {
+        var result = await _operateurService.IgnorerTrancheAsync(execControleOfId, trancheHoraire);
+        if (!result) return NotFound(new { Message = "Tranche ou OF introuvable." });
         return Ok();
     }
 
@@ -76,6 +84,22 @@ public class OperateurController : ControllerBase
     {
         var result = await _operateurService.MettreEnReglageAsync(execControleOfId);
         if (!result) return BadRequest(new { Message = "Impossible de mettre l'OF en réglage." });
+        return Ok();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/pause")]
+    public async Task<IActionResult> MettreEnPause(Guid execControleOfId)
+    {
+        var result = await _operateurService.MettreEnPauseAsync(execControleOfId);
+        if (!result) return BadRequest(new { Message = "Impossible de mettre l'OF en pause." });
+        return Ok();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/reprendre")]
+    public async Task<IActionResult> ReprendreDepuisPause(Guid execControleOfId)
+    {
+        var result = await _operateurService.ReprendreDepuisPauseAsync(execControleOfId);
+        if (!result) return BadRequest(new { Message = "Impossible de reprendre cet OF." });
         return Ok();
     }
 

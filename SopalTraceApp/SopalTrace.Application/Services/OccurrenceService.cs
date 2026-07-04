@@ -23,6 +23,10 @@ public class OccurrenceService : IOccurrenceService
         var of = await _occurrenceRepository.GetExecControleOfWithIntermediairesAsync(execControleOfId);
 
         if (of == null) return;
+        
+        // Ne pas générer d'occurrences si l'OF est en pause
+        if (of.Statut == "EN_PAUSE") return;
+
 
         DateTime now = DateTime.Now;
         
@@ -156,6 +160,7 @@ public class OccurrenceService : IOccurrenceService
         var sectionsActives = of != null ? await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId) : new List<PlanFabricationSection>();
         
         var sectionIntervals = new Dictionary<Guid, double>();
+        var sectionSimulatedIntervals = new Dictionary<Guid, double>();
         foreach (var s in sectionsActives)
         {
             if (s.Periodicite != null)
@@ -170,6 +175,7 @@ public class OccurrenceService : IOccurrenceService
                 double simulatedIntervalMinutes = (freqHeures * 60.0) / freqNum;
                 double realIntervalMinutes = simulatedIntervalMinutes / 15.0; // 15.0 = simulationSpeedFactor
                 sectionIntervals[s.Id] = realIntervalMinutes;
+                sectionSimulatedIntervals[s.Id] = simulatedIntervalMinutes;
             }
         }
 
@@ -209,6 +215,9 @@ public class OccurrenceService : IOccurrenceService
                 TrancheHoraire = o.TrancheHoraire,
                 NumeroOccurrence = o.NumeroOccurrence,
                 HeureNotifPrevue = o.HeureNotifPrevue,
+                HeureSimulee = o.NumeroOccurrence > 0 && of != null && sectionSimulatedIntervals.ContainsKey(o.SectionId) 
+                    ? of.DateDebut.AddMinutes(o.NumeroOccurrence * sectionSimulatedIntervals[o.SectionId])
+                    : o.HeureNotifPrevue,
                 EstEnRetard = o.EstEnRetard,
                 Resultat = o.Resultat,
                 Caracteristiques = lignesPerSection.ContainsKey(o.SectionId) 
@@ -238,7 +247,7 @@ public class OccurrenceService : IOccurrenceService
         occurrence.HeureReponse = DateTime.Now;
 
         // Si l'alerte n'est pas ignorée, on doit créer un prélèvement avec ses lignes
-        if (request.Resultat != "REGLAGE")
+        if (request.Resultat != "REGLAGE" && request.Resultat != "IGNORE")
         {
             var trancheExistante = await _occurrenceRepository.GetTrancheExistanteAsync(occurrence.ExecControleOfid, occurrence.TrancheHoraire);
             if (trancheExistante == null)
@@ -253,8 +262,15 @@ public class OccurrenceService : IOccurrenceService
                 }
 
                 DateTime debut = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, heureDebut, 0, 0);
-                DateTime fin = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, heureFin, 0, 0);
-                if (heureFin == 0 || heureFin == 24) fin = debut.Date.AddDays(1);
+                DateTime fin;
+                if (heureFin == 24 || heureFin == 0)
+                {
+                    fin = debut.Date.AddDays(1);
+                }
+                else
+                {
+                    fin = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, heureFin, 0, 0);
+                }
 
                 trancheExistante = new ExecControleTranche
                 {
@@ -312,7 +328,7 @@ public class OccurrenceService : IOccurrenceService
         {
             var request = new RepondreOccurrenceRequest 
             { 
-                Resultat = "REGLAGE", 
+                Resultat = "IGNORE", 
                 MatriculeOperateur = matriculeOperateur 
             };
             await RepondreOccurrenceAsync(id, request);

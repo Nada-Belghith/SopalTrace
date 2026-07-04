@@ -112,25 +112,55 @@ public class OperateurService : IOperateurService
         return true;
     }
 
+    public async Task<bool> MettreEnPauseAsync(Guid execControleOfId)
+    {
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        if (execOf == null || execOf.Statut != "EN_COURS") return false;
+
+        execOf.Statut = "EN_PAUSE";
+
+        // Synchroniser le statut dans Mag_PreparationOF
+        var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
+        if (magOf != null) magOf.Statut = "EN_PAUSE";
+
+        await _operateurRepository.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> ReprendreDepuisPauseAsync(Guid execControleOfId)
+    {
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        if (execOf == null || execOf.Statut != "EN_PAUSE") return false;
+
+        execOf.Statut = "EN_COURS";
+
+        // Resynchroniser le statut dans Mag_PreparationOF
+        var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
+        if (magOf != null) magOf.Statut = "EN_COURS";
+
+        await _operateurRepository.SaveChangesAsync();
+
+        // Les occurrences non répondues ne sont plus décalées selon la demande : elles deviennent légitimement en retard.
+        // La prochaine occurrence sera calculée en temps réel.
+        return true;
+    }
+
     public async Task<bool> CloturerOfAsync(Guid execControleOfId)
     {
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
 
         if (execOf == null) return false;
 
-        execOf.Statut = "TERMINE";
+        execOf.Statut = "CLOTURE";
         execOf.DateFin = DateTime.Now;
 
         foreach (var occ in execOf.ExecPrelevementIntermediaires.Where(n => !n.EstRepondu))
         {
-            occ.Resultat = "ANNULE";
+            occ.Resultat = "IGNORE";
         }
 
-        var of = await _operateurRepository.GetOfAsync(execOf.NumeroOf);
-        if (of != null)
-        {
-            of.StatutOf = "TERMINE";
-        }
+        var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
+        if (magOf != null) magOf.Statut = "TERMINE";
 
         await _operateurRepository.SaveChangesAsync();
         return true;
@@ -192,9 +222,43 @@ public class OperateurService : IOperateurService
         return true;
     }
 
-    public async Task<bool> VerifierPlanActifAsync(string articleCode)
+    public async Task<object> VerifierPlanActifAsync(string articleCode)
     {
         var planFab = await _operateurRepository.GetPlanActifAsync(articleCode);
-        return planFab != null;
+        if (planFab == null) return new { existe = false, longueur = (double?)null, diametre = (double?)null };
+
+        var lignes = planFab.PlanFabricationSections.SelectMany(s => s.PlanFabricationLignes).ToList();
+
+        double? longueur = null;
+        var ligneLongueur = lignes.FirstOrDefault(l => l.LibelleAffiche != null && l.LibelleAffiche.Contains("longueur", StringComparison.OrdinalIgnoreCase));
+        if (ligneLongueur?.LibelleAffiche != null)
+        {
+            var parts = ligneLongueur.LibelleAffiche.Split('=');
+            if (parts.Length > 1 && double.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double l)) longueur = l;
+        }
+
+        double? diametre = null;
+        var ligneDiametre = lignes.FirstOrDefault(l => l.LibelleAffiche != null && (l.LibelleAffiche.Contains("Diametre", StringComparison.OrdinalIgnoreCase) || l.LibelleAffiche.Contains("Diamètre", StringComparison.OrdinalIgnoreCase)));
+        if (ligneDiametre?.LibelleAffiche != null)
+        {
+            var parts = ligneDiametre.LibelleAffiche.Split('=');
+            if (parts.Length > 1 && double.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double d)) diametre = d;
+        }
+
+        return new { existe = true, longueur, diametre };
+    }
+
+    public async Task<bool> IgnorerTrancheAsync(Guid execControleOfId, string trancheHoraire)
+    {
+        var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
+        if (execOf == null) return false;
+
+        var occurrences = execOf.ExecPrelevementIntermediaires
+            .Where(o => o.TrancheHoraire == trancheHoraire && !o.EstRepondu)
+            .ToList();
+
+        var ids = occurrences.Select(o => o.Id).ToList();
+
+        return await _occurrenceService.IgnorerOccurrencesAsync(ids, "SYSTEM");
     }
 }

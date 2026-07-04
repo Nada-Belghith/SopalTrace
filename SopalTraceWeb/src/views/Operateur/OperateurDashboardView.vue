@@ -32,22 +32,26 @@
           </p>
         </div>
         
-        <div class="space-x-2">
-          <div v-if="activeOfContext.statut === 'EN_COURS' && activeOfContext.a_Des_Controles_Reglage" class="inline-block mr-2">
-            <button v-if="!activeOfContext.estEnReglage" @click="mettreEnReglage" class="px-4 py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 shadow-sm transition">
-              Mettre Aux Réglages (Pause)
-            </button>
-            <span v-else class="px-4 py-2 bg-slate-200 text-yellow-700 font-bold rounded-lg border border-yellow-300 flex items-center">
-              <i class="pi pi-pause-circle mr-2"></i> EN RÉGLAGE (Production en pause)
-            </span>
-          </div>
+        <div class="flex items-center">
+          <button v-if="activeOfContext.statut === 'EN_PAUSE' || activeOfContext.estEnReglage" @click="reprendre" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 shadow-sm transition mr-2">
+            ▶️ Reprendre la production
+          </button>
+          
+          <button v-if="activeOfContext.statut === 'EN_COURS' && activeOfContext.a_Des_Controles_Reglage && !activeOfContext.estEnReglage" @click="mettreEnReglage" class="px-4 py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 shadow-sm transition mr-2">
+            ⚙️ Mettre Aux Réglages
+          </button>
+          
+          <button v-if="activeOfContext.statut === 'EN_COURS' && !activeOfContext.estEnReglage" @click="mettreEnPause" class="px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 shadow-sm transition mr-2">
+            ⏸️ Pause
+          </button>
+
           <button @click="cloturer" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 shadow-sm transition">
-            Clôturer l'OF
+            ⏹️ Clôturer l'OF
           </button>
         </div>
       </div>
       <div class="flex-1 overflow-y-auto">
-        <AlerteControle :execControleOfId="activeOfContext.id" />
+        <AlerteControle :execControleOfId="activeOfContext.id" :aDesControlesReglage="activeOfContext.a_Des_Controles_Reglage" />
       </div>
     </div>
 
@@ -128,10 +132,18 @@
                  class="border rounded-xl transition-all"
                  :class="form.operationCode === op.operationCode ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200 hover:border-slate-300'">
               
-              <label class="flex items-center p-4 cursor-pointer">
-                <input type="radio" :value="op.operationCode" v-model="form.operationCode" @change="onOperationChange(op)"
-                       class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer">
-                <span class="ml-3 font-semibold text-slate-700">{{ op.libelle }}</span>
+              <label class="flex justify-between items-center p-4 cursor-pointer">
+                <div class="flex items-center">
+                  <input type="radio" :value="op.operationCode" v-model="form.operationCode" @change="onOperationChange(op)"
+                         class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer">
+                  <span class="ml-3 font-semibold text-slate-700">{{ op.libelle }}</span>
+                </div>
+                <div>
+                  <span v-if="op.activeExecStatut === 'EN_COURS'" class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">EN COURS</span>
+                  <span v-else-if="op.activeExecStatut === 'EN_PAUSE'" class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded">EN PAUSE</span>
+                  <span v-else-if="op.activeExecStatut === 'CLOTURE'" class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded">CLÔTURÉ</span>
+                  <span v-else class="px-2 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded">NON COMMENCÉ</span>
+                </div>
               </label>
 
               <!-- Paramètres étendus si l'opération est sélectionnée -->
@@ -157,17 +169,18 @@
                   </div>
                 </div>
 
-                <!-- Champs spécifiques pour le Tronçonnage -->
                 <div v-if="form.operationCode === 'TRONC' || form.operationCode === 'TRN'" class="flex gap-4 mt-4 animate-fade-in-down border-t border-blue-100 pt-4">
                   <div class="flex-1">
                     <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Longueur (mm)</label>
-                    <input type="number" step="0.01" v-model="form.longueur" placeholder="Ex: 120.5"
-                           class="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all">
+                    <input type="number" step="0.01" v-model="form.longueur" placeholder="Ex: 120.5" :disabled="isLongueurInitialized"
+                           class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none transition-all"
+                           :class="isLongueurInitialized ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800 focus:ring-2 focus:ring-blue-100 focus:border-blue-400'">
                   </div>
                   <div class="flex-1">
                     <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Diamètre (mm)</label>
-                    <input type="number" step="0.01" v-model="form.diametre" placeholder="Ex: 15.2"
-                           class="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all">
+                    <input type="number" step="0.01" v-model="form.diametre" placeholder="Ex: 15.2" :disabled="isDiametreInitialized"
+                           class="w-full border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none transition-all"
+                           :class="isDiametreInitialized ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-800 focus:ring-2 focus:ring-blue-100 focus:border-blue-400'">
                   </div>
                 </div>
               </div>
@@ -181,12 +194,22 @@
 
         <div class="p-5 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
           <button @click="fermerModal" class="px-5 py-2.5 rounded-lg text-slate-600 font-semibold hover:bg-slate-200 transition-colors">
-            Annuler
+            {{ planSignale ? 'OK' : 'Annuler' }}
           </button>
-          <button v-if="!errorMessage" @click="demarrerOf" :disabled="!form.operationCode"
+          <button v-if="!errorMessage && (!selectedOpState || !selectedOpState.activeExecControleOfId)" @click="demarrerOf" :disabled="!form.operationCode"
                   class="px-5 py-2.5 rounded-lg bg-blue-600 text-white font-semibold flex items-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             Démarrer le contrôle
+          </button>
+          <button v-if="!errorMessage && selectedOpState && selectedOpState.activeExecStatut !== 'CLOTURE' && selectedOpState.activeExecControleOfId" @click="reprendreOfExistant" :disabled="!form.operationCode"
+                  class="px-5 py-2.5 rounded-lg bg-green-600 text-white font-semibold flex items-center hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Reprendre le contrôle
+          </button>
+          <button v-if="selectedOpState && selectedOpState.activeExecStatut === 'CLOTURE'" disabled
+                  class="px-5 py-2.5 rounded-lg bg-gray-200 text-gray-500 font-semibold flex items-center cursor-not-allowed">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            Opération Clôturée
           </button>
         </div>
 
@@ -211,8 +234,17 @@ const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 
-const ofs = ref([]);
-const loading = ref(true);
+import { useOperateurStore } from '@/stores/execution/operateurStore';
+
+const operateurStore = useOperateurStore();
+
+const activeOfContext = computed({
+  get: () => operateurStore.activeOfContext,
+  set: (val) => operateurStore.setActiveOfContext(val)
+});
+
+const ofs = computed(() => operateurStore.ofs);
+const loading = computed(() => operateurStore.loadingOfs);
 
 const filteredOfs = computed(() => {
   return ofs.value.filter(of => {
@@ -229,22 +261,20 @@ const filteredOfs = computed(() => {
 const showModal = ref(false);
 const selectedOf = ref(null);
 const errorMessage = ref('');
-const isSignalingPlan = ref(false);
-const planSignale = ref(false);
-
-
-
-const activeOfContext = ref({}); // Les infos de l'OF démarré
-
 const form = ref({
   numeroOf: '',
   operationCode: '',
   machineCode: '',
   numEquipe: 1,
-  matriculeOperateur: 'OP01', // Simulation de l'opérateur connecté
+  matriculeOperateur: 'OP01',
   longueur: null,
   diametre: null
 });
+
+const isSignalingPlan = ref(false);
+const planSignale = ref(false);
+const isLongueurInitialized = ref(false);
+const isDiametreInitialized = ref(false);
 
 const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A';
@@ -253,22 +283,35 @@ const formatDate = (dateStr) => {
 };
 
 const chargerOfs = async () => {
-  loading.value = true;
   try {
-    const res = await operateurService.getAllOfOperations();
-    ofs.value = res.data;
+    await operateurStore.chargerOfs();
     
     // Si on arrive sur la page avec un execId dans l'URL, on l'ouvre
     if (route.query.execution) {
       const execId = route.query.execution;
-      const of = ofs.value.find(o => o.activeExecControleOfId === execId);
-      if (of) {
+      let foundOf = null;
+      let foundOp = null;
+      
+      for (const o of ofs.value) {
+        if (o.gammeOperatoire) {
+          const op = o.gammeOperatoire.find(x => x.activeExecControleOfId === execId);
+          if (op) {
+            foundOf = o;
+            foundOp = op;
+            break;
+          }
+        }
+      }
+
+      if (foundOf && foundOp) {
         activeOfContext.value = {
-          id: of.activeExecControleOfId,
-          numeroOf: of.numeroOf,
-          operationCode: of.activeOperationCode,
-          machineCode: of.activeMachineCode,
-          statut: of.activeExecStatut
+          id: foundOp.activeExecControleOfId,
+          numeroOf: foundOf.numeroOf,
+          operationCode: foundOp.operationCode,
+          machineCode: foundOp.activeMachineCode,
+          statut: foundOp.activeExecStatut,
+          estEnReglage: foundOp.estEnReglage || false,
+          a_Des_Controles_Reglage: foundOp.a_Des_Controles_Reglage || false
         };
       }
     }
@@ -277,8 +320,6 @@ const chargerOfs = async () => {
     if(error.message === 'Network Error') {
         alert("Impossible de contacter le serveur. Le backend (API) est-il démarré ?");
     }
-  } finally {
-    loading.value = false;
   }
 };
 
@@ -286,20 +327,30 @@ onMounted(() => {
   chargerOfs();
 });
 
-const ouvrirModalDemarrage = (of) => {
-  if (of.activeExecControleOfId) {
-    // Si un contrôle est déjà en cours ou en pause, on l'ouvre directement sans passer par le formulaire
-    activeOfContext.value = {
-      id: of.activeExecControleOfId,
-      numeroOf: of.numeroOf,
-      operationCode: of.activeOperationCode,
-      machineCode: of.activeMachineCode,
-      statut: of.activeExecStatut
-    };
-    router.push({ query: { execution: of.activeExecControleOfId } });
-    return;
-  }
+const selectedOpState = computed(() => {
+  if (!selectedOf.value || !form.value.operationCode) return null;
+  return selectedOf.value.gammeOperatoire.find(o => o.operationCode === form.value.operationCode);
+});
 
+const reprendreOfExistant = () => {
+  const opState = selectedOpState.value;
+  if (opState && opState.activeExecControleOfId) {
+    const ofNumero = selectedOf.value.numeroOf;
+    fermerModal();
+    activeOfContext.value = {
+      id: opState.activeExecControleOfId,
+      numeroOf: ofNumero,
+      operationCode: opState.operationCode,
+      machineCode: opState.activeMachineCode,
+      statut: opState.activeExecStatut,
+      estEnReglage: opState.estEnReglage || false,
+      a_Des_Controles_Reglage: opState.a_Des_Controles_Reglage || false
+    };
+    router.push({ query: { execution: opState.activeExecControleOfId } });
+  }
+};
+
+const ouvrirModalDemarrage = (of) => {
   selectedOf.value = of;
   errorMessage.value = '';
   planSignale.value = false;
@@ -313,7 +364,6 @@ const ouvrirModalDemarrage = (of) => {
     diametre: null
   };
   
-  // Auto select first operation if exists
   if(of.gammeOperatoire && of.gammeOperatoire.length > 0) {
     onOperationChange(of.gammeOperatoire[0]);
   }
@@ -349,6 +399,10 @@ const signalerPlanManquant = async () => {
 const onOperationChange = async (op) => {
   form.value.operationCode = op.operationCode;
   form.value.machineCode = op.machinePrevueCode || '';
+  form.value.longueur = null;
+  form.value.diametre = null;
+  isLongueurInitialized.value = false;
+  isDiametreInitialized.value = false;
   errorMessage.value = '';
   
   if (selectedOf.value?.codeArticle) {
@@ -356,6 +410,19 @@ const onOperationChange = async (op) => {
       const res = await operateurService.verifierPlan(selectedOf.value.codeArticle);
       if (!res.data.existe) {
         errorMessage.value = "Aucun plan de contrôle n'est actif pour cet article.";
+      } else {
+        // Pré-remplir longueur et diamètre pour les opérations de tronçonnage
+        const isTronnage = op.operationCode === 'TRONC' || op.operationCode === 'TRN';
+        if (isTronnage) {
+          if (res.data.longueur != null) {
+            form.value.longueur = res.data.longueur;
+            isLongueurInitialized.value = true;
+          }
+          if (res.data.diametre != null) {
+            form.value.diametre = res.data.diametre;
+            isDiametreInitialized.value = true;
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -391,16 +458,42 @@ const mettreEnReglage = async () => {
     await operateurService.mettreEnReglage(activeOfContext.value.id);
     toast.add({ severity: 'success', summary: 'Mode Réglage', detail: 'Production mise en pause. Procédez aux contrôles de réglage.', life: 4000 });
     activeOfContext.value.estEnReglage = true;
-    await loadAlertesActives(activeOfContext.value.id);
+    // On force un rafraichissement silencieux
+    chargerOfs();
   } catch (error) {
     console.error(error);
     toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de mettre en réglage.', life: 3000 });
   }
 };
 
+const mettreEnPause = async () => {
+  try {
+    await operateurService.mettreEnPause(activeOfContext.value.id);
+    toast.add({ severity: 'info', summary: 'Production en Pause', detail: 'L\'OF est maintenant en pause.', life: 4000 });
+    activeOfContext.value.statut = 'EN_PAUSE';
+    chargerOfs();
+  } catch (error) {
+    console.error(error);
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de mettre en pause.', life: 3000 });
+  }
+};
+
+const reprendre = async () => {
+  try {
+    await operateurService.reprendreDepuisPause(activeOfContext.value.id);
+    toast.add({ severity: 'success', summary: 'Reprise', detail: 'La production a repris.', life: 4000 });
+    activeOfContext.value.statut = 'EN_COURS';
+    activeOfContext.value.estEnReglage = false;
+    chargerOfs();
+  } catch (error) {
+    console.error(error);
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de reprendre la production.', life: 3000 });
+  }
+};
+
 
 const cloturer = async () => {
-  if (!confirm('Êtes-vous sûr de vouloir clôturer cet OF ?')) return;
+  if (!confirm("Êtes-vous sûr de vouloir clôturer l'opération pour cet OF ?\n\nAttention : Tous les contrôles intermédiaires non réalisés seront ignorés.")) return;
   try {
     await operateurService.cloturerOf(activeOfContext.value.id);
     quitterExecution();
@@ -419,6 +512,8 @@ const quitterExecution = () => {
 watch(() => route.query.execution, (newVal) => {
   if (!newVal) {
     activeOfContext.value = {};
+  } else {
+    chargerOfs();
   }
 });
 </script>

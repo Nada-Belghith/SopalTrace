@@ -49,7 +49,11 @@
         
         <div v-for="tranche in tranchesProd" :key="tranche.trancheHoraire" class="mb-6 border rounded overflow-hidden shadow-sm">
           <div class="bg-slate-100 p-2 font-bold border-b text-slate-800 flex justify-between items-center">
-            <span>Tranche : {{ formatTranche(tranche.trancheHoraire) }}</span>
+            <span>Tranche : {{ formatTrancheAvecDate(tranche) }}</span>
+            <button @click="ignorerTrancheAction(tranche.trancheHoraire)" class="text-xs bg-red-50 border border-red-200 text-red-600 px-3 py-1 rounded hover:bg-red-100 transition-colors flex items-center shadow-sm">
+              <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              Ignorer la tranche
+            </button>
           </div>
           
           <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50">
@@ -62,7 +66,7 @@
                   <span v-else class="text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded text-xs border border-yellow-200">🔔 MAINTENANT</span>
                 </div>
                 <div class="text-gray-700 font-semibold text-lg">Occurrence #{{ occ.numeroOccurrence }}</div>
-                <div class="text-sm text-gray-500 mt-1">Prévue à : {{ formatTime(occ.heureNotifPrevue) }}</div>
+                <div class="text-sm text-gray-500 mt-1">Prévue à : {{ formatTime(occ.heureSimulee || occ.heureNotifPrevue) }}</div>
               </div>
               
               <button @click="ouvrirPlan(occ)" class="mt-4 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded shadow transition-colors">
@@ -99,7 +103,13 @@
                   <th class="px-3 py-3 w-32">Type</th>
                   <th class="px-3 py-3 w-32">Moyen</th>
                   <th class="px-3 py-3 w-32">Instrument</th>
-                  <th class="px-3 py-3 w-40 text-center">Résultat (C/NC)</th>
+                  <th class="px-3 py-2 w-48 text-center align-middle">
+                    <div class="mb-1">Résultat</div>
+                    <div class="inline-flex rounded-md shadow-sm" role="group">
+                      <button @click="setAllResults('C')" class="px-2 py-0.5 text-[10px] uppercase font-bold border rounded-l-lg bg-green-50 text-green-700 hover:bg-green-100 border-green-200 transition-colors" title="Marquer tout comme Conforme">Tout C</button>
+                      <button @click="setAllResults('NC')" class="px-2 py-0.5 text-[10px] uppercase font-bold border-t border-b border-r rounded-r-lg bg-red-50 text-red-700 hover:bg-red-100 border-red-200 transition-colors" title="Marquer tout comme Non-Conforme">Tout NC</button>
+                    </div>
+                  </th>
                   <th class="px-3 py-3">Valeur / Remarque</th>
                 </tr>
               </thead>
@@ -127,6 +137,19 @@
                     </div>
                   </td>
                   <td class="px-3 py-3">
+                    <span v-if="selectedOcc.estRepondu" 
+                          :class="{
+                            'bg-green-100 text-green-800 border border-green-200': selectedOcc.resultat === 'C',
+                            'bg-red-100 text-red-800 border border-red-200': selectedOcc.resultat === 'NC',
+                            'bg-yellow-100 text-yellow-800 border border-yellow-200': selectedOcc.resultat === 'REGLAGE',
+                            'bg-gray-200 text-gray-700 border border-gray-300': selectedOcc.resultat === 'IGNORE'
+                          }"
+                          class="ml-2 px-2 py-0.5 text-xs rounded-full font-medium shadow-sm">
+                      {{ selectedOcc.resultat === 'C' ? 'Conforme' : 
+                         selectedOcc.resultat === 'NC' ? 'Non Conforme' : 
+                         selectedOcc.resultat === 'REGLAGE' ? 'Réglage' : 
+                         selectedOcc.resultat === 'IGNORE' ? 'Ignoré' : 'Répondu' }}
+                    </span>
                     <input v-if="cara.typeControle === 'Mesure'" type="number" step="0.01" 
                            v-model="forms[selectedOcc.id][cara.lignePlanId].valeurMesuree"
                            class="w-full border rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Valeur...">
@@ -148,7 +171,10 @@
           <button @click="fermerPlan" class="px-4 py-2 border text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors">
             Annuler
           </button>
-          <button v-if="selectedOcc.estEnRetard" @click="soumettreOccurrence(selectedOcc, 'REGLAGE')" 
+          <button @click="soumettreOccurrence(selectedOcc, 'IGNORE')" class="px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-2 mr-auto">
+            🚫 Ignorer ce contrôle
+          </button>
+          <button v-if="aDesControlesReglage" @click="soumettreOccurrence(selectedOcc, 'REGLAGE')" 
                   class="px-6 py-2 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 shadow transition-colors flex items-center gap-2">
             ⚙️ Déclarer comme Réglage
           </button>
@@ -164,19 +190,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import operateurService from '@/services/operateurService';
+import { useOperateurStore } from '@/stores/execution/operateurStore';
 
 const props = defineProps({
   execControleOfId: {
     type: String,
     required: true
+  },
+  aDesControlesReglage: {
+    type: Boolean,
+    default: false
   }
 });
 
-const tranches = ref([]);
+const operateurStore = useOperateurStore();
+
+const tranches = computed(() => operateurStore.alertesParOf[props.execControleOfId] || []);
 const loading = ref(true);
-let pollInterval = null;
 let clockInterval = null;
 
 const currentTime = ref('');
@@ -193,7 +225,7 @@ const tranchesProd = computed(() => {
 });
 
 const updateClock = () => {
-  currentTime.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  currentTime.value = new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
 const initForms = (data) => {
@@ -220,8 +252,7 @@ const initForms = (data) => {
 const fetchAlertes = async () => {
   try {
     const response = await operateurService.getAlertesActives(props.execControleOfId);
-    tranches.value = response.data;
-    initForms(response.data);
+    operateurStore.alertesParOf[props.execControleOfId] = response.data;
   } catch (error) {
     console.error('Erreur lors du chargement des alertes', error);
   } finally {
@@ -229,16 +260,20 @@ const fetchAlertes = async () => {
   }
 };
 
+watch(tranches, (newVal) => {
+  if (newVal && newVal.length > 0) {
+    initForms(newVal);
+  }
+}, { immediate: true, deep: true });
+
 onMounted(() => {
   updateClock();
   clockInterval = setInterval(updateClock, 1000);
   
   fetchAlertes();
-  pollInterval = setInterval(fetchAlertes, 60000); // Polling toutes les minutes
 });
 
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval);
   if (clockInterval) clearInterval(clockInterval);
 });
 
@@ -252,8 +287,23 @@ const formatTranche = (tranche) => {
   return tranche;
 };
 
+const formatTrancheAvecDate = (trancheObj) => {
+  const timeStr = formatTranche(trancheObj.trancheHoraire);
+  if (trancheObj.trancheHoraire === 'REGLAGE_DEBUT') return timeStr;
+  
+  if (trancheObj.occurrences && trancheObj.occurrences.length > 0) {
+    const occ = trancheObj.occurrences[0];
+    const targetDate = occ.heureSimulee || occ.heureNotifPrevue;
+    if (targetDate) {
+      const dateStr = new Date(targetDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+      return `${dateStr} | ${timeStr}`;
+    }
+  }
+  return timeStr;
+};
+
 const formatTime = (dateString) => {
-  return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(dateString).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
 const getStatutClass = (occ) => {
@@ -272,6 +322,14 @@ const fermerPlan = () => {
 const setLigneResultat = (occId, ligneId, res) => {
   if (forms.value[occId] && forms.value[occId][ligneId]) {
     forms.value[occId][ligneId].resultat = res;
+  }
+};
+
+const setAllResults = (res) => {
+  if (selectedOcc.value && selectedOcc.value.caracteristiques) {
+    selectedOcc.value.caracteristiques.forEach(cara => {
+      setLigneResultat(selectedOcc.value.id, cara.lignePlanId, res);
+    });
   }
 };
 
@@ -299,13 +357,23 @@ const soumettreOccurrence = async (occ, forceResultat = null) => {
     const payload = {
       resultat: resultatGlobal,
       matriculeOperateur: 'OP01', // Simulation
-      lignes: forceResultat === 'REGLAGE' ? [] : lignesForms
+      lignes: forceResultat === 'REGLAGE' || forceResultat === 'IGNORE' ? [] : lignesForms
     };
 
     await operateurService.repondreOccurrence(occ.id, payload);
     
     delete forms.value[occ.id];
     fermerPlan();
+    fetchAlertes();
+  } catch (error) {
+    alert('Erreur: ' + (error.response?.data?.message || error.message));
+  }
+};
+
+const ignorerTrancheAction = async (trancheHoraire) => {
+  if (!confirm(`Voulez-vous vraiment ignorer tous les contrôles non réalisés de la tranche ${formatTranche(trancheHoraire)} ?`)) return;
+  try {
+    await operateurService.ignorerTranche(props.execControleOfId, trancheHoraire);
     fetchAlertes();
   } catch (error) {
     alert('Erreur: ' + (error.response?.data?.message || error.message));

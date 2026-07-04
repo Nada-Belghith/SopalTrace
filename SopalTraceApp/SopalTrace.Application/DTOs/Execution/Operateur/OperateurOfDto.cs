@@ -12,11 +12,6 @@ public class OperateurOfDto
     public double QuantiteLancee { get; set; }
     public DateTime? DateDebut { get; set; }
     
-    public Guid? ActiveExecControleOfId { get; set; }
-    public string? ActiveExecStatut { get; set; }
-    public string? ActiveOperationCode { get; set; }
-    public string? ActiveMachineCode { get; set; }
-
     public List<OperateurOperationDto> GammeOperatoire { get; set; } = new();
 }
 
@@ -25,4 +20,10 @@ public class OperateurOperationDto
     public string OperationCode { get; set; } = null!;
     public string Libelle { get; set; } = null!;
     public string MachinePrevueCode { get; set; } = null!;
+
+    public Guid? ActiveExecControleOfId { get; set; }
+    public string? ActiveExecStatut { get; set; }
+    public string? ActiveMachineCode { get; set; }
+    public bool? EstEnReglage { get; set; }
+    public bool? A_Des_Controles_Reglage { get; set; }
 }

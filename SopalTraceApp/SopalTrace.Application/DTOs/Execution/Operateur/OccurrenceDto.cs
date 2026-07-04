@@ -10,6 +10,7 @@ public class OccurrenceDto
     public string TrancheHoraire { get; set; } = null!;
     public int NumeroOccurrence { get; set; }
     public DateTime HeureNotifPrevue { get; set; }
+    public DateTime? HeureSimulee { get; set; }
     public bool EstEnRetard { get; set; }
     public string? Resultat { get; set; }
     

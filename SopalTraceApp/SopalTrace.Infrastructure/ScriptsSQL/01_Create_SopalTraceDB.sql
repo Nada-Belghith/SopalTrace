@@ -342,7 +342,7 @@ CREATE TABLE dbo.MFGHEAD_OrdreFabrication (
     QuantitePrevue FLOAT       NOT NULL,
     QuantiteLancee FLOAT       NOT NULL DEFAULT 0,
     QuantiteReelle FLOAT       NOT NULL DEFAULT 0,
-    StatutOF       VARCHAR(20) NOT NULL CHECK (StatutOF IN ('EN_COURS','PLANIFIE','TERMINE','ANNULE')),
+    StatutOF       VARCHAR(20) NOT NULL CHECK (StatutOF IN ('EN_COURS','PLANIFIE','TERMINE','ANNULE','EN_PAUSE')),
     DateDebut      DATETIME,
     DateFin        DATETIME
 );
@@ -853,7 +853,7 @@ CREATE TABLE dbo.Mag_PreparationOF (
     NumeroOF            VARCHAR(30) NOT NULL REFERENCES dbo.MFGHEAD_OrdreFabrication(NumeroOF),
     MatriculeMagasinier VARCHAR(20) NOT NULL,
     Statut              VARCHAR(20) NOT NULL DEFAULT 'EN_COURS'
-        CHECK (Statut IN ('EN_COURS','PLANIFIE','TERMINE','ANNULE')),
+        CHECK (Statut IN ('EN_COURS','PLANIFIE','TERMINE','ANNULE','EN_PAUSE')),
     DateDebut           DATETIME    DEFAULT GETDATE(),
     DateFin             DATETIME
 );
@@ -913,7 +913,7 @@ CREATE TABLE dbo.Exec_ControleOF (
     PlanSourceId     UNIQUEIDENTIFIER NOT NULL,
     TypePlan         VARCHAR(10) NOT NULL CHECK (TypePlan IN ('FAB','DOC')),
     Statut           VARCHAR(20) NOT NULL DEFAULT 'EN_COURS'
-        CHECK (Statut IN ('EN_COURS','CLOTURE')),
+        CHECK (Statut IN ('EN_COURS','CLOTURE','EN_PAUSE')),
     EstEnReglage     BIT         NOT NULL DEFAULT 0,
     DateDebut        DATETIME    NOT NULL DEFAULT GETDATE(),
     DateFin          DATETIME
@@ -936,7 +936,7 @@ CREATE TABLE dbo.Exec_ControleTranche (
     TrancheHoraire       VARCHAR(20)  NOT NULL,
     HeureDebut           DATETIME     NOT NULL,
     HeureFin             DATETIME     NOT NULL,
-    ResultatFinal        VARCHAR(10)  CHECK (ResultatFinal IN ('C','NC','REGLAGE')),
+    ResultatFinal        VARCHAR(10)  CHECK (ResultatFinal IN ('C','NC','REGLAGE','IGNORE')),
     DetailsNC            VARCHAR(500),
     ActionsCorrection    VARCHAR(500),
     MatriculeApprobateur VARCHAR(20)
@@ -951,7 +951,7 @@ CREATE TABLE dbo.Exec_Prelevement_Intermediaire (
     NumeroOccurrence  INT          NOT NULL,
     HeureNotifPrevue  DATETIME     NOT NULL,
     HeureReponse      DATETIME     NULL,
-    Resultat          VARCHAR(10)  NULL CHECK (Resultat IN ('C','NC','REGLAGE')),
+    Resultat          VARCHAR(10)  NULL CHECK (Resultat IN ('C','NC','REGLAGE','IGNORE')),
     EstEnRetard       BIT          NOT NULL DEFAULT 0,
     EstRepondu        BIT          NOT NULL DEFAULT 0,
     CreeLe            DATETIME     NOT NULL DEFAULT GETDATE(),
@@ -984,51 +984,51 @@ GO
 -- Pour "supprimer" : mettre Actif = 0 (soft delete).
 -- ================================================================================
 
-CREATE OR ALTER PROCEDURE dbo.sp_RaiseDeleteError (@TableName VARCHAR(100))
+CREATE OR ALTER PROCEDURE dbo.usp_RaiseDeleteError (@TableName VARCHAR(100))
 AS BEGIN
     RAISERROR('Suppression physique interdite (ISO 9001) sur la table : %s — utiliser Actif = 0', 16, 1, @TableName);
 END;
 GO
 
-CREATE TRIGGER trg_no_del_TypeRobinet             ON dbo.TypeRobinet             INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'TypeRobinet'; END;
+CREATE TRIGGER trg_no_del_TypeRobinet             ON dbo.TypeRobinet             INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'TypeRobinet'; END;
 GO
-CREATE TRIGGER trg_no_del_FamilleProduitFini       ON dbo.FamilleProduitFini       INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'FamilleProduitFini'; END;
+CREATE TRIGGER trg_no_del_FamilleProduitFini       ON dbo.FamilleProduitFini       INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'FamilleProduitFini'; END;
 GO
-CREATE TRIGGER trg_no_del_NatureArticle            ON dbo.NatureArticle            INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'NatureArticle'; END;
+CREATE TRIGGER trg_no_del_NatureArticle            ON dbo.NatureArticle            INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'NatureArticle'; END;
 GO
-CREATE TRIGGER trg_no_del_Ref_FamilleCorps         ON dbo.Ref_FamilleCorps         INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Ref_FamilleCorps'; END;
+CREATE TRIGGER trg_no_del_Ref_FamilleCorps         ON dbo.Ref_FamilleCorps         INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Ref_FamilleCorps'; END;
 GO
-CREATE TRIGGER trg_no_del_Operation                ON dbo.Operation                INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Operation'; END;
+CREATE TRIGGER trg_no_del_Operation                ON dbo.Operation                INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Operation'; END;
 GO
-CREATE TRIGGER trg_no_del_PosteTravail             ON dbo.PosteTravail             INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'PosteTravail'; END;
+CREATE TRIGGER trg_no_del_PosteTravail             ON dbo.PosteTravail             INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'PosteTravail'; END;
 GO
-CREATE TRIGGER trg_no_del_TypeCaracteristique      ON dbo.TypeCaracteristique      INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'TypeCaracteristique'; END;
+CREATE TRIGGER trg_no_del_TypeCaracteristique      ON dbo.TypeCaracteristique      INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'TypeCaracteristique'; END;
 GO
-CREATE TRIGGER trg_no_del_TypeControle             ON dbo.TypeControle             INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'TypeControle'; END;
+CREATE TRIGGER trg_no_del_TypeControle             ON dbo.TypeControle             INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'TypeControle'; END;
 GO
-CREATE TRIGGER trg_no_del_MoyenControle            ON dbo.MoyenControle            INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'MoyenControle'; END;
+CREATE TRIGGER trg_no_del_MoyenControle            ON dbo.MoyenControle            INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'MoyenControle'; END;
 GO
-CREATE TRIGGER trg_no_del_Periodicite              ON dbo.Periodicite              INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Periodicite'; END;
+CREATE TRIGGER trg_no_del_Periodicite              ON dbo.Periodicite              INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Periodicite'; END;
 GO
-CREATE TRIGGER trg_no_del_Ref_RegleEchantillonnage ON dbo.Ref_RegleEchantillonnage INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Ref_RegleEchantillonnage'; END;
+CREATE TRIGGER trg_no_del_Ref_RegleEchantillonnage ON dbo.Ref_RegleEchantillonnage INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Ref_RegleEchantillonnage'; END;
 GO
-CREATE TRIGGER trg_no_del_TypeSection              ON dbo.TypeSection              INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'TypeSection'; END;
+CREATE TRIGGER trg_no_del_TypeSection              ON dbo.TypeSection              INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'TypeSection'; END;
 GO
-CREATE TRIGGER trg_no_del_Defautheque              ON dbo.Defautheque              INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Defautheque'; END;
+CREATE TRIGGER trg_no_del_Defautheque              ON dbo.Defautheque              INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Defautheque'; END;
 GO
-CREATE TRIGGER trg_no_del_RisqueDefaut             ON dbo.RisqueDefaut             INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'RisqueDefaut'; END;
+CREATE TRIGGER trg_no_del_RisqueDefaut             ON dbo.RisqueDefaut             INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'RisqueDefaut'; END;
 GO
-CREATE TRIGGER trg_no_del_NQA                      ON dbo.NQA                      INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'NQA'; END;
+CREATE TRIGGER trg_no_del_NQA                      ON dbo.NQA                      INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'NQA'; END;
 GO
-CREATE TRIGGER trg_no_del_Ref_MoyenDetection       ON dbo.Ref_MoyenDetection       INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Ref_MoyenDetection'; END;
+CREATE TRIGGER trg_no_del_Ref_MoyenDetection       ON dbo.Ref_MoyenDetection       INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Ref_MoyenDetection'; END;
 GO
-CREATE TRIGGER trg_no_del_Instrument               ON dbo.Instrument               INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Instrument'; END;
+CREATE TRIGGER trg_no_del_Instrument               ON dbo.Instrument               INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Instrument'; END;
 GO
-CREATE TRIGGER trg_no_del_PieceReference           ON dbo.PieceReference           INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'PieceReference'; END;
+CREATE TRIGGER trg_no_del_PieceReference           ON dbo.PieceReference           INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'PieceReference'; END;
 GO
-CREATE TRIGGER trg_no_del_TypeDocument             ON dbo.TypeDocument             INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'TypeDocument'; END;
+CREATE TRIGGER trg_no_del_TypeDocument             ON dbo.TypeDocument             INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'TypeDocument'; END;
 GO
-CREATE TRIGGER trg_no_del_Ref_Caracteristique      ON dbo.Ref_Caracteristique      INSTEAD OF DELETE AS BEGIN EXEC dbo.sp_RaiseDeleteError 'Ref_Caracteristique'; END;
+CREATE TRIGGER trg_no_del_Ref_Caracteristique      ON dbo.Ref_Caracteristique      INSTEAD OF DELETE AS BEGIN EXEC dbo.usp_RaiseDeleteError 'Ref_Caracteristique'; END;
 GO
 
 -- ================================================================================

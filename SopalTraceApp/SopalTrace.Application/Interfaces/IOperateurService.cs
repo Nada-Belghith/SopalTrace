@@ -10,10 +10,13 @@ public interface IOperateurService
     Task<ExecControleOfDto> DemarrerOfAsync(DemarrerOfRequest request);
     Task<bool> MettreEnReglageAsync(Guid execControleOfId);
     Task<bool> ReprendreOfAsync(Guid execControleOfId);
+    Task<bool> MettreEnPauseAsync(Guid execControleOfId);
+    Task<bool> ReprendreDepuisPauseAsync(Guid execControleOfId);
     Task<bool> CloturerOfAsync(Guid execControleOfId);
     Task<IEnumerable<PosteTravailDto>> GetPostesDisponiblesAsync();
     Task<IEnumerable<MachineDto>> GetMachinesPourPosteAsync(string posteCode);
     Task<IEnumerable<OperateurOfDto>> GetAllOfOperationsDisponiblesAsync();
     Task<bool> UpdatePlanLigneAsync(Guid ligneId, UpdatePlanLigneDto dto);
-    Task<bool> VerifierPlanActifAsync(string articleCode);
+    Task<object> VerifierPlanActifAsync(string articleCode);
+    Task<bool> IgnorerTrancheAsync(Guid execControleOfId, string trancheHoraire);
 }

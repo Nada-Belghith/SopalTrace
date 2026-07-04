@@ -1,11 +1,26 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
-import { useRoute } from 'vue-router';
+import { useOperateurStore } from '@/stores/execution/operateurStore';
+import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
 
 const authStore = useAuthStore();
+const operateurStore = useOperateurStore();
 const route = useRoute();
+const router = useRouter();
+const toast = useToast();
 const isMobileMenuOpen = ref(false);
+
+onMounted(() => {
+  if (authStore.userRole === 'OPERATEUR' || authStore.userRole === 'ADMIN') {
+    operateurStore.startGlobalPolling(toast, router);
+  }
+});
+
+onUnmounted(() => {
+  operateurStore.stopGlobalPolling();
+});
 
 const isDocActive = (pathPrefix, mode = null) => {
   const isPathMatch = route.path.startsWith(pathPrefix);
@@ -23,6 +38,7 @@ const isDocActive = (pathPrefix, mode = null) => {
 };
 
 const handleLogout = () => {
+  operateurStore.stopGlobalPolling();
   authStore.logout();
 };
 

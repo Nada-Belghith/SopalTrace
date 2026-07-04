@@ -29,8 +29,20 @@ class OperateurService {
     return apiClient.post(`/Operateur/of/${execControleOfId}/mettre-en-reglage`, {});
   }
 
+  mettreEnPause(execControleOfId) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/pause`, {});
+  }
+
+  reprendreDepuisPause(execControleOfId) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/reprendre`, {});
+  }
+
   cloturerOf(execControleOfId) {
     return apiClient.post(`/Operateur/of/${execControleOfId}/close`, {});
+  }
+
+  ignorerTranche(execControleOfId, trancheHoraire) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${trancheHoraire}/ignorer`, {});
   }
 
   getAlertesActives(execControleOfId) {

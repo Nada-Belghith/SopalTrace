@@ -21,8 +21,14 @@ public class OperateurRepository : IOperateurRepository
     public async Task<MfgheadOrdreFabrication?> GetOfAsync(string numeroOf)
     {
         return await _context.MfgheadOrdreFabrications
-            .Include(x => x.CodeArticleNavigation)
-            .FirstOrDefaultAsync(x => x.NumeroOf == numeroOf);
+            .Include(o => o.CodeArticleNavigation)
+            .FirstOrDefaultAsync(o => o.NumeroOf == numeroOf);
+    }
+
+    public async Task<MagPreparationOf?> GetMagPreparationOfAsync(string numeroOf)
+    {
+        return await _context.MagPreparationOfs
+            .FirstOrDefaultAsync(p => p.NumeroOf == numeroOf);
     }
 
     public async Task<PlanFabricationEntete?> GetPlanActifAsync(string codeArticle)
@@ -85,7 +91,7 @@ public class OperateurRepository : IOperateurRepository
                     .ThenInclude(a => a.NatureArticleCodeNavigation)
                         .ThenInclude(na => na.NatureArticleOperations)
                             .ThenInclude(nao => nao.OperationCodeNavigation)
-            .Where(m => m.Statut == "EN_COURS" || m.Statut == "PLANIFIE")
+            .Where(m => m.Statut == "EN_COURS" || m.Statut == "PLANIFIE" || m.Statut == "EN_PAUSE")
             .ToListAsync();
 
         var result = new List<SopalTrace.Application.DTOs.Execution.Operateur.OperateurOfDto>();
@@ -95,10 +101,9 @@ public class OperateurRepository : IOperateurRepository
             var of = magOf.NumeroOfNavigation;
             var article = of.CodeArticleNavigation;
 
-            var activeExec = await _context.ExecControleOfs
-                .Where(e => e.NumeroOf == of.NumeroOf && e.Statut != "TERMINE")
-                .OrderByDescending(e => e.DateDebut)
-                .FirstOrDefaultAsync();
+            var activeExecs = await _context.ExecControleOfs
+                .Where(e => e.NumeroOf == of.NumeroOf)
+                .ToListAsync();
 
             var dto = new SopalTrace.Application.DTOs.Execution.Operateur.OperateurOfDto
             {
@@ -108,11 +113,7 @@ public class OperateurRepository : IOperateurRepository
                 DesignationArticle = article?.Designation ?? "",
                 QuantitePrevue = of.QuantitePrevue,
                 QuantiteLancee = of.QuantiteLancee,
-                DateDebut = of.DateDebut,
-                ActiveExecControleOfId = activeExec?.Id,
-                ActiveExecStatut = activeExec?.Statut,
-                ActiveOperationCode = activeExec?.OperationCode,
-                ActiveMachineCode = activeExec?.MachineCode
+                DateDebut = of.DateDebut
             };
 
             if (article?.NatureArticleCodeNavigation?.NatureArticleOperations != null)
@@ -120,11 +121,24 @@ public class OperateurRepository : IOperateurRepository
                 foreach (var op in article.NatureArticleCodeNavigation.NatureArticleOperations.OrderBy(o => o.OrdreGamme))
                 {
                     var machine = await _context.Machines.FirstOrDefaultAsync(m => m.OperationCode == op.OperationCode);
+                    var execForOp = activeExecs.OrderByDescending(e => e.DateDebut).FirstOrDefault(e => e.OperationCode == op.OperationCode);
+                    
+                    bool aDesControlesReglage = false;
+                    if (execForOp != null)
+                    {
+                        aDesControlesReglage = await HasReglageSectionsAsync(execForOp.PlanSourceId);
+                    }
+
                     dto.GammeOperatoire.Add(new SopalTrace.Application.DTOs.Execution.Operateur.OperateurOperationDto
                     {
                         OperationCode = op.OperationCode,
                         Libelle = op.OperationCodeNavigation?.Libelle ?? op.OperationCode,
-                        MachinePrevueCode = machine?.CodeMachine ?? ""
+                        MachinePrevueCode = machine?.CodeMachine ?? "",
+                        ActiveExecControleOfId = execForOp?.Id,
+                        ActiveExecStatut = execForOp?.Statut,
+                        ActiveMachineCode = execForOp?.MachineCode,
+                        EstEnReglage = execForOp?.EstEnReglage,
+                        A_Des_Controles_Reglage = execForOp != null ? aDesControlesReglage : (bool?)null
                     });
                 }
             }
