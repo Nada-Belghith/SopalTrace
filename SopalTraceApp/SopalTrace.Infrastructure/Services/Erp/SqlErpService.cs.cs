@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using SopalTrace.Application.DTOs.Auth;
@@ -49,5 +49,33 @@ public class SqlErpService : IErpService
         }
 
         return null;
+    }
+
+    public async Task<List<string>> GetEmailsByRoleAsync(string roleCode)
+    {
+        var emails = new List<string>();
+        using SqlConnection conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        string query = @"
+            SELECT ADDEML_0
+            FROM AUTILIS
+            WHERE CODMET_0 = @RoleCode AND ENAFLG_0 = 2 AND ADDEML_0 IS NOT NULL AND ADDEML_0 <> ''";
+
+        using SqlCommand cmd = new SqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("@RoleCode", roleCode);
+
+        using SqlDataReader reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var email = reader["ADDEML_0"].ToString();
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                emails.Add(email);
+            }
+        }
+
+        return emails.Distinct().ToList();
     }
 }

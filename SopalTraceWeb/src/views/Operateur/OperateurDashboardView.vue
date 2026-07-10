@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-slate-50 flex flex-col p-8">
     <Toast position="top-right" />
-    <header class="mb-8">
+    <header class="mb-8" v-if="!activeOfContext.id">
       <h1 class="text-3xl font-bold text-slate-800 flex items-center">
         <svg class="w-6 h-6 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
         Tableau de Bord Opérateur
@@ -16,10 +16,17 @@
     <!-- Si l'opérateur est dans l'écran de contrôle actif -->
     <div v-else-if="activeOfContext.id" class="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-[80vh]">
       
-      <!-- Bouton Retour -->
-      <button @click="quitterExecution" class="mb-4 text-blue-600 hover:text-blue-800 hover:underline text-sm flex items-center w-max transition-colors font-medium">
-        <i class="pi pi-arrow-left mr-2"></i> Retour à la liste des OFs
-      </button>
+      <div class="flex justify-between items-center mb-4">
+        <!-- Bouton Retour -->
+        <button @click="quitterExecution" class="text-blue-600 hover:text-blue-800 hover:underline text-sm flex items-center transition-colors font-medium">
+          <i class="pi pi-arrow-left mr-2"></i> Retour à la liste des OFs
+        </button>
+        
+        <!-- Bouton Rafraîchir -->
+        <button @click="chargerOfs" class="text-slate-500 hover:text-slate-700 hover:underline text-sm flex items-center transition-colors font-medium">
+          <i class="pi pi-refresh mr-2"></i> Rafraîchir les contrôles
+        </button>
+      </div>
 
       <div class="flex justify-between items-start mb-6 pb-4 border-b">
         <div>
@@ -33,12 +40,16 @@
         </div>
         
         <div class="flex items-center">
-          <button v-if="activeOfContext.statut === 'EN_PAUSE' || activeOfContext.estEnReglage" @click="reprendre" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 shadow-sm transition mr-2">
+          <button v-if="activeOfContext.statut === 'EN_PAUSE' || activeOfContext.statut === 'REGLAGE' || activeOfContext.estEnReglage" @click="reprendre" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 shadow-sm transition mr-2">
             ▶️ Reprendre la production
           </button>
           
           <button v-if="activeOfContext.statut === 'EN_COURS' && activeOfContext.a_Des_Controles_Reglage && !activeOfContext.estEnReglage" @click="mettreEnReglage" class="px-4 py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 shadow-sm transition mr-2">
             ⚙️ Mettre Aux Réglages
+          </button>
+
+          <button v-if="activeOfContext.statut === 'REGLAGE' || activeOfContext.estEnReglage" @click="mettreEnReglage" class="px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 shadow-sm transition mr-2">
+            🔄 Nouveau Réglage
           </button>
           
           <button v-if="activeOfContext.statut === 'EN_COURS' && !activeOfContext.estEnReglage" @click="mettreEnPause" class="px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 shadow-sm transition mr-2">
@@ -46,12 +57,18 @@
           </button>
 
           <button @click="cloturer" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 shadow-sm transition">
-            ⏹️ Clôturer l'OF
+            ⏹️ Clôturer l'opération
           </button>
         </div>
       </div>
       <div class="flex-1 overflow-y-auto">
-        <AlerteControle :execControleOfId="activeOfContext.id" :aDesControlesReglage="activeOfContext.a_Des_Controles_Reglage" />
+        <AlerteControle 
+          :execControleOfId="activeOfContext.id" 
+          :aDesControlesReglage="activeOfContext.a_Des_Controles_Reglage"
+          :legendeMoyens="activeOfContext.legendeMoyens"
+          :remarques="activeOfContext.remarques"
+          @occurrence-submitted="chargerOfs" 
+        />
       </div>
     </div>
 
@@ -69,9 +86,53 @@
           </span>
         </div>
 
-        <div class="mb-6">
+        <div class="mb-4">
           <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1">{{ of.designationArticle }}</h3>
           <p class="text-sm text-slate-400 font-medium">{{ of.codeArticle }}</p>
+        </div>
+
+        <!-- Timeline Gamme Opératoire -->
+        <div v-if="of.gammeOperatoire && of.gammeOperatoire.length > 0" class="mb-4 mt-2">
+          <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-3">Progression des opérations</p>
+          <div class="relative flex items-center justify-between px-2">
+            <!-- Ligne de fond -->
+            <div class="absolute top-2 left-4 right-4 h-1 bg-slate-100 z-0 rounded-full"></div>
+            
+            <div v-for="(op, idx) in of.gammeOperatoire" :key="idx" class="relative z-10 flex flex-col items-center group">
+              <!-- Point -->
+              <div class="w-4 h-4 rounded-full border-2 transition-all duration-300 relative flex items-center justify-center shadow-sm"
+                   :class="[
+                     op.activeExecStatut === 'CLOTURE' ? 'border-green-500 bg-green-500' :
+                     op.activeExecStatut === 'EN_COURS' ? 'border-blue-500 bg-blue-500 ring-4 ring-blue-100' :
+                     op.activeExecStatut === 'EN_PAUSE' ? 'border-yellow-500 bg-yellow-400 ring-4 ring-yellow-50' :
+                     'border-slate-300 bg-white'
+                   ]">
+                   <!-- Checkmark pour CLOTURE -->
+                   <svg v-if="op.activeExecStatut === 'CLOTURE'" class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M5 13l4 4L19 7"></path></svg>
+                   <!-- Point clignotant pour EN_COURS -->
+                   <div v-else-if="op.activeExecStatut === 'EN_COURS'" class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                   <!-- Pause icon pour EN_PAUSE -->
+                   <svg v-else-if="op.activeExecStatut === 'EN_PAUSE'" class="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+              </div>
+              
+              <!-- Code Opération -->
+              <span class="text-[9px] font-bold mt-2 text-center truncate max-w-[55px]"
+                    :class="[
+                      op.activeExecStatut === 'EN_COURS' ? 'text-blue-700 font-extrabold' : 
+                      op.activeExecStatut === 'CLOTURE' ? 'text-green-600' :
+                      op.activeExecStatut === 'EN_PAUSE' ? 'text-yellow-600' :
+                      'text-slate-400'
+                    ]">
+                {{ op.operationCode }}
+              </span>
+
+              <!-- Tooltip au survol -->
+              <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-800 text-white text-[11px] font-medium rounded-md opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">
+                {{ op.libelle }}
+                <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="flex justify-between items-end border-t border-slate-100 pt-4 mt-auto">
@@ -110,16 +171,19 @@
           <div>
             <h3 class="text-red-800 font-bold text-sm">Opération impossible</h3>
             <p class="text-red-600 text-sm mt-1">{{ errorMessage }}</p>
-            <p class="text-red-600 text-sm mt-1 font-semibold mb-3">Veuillez demander au responsable d'activer un plan pour cet article.</p>
             
-            <button v-if="!planSignale" @click="signalerPlanManquant" :disabled="isSignalingPlan" class="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition flex items-center shadow-sm">
-              <svg v-if="!isSignalingPlan" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-              <svg v-else class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              Signaler au Responsable DI
-            </button>
-            <div v-else class="text-green-700 font-bold text-sm flex items-center mt-2 bg-green-50 p-2 rounded-lg">
-              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-              Signalement envoyé avec succès !
+            <div v-if="errorMessage && errorMessage.includes('Aucun plan')">
+              <p class="text-red-600 text-sm mt-1 font-semibold mb-3">Veuillez demander au responsable d'activer un plan pour cet article.</p>
+              
+              <button v-if="!planSignale" @click="signalerPlanManquant" :disabled="isSignalingPlan" class="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition flex items-center shadow-sm">
+                <svg v-if="!isSignalingPlan" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                <svg v-else class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                Signaler au Responsable DI
+              </button>
+              <div v-else class="text-green-700 font-bold text-sm flex items-center mt-2 bg-green-50 p-2 rounded-lg">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                Signalement envoyé avec succès !
+              </div>
             </div>
           </div>
         </div>
@@ -216,19 +280,91 @@
       </div>
     </div>
 
+    <!-- Modal Interception Départ -->
+    <Dialog v-model:visible="showLeaveModal" modal header="Attention : OF toujours actif" :style="{ width: '450px' }" :closable="false">
+      <div class="p-2 flex flex-col items-center">
+        <div class="bg-yellow-100 p-4 rounded-full mb-4">
+          <svg class="w-10 h-10 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <p class="text-center text-slate-700 font-medium mb-6">
+          Vous êtes sur le point de quitter cette page alors que l'OF <span class="font-bold text-slate-900">{{ activeOfContext.numeroOf }}</span> est toujours <span class="text-green-600 font-bold">EN COURS</span>.
+          <br><br>Que souhaitez-vous faire ?
+        </p>
+        <div class="flex flex-col gap-3 w-full">
+          <button @click="confirmLeave('pause')" class="w-full px-4 py-3 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 shadow-sm transition">
+            ⏸️ Mettre l'OF en Pause et quitter
+          </button>
+          <button @click="confirmLeave('cloture')" class="w-full px-4 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-sm transition">
+            ⏹️ Clôturer définitivement l'opération et quitter
+          </button>
+          <button @click="confirmLeave('quitter')" class="w-full px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-sm transition">
+            ▶️ Laisser l'OF en cours et quitter quand même
+          </button>
+          <button @click="cancelLeave" class="w-full px-4 py-3 bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300 shadow-sm transition mt-2">
+            Annuler (Rester sur la page)
+          </button>
+        </div>
+      </div>
+    </Dialog>
 
+    <!-- Modal Clôture Explicite -->
+    <Dialog v-model:visible="showClotureModal" modal header="Confirmation de clôture" :style="{ width: '450px' }" :closable="false">
+      <div class="p-2 flex flex-col items-center">
+        <div class="bg-red-100 p-4 rounded-full mb-4">
+          <svg class="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <p class="text-center text-slate-700 font-medium mb-6">
+          Êtes-vous sûr de vouloir clôturer l'opération pour cet OF ?<br><br>
+          <span class="text-red-600 font-bold">Attention :</span> Tous les contrôles intermédiaires non réalisés seront ignorés.
+        </p>
+        <div class="flex flex-col gap-3 w-full">
+          <button @click="confirmCloture" class="w-full px-4 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-sm transition">
+            ⏹️ Oui, clôturer l'opération
+          </button>
+          <button @click="showClotureModal = false" class="w-full px-4 py-3 bg-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-300 shadow-sm transition mt-2">
+            Annuler
+          </button>
+        </div>
+      </div>
+    </Dialog>
+    <!-- Modal Motif Pause Obligatoire -->
+    <div v-if="raisonModalConfig.show" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl animate-fade-in-up">
+        <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center">
+          <svg class="w-6 h-6 mr-2 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          {{ raisonModalConfig.titre }}
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">{{ raisonModalConfig.description }}</p>
+        <textarea v-model="raisonModalConfig.texte" 
+                  rows="3" 
+                  class="w-full border border-gray-300 rounded-lg shadow-sm focus:border-yellow-500 focus:ring-yellow-500 p-3 mb-4 text-sm" 
+                  placeholder="Saisissez le motif (obligatoire)..."
+                  @keyup.enter="confirmerRaison"
+                  autofocus></textarea>
+        <div class="flex justify-end gap-3">
+          <button @click="annulerRaison" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Annuler</button>
+          <button @click="confirmerRaison" 
+                  class="px-4 py-2 bg-yellow-600 text-white hover:bg-yellow-700 rounded-lg font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                  :disabled="!raisonModalConfig.texte.trim()">
+            Confirmer la Pause
+          </button>
+        </div>
+      </div>
+    </div>
 
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import operateurService from '@/services/operateurService';
 import alertesService from '@/services/alertesService';
 import AlerteControle from '@/components/Operateur/AlerteControle.vue';
 import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
+import Dialog from 'primevue/dialog';
+import { useAuthStore } from '@/stores/authStore';
 
 const toast = useToast();
 const route = useRoute();
@@ -261,12 +397,15 @@ const filteredOfs = computed(() => {
 const showModal = ref(false);
 const selectedOf = ref(null);
 const errorMessage = ref('');
+
+const authStore = useAuthStore();
+
 const form = ref({
   numeroOf: '',
   operationCode: '',
   machineCode: '',
   numEquipe: 1,
-  matriculeOperateur: 'OP01',
+  matriculeOperateur: authStore.user?.matricule || 'OP_INCONNU',
   longueur: null,
   diametre: null
 });
@@ -311,7 +450,9 @@ const chargerOfs = async () => {
           machineCode: foundOp.activeMachineCode,
           statut: foundOp.activeExecStatut,
           estEnReglage: foundOp.estEnReglage || false,
-          a_Des_Controles_Reglage: foundOp.a_Des_Controles_Reglage || false
+          a_Des_Controles_Reglage: foundOp.a_Des_Controles_Reglage || false,
+          legendeMoyens: foundOp.legendeMoyens,
+          remarques: foundOp.remarques
         };
       }
     }
@@ -322,10 +463,6 @@ const chargerOfs = async () => {
     }
   }
 };
-
-onMounted(() => {
-  chargerOfs();
-});
 
 const selectedOpState = computed(() => {
   if (!selectedOf.value || !form.value.operationCode) return null;
@@ -359,14 +496,10 @@ const ouvrirModalDemarrage = (of) => {
     operationCode: '',
     machineCode: '',
     numEquipe: 1,
-    matriculeOperateur: 'OP01',
+    matriculeOperateur: authStore.user?.matricule || 'OP_INCONNU',
     longueur: null,
     diametre: null
   };
-  
-  if(of.gammeOperatoire && of.gammeOperatoire.length > 0) {
-    onOperationChange(of.gammeOperatoire[0]);
-  }
   
   showModal.value = true;
 };
@@ -404,14 +537,26 @@ const onOperationChange = async (op) => {
   isLongueurInitialized.value = false;
   isDiametreInitialized.value = false;
   errorMessage.value = '';
+
+  if (selectedOf.value && selectedOf.value.gammeOperatoire) {
+    const currentIndex = selectedOf.value.gammeOperatoire.findIndex(o => o.operationCode === op.operationCode);
+    if (currentIndex > 0) {
+      // Vérifier l'opération juste avant
+      const prevOp = selectedOf.value.gammeOperatoire[currentIndex - 1];
+      // Si l'opération précédente n'a pas de statut (donc NON COMMENCÉ)
+      if (!prevOp.activeExecStatut) {
+        errorMessage.value = `L'opération précédente (${prevOp.operationCode || prevOp.operationLibelle}) n'est pas encore commencée. Vous devez commencer les opérations dans l'ordre de la gamme.`;
+        return;
+      }
+    }
+  }
   
   if (selectedOf.value?.codeArticle) {
     try {
-      const res = await operateurService.verifierPlan(selectedOf.value.codeArticle);
+      const res = await operateurService.verifierPlan(selectedOf.value.codeArticle, op.operationCode);
       if (!res.data.existe) {
         errorMessage.value = "Aucun plan de contrôle n'est actif pour cet article.";
       } else {
-        // Pré-remplir longueur et diamètre pour les opérations de tronçonnage
         const isTronnage = op.operationCode === 'TRONC' || op.operationCode === 'TRN';
         if (isTronnage) {
           if (res.data.longueur != null) {
@@ -435,7 +580,6 @@ const demarrerOf = async () => {
   errorMessage.value = '';
   try {
     const res = await operateurService.demarrerOf({ ...form.value });
-    // Démarrage réussi, on ferme le modal et on affiche le contexte
     fermerModal();
     activeOfContext.value = {
       id: res.data.id,
@@ -448,7 +592,6 @@ const demarrerOf = async () => {
     };
     router.push({ query: { execution: res.data.id } });
   } catch (error) {
-    // Au lieu d'un alert(), on affiche l'erreur dans l'UI
     errorMessage.value = error.response?.data?.message || error.message;
   }
 };
@@ -458,7 +601,6 @@ const mettreEnReglage = async () => {
     await operateurService.mettreEnReglage(activeOfContext.value.id);
     toast.add({ severity: 'success', summary: 'Mode Réglage', detail: 'Production mise en pause. Procédez aux contrôles de réglage.', life: 4000 });
     activeOfContext.value.estEnReglage = true;
-    // On force un rafraichissement silencieux
     chargerOfs();
   } catch (error) {
     console.error(error);
@@ -466,16 +608,56 @@ const mettreEnReglage = async () => {
   }
 };
 
-const mettreEnPause = async () => {
-  try {
-    await operateurService.mettreEnPause(activeOfContext.value.id);
-    toast.add({ severity: 'info', summary: 'Production en Pause', detail: 'L\'OF est maintenant en pause.', life: 4000 });
-    activeOfContext.value.statut = 'EN_PAUSE';
-    chargerOfs();
-  } catch (error) {
-    console.error(error);
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de mettre en pause.', life: 3000 });
+const raisonModalConfig = ref({
+  show: false,
+  texte: '',
+  titre: '',
+  description: '',
+  action: null,
+  payload: null
+});
+
+const demanderRaisonPause = (titre, description, actionCallback, payload = null) => {
+  raisonModalConfig.value = {
+    show: true,
+    texte: '',
+    titre,
+    description,
+    action: actionCallback,
+    payload
+  };
+};
+
+const annulerRaison = () => {
+  raisonModalConfig.value.show = false;
+  actionEnCours.value = false;
+};
+
+const confirmerRaison = () => {
+  if (!raisonModalConfig.value.texte.trim()) return;
+  const { action, texte, payload } = raisonModalConfig.value;
+  raisonModalConfig.value.show = false;
+  if (action) {
+    action(texte, payload);
   }
+};
+
+const mettreEnPause = () => {
+  demanderRaisonPause(
+    'Mettre en Pause',
+    'Voulez-vous vraiment mettre la production en pause ? Veuillez saisir le motif (obligatoire) :',
+    async (raison) => {
+      try {
+        await operateurService.mettreEnPause(activeOfContext.value.id, raison);
+        toast.add({ severity: 'info', summary: 'Production en Pause', detail: 'L\'OF est maintenant en pause.', life: 4000 });
+        activeOfContext.value.statut = 'EN_PAUSE';
+        chargerOfs();
+      } catch (error) {
+        console.error(error);
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de mettre en pause.', life: 3000 });
+      }
+    }
+  );
 };
 
 const reprendre = async () => {
@@ -487,28 +669,161 @@ const reprendre = async () => {
     chargerOfs();
   } catch (error) {
     console.error(error);
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de reprendre la production.', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Impossible de reprendre la production.', life: 3000 });
   }
 };
 
+const showClotureModal = ref(false);
 
-const cloturer = async () => {
-  if (!confirm("Êtes-vous sûr de vouloir clôturer l'opération pour cet OF ?\n\nAttention : Tous les contrôles intermédiaires non réalisés seront ignorés.")) return;
+const cloturer = () => {
+  showClotureModal.value = true;
+};
+
+const confirmCloture = async () => {
+  showClotureModal.value = false;
   try {
     await operateurService.cloturerOf(activeOfContext.value.id);
+    activeOfContext.value = {}; // <-- Empêche l'intercepteur de route de bloquer la navigation
     quitterExecution();
-    chargerOfs(); // Rafraîchir la liste
+    chargerOfs();
   } catch (error) {
     console.error(error);
   }
 };
 
 const quitterExecution = () => {
-  activeOfContext.value = {};
-  router.push({ query: {} }); // Enlève ?execution=... de l'URL
+  if (activeOfContext.value && activeOfContext.value.statut !== 'EN_COURS') {
+    activeOfContext.value = {};
+  }
+  router.push({ path: route.path, query: {} });
 };
 
-// Gérer le bouton "Précédent" du navigateur
+// --- GESTION DE LA NAVIGATION ET PROTECTION (PAUSE/CLÔTURE) ---
+
+const showLeaveModal = ref(false);
+const nextRouteOrQuery = ref(null);
+const actionEnCours = ref(false);
+
+watch(() => raisonModalConfig.value.show, (newVal) => {
+  if (newVal) operateurStore.isPollingPaused = true;
+  else operateurStore.isPollingPaused = false;
+});
+
+watch(showClotureModal, (newVal) => {
+  if (newVal) operateurStore.isPollingPaused = true;
+  else operateurStore.isPollingPaused = false;
+});
+
+watch(showLeaveModal, (newVal) => {
+  if (newVal) operateurStore.isPollingPaused = true;
+  else operateurStore.isPollingPaused = false;
+});
+
+watch(showModal, (newVal) => {
+  if (newVal) operateurStore.isPollingPaused = true;
+  else operateurStore.isPollingPaused = false;
+});
+
+const handleNavigation = (to) => {
+  if (!authStore.token) return true; // Contourner si déconnexion en cours
+  if (activeOfContext.value && activeOfContext.value.id && activeOfContext.value.statut === 'EN_COURS') {
+    if (to.path !== route.path || !to.query.execution) {
+      nextRouteOrQuery.value = to;
+      showLeaveModal.value = true;
+      return false;
+    }
+  }
+  return true;
+};
+
+onBeforeRouteLeave((to, from) => {
+  return handleNavigation(to);
+});
+
+onBeforeRouteUpdate((to, from) => {
+  return handleNavigation(to);
+});
+
+const executeLeaveAction = async (actionType, raison = null) => {
+  try {
+    if (actionType === 'pause') {
+      await operateurService.mettreEnPause(activeOfContext.value.id, raison);
+      toast.add({ severity: 'success', summary: 'Succès', detail: 'OF mis en pause.', life: 3000 });
+    } else if (actionType === 'cloture') {
+      await operateurService.cloturerOf(activeOfContext.value.id);
+      toast.add({ severity: 'success', summary: 'Succès', detail: 'OF clôturé.', life: 3000 });
+    }
+    
+    showLeaveModal.value = false;
+    activeOfContext.value = {};
+    
+    if (nextRouteOrQuery.value) {
+      router.push(nextRouteOrQuery.value);
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Action impossible.', life: 3000 });
+  } finally {
+    actionEnCours.value = false;
+  }
+};
+
+const confirmLeave = (action) => {
+  if (actionEnCours.value) return;
+  actionEnCours.value = true;
+  
+  if (action === 'pause') {
+    showLeaveModal.value = false;
+    demanderRaisonPause(
+      'Mettre en Pause avant de quitter',
+      'Voulez-vous vraiment mettre la production en pause avant de quitter ? Veuillez saisir le motif (obligatoire) :',
+      async (raison) => {
+        await executeLeaveAction('pause', raison);
+      }
+    );
+  } else {
+    executeLeaveAction(action);
+  }
+};
+
+const cancelLeave = () => {
+  showLeaveModal.value = false;
+  nextRouteOrQuery.value = null;
+};
+
+const handleUnload = (e) => {
+  if (activeOfContext.value && activeOfContext.value.id && activeOfContext.value.statut === 'EN_COURS') {
+    // Si l'opérateur ferme l'application (ou rafraîchit), on essaie discrètement de mettre l'OF en pause
+    // On ne bloque plus la navigation avec preventDefault pour ne pas empêcher le F5
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5246';
+    const url = `${apiUrl}/api/Operateur/of/${activeOfContext.value.id}/pause`;
+    
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authStore.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ raison: "Fermeture inattendue de l'application" }),
+      keepalive: true
+    }).catch(() => {});
+  }
+};
+
+onMounted(() => {
+  chargerOfs();
+  
+  const refreshInterval = setInterval(chargerOfs, 60000);
+  
+  window.addEventListener('beforeunload', handleUnload);
+  window.addEventListener('unload', handleUnload);
+
+  onUnmounted(() => {
+    clearInterval(refreshInterval);
+    window.removeEventListener('beforeunload', handleUnload);
+    window.removeEventListener('unload', handleUnload);
+  });
+});
+
 watch(() => route.query.execution, (newVal) => {
   if (!newVal) {
     activeOfContext.value = {};

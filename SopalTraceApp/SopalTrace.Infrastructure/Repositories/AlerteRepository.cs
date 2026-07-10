@@ -48,4 +48,17 @@ public class AlerteRepository : IAlerteRepository
             .Where(a => !a.EstResolu && a.TypeAlerte == "PLAN_MANQUANT" && a.CleEntite.EndsWith(articleCode))
             .ToListAsync();
     }
+
+    public async Task ResoudreAlertesPourEntiteAsync(string cleEntite, string resoluPar)
+    {
+        var alertes = await _context.Alertes
+            .Where(a => a.CleEntite == cleEntite && !a.EstResolu)
+            .ToListAsync();
+
+        foreach (var alerte in alertes)
+        {
+            alerte.EstResolu = true;
+            alerte.DateResolution = DateTime.UtcNow;
+        }
+    }
 }

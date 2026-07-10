@@ -13,8 +13,10 @@ public interface IOccurrenceRepository
     Task<ExecPrelevementIntermediaire?> GetIntermediaireAsync(Guid id);
     Task<List<ExecPrelevementIntermediaire>> GetIntermediairesParTrancheAsync(Guid execControleOfId, string trancheHoraire);
     Task<ExecControleTranche?> GetTrancheExistanteAsync(Guid execControleOfId, string trancheHoraire);
+    Task<ExecControleTranche?> GetDerniereTrancheAsync(Guid execControleOfId);
     void AddIntermediaires(IEnumerable<ExecPrelevementIntermediaire> intermediaires);
     void AddTranche(ExecControleTranche tranche);
+    void AddPieceType(ExecPieceType pieceType);
 
     void RemoveIntermediaires(IEnumerable<ExecPrelevementIntermediaire> intermediaires);
     Task<List<PlanFabricationLigne>> GetLignesForSectionAsync(Guid sectionId);

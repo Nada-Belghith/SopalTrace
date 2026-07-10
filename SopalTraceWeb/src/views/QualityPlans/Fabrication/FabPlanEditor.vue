@@ -27,8 +27,8 @@
             <div v-if="isEditMode" class="flex items-center bg-slate-50 rounded-lg border border-slate-200 ml-4 hidden md:flex overflow-hidden">
               <span class="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase bg-slate-100 border-r border-slate-200 flex items-center h-full">Code Article:</span>
               <div v-if="!isReadOnly && plan" class="flex items-center">
-                <span class="font-mono font-bold text-sm text-slate-700 pl-2 py-1.5">{{ codeArticleBase }}</span>
-                <InputText v-model="codeArticleSuffix" class="font-mono font-bold text-sm text-blue-700 p-1 w-16 h-8 mx-1 bg-white border-slate-300 focus:border-blue-500 rounded" placeholder=".X" />
+                <span class="font-mono font-bold text-sm text-slate-700 pl-2 py-1.5">{{ codeArticleBase }}.</span>
+                <InputText v-model="codeArticleSuffix" :class="['font-mono font-bold text-sm text-blue-700 p-1 w-16 h-8 mx-1 bg-white focus:border-blue-500 rounded', !codeArticleSuffix ? 'border-2 border-red-500' : 'border border-slate-300']" placeholder="X" />
               </div>
               <span v-else class="font-mono font-bold text-sm text-slate-700 px-3 py-1.5">{{ codeAffiche }}</span>
             </div>
@@ -286,25 +286,17 @@
   const codeAffiche = computed(() => plan.value?.codeArticleSageVersionne || plan.value?.nom || plan.value?.codeArticleSage || wizard.codeArticleSage.value || '');
 
   const codeArticleBase = computed(() => {
-    const code = plan.value?.codeArticleSageVersionne || wizard.codeArticleSage.value || plan.value?.codeArticleSage || '';
+    let code = plan.value?.codeArticleSageVersionne || wizard.codeArticleSage.value || plan.value?.codeArticleSage || '';
+    code = code.replace(/\.\./g, '.'); // Nettoyer d'éventuels doubles points
     const match = code.match(/^(.*?)(\.\w+)?$/);
-    return match ? match[1] : code;
+    let base = match ? match[1] : code;
+    if (base.endsWith('.')) {
+      base = base.substring(0, base.length - 1);
+    }
+    return base;
   });
 
-  const codeArticleSuffix = computed({
-    get: () => {
-      const code = plan.value?.codeArticleSageVersionne || plan.value?.codeArticleSage || '';
-      return code.substring(codeArticleBase.value.length) || '';
-    },
-    set: (val) => {
-      if (plan.value) {
-        let suffix = val || '';
-        if (suffix && !suffix.startsWith('.')) suffix = '.' + suffix;
-        plan.value.codeArticleSageVersionne = codeArticleBase.value + suffix;
-        plan.value.codeArticleSage = plan.value.codeArticleSageVersionne; // Garder les deux synchros pour la vue
-      }
-    }
-  });
+  const codeArticleSuffix = ref('');
 
   const planColumns = computed(() => store.tableColumns || []);
 
@@ -1338,6 +1330,11 @@
         
         const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
         planCreationPayload.value.nom = finalNom;
+        
+        let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
+        let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
+        planCreationPayload.value.codeArticleSageVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
+        
         planCreationPayload.value.legendeMoyens = legendeMoyens.value;
         planCreationPayload.value.remarques = remarques.value;
 
@@ -1421,6 +1418,12 @@
     isSaving.value = true;
 
     try {
+      if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
+        isSaving.value = false;
+        return;
+      }
+
       if (planCreationPayload.value) planCreationPayload.value.statut = 'BROUILLON';
       if (plan.value) plan.value.statut = 'BROUILLON';
       // Forcer la sauvegarde manuelle (bypass le flag isSaving interne)
@@ -1440,6 +1443,12 @@
     isSaving.value = true;
 
     try {
+      if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
+        isSaving.value = false;
+        return;
+      }
+      
       if (!validerSaisieValeurs()) {
         isSaving.value = false;
         return;
@@ -1499,6 +1508,12 @@
 
       if (isArchived.value) {
         await mettreANiveauArchive();
+        isSaving.value = false;
+        return;
+      }
+
+      if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
         isSaving.value = false;
         return;
       }
@@ -1572,7 +1587,8 @@
           ancienId: planId.value,
           modifiePar: 'ADMIN',
           motifModification: motif || 'Modification de la structure du plan',
-          codeArticleSage: plan.value?.codeArticleSage
+          nom: `${codeArticleBase.value}.${codeArticleSuffix.value}`,
+          codeArticleSage: `${codeArticleBase.value}.${codeArticleSuffix.value}`
         });
         const newPlanId = newVersionPlan.id || newVersionPlan.planId || newVersionPlan.data?.id || newVersionPlan.data?.planId;
         const clonedPlanRes = await fabPlanService.getPlanById(newPlanId);

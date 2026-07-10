@@ -7,6 +7,7 @@ namespace SopalTrace.Application.DTOs.QualityPlans.Fabrication;
 public class CreatePlanFabricationRequestDto
 {
     public string Nom { get; set; } = string.Empty;
+    public string? CodeArticleSageVersionne { get; set; }
     public string? Designation { get; set; }
     public int? VersionInitiale { get; set; }
     public string? OperationCode { get; set; }
@@ -109,6 +110,7 @@ public class PlanFabricationEnteteDto
 {
     public Guid Id { get; set; }
     public string Nom { get; set; } = string.Empty;
+    public string? CodeArticleSageVersionne { get; set; }
     public string? Designation { get; set; }
     public int Version { get; set; }
     public string Statut { get; set; } = string.Empty;

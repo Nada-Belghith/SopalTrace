@@ -913,7 +913,7 @@ CREATE TABLE dbo.Exec_ControleOF (
     PlanSourceId     UNIQUEIDENTIFIER NOT NULL,
     TypePlan         VARCHAR(10) NOT NULL CHECK (TypePlan IN ('FAB','DOC')),
     Statut           VARCHAR(20) NOT NULL DEFAULT 'EN_COURS'
-        CHECK (Statut IN ('EN_COURS','CLOTURE','EN_PAUSE')),
+        CHECK (Statut IN ('EN_COURS','CLOTURE','EN_PAUSE','REGLAGE')),
     EstEnReglage     BIT         NOT NULL DEFAULT 0,
     DateDebut        DATETIME    NOT NULL DEFAULT GETDATE(),
     DateFin          DATETIME
@@ -939,7 +939,8 @@ CREATE TABLE dbo.Exec_ControleTranche (
     ResultatFinal        VARCHAR(10)  CHECK (ResultatFinal IN ('C','NC','REGLAGE','IGNORE')),
     DetailsNC            VARCHAR(500),
     ActionsCorrection    VARCHAR(500),
-    MatriculeApprobateur VARCHAR(20)
+    MatriculeApprobateur VARCHAR(20),
+    Remarques            VARCHAR(MAX)
 );
 GO
 

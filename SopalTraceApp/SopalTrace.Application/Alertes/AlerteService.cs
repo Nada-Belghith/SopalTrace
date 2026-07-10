@@ -36,7 +36,9 @@ public class AlerteService<TContexte>
         var destinataires = await _definition.ResoudreDestinatairesAsync(contexte);
         if (!destinataires.Any()) 
         {
-            throw new InvalidOperationException("Impossible de lancer l'alerte : Aucun utilisateur actif n'a le rôle requis pour la recevoir.");
+            // Aucun destinataire n'est configuré (ex: Aucun Manager Prod ou Superviseur n'est inscrit)
+            // On ne jette plus d'exception pour ne pas crasher la boucle d'occurrence (Erreur 500)
+            return;
         }
 
         var sujet = _definition.ConstruireSujet(contexte);

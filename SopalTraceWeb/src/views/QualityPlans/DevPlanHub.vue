@@ -109,6 +109,9 @@
             <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
               {{ plan.category === 'FAB' ? (plan.codeArticleSage || plan.libelle || plan.designation || '(Sans désignation)') : (plan.libelle || plan.designation || '(Sans désignation)') }}
             </h3>
+            <p v-if="plan.creeLe" class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="pi pi-calendar text-[9px]"></i> Créé le {{ new Date(plan.creeLe).toLocaleDateString('fr-FR') }} à {{ new Date(plan.creeLe).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+            </p>
           </div>
 
           <!-- Tags -->

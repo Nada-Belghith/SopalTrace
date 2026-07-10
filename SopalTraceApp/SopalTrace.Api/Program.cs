@@ -119,6 +119,11 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 // Alertes
 builder.Services.AddScoped<SopalTrace.Application.Alertes.IAlerteDefinition<SopalTrace.Application.Alertes.PlanManquantContexte>, SopalTrace.Application.Alertes.AlertePlanManquantDefinition>();
 builder.Services.AddScoped<SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.PlanManquantContexte>>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.IAlerteDefinition<SopalTrace.Application.Alertes.NotifsSuperviseurContexte>, SopalTrace.Application.Alertes.SuperviseurNotifsAlerteDefinition>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.NotifsSuperviseurContexte>>();
+
+builder.Services.AddScoped<SopalTrace.Application.Alertes.IAlerteDefinition<SopalTrace.Application.Alertes.NotifsManagerContexte>, SopalTrace.Application.Alertes.ManagerNotifsAlerteDefinition>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.NotifsManagerContexte>>();
 builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 builder.Services.AddScoped<IFrequencyParserService, FrequencyParserService>();
 builder.Services.AddScoped<IRefFormulaireRepository, RefFormulaireRepository>();

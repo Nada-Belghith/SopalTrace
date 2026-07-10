@@ -43,9 +43,9 @@ public class OperateurController : ControllerBase
     }
 
     [HttpGet("plan/existe")]
-    public async Task<IActionResult> VerifierPlanActif([FromQuery] string articleCode)
+    public async Task<IActionResult> VerifierPlanActif([FromQuery] string articleCode, [FromQuery] string? operationCode = null)
     {
-        var result = await _operateurService.VerifierPlanActifAsync(articleCode);
+        var result = await _operateurService.VerifierPlanActifAsync(articleCode, operationCode);
         return Ok(result);
     }
 
@@ -57,10 +57,30 @@ public class OperateurController : ControllerBase
         return Ok();
     }
 
-    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/ignorer")]
-    public async Task<IActionResult> IgnorerTranche(Guid execControleOfId, string trancheHoraire)
+
+    public class IgnorerTrancheRequest
     {
-        var result = await _operateurService.IgnorerTrancheAsync(execControleOfId, trancheHoraire);
+        public string MatriculeOperateur { get; set; } = null!;
+        public string? Raison { get; set; }
+    }
+
+    public class PauseOfRequest
+    {
+        public string Raison { get; set; } = null!;
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/ignorer")]
+    public async Task<IActionResult> IgnorerTranche(Guid execControleOfId, string trancheHoraire, [FromBody] IgnorerTrancheRequest request)
+    {
+        var result = await _operateurService.IgnorerTrancheAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur, request.Raison);
+        if (!result) return NotFound(new { Message = "Tranche ou OF introuvable." });
+        return Ok();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/reglage")]
+    public async Task<IActionResult> DeclarerTrancheEnReglage(Guid execControleOfId, string trancheHoraire, [FromBody] IgnorerTrancheRequest request)
+    {
+        var result = await _operateurService.DeclarerTrancheEnReglageAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur);
         if (!result) return NotFound(new { Message = "Tranche ou OF introuvable." });
         return Ok();
     }
@@ -88,9 +108,9 @@ public class OperateurController : ControllerBase
     }
 
     [HttpPost("of/{execControleOfId:guid}/pause")]
-    public async Task<IActionResult> MettreEnPause(Guid execControleOfId)
+    public async Task<IActionResult> MettreEnPause(Guid execControleOfId, [FromBody] PauseOfRequest request)
     {
-        var result = await _operateurService.MettreEnPauseAsync(execControleOfId);
+        var result = await _operateurService.MettreEnPauseAsync(execControleOfId, request.Raison);
         if (!result) return BadRequest(new { Message = "Impossible de mettre l'OF en pause." });
         return Ok();
     }
@@ -98,9 +118,14 @@ public class OperateurController : ControllerBase
     [HttpPost("of/{execControleOfId:guid}/reprendre")]
     public async Task<IActionResult> ReprendreDepuisPause(Guid execControleOfId)
     {
-        var result = await _operateurService.ReprendreDepuisPauseAsync(execControleOfId);
-        if (!result) return BadRequest(new { Message = "Impossible de reprendre cet OF." });
-        return Ok();
+        var resultPause = await _operateurService.ReprendreDepuisPauseAsync(execControleOfId);
+        if (resultPause) return Ok();
+
+        var resultReglage = await _operateurService.ReprendreOfAsync(execControleOfId);
+        if (resultReglage.Success) return Ok();
+
+        // Si ce n'était ni une pause, ni un réglage réussi, ou si la validation bloque
+        return BadRequest(new { Message = resultReglage.Message ?? "Impossible de reprendre cet OF." });
     }
 
     [HttpPost("of/{execControleOfId:guid}/close")]

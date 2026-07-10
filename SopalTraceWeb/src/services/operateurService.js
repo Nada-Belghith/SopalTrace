@@ -13,8 +13,9 @@ class OperateurService {
     return apiClient.get(`/Operateur/ofs/operations`);
   }
 
-  verifierPlan(articleCode) {
-    return apiClient.get(`/Operateur/plan/existe?articleCode=${articleCode}`);
+  verifierPlan(articleCode, operationCode = '') {
+    const opParam = operationCode ? `&operationCode=${operationCode}` : '';
+    return apiClient.get(`/Operateur/plan/existe?articleCode=${articleCode}${opParam}`);
   }
 
   updatePlanLigne(ligneId, data) {
@@ -29,8 +30,8 @@ class OperateurService {
     return apiClient.post(`/Operateur/of/${execControleOfId}/mettre-en-reglage`, {});
   }
 
-  mettreEnPause(execControleOfId) {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/pause`, {});
+  mettreEnPause(execControleOfId, raison) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/pause`, { raison });
   }
 
   reprendreDepuisPause(execControleOfId) {
@@ -41,8 +42,12 @@ class OperateurService {
     return apiClient.post(`/Operateur/of/${execControleOfId}/close`, {});
   }
 
-  ignorerTranche(execControleOfId, trancheHoraire) {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${trancheHoraire}/ignorer`, {});
+  ignorerTranche(execControleOfId, trancheHoraire, matriculeOperateur, raison) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${trancheHoraire}/ignorer`, { matriculeOperateur, raison });
+  }
+
+  declarerTrancheReglage(execControleOfId, trancheHoraire, matriculeOperateur) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${trancheHoraire}/reglage`, { matriculeOperateur });
   }
 
   getAlertesActives(execControleOfId) {

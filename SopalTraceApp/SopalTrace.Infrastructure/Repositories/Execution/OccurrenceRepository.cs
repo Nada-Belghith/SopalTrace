@@ -22,6 +22,9 @@ public class OccurrenceRepository : IOccurrenceRepository
     {
         return await _context.ExecControleOfs
             .Include(o => o.ExecPrelevementIntermediaires)
+            .Include(o => o.ExecPieceTypes)
+            .Include(o => o.ExecControleTranches)
+            .Include(o => o.NumeroOfNavigation)
             .FirstOrDefaultAsync(o => o.Id == execControleOfId);
     }
 
@@ -59,6 +62,14 @@ public class OccurrenceRepository : IOccurrenceRepository
             .FirstOrDefaultAsync(t => t.ExecControleOfid == execControleOfId && t.TrancheHoraire == trancheHoraire);
     }
 
+    public async Task<ExecControleTranche?> GetDerniereTrancheAsync(Guid execControleOfId)
+    {
+        return await _context.ExecControleTranches
+            .Where(t => t.ExecControleOfid == execControleOfId)
+            .OrderByDescending(t => t.HeureDebut)
+            .FirstOrDefaultAsync();
+    }
+
     public void AddIntermediaires(IEnumerable<ExecPrelevementIntermediaire> intermediaires)
     {
         _context.ExecPrelevementIntermediaires.AddRange(intermediaires);
@@ -67,6 +78,11 @@ public class OccurrenceRepository : IOccurrenceRepository
     public void AddTranche(ExecControleTranche tranche)
     {
         _context.ExecControleTranches.Add(tranche);
+    }
+
+    public void AddPieceType(ExecPieceType pieceType)
+    {
+        _context.ExecPieceTypes.Add(pieceType);
     }
 
 

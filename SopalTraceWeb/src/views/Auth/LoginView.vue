@@ -139,6 +139,12 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
+/* Masquer l'icône native (Edge/IE) de révélation du mot de passe */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 .animate-shake {
   animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }

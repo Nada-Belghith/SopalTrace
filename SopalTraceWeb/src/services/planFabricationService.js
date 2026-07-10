@@ -99,7 +99,8 @@ export const planFabricationService = {
 
   async instantiatePlan(payload) {
     let newDoc = {
-      nom: payload.codeArticleSage,
+      nom: payload.codeArticleSageVersionne || payload.nom || payload.codeArticleSage,
+      codeArticleSageVersionne: payload.codeArticleSageVersionne,
       designation: payload.designation,
       statut: payload.statut,
       versionInitiale: payload.versionInitiale || 1,

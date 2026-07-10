@@ -99,7 +99,6 @@ namespace SopalTrace.Application.Services
             if (hasConformePieceType && existing.EstEnReglage)
             {
                 existing.EstEnReglage = false;
-                await _occurrenceService.ShiftOccurrencesApresPauseAsync(existing.Id);
             }
 
             // Update Tranches

@@ -27,7 +27,12 @@ public class OperateurService : IOperateurService
 
         if (of == null) throw new Exception("OF introuvable");
 
-        var planFab = await _operateurRepository.GetPlanActifAsync(of.CodeArticle);
+        if (!await _operateurRepository.CanStartOperationAsync(request.NumeroOf, request.OperationCode))
+        {
+            throw new Exception("Vous ne pouvez pas démarrer cette opération car l'opération précédente dans la gamme n'a pas encore commencé.");
+        }
+
+        var planFab = await _operateurRepository.GetPlanActifAsync(of.CodeArticle, request.OperationCode);
 
         if (planFab == null) throw new Exception("Aucun plan de fabrication actif pour cet article");
 
@@ -62,6 +67,8 @@ public class OperateurService : IOperateurService
             }
         }
 
+        bool aDesControlesReglage = planFab.PlanFabricationSections.Any(s => s.TypeSection?.Code == "REGLAGE" || s.TypeSection?.Code == "REGLAGE_PROD");
+
         var execOf = new ExecControleOf
         {
             NumeroOf = request.NumeroOf,
@@ -69,17 +76,19 @@ public class OperateurService : IOperateurService
             NumEquipe = request.NumEquipe,
             PlanSourceId = planFab.Id,
             TypePlan = "FAB",
-            Statut = "EN_COURS",
+            Statut = aDesControlesReglage ? "REGLAGE" : "EN_COURS",
+            EstEnReglage = aDesControlesReglage,
             DateDebut = DateTime.Now
         };
 
         if (request.OperationCode == "USI" || request.OperationCode == "TRN" || request.OperationCode == "ESTOMP" || request.OperationCode == "TRONC")
         {
-            execOf.MachineCodePrevu = planFab.MachineDefautCode;
+            execOf.MachineCodePrevu = string.IsNullOrEmpty(planFab.MachineDefautCode) ? request.MachineCode : planFab.MachineDefautCode;
             execOf.MachineCode = request.MachineCode;
         }
         else if (request.OperationCode == "ASS")
         {
+            execOf.PosteCodePrevu = request.PosteCode;
             execOf.PosteCode = request.PosteCode;
         }
 
@@ -94,30 +103,101 @@ public class OperateurService : IOperateurService
 
     public async Task<bool> MettreEnReglageAsync(Guid execControleOfId)
     {
-        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
-        if (execOf == null || execOf.Statut != "EN_COURS") return false;
+        var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
+        if (execOf == null || (execOf.Statut != "EN_COURS" && execOf.Statut != "REGLAGE")) return false;
 
         execOf.EstEnReglage = true;
+        execOf.Statut = "REGLAGE";
+        if (!execOf.DateFin.HasValue)
+        {
+            execOf.DateFin = DateTime.Now; // Stocker temporairement l'heure de début du réglage si pas déjà stocké
+        }
+        
+        // Supprimer toutes les occurrences prévues dans le futur qui n'ont pas encore été répondues
+        // Elles seront régénérées proprement à la reprise en utilisant la nouvelle Baseline
+        var futureUnansweredOccurrences = execOf.ExecPrelevementIntermediaires
+            .Where(o => o.HeureNotifPrevue > DateTime.Now && !o.EstRepondu)
+            .ToList();
+            
+        foreach (var occ in futureUnansweredOccurrences)
+        {
+            execOf.ExecPrelevementIntermediaires.Remove(occ);
+        }
+
         await _operateurRepository.SaveChangesAsync();
+
+        // Générer les occurrences de réglage pour cette phase
+        await _occurrenceService.GenererOccurrencesReglageCoursAsync(execOf.Id);
+
+
         return true;
     }
 
-    public async Task<bool> ReprendreOfAsync(Guid execControleOfId)
+    public async Task<(bool Success, string Message)> ReprendreOfAsync(Guid execControleOfId)
     {
-        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
-        if (execOf == null || execOf.Statut != "EN_COURS") return false;
+        var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
+        if (execOf == null || (execOf.Statut != "EN_COURS" && execOf.Statut != "REGLAGE")) return (false, "Impossible de reprendre cet OF.");
 
-        execOf.EstEnReglage = false;
+        if (execOf.EstEnReglage || execOf.Statut == "REGLAGE") 
+        {
+            var reglageOccurrences = execOf.ExecPrelevementIntermediaires.Where(o => o.TrancheHoraire.StartsWith("REGLAGE")).ToList();
+            
+            // Vérifier s'il y a des occurrences de réglage non répondues
+            bool hasUnansweredReglage = reglageOccurrences.Any(o => !o.EstRepondu);
+
+            if (hasUnansweredReglage)
+            {
+                return (false, "Vous devez effectuer et valider tous les contrôles de réglage avant de pouvoir reprendre la production.");
+            }
+
+            // Vérifier que le dernier contrôle de réglage pour chaque section est conforme (C)
+            var latestReglagePerSection = reglageOccurrences
+                .GroupBy(o => o.SectionId)
+                .Select(g => g.OrderByDescending(o => o.HeureNotifPrevue).First())
+                .ToList();
+
+            if (latestReglagePerSection.Any(o => o.Resultat != "C"))
+            {
+                return (false, "Les caractéristiques au réglage ne sont pas toutes conformes (NC). Veuillez générer un nouveau réglage.");
+            }
+
+            execOf.EstEnReglage = false;
+            execOf.Statut = "EN_COURS";
+            
+            // Calculer la durée du réglage pour décaler DateDebut (gèle le temps simulé)
+            var reglageStart = execOf.DateFin ?? DateTime.Now;
+            var reglageDuration = DateTime.Now - reglageStart;
+            execOf.DateDebut = execOf.DateDebut.Add(reglageDuration);
+
+            // On réinitialise la baseline pour que le temps passé en réglage ne soit pas compté comme du temps de production
+            execOf.DateFin = DateTime.Now; 
+            await _occurrenceService.NettoyerOccurrencesReglageAsync(execOf.Id);
+        }
         await _operateurRepository.SaveChangesAsync();
-        return true;
+        return (true, "Reprise avec succès.");
     }
 
-    public async Task<bool> MettreEnPauseAsync(Guid execControleOfId)
+    public async Task<bool> MettreEnPauseAsync(Guid execControleOfId, string raison)
     {
-        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null || execOf.Statut != "EN_COURS") return false;
 
         execOf.Statut = "EN_PAUSE";
+        execOf.DateFin = DateTime.Now; // Utiliser DateFin temporairement pour stocker l'heure de début de pause
+
+        // Supprimer toutes les occurrences prévues dans le futur qui n'ont pas encore été répondues
+        // Elles seront régénérées proprement à la reprise en utilisant la nouvelle Baseline
+        var futureUnansweredOccurrences = execOf.ExecPrelevementIntermediaires
+            .Where(o => o.HeureNotifPrevue > DateTime.Now && !o.EstRepondu)
+            .ToList();
+            
+        foreach (var occ in futureUnansweredOccurrences)
+        {
+            execOf.ExecPrelevementIntermediaires.Remove(occ);
+        }
+
+        // Ajouter la raison dans la tranche en cours (ou la plus récente)
+        await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, $"Mise en pause : {raison}");
 
         // Synchroniser le statut dans Mag_PreparationOF
         var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
@@ -129,10 +209,17 @@ public class OperateurService : IOperateurService
 
     public async Task<bool> ReprendreDepuisPauseAsync(Guid execControleOfId)
     {
-        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null || execOf.Statut != "EN_PAUSE") return false;
 
+        var pauseStart = execOf.DateFin ?? DateTime.Now;
+        var pauseDuration = DateTime.Now - pauseStart;
+
         execOf.Statut = "EN_COURS";
+        execOf.DateDebut = execOf.DateDebut.Add(pauseDuration); // Gèle le temps logique simulé
+        execOf.DateFin = null; // La date de fin de pause est effacée, DateDebut est la seule référence
+        
+        // Les occurrences déjà créées avant la pause restent intactes (on ne modifie pas leur HeureNotifPrevue)
 
         // Resynchroniser le statut dans Mag_PreparationOF
         var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
@@ -140,8 +227,6 @@ public class OperateurService : IOperateurService
 
         await _operateurRepository.SaveChangesAsync();
 
-        // Les occurrences non répondues ne sont plus décalées selon la demande : elles deviennent légitimement en retard.
-        // La prochaine occurrence sera calculée en temps réel.
         return true;
     }
 
@@ -154,13 +239,26 @@ public class OperateurService : IOperateurService
         execOf.Statut = "CLOTURE";
         execOf.DateFin = DateTime.Now;
 
+        // Ajouter la remarque dans la tranche en cours
+        await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, "Clôture de l'opération pour cet OF");
+
         foreach (var occ in execOf.ExecPrelevementIntermediaires.Where(n => !n.EstRepondu))
         {
             occ.Resultat = "IGNORE";
         }
 
-        var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
-        if (magOf != null) magOf.Statut = "TERMINE";
+        // On vérifie si TOUTES les opérations de l'OF sont désormais clôturées
+        // Si oui, on ferme l'OF globalement. Sinon, on le laisse ouvert pour les autres opérations.
+        bool allClosed = await _operateurRepository.AreAllOperationsClosedAsync(execOf.NumeroOf);
+        
+        if (allClosed)
+        {
+            var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
+            if (magOf != null) 
+            {
+                magOf.Statut = "TERMINE";
+            }
+        }
 
         await _operateurRepository.SaveChangesAsync();
         return true;
@@ -222,9 +320,9 @@ public class OperateurService : IOperateurService
         return true;
     }
 
-    public async Task<object> VerifierPlanActifAsync(string articleCode)
+    public async Task<object> VerifierPlanActifAsync(string articleCode, string? operationCode = null)
     {
-        var planFab = await _operateurRepository.GetPlanActifAsync(articleCode);
+        var planFab = await _operateurRepository.GetPlanActifAsync(articleCode, operationCode);
         if (planFab == null) return new { existe = false, longueur = (double?)null, diametre = (double?)null };
 
         var lignes = planFab.PlanFabricationSections.SelectMany(s => s.PlanFabricationLignes).ToList();
@@ -248,7 +346,7 @@ public class OperateurService : IOperateurService
         return new { existe = true, longueur, diametre };
     }
 
-    public async Task<bool> IgnorerTrancheAsync(Guid execControleOfId, string trancheHoraire)
+    public async Task<bool> IgnorerTrancheAsync(Guid execControleOfId, string trancheHoraire, string matriculeOperateur, string? raison = null)
     {
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null) return false;
@@ -259,6 +357,20 @@ public class OperateurService : IOperateurService
 
         var ids = occurrences.Select(o => o.Id).ToList();
 
-        return await _occurrenceService.IgnorerOccurrencesAsync(ids, "SYSTEM");
+        return await _occurrenceService.IgnorerOccurrencesAsync(ids, matriculeOperateur, raison);
+    }
+
+    public async Task<bool> DeclarerTrancheEnReglageAsync(Guid execControleOfId, string trancheHoraire, string matriculeOperateur)
+    {
+        var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
+        if (execOf == null) return false;
+
+        var occurrences = execOf.ExecPrelevementIntermediaires
+            .Where(o => o.TrancheHoraire == trancheHoraire && !o.EstRepondu)
+            .ToList();
+
+        var ids = occurrences.Select(o => o.Id).ToList();
+
+        return await _occurrenceService.DeclarerOccurrencesReglageAsync(ids, matriculeOperateur);
     }
 }

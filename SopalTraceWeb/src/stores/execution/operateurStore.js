@@ -7,12 +7,14 @@ export const useOperateurStore = defineStore('operateur', {
     activeOfContext: {},
     knownAlerts: new Set(),
     pollingInterval: null,
+    isPollingPaused: false, // Bloque le rafraîchissement si l'utilisateur est en train de répondre
     isFirstLoad: true, // Prevents showing toasts for already existing alerts on login
     alertesParOf: {},  // Stocke les alertes par execControleOfId
     loadingOfs: false
   }),
   actions: {
     async chargerOfs() {
+      if (this.isPollingPaused) return;
       this.loadingOfs = true;
       try {
         const res = await operateurService.getAllOfOperations();
@@ -47,6 +49,8 @@ export const useOperateurStore = defineStore('operateur', {
     },
 
     async checkAllAlerts(toast, router) {
+      if (this.isPollingPaused) return;
+
       // S'assurer qu'on a les OFs à jour
       await this.chargerOfs();
 
@@ -71,7 +75,7 @@ export const useOperateurStore = defineStore('operateur', {
         try {
           const res = await operateurService.getAlertesActives(ctx.execId);
           const tranches = res.data;
-          
+
           this.alertesParOf[ctx.execId] = tranches;
 
           // Extraire toutes les occurrences non répondues (en attente ou retard)
@@ -80,14 +84,14 @@ export const useOperateurStore = defineStore('operateur', {
           for (const occ of occurrences) {
             if (!this.knownAlerts.has(occ.id)) {
               this.knownAlerts.add(occ.id);
-              
+
               if (!this.isFirstLoad) {
                 // Afficher un toast
                 toast.add({
                   severity: occ.estEnRetard ? 'error' : 'warn',
                   summary: `Nouveau contrôle : OF ${ctx.numeroOf}`,
                   detail: `Occurrence #${occ.numeroOccurrence} - ${ctx.operationCode}`,
-                  life: 15000, 
+                  life: 15000,
                   group: 'operator-alert',
                   data: { execId: ctx.execId }
                 });
@@ -101,12 +105,12 @@ export const useOperateurStore = defineStore('operateur', {
 
       this.isFirstLoad = false;
     },
-    
+
     // Définir le contexte actif (quand l'utilisateur ouvre un OF spécifique)
     setActiveOfContext(context) {
       this.activeOfContext = context;
     },
-    
+
     clearActiveOfContext() {
       this.activeOfContext = {};
     }

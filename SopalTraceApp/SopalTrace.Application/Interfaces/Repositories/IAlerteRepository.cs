@@ -11,4 +11,5 @@ public interface IAlerteRepository
     Task UpdateAsync(Alerte alerte);
     Task<bool> ExisteNonResolueDepuisAsync(string typeAlerte, string cleEntite, DateTime depuis);
     Task<System.Collections.Generic.List<Alerte>> GetNonResoluesParArticleAsync(string articleCode);
+    Task ResoudreAlertesPourEntiteAsync(string cleEntite, string resoluPar);
 }

@@ -58,7 +58,8 @@ public class HubService : IHubService
                 m.Statut ?? StatutsPlan.Actif,
                 m.Remarques ?? "Document Générique.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
-                m.Formulaire != null ? m.Formulaire.Version : (int?)null
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null,
+                m.CreeLe
             ));
         }
 
@@ -82,7 +83,8 @@ public class HubService : IHubService
                 m.Statut ?? StatutsPlan.Actif,
                 m.Notes ?? "Modèle de Fabrication.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
-                m.Formulaire != null ? m.Formulaire.Version : (int?)null
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null,
+                m.CreeLe
             ));
         }
 
@@ -106,7 +108,8 @@ public class HubService : IHubService
                 m.Statut ?? StatutsPlan.Actif,
                 m.Remarques ?? "Modèle de vérification machine",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
-                m.Formulaire != null ? m.Formulaire.Version : (int?)null
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null,
+                m.CreeLe
             ));
         }
 
@@ -130,7 +133,8 @@ public class HubService : IHubService
                 m.Statut,
                 m.Remarques ?? "Modèle d'échantillonnage",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
-                m.Formulaire != null ? m.Formulaire.Version : (int?)null
+                m.Formulaire != null ? m.Formulaire.Version : (int?)null,
+                m.CreeLe
             ));
         }
 
@@ -163,7 +167,8 @@ public class HubService : IHubService
                 p.Nom,
                 "PLAN_FAB",
                 p.Formulaire != null ? p.Formulaire.CodeReference : null,
-                p.Formulaire != null ? p.Formulaire.Version : (int?)null
+                p.Formulaire != null ? p.Formulaire.Version : (int?)null,
+                p.CreeLe
             ));
         }
 
@@ -192,7 +197,8 @@ public class HubService : IHubService
                 null,
                 $"Structure de référence",
                 f.CodeReference,
-                f.Version
+                f.Version,
+                f.CreeLe
             ))
             .ToListAsync();
         result.AddRange(prcStructures);

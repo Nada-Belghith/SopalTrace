@@ -26,4 +26,7 @@ public class OperateurOperationDto
     public string? ActiveMachineCode { get; set; }
     public bool? EstEnReglage { get; set; }
     public bool? A_Des_Controles_Reglage { get; set; }
+    
+    public string? LegendeMoyens { get; set; }
+    public string? Remarques { get; set; }
 }

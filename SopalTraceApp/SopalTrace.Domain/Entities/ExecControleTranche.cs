@@ -23,5 +23,7 @@ public partial class ExecControleTranche
 
     public string? MatriculeApprobateur { get; set; }
 
+    public string? Remarques { get; set; }
+
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
 }

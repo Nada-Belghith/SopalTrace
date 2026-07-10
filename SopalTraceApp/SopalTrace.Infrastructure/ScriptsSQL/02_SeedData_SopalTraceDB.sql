@@ -370,11 +370,13 @@ INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, Quantit
 INSERT INTO dbo.AUTILIS (USR_0, INTUSR_0, ENAFLG_0, CODMET_0, ADDEML_0) VALUES 
 ('11111', 'Nada Belghith', 2, 'RESPONSABLE_DI', 'nada.belghith@enis.tn'),
 ('77777', 'Nada Belghith2', 2, 'RESPONSABLE_DI', 'nada.belghith@enis.u-sfax.tn'),
-('22222', 'Res Qualite Test', 2, 'RESPONSABLE_QUALITE', 'resqualite@sopal.com'),
+('22222', 'Res Qualite Test', 2, 'RESPONSABLE_QUALITE', 'resqualite@s.com'),
 ('55555', 'Operateur Test', 2, 'OPERATEUR', 'belghithnada@gmail.com'),
-('33333', 'Magasinier Test', 2, 'MAGASINIER', 'magasinier@sopal.com'),
-('44444', 'Superviseur Test', 2, 'SUPERVISEUR_QUALITE', 'superviseur@sopal.com'),
-('66666', 'Admin Doc', 2, 'ADMIN', 'admin@sopal.com');
+('33333', 'Magasinier Test', 2, 'MAGASINIER', 'magasinier@s.com'),
+('44444', 'Superviseur Test', 2, 'SUPERVISEUR_QUALITE', 'superviseur@s.com'),
+('66666', 'Admin Doc', 2, 'ADMIN', 'admin@s.com'),
+('11112', 'Superviseur Prod 1', 2, 'SUPERVISEUR_PROD', 'nada.belghith@enis.tn'),
+('22223', 'Manager Prod 1', 2, 'MANAGER_PROD', 'nada.belghith@enis.u-sfax.tn');
 
 INSERT INTO dbo.ATEXTRA (CODFIC_0, ZONE_0, IDENT1_0, LANGUE_0, TEXTE_0) VALUES 
 ('AUTILIS', 'INTUSR', '11111', 'FRA', 'Nada Belghith'),
@@ -382,7 +384,9 @@ INSERT INTO dbo.ATEXTRA (CODFIC_0, ZONE_0, IDENT1_0, LANGUE_0, TEXTE_0) VALUES
 ('AUTILIS', 'INTUSR', '55555', 'FRA', 'Operateur Test'),
 ('AUTILIS', 'INTUSR', '33333', 'FRA', 'Magasinier Test'),
 ('AUTILIS', 'INTUSR', '44444', 'FRA', 'Superviseur Test'),
-('AUTILIS', 'INTUSR', '66666', 'FRA', 'Admin Doc');
+('AUTILIS', 'INTUSR', '66666', 'FRA', 'Admin Doc'),
+('AUTILIS', 'INTUSR', '11112', 'FRA', 'Superviseur Prod 1'),
+('AUTILIS', 'INTUSR', '22223', 'FRA', 'Manager Prod 1');
 
 
 
@@ -536,6 +540,35 @@ VALUES
 INSERT INTO dbo.Mag_QuickControl_Rapport (Id, NumeroOF, CodeArticle, NumeroRapportQC, DateScan)
 VALUES 
     (NEWID(), 'OF2606N25B0', 'M1180RP', 'QC-99999', '2026-06-29');
+
+-- =================================================================================
+-- EXEMPLES D'OF POUR PRODUIT FINI (ASSEMBLAGE)
+-- =================================================================================
+-- OF 1: Assemblage 2511
+INSERT INTO dbo.MFGHEAD_OrdreFabrication 
+    (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF, DateDebut, DateFin)
+VALUES 
+    ('OF2607ASS01', '2511A01-1', 1000, 1000, 0, 'EN_COURS', GETDATE(), GETDATE());
+
+DECLARE @PrepIdASS01 UNIQUEIDENTIFIER = NEWID();
+INSERT INTO dbo.Mag_PreparationOF (Id, NumeroOF, MatriculeMagasinier, Statut, DateDebut, DateFin)
+VALUES (@PrepIdASS01, 'OF2607ASS01', '33333', 'EN_COURS', GETDATE(), GETDATE());
+
+INSERT INTO dbo.Mag_PreparationOF_Lot (Id, PreparationOFId, CodeArticle, NumeroLotScanne, Quantite, DateScan)
+VALUES (NEWID(), @PrepIdASS01, '2903201-1', 'LOT-CORPS-01', 1000, GETDATE());
+
+-- OF 2: Robinet gaz auto (PF)
+INSERT INTO dbo.MFGHEAD_OrdreFabrication 
+    (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF, DateDebut, DateFin)
+VALUES 
+    ('OF2607ASS02', '25B2A01-1-1', 500, 500, 0, 'EN_COURS', GETDATE(), GETDATE());
+
+DECLARE @PrepIdASS02 UNIQUEIDENTIFIER = NEWID();
+INSERT INTO dbo.Mag_PreparationOF (Id, NumeroOF, MatriculeMagasinier, Statut, DateDebut, DateFin)
+VALUES (@PrepIdASS02, 'OF2607ASS02', '33333', 'EN_COURS', GETDATE(), GETDATE());
+
+INSERT INTO dbo.Mag_PreparationOF_Lot (Id, PreparationOFId, CodeArticle, NumeroLotScanne, Quantite, DateScan)
+VALUES (NEWID(), @PrepIdASS02, '2903202-1', 'LOT-SOUPAPE-02', 500, GETDATE());
 
 -- =================================================================================
 -- 23. SEED DATA - FORMULAIRES DE REFERENCE

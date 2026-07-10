@@ -33,7 +33,9 @@ export const useAuthStore = defineStore('auth', {
       const role = state.user?.role || '';
       return role === 'ADMIN' || role.includes('RESPONSABLE');
     },
-    isOperateur: (state) => state.user?.role === 'OPERATEUR'
+    isOperateur: (state) => state.user?.role === 'OPERATEUR',
+    isSuperviseur: (state) => state.user?.role === 'SUPERVISEUR_PROD',
+    isManager: (state) => state.user?.role === 'MANAGER_PROD'
   },
 
   actions: {
@@ -78,9 +80,38 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('user', JSON.stringify(this.user));
     },
 
-    logout() {
+    async logout() {
+      try {
+        const { useOperateurStore } = await import('@/stores/execution/operateurStore');
+        const operateurService = (await import('@/services/operateurService')).default;
+        const operateurStore = useOperateurStore();
+        
+        // Mettre en pause automatiquement les OFs en cours
+        if (operateurStore && operateurStore.ofs) {
+          for (const o of operateurStore.ofs) {
+            if (o.gammeOperatoire) {
+              for (const op of o.gammeOperatoire) {
+                if (op.activeExecControleOfId && (op.activeExecStatut === 'EN_COURS' || op.activeExecStatut === 'REGLAGE')) {
+                  try {
+                    await operateurService.mettreEnPause(op.activeExecControleOfId, "Déconnexion de l'opérateur (Pause automatique)");
+                  } catch (err) {
+                    console.error(`Impossible de mettre en pause l'OF ${o.numeroOf}`, err);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (operateurStore && operateurStore.stopGlobalPolling) {
+          operateurStore.stopGlobalPolling();
+        }
+      } catch (e) {
+        console.error("Erreur arrêt polling ou pause auto à la déconnexion", e);
+      }
+
       authService.logout().catch(() => {}); // Logout silencieux au back
-      
+
       this.user = null;
       this.token = null;
       localStorage.removeItem('token');

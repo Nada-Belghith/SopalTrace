@@ -40,6 +40,7 @@ public class PlanFabricationService : IPlanFabricationService
         {
             Id = plan.Id,
             Nom = plan.Nom,
+            CodeArticleSageVersionne = plan.CodeArticleSageVersionne,
             Designation = plan.Designation,
             Version = plan.Version,
             Statut = plan.Statut,
@@ -105,7 +106,8 @@ public class PlanFabricationService : IPlanFabricationService
         return plans.Select(p => new PlanFabricationEnteteDto
         {
             Id = p.Id,
-            Nom = p.CodeArticleSageVersionne,
+            Nom = p.Nom,
+            CodeArticleSageVersionne = p.CodeArticleSageVersionne,
             Designation = p.Designation ?? p.Remarques,
             Version = p.Version,
             Statut = p.Statut,
@@ -135,7 +137,10 @@ public class PlanFabricationService : IPlanFabricationService
 
         var existingDocs = await _unitOfWork.PlanFabricationEnteteRepository.GetByFiltersAsync(request.OperationCode);
         
-        var codeArticleSageVersionne = request.Nom;
+        var codeArticleSageVersionne = !string.IsNullOrWhiteSpace(request.CodeArticleSageVersionne) ? request.CodeArticleSageVersionne : request.Nom;
+        var lastDotIndex = codeArticleSageVersionne?.LastIndexOf('.') ?? -1;
+        var baseNom = lastDotIndex > 0 ? codeArticleSageVersionne!.Substring(0, lastDotIndex) : (codeArticleSageVersionne ?? "");
+
         var existingDoc = existingDocs.Where(d => d.CodeArticleSageVersionne == codeArticleSageVersionne)
                                       .OrderByDescending(d => d.Version)
                                       .FirstOrDefault();
@@ -156,17 +161,21 @@ public class PlanFabricationService : IPlanFabricationService
             }
             else
             {
-                if (request.Statut != "BROUILLON")
-                {
-                    var activeDocs = existingDocs.Where(d => d.CodeArticleSageVersionne == codeArticleSageVersionne && d.Statut == "ACTIF").ToList();
-                    foreach (var act in activeDocs)
-                    {
-                        act.Statut = "ARCHIVE";
-                    }
-                }
-                
                 var maxVersion = existingDoc.Version;
                 finalVersion = (request.VersionInitiale.HasValue && request.VersionInitiale.Value > maxVersion) ? request.VersionInitiale.Value : (maxVersion + 1);
+            }
+        }
+
+        if (request.Statut != "BROUILLON")
+        {
+            var activeDocs = existingDocs.Where(d => 
+                (d.CodeArticleSageVersionne == baseNom || (d.CodeArticleSageVersionne != null && d.CodeArticleSageVersionne.StartsWith(baseNom + "."))) 
+                && d.Statut == "ACTIF"
+            ).ToList();
+            
+            foreach (var act in activeDocs)
+            {
+                act.Statut = "ARCHIVE";
             }
         }
 
@@ -177,14 +186,11 @@ public class PlanFabricationService : IPlanFabricationService
             formulaireId = formStruct.Id;
         }
 
-        var iterCount = existingDocs.Count(d => d.CodeArticleSageVersionne == codeArticleSageVersionne);
-        var baseNom = System.Text.RegularExpressions.Regex.Replace(request.Nom ?? "", @"\.\d+$", "");
-
         var plan = new PlanFabricationEntete
         {
             Id = Guid.NewGuid(),
-            CodeArticleSageVersionne = codeArticleSageVersionne,
-            Nom = $"{baseNom}.{iterCount}",
+            CodeArticleSageVersionne = codeArticleSageVersionne ?? string.Empty,
+            Nom = codeArticleSageVersionne ?? string.Empty,
             Designation = request.Designation,
             Version = finalVersion,
             Statut = !string.IsNullOrWhiteSpace(request.Statut) ? request.Statut : ((existingDoc != null && existingDoc.Statut == "BROUILLON" && !forceArchive) ? "BROUILLON" : "ACTIF"),
@@ -335,7 +341,7 @@ public class PlanFabricationService : IPlanFabricationService
         if (existingPlan == null) throw new Exception("Plan introuvable");
         var createReq = new CreatePlanFabricationRequestDto
         {
-            Nom = existingPlan.CodeArticleSageVersionne,
+            Nom = !string.IsNullOrWhiteSpace(request.Nom) ? request.Nom : existingPlan.CodeArticleSageVersionne,
             Designation = existingPlan.Designation,
             OperationCode = existingPlan.OperationCode,
             VersionInitiale = request.VersionInitiale,
