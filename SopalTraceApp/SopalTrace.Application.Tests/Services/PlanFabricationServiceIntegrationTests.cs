@@ -49,12 +49,14 @@ namespace SopalTrace.Application.Tests.Services
 
             // 3. Instanciation du vrai service à tester
             var frequencyParserServiceMock = new Mock<IFrequencyParserService>();
+            var emailServiceMock = new Mock<IEmailService>();
 
             _planFabricationService = new PlanFabricationService(
                 unitOfWork,
                 _currentUserServiceMock.Object,
                 _formulaireStructureServiceMock.Object,
-                frequencyParserServiceMock.Object
+                frequencyParserServiceMock.Object,
+                emailServiceMock.Object
             );
         }
 

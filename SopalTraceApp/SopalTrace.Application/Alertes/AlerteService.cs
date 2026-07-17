@@ -34,20 +34,16 @@ public class AlerteService<TContexte>
         if (dejaAlerte) return;
 
         var destinataires = await _definition.ResoudreDestinatairesAsync(contexte);
-        if (!destinataires.Any()) 
-        {
-            // Aucun destinataire n'est configuré (ex: Aucun Manager Prod ou Superviseur n'est inscrit)
-            // On ne jette plus d'exception pour ne pas crasher la boucle d'occurrence (Erreur 500)
-            return;
-        }
-
         var sujet = _definition.ConstruireSujet(contexte);
         var corps = _definition.ConstruireCorps(contexte);
 
-        foreach (var email in destinataires)
+        if (destinataires.Any()) 
         {
-            try { await _emailService.EnvoyerAsync(email, sujet, corps, isHtml: true); }
-            catch { /* log, ne pas bloquer */ }
+            foreach (var email in destinataires)
+            {
+                try { await _emailService.EnvoyerAsync(email, sujet, corps, isHtml: true); }
+                catch { /* log, ne pas bloquer */ }
+            }
         }
 
         await _unitOfWork.AlerteRepository.AddAsync(new Alerte

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Interfaces;
 
-public interface IPlanEchantillonnageService
+public interface IDocumentEchantillonnageService
 {
     Task<PlanEchanResponseDto?> GetPlanActifAsync();
     Task<PlanEchanResponseDto?> GetPlanByIdAsync(Guid id);

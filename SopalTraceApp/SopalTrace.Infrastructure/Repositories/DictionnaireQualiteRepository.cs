@@ -106,9 +106,47 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
 
     public async Task<RefRegleEchantillonnage?> GetRegleEchantillonnageByLibelleAsync(string libelle)
     {
-        var normalized = libelle.Trim();
-        return await _context.RefRegleEchantillonnages.FirstOrDefaultAsync(r => 
-            r.Libelle.Trim().ToLower() == normalized.ToLower());
+        if (string.IsNullOrWhiteSpace(libelle)) return null;
+
+        var allRules = await _context.RefRegleEchantillonnages.ToListAsync();
+        
+        string NormalizeString(string input)
+        {
+            if (input == null) return string.Empty;
+            // Replace curly apostrophes with straight, normalize spaces
+            var str = input.Replace('\u00A0', ' ')
+                           .Replace('’', '\'')
+                           .Replace('´', '\'')
+                           .Trim()
+                           .ToLower();
+            str = System.Text.RegularExpressions.Regex.Replace(str, @"\s+", " ");
+            return str;
+        }
+
+        var normalizedSearch = NormalizeString(libelle);
+        Console.WriteLine($"[DEBUG-REGLE] Searching for: '{libelle}' -> Normalized: '{normalizedSearch}'");
+
+        // Exact match after normalization
+        var exactMatch = allRules.FirstOrDefault(r => {
+            var normDb = NormalizeString(r.Libelle);
+            Console.WriteLine($"[DEBUG-REGLE] DB Rule '{r.Id}' -> '{r.Libelle}' -> Normalized: '{normDb}'");
+            return normDb == normalizedSearch;
+        });
+        if (exactMatch != null) 
+        {
+            Console.WriteLine($"[DEBUG-REGLE] Exact Match Found: {exactMatch.Id}");
+            return exactMatch;
+        }
+
+        // Contains match as fallback
+        var containsMatch = allRules.FirstOrDefault(r => 
+        {
+            var normDb = NormalizeString(r.Libelle);
+            return normDb.Contains(normalizedSearch) || normalizedSearch.Contains(normDb);
+        });
+            
+        Console.WriteLine($"[DEBUG-REGLE] Contains Match Found: {(containsMatch != null ? containsMatch.Id.ToString() : "NULL")}");
+        return containsMatch;
     }
 
     public Task AddRegleEchantillonnageAsync(RefRegleEchantillonnage entite)

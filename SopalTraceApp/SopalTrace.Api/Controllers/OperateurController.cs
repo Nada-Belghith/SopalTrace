@@ -158,4 +158,48 @@ public class OperateurController : ControllerBase
         if (!result) return BadRequest(new { Message = "Erreur lors de la mise à jour des occurrences." });
         return Ok();
     }
+
+    // --- Endpoints pour OF d'Assemblage ---
+    [HttpPost("of/start-assemblage")]
+    public async Task<IActionResult> DemarrerOfAssemblage([FromBody] DemarrerOfAssemblageRequest request)
+    {
+        try
+        {
+            var result = await _operateurService.DemarrerOfAssemblageAsync(request);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/assemblage-documents/init/{typeDocument}")]
+    public async Task<IActionResult> InitDocumentsAssemblage(Guid execControleOfId, string typeDocument)
+    {
+        try
+        {
+            var result = await _operateurService.InitDocumentsAsync(execControleOfId, typeDocument);
+            return Ok(new { initialized = result });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    [HttpGet("of/{execControleOfId:guid}/assemblage-documents")]
+    public async Task<IActionResult> GetDocumentsAssemblageStatus(Guid execControleOfId)
+    {
+        var statuts = await _operateurService.GetDocumentsAssemblageStatusAsync(execControleOfId);
+        return Ok(statuts);
+    }
+
+    [HttpPut("assemblage-documents/{statutId:guid}/terminer")]
+    public async Task<IActionResult> MarquerDocumentTermine(Guid statutId)
+    {
+        var result = await _operateurService.MarquerDocumentTermineAsync(statutId);
+        if (!result) return NotFound(new { Message = "Statut document introuvable." });
+        return Ok();
+    }
 }

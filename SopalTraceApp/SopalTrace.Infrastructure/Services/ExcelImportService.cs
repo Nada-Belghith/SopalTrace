@@ -400,7 +400,40 @@ public partial class ExcelImportService : IExcelImportService
         string naturePart = cleanText;
 
         var matches = Regex.Matches(cleanText, @"\((?>[^()]+|\((?<c>)|\)(?<-c>))*(?(c)(?!))\)");
-        if (matches.Count > 0)
+
+        // Find the first top-level parentheses group that appears at the end of the section title
+        // We want to capture the ENTIRE outer group like (Selon FE0591 : ... (A/B) (p/h))
+        // NOT just the last nested sub-group like (p/h)
+        // Strategy: find the FIRST opening paren whose matching closing paren is at the end of the string
+        int firstTopLevelParen = -1;
+        for (int i = 0; i < cleanText.Length; i++)
+        {
+            if (cleanText[i] == '(')
+            {
+                // Check if this opens a balanced group that ends at or near the end
+                int depth = 0;
+                int j = i;
+                for (; j < cleanText.Length; j++)
+                {
+                    if (cleanText[j] == '(') depth++;
+                    else if (cleanText[j] == ')') { depth--; if (depth == 0) break; }
+                }
+                // If this top-level group ends at the last char, it's our candidate
+                if (depth == 0 && j == cleanText.Length - 1)
+                {
+                    firstTopLevelParen = i;
+                    break;
+                }
+            }
+        }
+
+        if (firstTopLevelParen >= 0)
+        {
+            var outerGroup = cleanText.Substring(firstTopLevelParen);
+            parenthesesContent = outerGroup.Substring(1, outerGroup.Length - 2).Trim();
+            naturePart = cleanText.Substring(0, firstTopLevelParen).Trim();
+        }
+        else if (matches.Count > 0)
         {
             var lastMatch = matches[^1];
             parenthesesContent = lastMatch.Value.Substring(1, lastMatch.Value.Length - 2).Trim();

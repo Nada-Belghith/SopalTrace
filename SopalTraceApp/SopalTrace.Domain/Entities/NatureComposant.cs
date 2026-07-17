@@ -21,5 +21,5 @@ public partial class NatureComposant
 
     public virtual ICollection<NatureComposantOperation> NatureComposantOperations { get; set; } = new List<NatureComposantOperation>();
 
-    public virtual ICollection<PlanAssemblageEntete> PlanAssemblageEntetes { get; set; } = new List<PlanAssemblageEntete>();
+    public virtual ICollection<Nqa> Nqas { get; set; } = new List<Nqa>();
 }

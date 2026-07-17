@@ -362,12 +362,12 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     try {
       // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
       const parsedData = await fabModeleService.importExcel(formData);
-      
+
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
           entete.value.notes = (entete.value.notes ? entete.value.notes + '\n' : '') + parsedData.remarques.trim();
         }
-        
+
         sections.value = parsedData.sections.map(sec => ({
           id: sec.id || crypto.randomUUID(),
           isFromDb: false,
@@ -376,6 +376,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
           typeSectionId: sec.typeSectionId,
           modeFreq: sec.modeFreq,
           periodiciteId: sec.periodiciteId,
+          regleEchantillonnageId: sec.regleEchantillonnageId,
           freqNum: sec.freqNum,
           typeVariable: sec.typeVariable,
           freqHours: sec.freqHours,

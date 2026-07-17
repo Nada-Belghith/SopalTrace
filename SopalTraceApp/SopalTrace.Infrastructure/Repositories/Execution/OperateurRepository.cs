@@ -62,6 +62,14 @@ public class OperateurRepository : IOperateurRepository
             .FirstOrDefaultAsync(x => x.Id == execOfId);
     }
 
+    public async Task<IEnumerable<string>> GetPostesForExecutionAsync(Guid execOfId)
+    {
+        return await _context.ExecControleOfPostes
+            .Where(x => x.ExecControleOfId == execOfId)
+            .Select(x => x.PosteCode)
+            .ToListAsync();
+    }
+
     public void AddExecControleOf(ExecControleOf execOf)
     {
         _context.ExecControleOfs.Add(execOf);
@@ -238,5 +246,74 @@ public class OperateurRepository : IOperateurRepository
     public async Task SaveChangesAsync()
     {
         await _context.SaveChangesAsync();
+    }
+
+    public async Task<DocumentEntete?> GetPlanAssemblageActifAsync(string codeArticle)
+    {
+        var pf = await _context.ProduitFinis.FirstOrDefaultAsync(p => p.CodeArticle == codeArticle);
+        var familleCode = pf?.FamilleProduitFiniCode;
+
+        if (string.IsNullOrEmpty(familleCode)) return null;
+
+        return await _context.Set<DocumentEntete>()
+            .Include(p => p.DocumentSections)
+                .ThenInclude(s => s.DocumentLignes)
+            .Where(p => p.Statut == "ACTIF" && p.FamilleProduitFiniCode == familleCode && p.TypeDocumentCode == "PLAN_ASS")
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId)
+    {
+        return await _context.Set<ExecControleDocumentStatut>()
+            .Where(d => d.ExecControleOfId == execControleOfId)
+            .ToListAsync();
+    }
+
+    public async Task<ExecControleDocumentStatut?> GetDocumentStatutByIdAsync(Guid statutId)
+    {
+        return await _context.Set<ExecControleDocumentStatut>()
+            .FirstOrDefaultAsync(d => d.Id == statutId);
+    }
+
+    public void AddExecControleDocumentStatut(ExecControleDocumentStatut statut)
+    {
+        _context.Set<ExecControleDocumentStatut>().Add(statut);
+    }
+
+    public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourPosteAsync(string posteCode, string role)
+    {
+        // Pour un poste donné et un rôle (ex: VERIF_MACHINE, RESULTAT_CONTROLE_POSTE)
+        return await _context.RefFormulaires
+            .Where(f => f.Statut == "ACTIF" && f.Role == role && f.CodeReference.Contains(posteCode))
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourArticleAsync(string codeArticle, string role)
+    {
+        // Pour un article et un rôle (ex: PRODUIT_FINI, RESULTAT_CONTROLE_CF, ECHANTILLONNAGE)
+        // La logique ici peut dépendre de la famille, mais comme c'est un repo on peut faire une recherche par mot clé
+        // Ou utiliser les plans directement si ça existe.
+        // Ici on simplifie pour correspondre aux RefFormulaires
+        var of = await _context.Articles.Include(a => a.NatureArticleCodeNavigation).FirstOrDefaultAsync(a => a.CodeArticle == codeArticle);
+        var famillePF = _context.ProduitFinis.FirstOrDefault(p => p.CodeArticle == codeArticle)?.FamilleProduitFiniCode;
+
+        if (string.IsNullOrEmpty(famillePF)) return new List<RefFormulaire>();
+
+        return await _context.RefFormulaires
+            .Where(f => f.Statut == "ACTIF" && f.Role == role && (f.CodeReference.Contains(famillePF) || f.CodeReference.Contains(codeArticle)))
+            .ToListAsync();
+    }
+
+    public async Task<RefFormulaire?> GetFormulaireGlobalAsync(string role)
+    {
+        return await _context.RefFormulaires
+            .FirstOrDefaultAsync(f => f.Statut == "ACTIF" && f.Role == role);
+    }
+
+    public async Task<Dictionary<Guid, string>> GetFormulaireDesignationsAsync(IEnumerable<Guid> ids)
+    {
+        return await _context.RefFormulaires
+            .Where(f => ids.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, f => f.Designation);
     }
 }

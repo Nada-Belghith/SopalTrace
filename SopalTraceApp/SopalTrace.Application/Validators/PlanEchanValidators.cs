@@ -10,8 +10,8 @@ public class CreatePlanEchanRequestValidator : AbstractValidator<CreatePlanEchan
 
         RuleFor(x => x.NiveauControle)
             .NotEmpty().WithMessage("Le niveau de contrôle est obligatoire.")
-            .Must(x => x == "NIVEAU I" || x == "NIVEAU II" || x == "NIVEAU III" || x == "I" || x == "II" || x == "III")
-            .WithMessage("Le niveau de contrôle doit être I, II ou III.");
+            .Must(x => x == "NIVEAU I" || x == "NIVEAU II" || x == "NIVEAU III" || x == "I" || x == "II" || x == "III" || x == "S-1" || x == "S-2" || x == "S-3" || x == "S-4")
+            .WithMessage("Le niveau de contrôle doit être I, II, III ou S-1 à S-4.");
 
         RuleFor(x => x.TypePlan)
             .NotEmpty().WithMessage("Le type de plan est obligatoire.")

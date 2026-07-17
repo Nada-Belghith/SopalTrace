@@ -113,7 +113,7 @@ public class HubService : IHubService
             ));
         }
 
-        var echanModeles = await _context.PlanEchantillonnageEntetes
+        var echanModeles = await _context.DocumentEchantillonnageEntetes
             .AsNoTracking()
             .Include(v => v.Formulaire)
             .Where(v => v.Statut == StatutsPlan.Actif || v.Statut == StatutsPlan.Archive || v.Statut == StatutsPlan.Brouillon)
@@ -224,7 +224,7 @@ public class HubService : IHubService
         }
         else if (category == "ECH")
         {
-            var m = await _context.PlanEchantillonnageEntetes.FindAsync(id);
+            var m = await _context.DocumentEchantillonnageEntetes.FindAsync(id);
             if (m is null) return false;
             m.Statut = statut;
         }
@@ -282,7 +282,7 @@ public class HubService : IHubService
         }
         else if (category == "ECH")
         {
-            var p = await _context.PlanEchantillonnageEntetes.FindAsync(id);
+            var p = await _context.DocumentEchantillonnageEntetes.FindAsync(id);
             if (p is null) return false;
 
             if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
@@ -361,15 +361,15 @@ public class HubService : IHubService
         }
         else if (category == "ECH")
         {
-            var plan = await _context.PlanEchantillonnageEntetes
-                .Include(p => p.PlanEchantillonnageRegles)
+            var plan = await _context.DocumentEchantillonnageEntetes
+                .Include(p => p.DocumentEchantillonnageRegles)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (plan is null) return false;
             if (plan.Statut != StatutsPlan.Brouillon) return false;
 
-            _context.PlanEchantillonnageRegles.RemoveRange(plan.PlanEchantillonnageRegles);
-            _context.PlanEchantillonnageEntetes.Remove(plan);
+            _context.DocumentEchantillonnageRegles.RemoveRange(plan.DocumentEchantillonnageRegles);
+            _context.DocumentEchantillonnageEntetes.Remove(plan);
 
             await _context.SaveChangesAsync();
             return true;

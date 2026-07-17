@@ -13,13 +13,11 @@ const toast = useToast();
 const isMobileMenuOpen = ref(false);
 
 onMounted(() => {
-  if (authStore.userRole === 'OPERATEUR' || authStore.userRole === 'ADMIN') {
-    operateurStore.startGlobalPolling(toast, router);
-  }
+  // Global polling for alerts and operations has been disabled based on user feedback.
 });
 
 onUnmounted(() => {
-  operateurStore.stopGlobalPolling();
+  // Global polling disabled
 });
 
 const isDocActive = (pathPrefix, mode = null) => {
@@ -38,7 +36,6 @@ const isDocActive = (pathPrefix, mode = null) => {
 };
 
 const handleLogout = () => {
-  operateurStore.stopGlobalPolling();
   authStore.logout();
 };
 

@@ -20,4 +20,10 @@ public interface IOperateurService
     Task<object> VerifierPlanActifAsync(string articleCode, string? operationCode = null);
     Task<bool> IgnorerTrancheAsync(Guid execControleOfId, string trancheHoraire, string matriculeOperateur, string? raison = null);
     Task<bool> DeclarerTrancheEnReglageAsync(Guid execControleOfId, string trancheHoraire, string matriculeOperateur);
+    
+    // Nouveaux endpoints pour Assemblage
+    Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request);
+    Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument);
+    Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId);
+    Task<bool> MarquerDocumentTermineAsync(Guid statutDocumentId);
 }

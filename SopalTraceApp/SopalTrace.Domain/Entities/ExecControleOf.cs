@@ -33,11 +33,19 @@ public partial class ExecControleOf
 
     public DateTime? DateFin { get; set; }
 
+    public virtual ICollection<ExecControleDocumentStatut> ExecControleDocumentStatuts { get; set; } = new List<ExecControleDocumentStatut>();
+
+    public virtual ICollection<ExecControleOfPoste> ExecControleOfPostes { get; set; } = new List<ExecControleOfPoste>();
+
     public virtual ICollection<ExecControleTranche> ExecControleTranches { get; set; } = new List<ExecControleTranche>();
+
+    public virtual ICollection<ExecEchantillonnage> ExecEchantillonnages { get; set; } = new List<ExecEchantillonnage>();
 
     public virtual ICollection<ExecPieceType> ExecPieceTypes { get; set; } = new List<ExecPieceType>();
 
     public virtual ICollection<ExecPrelevementIntermediaire> ExecPrelevementIntermediaires { get; set; } = new List<ExecPrelevementIntermediaire>();
+
+    public virtual ICollection<ExecRcPosteEntete> ExecRcPosteEntetes { get; set; } = new List<ExecRcPosteEntete>();
 
     public virtual Machine? MachineCodeNavigation { get; set; }
 

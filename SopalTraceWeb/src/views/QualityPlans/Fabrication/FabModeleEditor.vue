@@ -167,7 +167,8 @@ import { modeleFabricationService as fabModeleService } from '@/services/modeleF
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { useFabModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
-import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
+import { createModeleSnapshot } from '@/utils/modelMapper';
+import { prepareSectionsForBackend } from '@/utils/sectionUtils';
 import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 import {
   nettoyerNomSection,
@@ -572,7 +573,7 @@ const sauvegarderDirectement = async () => {
       return;
     }
 
-    await prepareModeleDataAndFrequencies(
+    await prepareSectionsForBackend(
       groupes.value,
       store.periodicites,
       async (payloadFreq) => {
@@ -598,7 +599,7 @@ const sauvegarderV2 = async (motif) => {
   store.isLoading = true;
   try {
     // 1. Résoudre/créer les périodicités variables et récupérer les sections enrichies
-    await prepareModeleDataAndFrequencies(
+    await prepareSectionsForBackend(
       groupes.value,
       store.periodicites,
       async (payloadFreq) => {

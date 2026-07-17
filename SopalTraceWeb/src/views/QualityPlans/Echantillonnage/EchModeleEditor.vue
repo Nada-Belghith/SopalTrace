@@ -141,11 +141,11 @@
                   </td>
 
                   <td class="p-2 border-r border-slate-200">
-                    <input v-model="r.critereAcceptationAc" type="number" :readonly="isReadOnly"
+                    <input v-model="store.entete.critereAcceptationAc" type="number" :readonly="isReadOnly"
                       class="w-full text-center py-2 text-sm font-black text-emerald-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-emerald-300">
                   </td>
                   <td class="p-2 border-r border-slate-200">
-                    <input v-model="r.critereRejetRe" type="number" :readonly="isReadOnly"
+                    <input v-model="store.entete.critereRejetRe" type="number" :readonly="isReadOnly"
                       class="w-full text-center py-2 text-sm font-black text-rose-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-rose-300">
                   </td>
 

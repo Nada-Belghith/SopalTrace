@@ -13,11 +13,11 @@ namespace SopalTrace.Api.Controllers;
 [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
 [ApiController]
 [Route("api/plans-echantillonnage")]
-public class PlanEchantillonnageController : ControllerBase
+public class DocumentEchantillonnageController : ControllerBase
 {
-    private readonly IPlanEchantillonnageService _service;
+    private readonly IDocumentEchantillonnageService _service;
 
-    public PlanEchantillonnageController(IPlanEchantillonnageService service)
+    public DocumentEchantillonnageController(IDocumentEchantillonnageService service)
     {
         _service = service;
     }

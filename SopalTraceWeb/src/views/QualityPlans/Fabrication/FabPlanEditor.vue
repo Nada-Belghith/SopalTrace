@@ -208,7 +208,7 @@
   import { useFabPlanVersioning } from '@/composables/useVersioning';
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
-  import { prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
+  import { prepareSectionsForBackend } from '@/utils/sectionUtils';
   import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 
   import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
@@ -1274,7 +1274,7 @@
 
       if (!currentPlanId || currentPlanId === 'nouveau') return;
 
-      await prepareModeleDataAndFrequencies(sections.value, store.periodicites, async (payload) => {
+      await prepareSectionsForBackend(sections.value, store.periodicites, async (payload) => {
         const res = await fabPlanService.createPeriodicite(payload);
         const resData = res?.data?.data || res?.data || res;
         store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payload });
@@ -1312,7 +1312,7 @@
         }
 
         // 1. Préparer d'abord les périodicités (si certaines ont été saisies à la main)
-        await prepareModeleDataAndFrequencies(
+        await prepareSectionsForBackend(
           sections.value,
           store.periodicites || [],
           async (payloadFreq) => {
@@ -1373,7 +1373,7 @@
 
   const enregistrerValeurs = async (currentPlanId, redirectToHub = true, isActivating = false) => {
     try {
-      await prepareModeleDataAndFrequencies(
+      await prepareSectionsForBackend(
         sections.value,
         store.periodicites || [],
         async (payloadFreq) => {

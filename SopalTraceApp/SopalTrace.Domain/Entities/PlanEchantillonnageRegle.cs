@@ -21,9 +21,5 @@ public partial class PlanEchantillonnageRegle
 
     public int? EffectifParPosteAb { get; set; }
 
-    public int CritereAcceptationAc { get; set; }
-
-    public int CritereRejetRe { get; set; }
-
     public virtual PlanEchantillonnageEntete FicheEntete { get; set; } = null!;
 }

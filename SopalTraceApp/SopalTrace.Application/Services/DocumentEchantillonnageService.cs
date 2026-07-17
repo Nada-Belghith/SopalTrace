@@ -9,24 +9,26 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Services;
 
-public class PlanEchantillonnageService : IPlanEchantillonnageService
+public class DocumentEchantillonnageService : IDocumentEchantillonnageService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IIso2859Service _iso2859Service;
 
-    public PlanEchantillonnageService(IUnitOfWork unitOfWork)
+    public DocumentEchantillonnageService(IUnitOfWork unitOfWork, IIso2859Service iso2859Service)
     {
         _unitOfWork = unitOfWork;
+        _iso2859Service = iso2859Service;
     }
 
     public async Task<PlanEchanResponseDto?> GetPlanActifAsync()
     {
-        var plan = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetPlanActifAsync();
+        var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
         return plan?.ToResponseDto();
     }
 
     public async Task<PlanEchanResponseDto?> GetPlanByIdAsync(Guid id)
     {
-        var plan = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetByIdAsync(id);
+        var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id);
         return plan?.ToResponseDto();
     }
 
@@ -38,7 +40,7 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
     ///
     ///   1ère création :
     ///     → FE-ECHAN-01 : Version=0, Statut=BROUILLON  ──update──►  Version=0, Statut=ACTIF
-    ///     → Plan_Echantillonnage_Entete : Version=0, Statut=ACTIF
+    ///     → Document_Echantillonnage_Entete : Version=0, Statut=ACTIF
     ///
     ///   Nouvelle version (modification) :
     ///     → Ancien plan  : Statut=ARCHIVE
@@ -57,13 +59,13 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
                 "Veuillez exécuter le script SeedData.");
 
         // Archiver le plan actif existant (s'il y en a un)
-        var planActif = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetPlanActifAsync();
+        var planActif = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
         if (planActif != null)
         {
             planActif.Statut = StatutsPlan.Archive;
             planActif.ModifiePar = creePar;
             planActif.ModifieLe = DateTime.Now;
-            await _unitOfWork.PlanEchantillonnageEnteteRepository.UpdateAsync(planActif);
+            await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(planActif);
             
             // Archiver l'ancien Ref_Formulaire
             formulaire.Statut = StatutsPlan.Archive;
@@ -107,13 +109,15 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
         entity.CreePar = creePar;
         entity.CreeLe = DateTime.Now;
 
-        foreach (var regle in entity.PlanEchantillonnageRegles)
+        foreach (var regle in entity.DocumentEchantillonnageRegles)
         {
             regle.Id = Guid.NewGuid();
             regle.FicheEnteteId = entity.Id;
         }
 
-        await _unitOfWork.PlanEchantillonnageEnteteRepository.AddAsync(entity);
+        await ComputeIso2859RulesAsync(entity, request.ValeurNqa);
+
+        await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(entity);
         await _unitOfWork.CommitAsync();
         return entity.Id;
     }
@@ -123,25 +127,25 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
     /// </summary>
     public async Task ActiverPlanAsync(Guid id, string modifiePar)
     {
-        var plan = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetByIdAsync(id);
+        var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id);
         if (plan == null)
             throw new InvalidOperationException("Plan introuvable.");
         if (plan.Statut != StatutsPlan.Brouillon)
             throw new InvalidOperationException($"Seul un plan BROUILLON peut être activé (statut actuel : {plan.Statut}).");
 
-        var planActif = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetPlanActifAsync();
+        var planActif = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
         if (planActif != null && planActif.Id != id)
         {
             planActif.Statut = StatutsPlan.Archive;
             planActif.ModifiePar = modifiePar;
             planActif.ModifieLe = DateTime.Now;
-            await _unitOfWork.PlanEchantillonnageEnteteRepository.UpdateAsync(planActif);
+            await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(planActif);
         }
 
         plan.Statut = StatutsPlan.Actif;
         plan.ModifiePar = modifiePar;
         plan.ModifieLe = DateTime.Now;
-        await _unitOfWork.PlanEchantillonnageEnteteRepository.UpdateAsync(plan);
+        await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(plan);
 
         var formulaire = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByRoleAsync("ECHANTILLONNAGE");
         if (formulaire != null && formulaire.Statut != StatutsPlan.Actif)
@@ -158,7 +162,7 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
     /// </summary>
     public async Task UpdatePlanAsync(Guid id, UpdatePlanEchanRequestDto request)
     {
-        var entity = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetByIdAsync(id);
+        var entity = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id);
         if (entity == null) throw new InvalidOperationException("Plan introuvable.");
         if (entity.Statut == StatutsPlan.Archive)
             throw new InvalidOperationException("Impossible de modifier un plan archivé.");
@@ -167,7 +171,9 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
         entity.NqaId = await ResolveNqaId(request.NqaId, request.ValeurNqa);
         entity.ModifieLe = DateTime.Now;
 
-        await _unitOfWork.PlanEchantillonnageEnteteRepository.UpdateAsync(entity);
+        await ComputeIso2859RulesAsync(entity, request.ValeurNqa);
+
+        await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(entity);
         await _unitOfWork.CommitAsync();
     }
 
@@ -179,7 +185,7 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
     /// </summary>
     public async Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionEchanRequestDto request)
     {
-        var ancienPlan = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetByIdAsync(request.AncienId);
+        var ancienPlan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(request.AncienId);
         if (ancienPlan == null)
             throw new InvalidOperationException("L'ancien plan est introuvable.");
         if (ancienPlan.Statut == StatutsPlan.Archive)
@@ -217,7 +223,7 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
         // 3. Créer le nouveau plan directement ACTIF
         int finalNqaId = await ResolveNqaId(request.Donnees.NqaId, request.Donnees.ValeurNqa);
 
-        var nouveauPlan = new PlanEchantillonnageEntete
+        var nouveauPlan = new DocumentEchantillonnageEntete
         {
             Id = Guid.NewGuid(),
             FormulaireId = formulaire.Id,
@@ -232,14 +238,16 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
             ModeControle = request.Donnees.ModeControle,
             NqaId = finalNqaId,
             Remarques = request.Donnees.Remarques,
-            LegendeMoyens = request.Donnees.LegendeMoyens
+            LegendeMoyens = request.Donnees.LegendeMoyens,
+            CritereAcceptationAc = request.Donnees.CritereAcceptationAc,
+            CritereRejetRe = request.Donnees.CritereRejetRe
         };
 
         if (request.Donnees.Regles != null)
         {
             foreach (var r in request.Donnees.Regles)
             {
-                nouveauPlan.PlanEchantillonnageRegles.Add(new PlanEchantillonnageRegle
+                nouveauPlan.DocumentEchantillonnageRegles.Add(new DocumentEchantillonnageRegle
                 {
                     Id = Guid.NewGuid(),
                     FicheEnteteId = nouveauPlan.Id,
@@ -249,14 +257,16 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
                     EffectifEchantillonA = r.EffectifEchantillonA,
                     NbPostesB = r.NbPostesB,
                     EffectifParPosteAb = r.EffectifParPosteAb,
-                    CritereAcceptationAc = r.CritereAcceptationAc,
-                    CritereRejetRe = r.CritereRejetRe
+                    
+                    
                 });
             }
         }
 
-        await _unitOfWork.PlanEchantillonnageEnteteRepository.UpdateAsync(ancienPlan);
-        await _unitOfWork.PlanEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
+        await ComputeIso2859RulesAsync(nouveauPlan, request.Donnees.ValeurNqa);
+
+        await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(ancienPlan);
+        await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
         await _unitOfWork.CommitAsync();
         return nouveauPlan.Id;
     }
@@ -267,18 +277,18 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
     /// </summary>
     public async Task<Guid> RestaurerPlanAsync(RestaurerEchanRequestDto request)
     {
-        var planARestaurer = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetByIdAsync(request.ArchiveId);
+        var planARestaurer = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(request.ArchiveId);
         if (planARestaurer == null)
             throw new InvalidOperationException("Plan archivé introuvable.");
 
         // Archiver l'actif si présent
-        var planActif = await _unitOfWork.PlanEchantillonnageEnteteRepository.GetPlanActifAsync();
+        var planActif = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
         if (planActif != null)
         {
             planActif.Statut = StatutsPlan.Archive;
             planActif.ModifiePar = request.ModifiePar;
             planActif.ModifieLe = DateTime.Now;
-            await _unitOfWork.PlanEchantillonnageEnteteRepository.UpdateAsync(planActif);
+            await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(planActif);
         }
 
         // Archiver l'ancien FE-ECHAN-01 et créer le nouveau
@@ -306,7 +316,7 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
         formulaire = nouveauFormulaire;
 
         // Créer le nouveau plan directement ACTIF
-        var nouveauPlan = new PlanEchantillonnageEntete
+        var nouveauPlan = new DocumentEchantillonnageEntete
         {
             Id = Guid.NewGuid(),
             FormulaireId = formulaire.Id,
@@ -321,12 +331,14 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
             ModeControle = planARestaurer.ModeControle,
             NqaId = planARestaurer.NqaId,
             Remarques = planARestaurer.Remarques,
-            LegendeMoyens = planARestaurer.LegendeMoyens
+            LegendeMoyens = planARestaurer.LegendeMoyens,
+            CritereAcceptationAc = planARestaurer.CritereAcceptationAc,
+            CritereRejetRe = planARestaurer.CritereRejetRe
         };
 
-        foreach (var r in planARestaurer.PlanEchantillonnageRegles)
+        foreach (var r in planARestaurer.DocumentEchantillonnageRegles)
         {
-            nouveauPlan.PlanEchantillonnageRegles.Add(new PlanEchantillonnageRegle
+            nouveauPlan.DocumentEchantillonnageRegles.Add(new DocumentEchantillonnageRegle
             {
                 Id = Guid.NewGuid(),
                 FicheEnteteId = nouveauPlan.Id,
@@ -336,12 +348,12 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
                 EffectifEchantillonA = r.EffectifEchantillonA,
                 NbPostesB = r.NbPostesB,
                 EffectifParPosteAb = r.EffectifParPosteAb,
-                CritereAcceptationAc = r.CritereAcceptationAc,
-                CritereRejetRe = r.CritereRejetRe
+                
+                
             });
         }
 
-        await _unitOfWork.PlanEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
+        await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
         await _unitOfWork.CommitAsync();
         return nouveauPlan.Id;
     }
@@ -365,5 +377,28 @@ public class PlanEchantillonnageService : IPlanEchantillonnageService
         await _unitOfWork.DictionnaireQualiteRepository.AddNqaAsync(newNqa);
         await _unitOfWork.CommitAsync();
         return newNqa.Id;
+    }
+
+    private async Task ComputeIso2859RulesAsync(DocumentEchantillonnageEntete entity, double? valeurNqa)
+    {
+        if (string.IsNullOrEmpty(entity.NiveauControle) || !valeurNqa.HasValue)
+            return;
+
+        foreach (var regle in entity.DocumentEchantillonnageRegles)
+        {
+            if (regle.TailleMinLot.HasValue)
+            {
+                var lettre = await _iso2859Service.GetLettreCodeAsync(regle.TailleMinLot.Value, entity.NiveauControle);
+                if (!string.IsNullOrEmpty(lettre))
+                {
+                    regle.LettreCode = lettre;
+                    var effectif = await _iso2859Service.GetEffectifEchantillonAsync(lettre, valeurNqa.Value);
+                    if (effectif.HasValue)
+                    {
+                        regle.EffectifEchantillonA = effectif.Value;
+                    }
+                }
+            }
+        }
     }
 }

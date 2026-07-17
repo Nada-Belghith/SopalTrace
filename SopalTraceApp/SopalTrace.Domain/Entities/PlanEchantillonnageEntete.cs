@@ -35,6 +35,10 @@ public partial class PlanEchantillonnageEntete
 
     public string? LegendeMoyens { get; set; }
 
+    public int CritereAcceptationAc { get; set; }
+
+    public int CritereRejetRe { get; set; }
+
     public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Nqa Nqa { get; set; } = null!;

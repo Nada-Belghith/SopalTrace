@@ -99,7 +99,9 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IDocumentEnteteRepository, DocumentEnteteRepository>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
-builder.Services.AddScoped<IPlanEchantillonnageService, PlanEchantillonnageService>();
+builder.Services.AddScoped<IDocumentEchantillonnageService, DocumentEchantillonnageService>();
+builder.Services.AddScoped<IIso2859Service, SopalTrace.Infrastructure.Services.Iso2859Service>();
+builder.Services.AddScoped<IExecEchantillonnageService, ExecEchantillonnageService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
 builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
 

@@ -184,9 +184,15 @@ const handleRegister = async () => {
     });
 
     router.push('/');
-  } catch {
-    // Erreur gérée par le store
+  } catch (err) {
+    // Afficher l'erreur retournée par le backend (interceptée par apiClient en { message, status }) dans un toast
+    const errorMsg = err.message || "Erreur lors de l'inscription";
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur d\'inscription',
+      detail: errorMsg,
+      life: 5000
+    });
   }
 };
 </script>
-"

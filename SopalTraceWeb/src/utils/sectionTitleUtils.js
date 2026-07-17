@@ -41,14 +41,14 @@ export function resolveSectionDisplayTitle(section, typesSection = [], defaultTi
     // Si le titre ne contient pas le libellé du type, on l'injecte intelligemment
     const libTypeNorm = typeSec.libelle.toLowerCase().trim();
     const titreNorm = titre.toLowerCase();
-    
+
     if (libTypeNorm && !titreNorm.includes(libTypeNorm)) {
       // Pour éviter de doubler "Caractéristiques à contrôler", on nettoie le début du titre
       let cleanTitre = titre;
       if (titreNorm.startsWith(defaultTitle.toLowerCase())) {
-         cleanTitre = titre.substring(defaultTitle.length).trim();
+        cleanTitre = titre.substring(defaultTitle.length).trim();
       }
-      
+
       const prefix = buildSectionTitleFromType(typeSec, defaultTitle);
       titre = cleanTitre ? `${prefix} ${cleanTitre}` : prefix;
     }
@@ -56,15 +56,14 @@ export function resolveSectionDisplayTitle(section, typesSection = [], defaultTi
 
   // Auto-nettoyage des fréquences dupliquées (bug précédent) dans le libellé pour l'affichage
   if (titre) {
-      titre = titre.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
-      
-      // Ré-attacher la bonne fréquence si elle est dans la section
-      if (section?.frequenceLibelle) {
-          const freqNorm = section.frequenceLibelle.toLowerCase();
-          if (!titre.toLowerCase().includes(freqNorm)) {
-              titre = `${titre} (${section.frequenceLibelle})`;
-          }
+    // On ne supprime plus aveuglément toutes les parenthèses à la fin ! Cela cassait les " (OF)" etc.
+    // Ré-attacher la bonne fréquence si elle est dans la section
+    if (section?.frequenceLibelle) {
+      const freqNorm = section.frequenceLibelle.toLowerCase();
+      if (!titre.toLowerCase().includes(freqNorm)) {
+        titre = `${titre} (${section.frequenceLibelle})`;
       }
+    }
   }
 
   return titre || defaultTitle;
@@ -86,30 +85,30 @@ export function nettoyerNomSection(libelleSection, typeSectionId, typesSection =
   if (!libelleSection) return '';
   const normalizeApostrophes = (s) => s.replace(/’/g, "'");
   let clean = normalizeApostrophes(libelleSection).replace(/caractéristiques à contrôler/gi, '').trim();
-  
+
   const escapeRegExp = (str) => str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-  
+
   if (typeSectionId) {
     const typeSec = findTypeSection(typesSection, typeSectionId);
     if (typeSec && typeSec.libelle) {
       clean = clean.replace(new RegExp(escapeRegExp(normalizeApostrophes(typeSec.libelle)), 'gi'), '').trim();
     }
   }
-  
+
   if (freqLib) {
     const freqNorm = normalizeApostrophes(freqLib);
     const freqPattern = '\\(?\\s*' + escapeRegExp(freqNorm) + '\\s*\\)?';
     clean = clean.replace(new RegExp(freqPattern, 'gi'), '').trim();
   }
-  
+
   if (regleLib) {
     const regleNorm = normalizeApostrophes(regleLib);
     const reglePattern = '\\(?\\s*' + escapeRegExp(regleNorm) + '\\s*\\)?';
     clean = clean.replace(new RegExp(reglePattern, 'gi'), '').trim();
   }
 
-  // Remove trailing empty parentheses and trim
-  clean = clean.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
+  // On ne supprime plus les parenthèses non identifiées à la fin, pour ne pas casser le texte de l'utilisateur
+  // clean = clean.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
   clean = clean.replace(/^\(+|\)+$/g, '').trim();
 
   return clean;

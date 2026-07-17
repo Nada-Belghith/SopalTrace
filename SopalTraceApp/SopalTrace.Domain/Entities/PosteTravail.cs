@@ -13,9 +13,13 @@ public partial class PosteTravail
 
     public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
 
+    public virtual ICollection<ExecControleDocumentStatut> ExecControleDocumentStatuts { get; set; } = new List<ExecControleDocumentStatut>();
+
     public virtual ICollection<ExecControleOf> ExecControleOfPosteCodeNavigations { get; set; } = new List<ExecControleOf>();
 
     public virtual ICollection<ExecControleOf> ExecControleOfPosteCodePrevuNavigations { get; set; } = new List<ExecControleOf>();
+
+    public virtual ICollection<ExecControleOfPoste> ExecControleOfPostes { get; set; } = new List<ExecControleOfPoste>();
 
     public virtual ICollection<Machine> CodeMachines { get; set; } = new List<Machine>();
 }

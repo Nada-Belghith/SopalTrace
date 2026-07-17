@@ -195,7 +195,12 @@ const router = createRouter({
         {
           path: 'of-fini',
           name: 'operateur-of-fini',
-          component: () => import('@/views/Operateur/OperateurDashboardView.vue')
+          component: () => import('@/views/Operateur/OperateurAssemblageView.vue')
+        },
+        {
+          path: 'echantillonnage/:execControleOfId',
+          name: 'exec-echantillonnage',
+          component: () => import('@/views/Operateur/ExecEchantillonnageView.vue')
         }
       ]
     },

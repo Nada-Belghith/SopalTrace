@@ -475,9 +475,27 @@ GO
 -- PARTIE 9 : PLAN D'ÉCHANTILLONNAGE
 -- ================================================================================
 
-CREATE TABLE dbo.Plan_Echantillonnage_Entete (
+CREATE TABLE dbo.Ref_ISO2859_LettresCode (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    QteMin INT NOT NULL,
+    QteMax INT NOT NULL,
+    NiveauControle VARCHAR(10) NOT NULL CHECK (NiveauControle IN ('S-1','S-2','S-3','S-4','I','II','III')),
+    CodeLettre CHAR(1) NOT NULL
+);
+GO
+
+CREATE TABLE dbo.Ref_ISO2859_Echantillonnage (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    CodeLettre CHAR(1) NOT NULL,
+    ValeurNQA FLOAT NOT NULL,
+    Quantite INT NOT NULL,
+    UNIQUE (CodeLettre, ValeurNQA)
+);
+GO
+
+CREATE TABLE dbo.Document_Echantillonnage_Entete (
     Id                 UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    NiveauControle     VARCHAR(5)  NOT NULL CHECK (NiveauControle IN ('I','II','III')),
+    NiveauControle     VARCHAR(10)  NOT NULL CHECK (NiveauControle IN ('I','II','III','S-1','S-2','S-3','S-4')),
     TypePlan           VARCHAR(10) NOT NULL CHECK (TypePlan IN ('SIMPLE','DOUBLE')),
     ModeControle       VARCHAR(15) NOT NULL CHECK (ModeControle IN ('NORMAL','REDUIT','RENFORCE')),
     NqaId              INT         NOT NULL REFERENCES dbo.NQA(Id),
@@ -490,24 +508,24 @@ CREATE TABLE dbo.Plan_Echantillonnage_Entete (
     ModifieLe          DATETIME,
     CommentaireVersion NVARCHAR(MAX),
     Remarques          NVARCHAR(MAX),
-    LegendeMoyens      NVARCHAR(MAX)
+    LegendeMoyens      NVARCHAR(MAX),
+    CritereAcceptation_Ac INT         NOT NULL,
+    CritereRejet_Re       INT         NOT NULL
 );
 GO
 
-CREATE TABLE dbo.Plan_Echantillonnage_Regle (
-    Id                    UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    FicheEnteteId         UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_Echantillonnage_Entete(Id) ON DELETE CASCADE,
-    TailleMinLot          INT,
-    TailleMaxLot          INT,
-    LettreCode            VARCHAR(5)  NOT NULL,
-    EffectifEchantillon_A INT         NOT NULL,
-    NbPostes_B            INT         NOT NULL DEFAULT 1,
-    EffectifParPoste_AB   INT,
-    CritereAcceptation_Ac INT         NOT NULL,
-    CritereRejet_Re       INT         NOT NULL,
-    UNIQUE (FicheEnteteId, LettreCode)
-);
-GO
+CREATE TABLE dbo.Document_Echantillonnage_Regle (
+      Id                    UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+      FicheEnteteId         UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Document_Echantillonnage_Entete(Id) ON DELETE CASCADE,
+      TailleMinLot          INT,
+      TailleMaxLot          INT,
+      LettreCode            VARCHAR(5)  NOT NULL,
+      EffectifEchantillon_A INT         NOT NULL,
+      NbPostes_B            INT         NOT NULL DEFAULT 1,
+      EffectifParPoste_AB   INT,
+      UNIQUE (FicheEnteteId, LettreCode)
+  );
+  GO
 
 -- ================================================================================
 -- PARTIE 10 : MODÈLES DE FABRICATION (inchangés)
@@ -911,7 +929,7 @@ CREATE TABLE dbo.Exec_ControleOF (
     PosteCode        VARCHAR(30) REFERENCES dbo.PosteTravail(CodePoste),
     NumEquipe        INT         NOT NULL DEFAULT 1,
     PlanSourceId     UNIQUEIDENTIFIER NOT NULL,
-    TypePlan         VARCHAR(10) NOT NULL CHECK (TypePlan IN ('FAB','DOC')),
+    TypePlan         VARCHAR(10) NOT NULL CHECK (TypePlan IN ('FAB','DOC','ASS')),
     Statut           VARCHAR(20) NOT NULL DEFAULT 'EN_COURS'
         CHECK (Statut IN ('EN_COURS','CLOTURE','EN_PAUSE','REGLAGE')),
     EstEnReglage     BIT         NOT NULL DEFAULT 0,
@@ -919,6 +937,53 @@ CREATE TABLE dbo.Exec_ControleOF (
     DateFin          DATETIME
 );
 GO
+
+CREATE TABLE dbo.Exec_ControleOf_Poste (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ExecControleOfId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
+    PosteCode VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste)
+);
+GO
+
+CREATE TABLE dbo.Exec_ControleDocumentStatut (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ExecControleOfId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
+    TypeDocument VARCHAR(50) NOT NULL,
+    PosteCode VARCHAR(30) NULL REFERENCES dbo.PosteTravail(CodePoste),
+    DocId UNIQUEIDENTIFIER NULL,
+    EstTermine BIT NOT NULL DEFAULT 0,
+    DateTermine DATETIME NULL
+);
+GO
+
+CREATE TABLE dbo.Exec_RcPoste_Entete (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    ExecControleOfId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
+    DateSaisie DATETIME NOT NULL DEFAULT GETDATE(),
+    Equipe1Matricule VARCHAR(20) NULL,
+    Equipe2Matricule VARCHAR(20) NULL
+);
+GO
+
+CREATE TABLE dbo.Exec_RcPoste_LigneBilan (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    RcPosteEnteteId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_RcPoste_Entete(Id) ON DELETE CASCADE,
+    MachineCode VARCHAR(30) NOT NULL REFERENCES dbo.Machine(CodeMachine),
+    DesignationDefaut VARCHAR(250) NOT NULL,
+    TotalPiecesTestees FLOAT NOT NULL DEFAULT 0,
+    NbPiecesRebutees FLOAT NOT NULL DEFAULT 0,
+    NbPiecesConformes FLOAT NOT NULL DEFAULT 0
+);
+GO
+
+CREATE TABLE dbo.Exec_RcPoste_Heure (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    LigneBilanId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_RcPoste_LigneBilan(Id) ON DELETE CASCADE,
+    TrancheHoraire VARCHAR(20) NOT NULL,
+    NbDefauts FLOAT NOT NULL DEFAULT 0
+);
+GO
+
 
 CREATE TABLE dbo.Exec_PieceType (
     Id                 UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -1056,3 +1121,18 @@ PRINT '  Ref_Caracteristique   → LibelleNormalise fourni par le backend C# (pa
 PRINT '  JSON supprimé         → ExtraColonne (EAV) + Libre1..5';
 PRINT '  Triggers              → ISO 9001 uniquement (interdit DELETE physique)';
 PRINT '  Logique métier        → 100% backend C#';
+GO
+CREATE TABLE [dbo].[Exec_Echantillonnage] (
+    [Id] UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
+    [ExecControleOfId] UNIQUEIDENTIFIER NOT NULL,
+    [TailleLot] INT NOT NULL,
+    [NbPostesB] INT NOT NULL,
+    [LettreCode] VARCHAR(10) NOT NULL,
+    [EffectifEchantillonA] INT NOT NULL,
+    [EffectifParPosteAb] INT NULL,
+    [CritereAcceptationAc] INT NOT NULL,
+    [CritereRejetRe] INT NOT NULL,
+    CONSTRAINT [PK_Exec_Echantillonnage] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_Exec_Echantillonnage_ExecControleOF] FOREIGN KEY ([ExecControleOfId]) REFERENCES [dbo].[Exec_ControleOF] ([Id]) ON DELETE CASCADE
+);
+GO

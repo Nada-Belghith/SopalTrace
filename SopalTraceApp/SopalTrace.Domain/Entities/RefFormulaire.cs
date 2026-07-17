@@ -25,11 +25,11 @@ public partial class RefFormulaire
 
     public string? Role { get; set; }
 
+    public virtual ICollection<DocumentEchantillonnageEntete> DocumentEchantillonnageEntetes { get; set; } = new List<DocumentEchantillonnageEntete>();
+
     public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
 
     public virtual ICollection<ModeleFabricationEntete> ModeleFabricationEntetes { get; set; } = new List<ModeleFabricationEntete>();
-
-    public virtual ICollection<PlanEchantillonnageEntete> PlanEchantillonnageEntetes { get; set; } = new List<PlanEchantillonnageEntete>();
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 

@@ -173,7 +173,8 @@ import Toast from 'primevue/toast';
 import { documentService as assPlanService } from '@/services/documentService';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { useAssPlanVersioning } from '@/composables/useVersioning';
-import { createModeleSnapshot, prepareModeleDataAndFrequencies } from '@/utils/modelMapper';
+import { createModeleSnapshot } from '@/utils/modelMapper';
+import { prepareSectionsForBackend } from '@/utils/sectionUtils';
 import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
@@ -544,7 +545,7 @@ const chargerModelePourEdition = async (id) => {
 
 
 const preparerDonneesEtFrequences = async () => {
-  const sections = await prepareModeleDataAndFrequencies(
+  const sections = await prepareSectionsForBackend(
     groupes.value,
     store.periodicites,
     async (payloadFreq) => {
@@ -564,27 +565,7 @@ const sauvegarderDirectement = async () => {
 
   store.isLoading = true;
   try {
-    // Vérifier si un modèle actif existe déjà pour ces critères (Nature, Opération, Poste)
-    const resExist = await assPlanService.getModelesByFilters(
-      null, // typeRobinet (optionnel)
-      store.entete.natureComposantCode,
-      store.entete.operationCode,
-      store.entete.posteCode,
-      store.entete.familleProduitCode  // ✅ filtre par famille pour éviter d'archiver BAC01 quand on crée BAC02
-    );
 
-    const activeModel = (resExist.data?.data || []).find(m => m.statut === 'ACTIF');
-
-    if (activeModel) {
-      // Un modèle actif existe déjà -> On propose d'archiver et créer une nouvelle version
-      modeleEditionId.value = activeModel.id;
-      version.value = activeModel.version;
-      versioningMode.value = 'new-version';
-      isAutoVersioning.value = true; // Flag pour bypasser isDirty car c'est un nouveau plan
-      showVersioningDialog.value = true;
-      store.isLoading = false;
-      return;
-    }
 
     store.sections = await preparerDonneesEtFrequences();
     const resData = await store.savePlan(store.entete.legendeMoyens);

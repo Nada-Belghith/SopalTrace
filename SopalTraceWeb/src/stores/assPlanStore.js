@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { documentService as assPlanService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
+import { mapSectionForBackend, mapImportedSection } from '@/utils/sectionUtils';
 
 export const useAssPlanStore = defineStore('assPlan', () => {
   // --- DICTIONNAIRES ---
@@ -152,34 +153,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     versionInitiale: entete.value.versionInitiale,
     colonneDefs: entete.value.configurationColonnes || [],
     refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
-    sections: sections.value.map(s => ({
-      ordreAffiche: s.ordreAffiche,
-      typeSectionId: s.typeSectionId,
-      periodiciteId: s.periodiciteId,
-      regleEchantillonnageId: s.regleEchantillonnageId, // Ajouté ici
-      libelleSection: s.libelleSection || 'SECTION SANS NOM',
-      frequenceLibelle: s.frequenceLibelle,
-      notes: s.notes,
-      lignes: s.lignes.map(l => ({
-        ordreAffiche: l.ordreAffiche,
-        typeCaracteristiqueId: l.typeCaracteristiqueId,
-        libelleAffiche: l.libelleAffiche,
-        typeControleId: l.typeControleId,
-        moyenControleId: l.moyenControleId,
-        instrumentCode: l.instrumentCode,
-        periodiciteId: l.periodiciteId,
-        instruction: l.instruction,
-        observations: l.observations,
-        estCritique: l.estCritique,
-        unite: l.unite || '',
-        limiteSpecTexte: l.limiteSpecTexte || null,
-        extraColonnes: Object.entries(l.valeursColonnesSpecifiques || {}).map(([k, v], idx) => ({
-          cleColonne: k,
-          valeurColonne: v ? String(v) : null,
-          ordreAffiche: idx + 1
-        }))
-      }))
-    }))
+    sections: sections.value.map((s, sIdx) => mapSectionForBackend(s, sIdx, periodicites.value))
   });
 
   const savePlan = async (legendeMoyens = '') => {
@@ -246,42 +220,13 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     try {
       // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
       const parsedData = await assPlanService.importExcel(formData);
-      
+
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
           entete.value.notes = (entete.value.notes ? entete.value.notes + '\n' : '') + parsedData.remarques.trim();
         }
-        
-        sections.value = parsedData.sections.map(sec => ({
-          id: sec.id || crypto.randomUUID(),
-          isFromDb: false,
-          nom: sec.nom || '',
-          libelleSection: sec.nom,
-          typeSectionId: sec.typeSectionId,
-          modeFreq: sec.modeFreq,
-          periodiciteId: sec.periodiciteId,
-          freqNum: sec.freqNum,
-          typeVariable: sec.typeVariable,
-          freqHours: sec.freqHours,
-          lignes: sec.lignes.map(lig => ({
-            id: lig.id || crypto.randomUUID(),
-            isFromDb: false,
-            typeCaracteristiqueId: lig.typeCaracteristiqueId,
-            typeControleId: lig.typeControleId,
-            moyenControleId: lig.moyenControleId,
-            instrumentCode: lig.instrumentCode,
-            valeurNominale: lig.valeurNominale,
-            toleranceSuperieure: lig.toleranceSuperieure,
-            toleranceInferieure: lig.toleranceInferieure,
-            unite: lig.unite || '',
-            limiteSpecTexte: lig.limiteSpecTexte,
-            observations: lig.observations,
-            instruction: lig.instruction,
-            estCritique: lig.estCritique,
-            libelleAffiche: lig.libelleAffiche,
-            imageBase64: lig.imageBase64 || null
-          }))
-        }));
+
+        sections.value = parsedData.sections.map(sec => mapImportedSection(sec, reglesEchantillonnage.value));
 
         await fetchDictionnaires();
       }
@@ -301,9 +246,9 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     gammesOperatoires,
     formulairesReferences,
     isDicosLoaded,
-    
+
     // État Modèle
-    entete, sections, isLoading, version, codePlanAuto,    
+    entete, sections, isLoading, version, codePlanAuto,
     // Actions
     fetchDictionnaires,
     fetchFormulairesReferences,

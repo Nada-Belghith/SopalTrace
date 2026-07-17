@@ -21,16 +21,25 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
 
     public async Task<List<string>> ResoudreDestinatairesAsync(PlanManquantContexte contexte)
     {
+        if (contexte.OperationCode == "ASS")
+        {
+            return await _unitOfWork.UserRepository.GetEmailsByRoleAsync("SUPERVISEUR_QUALITE");
+        }
         return await _unitOfWork.UserRepository.GetEmailsByRoleAsync("RESPONSABLE_DI");
     }
 
     public string ConstruireSujet(PlanManquantContexte contexte)
     {
-        return $"[Alerte] Plan manquant pour l'opération {contexte.OperationCode}, le poste/machine {contexte.PosteCode} et l'article {contexte.ArticleCode}";
+        var refCible = contexte.OperationCode == "ASS" ? "" : $" et l'article {contexte.ArticleCode}";
+        return $"[Alerte] Plan manquant pour l'opération {contexte.OperationCode}, le poste/machine {contexte.PosteCode}{refCible}";
     }
 
     public string ConstruireCorps(PlanManquantContexte contexte)
     {
+        var articleLigne = contexte.OperationCode == "ASS" 
+            ? $"<li><b>OF / Produit :</b> {contexte.ArticleCode}</li>" 
+            : $"<li><b>Article :</b> {contexte.ArticleCode}</li>";
+
         return $@"
 <html>
 <body style='font-family: Arial, sans-serif;'>
@@ -39,7 +48,7 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
     <ul>
         <li><b>Opération :</b> {contexte.OperationCode}</li>
         <li><b>Poste / Machine :</b> {contexte.PosteCode}</li>
-        <li><b>Article :</b> {contexte.ArticleCode}</li>
+        {articleLigne}
     </ul>
     <p><b>Description du problème / Note de l'opérateur :</b><br/>
     <i>{contexte.DescriptionProbleme}</i></p>

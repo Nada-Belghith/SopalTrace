@@ -20,9 +20,8 @@ public record CreatePlanEchanRequestDto
     public string CommentaireVersion { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
-
-
-
+    public int CritereAcceptationAc { get; init; }
+    public int CritereRejetRe { get; init; }
 
     public List<PlanEchanRegleDto> Regles { get; init; } = new();
 }
@@ -38,10 +37,6 @@ public record PlanEchanRegleDto
     public int EffectifEchantillonA { get; init; }
     public int NbPostesB { get; init; }
     public int? EffectifParPosteAb { get; init; }
-    
-    // Champs remplis par l'admin
-    public int CritereAcceptationAc { get; init; }
-    public int CritereRejetRe { get; init; }
 }
 
 public record NouvelleVersionEchanRequestDto
@@ -73,9 +68,8 @@ public record UpdatePlanEchanRequestDto
     
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
-
-
-
+    public int CritereAcceptationAc { get; init; }
+    public int CritereRejetRe { get; init; }
 
     public string ModifiePar { get; init; }
     public List<PlanEchanRegleDto> Regles { get; init; } = new();
@@ -104,6 +98,8 @@ public record PlanEchanResponseDto
     public string CommentaireVersion { get; init; }
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
+    public int CritereAcceptationAc { get; init; }
+    public int CritereRejetRe { get; init; }
 
 
 

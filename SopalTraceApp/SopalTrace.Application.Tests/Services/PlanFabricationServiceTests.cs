@@ -20,6 +20,7 @@ namespace SopalTrace.Application.Tests.Services
         private readonly Mock<ICurrentUserService> _mockCurrentUserService;
         private readonly Mock<IFormulaireStructureService> _mockFormulaireStructureService;
         private readonly Mock<IFrequencyParserService> _mockFrequencyParserService;
+        private readonly Mock<IEmailService> _mockEmailService;
 
         private readonly PlanFabricationService _service;
 
@@ -29,6 +30,7 @@ namespace SopalTrace.Application.Tests.Services
             _mockCurrentUserService = new Mock<ICurrentUserService>();
             _mockFormulaireStructureService = new Mock<IFormulaireStructureService>();
             _mockFrequencyParserService = new Mock<IFrequencyParserService>();
+            _mockEmailService = new Mock<IEmailService>();
 
             _mockCurrentUserService.Setup(s => s.UserInfo).Returns("USER456");
 
@@ -36,7 +38,8 @@ namespace SopalTrace.Application.Tests.Services
                 _mockUnitOfWork.Object,
                 _mockCurrentUserService.Object,
                 _mockFormulaireStructureService.Object,
-                _mockFrequencyParserService.Object
+                _mockFrequencyParserService.Object,
+                _mockEmailService.Object
             );
         }
 

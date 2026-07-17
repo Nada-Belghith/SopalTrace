@@ -25,6 +25,8 @@ public partial class Machine
 
     public virtual ICollection<ExecControleOf> ExecControleOfMachineCodePrevuNavigations { get; set; } = new List<ExecControleOf>();
 
+    public virtual ICollection<ExecRcPosteLigneBilan> ExecRcPosteLigneBilans { get; set; } = new List<ExecRcPosteLigneBilan>();
+
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();

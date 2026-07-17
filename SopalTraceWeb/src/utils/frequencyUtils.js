@@ -96,7 +96,10 @@ export function resolveFrequencyFromPeriodiciteId(periodiciteId, periodicites = 
   const unite = (perio.frequenceUnite || perio.FrequenceUnite || '').toUpperCase();
   if (!unite) {
     modeFreq = 'SANS';
-  } else if (unite.includes('HEURE') || unite.includes('PCT_HEURE')) {
+  } else if (unite.includes('PCT_HEURE')) {
+    modeFreq = 'FIXE';
+    typeVariable = 'HEURE';
+  } else if (unite.includes('HEURE')) {
     typeVariable = 'HEURE';
     if (unite.includes('4_HEURE')) {
       freqHours = 4;

@@ -39,9 +39,9 @@ public class UnitOfWork : IUnitOfWork
     public IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository
         => _planVerifMachineEnteteRepository ??= new PlanVerifMachineEnteteRepository(_context);
 
-    private IPlanEchantillonnageEnteteRepository? _planEchantillonnageEnteteRepository;
-    public IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository
-        => _planEchantillonnageEnteteRepository ??= new PlanEchantillonnageEnteteRepository(_context);
+    private IDocumentEchantillonnageEnteteRepository? _DocumentEchantillonnageEnteteRepository;
+    public IDocumentEchantillonnageEnteteRepository DocumentEchantillonnageEnteteRepository
+        => _DocumentEchantillonnageEnteteRepository ??= new DocumentEchantillonnageEnteteRepository(_context);
 
     private IModeleFabricationEnteteRepository? _modeleFabricationEnteteRepository;
     public IModeleFabricationEnteteRepository ModeleFabricationEnteteRepository
@@ -55,6 +55,13 @@ public class UnitOfWork : IUnitOfWork
     public IAlerteRepository AlerteRepository
         => _alerteRepository ??= new AlerteRepository(_context);
 
+    private IExecControleOfRepository? _execControleOfRepository;
+    public IExecControleOfRepository ExecControleOfRepository
+        => _execControleOfRepository ??= new ExecControleOfRepository(_context);
+
+    private IExecEchantillonnageRepository? _execEchantillonnageRepository;
+    public IExecEchantillonnageRepository ExecEchantillonnageRepository
+        => _execEchantillonnageRepository ??= new ExecEchantillonnageRepository(_context);
     public async Task BeginTransactionAsync()
     {
         _transaction = await _context.Database.BeginTransactionAsync();

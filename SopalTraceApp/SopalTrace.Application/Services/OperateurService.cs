@@ -88,8 +88,24 @@ public class OperateurService : IOperateurService
         }
         else if (request.OperationCode == "ASS")
         {
-            execOf.PosteCodePrevu = request.PosteCode;
-            execOf.PosteCode = request.PosteCode;
+            // Le frontend envoie le champ dans machineCode (ou posteCode)
+            var inputPostes = request.PosteCode ?? request.MachineCode ?? "";
+            execOf.PosteCodePrevu = inputPostes;
+            execOf.PosteCode = inputPostes;
+
+            // Découper la saisie par virgule et enregistrer chaque poste dans ExecControleOfPostes
+            var postes = inputPostes.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(p => p.Trim())
+                                    .Distinct()
+                                    .ToList();
+
+            foreach (var poste in postes)
+            {
+                execOf.ExecControleOfPostes.Add(new ExecControleOfPoste
+                {
+                    PosteCode = poste
+                });
+            }
         }
 
         _operateurRepository.AddExecControleOf(execOf);
@@ -372,5 +388,143 @@ public class OperateurService : IOperateurService
         var ids = occurrences.Select(o => o.Id).ToList();
 
         return await _occurrenceService.DeclarerOccurrencesReglageAsync(ids, matriculeOperateur);
+    }
+
+    // --- Nouvelle Logique pour OF d'Assemblage ---
+    public async Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request)
+    {
+        var of = await _operateurRepository.GetOfAsync(request.NumeroOf);
+        if (of == null) throw new Exception("OF introuvable");
+
+        var planAss = await _operateurRepository.GetPlanAssemblageActifAsync(of.CodeArticle);
+        
+        var execOf = new ExecControleOf
+        {
+            NumeroOf = request.NumeroOf,
+            OperationCode = request.OperationCode,
+            NumEquipe = request.NumEquipe,
+            PlanSourceId = planAss?.Id ?? Guid.Empty, // S'il n'y a pas de plan d'assemblage, on peut lier à Guid.Empty
+            TypePlan = "ASS",
+            Statut = "EN_COURS",
+            DateDebut = DateTime.Now
+        };
+
+        _operateurRepository.AddExecControleOf(execOf);
+        await _operateurRepository.SaveChangesAsync(); // <-- INDISPENSABLE pour générer l'Id (Guid) avant de l'utiliser dans ExecControleDocumentStatut
+
+        // Lier les postes multiples
+        foreach (var posteCode in request.PosteCodes)
+        {
+            var execPoste = new ExecControleOfPoste
+            {
+                ExecControleOfId = execOf.Id,
+                PosteCode = posteCode
+            };
+            execOf.ExecControleOfPostes.Add(execPoste);
+        }
+
+        // Initialiser les statuts des documents
+        // Conformément à la nouvelle architecture, la table Exec_ControleDocumentStatut
+        // n'est plus pré-peuplée au démarrage. Les documents seront initialisés à la demande
+        // (au clic sur les cartes dans le dashboard).
+
+        return new ExecControleOfDto
+        {
+            Id = execOf.Id,
+            NumeroOf = execOf.NumeroOf,
+            OperationCode = execOf.OperationCode,
+            Statut = execOf.Statut,
+            DateDebut = execOf.DateDebut
+        };
+    }
+
+    public async Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument)
+    {
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        if (execOf == null) throw new Exception("Exécution introuvable");
+
+        var postes = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
+        var existing = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
+        if (existing.Any(s => s.TypeDocument == typeDocument)) return true;
+
+        bool initializedAny = false;
+
+        if (typeDocument == "VERIF_MACHINE" || typeDocument == "RESULTAT_CONTROLE_POSTE")
+        {
+            foreach (var p in postes)
+            {
+                var forms = await _operateurRepository.GetFormulairesPourPosteAsync(p, typeDocument);
+                foreach (var f in forms)
+                {
+                    _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
+                    {
+                        ExecControleOfId = execControleOfId,
+                        PosteCode = p,
+                        TypeDocument = typeDocument,
+                        DocId = f.Id,
+                        EstTermine = false
+                    });
+                    initializedAny = true;
+                }
+            }
+        }
+        else if (typeDocument == "RESULTAT_CONTROLE_CF" || typeDocument == "PRODUIT_FINI")
+        {
+            var of = await _operateurRepository.GetOfAsync(execOf.NumeroOf);
+            if (of != null)
+            {
+                var forms = await _operateurRepository.GetFormulairesPourArticleAsync(of.CodeArticle, typeDocument);
+                foreach (var f in forms)
+                {
+                    _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
+                    {
+                        ExecControleOfId = execControleOfId,
+                        TypeDocument = typeDocument,
+                        DocId = f.Id,
+                        EstTermine = false
+                    });
+                    initializedAny = true;
+                }
+            }
+        }
+        // ECHANTILLONNAGE est géré par ExecEchantillonnageService.InitPlanPourOfAsync
+
+        if (initializedAny)
+        {
+            await _operateurRepository.SaveChangesAsync();
+        }
+
+        return initializedAny;
+    }
+
+    public async Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId)
+    {
+        var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
+        
+        var formIds = statuts.Where(s => s.DocId.HasValue && s.TypeDocument != "ECHANTILLONNAGE").Select(s => s.DocId.Value).Distinct();
+        var designations = await _operateurRepository.GetFormulaireDesignationsAsync(formIds);
+
+        return statuts.Select(s => new DocumentStatutDto
+        {
+            Id = s.Id,
+            TypeDocument = s.TypeDocument,
+            PosteCode = s.PosteCode,
+            DocId = s.DocId,
+            LibelleFormulaire = s.TypeDocument == "ECHANTILLONNAGE" ? "Document Échantillonnage" : (s.DocId.HasValue && designations.ContainsKey(s.DocId.Value) ? designations[s.DocId.Value] : null),
+            EstTermine = s.EstTermine,
+            DateTermine = s.DateTermine
+        });
+    }
+
+    public async Task<bool> MarquerDocumentTermineAsync(Guid statutDocumentId)
+    {
+        var statut = await _operateurRepository.GetDocumentStatutByIdAsync(statutDocumentId);
+        if (statut == null) return false;
+
+        statut.EstTermine = true;
+        statut.DateTermine = DateTime.Now;
+
+        await _operateurRepository.SaveChangesAsync();
+        return true;
     }
 }

@@ -59,7 +59,7 @@ export const useOperateurStore = defineStore('operateur', {
       for (const of of this.ofs) {
         if (of.gammeOperatoire) {
           for (const op of of.gammeOperatoire) {
-            if (op.activeExecStatut === 'EN_COURS' && op.activeExecControleOfId) {
+            if (op.activeExecStatut === 'EN_COURS' && op.activeExecControleOfId && op.operationCode !== 'ASS') {
               activeExecIds.push({
                 execId: op.activeExecControleOfId,
                 numeroOf: of.numeroOf,

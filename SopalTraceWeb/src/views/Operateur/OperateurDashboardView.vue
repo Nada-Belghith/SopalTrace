@@ -219,8 +219,11 @@
                            class="w-full border border-slate-200 rounded-lg p-2.5 bg-white text-slate-500 text-sm font-medium">
                   </div>
                   <div class="flex-1">
-                    <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Machine / Poste Réel</label>
-                    <input type="text" v-model="form.machineCode" placeholder="Machine utilisée"
+                    <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                      <span v-if="op.operationCode === 'ASS'">Postes Réels (séparés par virgule)</span>
+                      <span v-else>Machine / Poste Réel</span>
+                    </label>
+                    <input type="text" v-model="form.machineCode" :placeholder="op.operationCode === 'ASS' ? 'Ex: P1, P2, P3' : 'Machine utilisée'"
                            class="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all">
                   </div>
                   <div class="w-32">
@@ -812,13 +815,13 @@ const handleUnload = (e) => {
 onMounted(() => {
   chargerOfs();
   
-  const refreshInterval = setInterval(chargerOfs, 60000);
+  operateurStore.startGlobalPolling(toast, router);
   
   window.addEventListener('beforeunload', handleUnload);
   window.addEventListener('unload', handleUnload);
 
   onUnmounted(() => {
-    clearInterval(refreshInterval);
+    operateurStore.stopGlobalPolling();
     window.removeEventListener('beforeunload', handleUnload);
     window.removeEventListener('unload', handleUnload);
   });

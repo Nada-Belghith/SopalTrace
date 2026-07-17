@@ -13,10 +13,12 @@ namespace SopalTrace.Application.Interfaces;
     IDictionnaireQualiteRepository DictionnaireQualiteRepository { get; }
     IRefFormulaireRepository RefFormulaireRepository { get; }
     IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository { get; }
-    IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository { get; }
+    IDocumentEchantillonnageEnteteRepository DocumentEchantillonnageEnteteRepository { get; }
     IModeleFabricationEnteteRepository ModeleFabricationEnteteRepository { get; }
     IPlanFabricationEnteteRepository PlanFabricationEnteteRepository { get; }
     IAlerteRepository AlerteRepository { get; }
+    IExecControleOfRepository ExecControleOfRepository { get; }
+    IExecEchantillonnageRepository ExecEchantillonnageRepository { get; }
 
     Task BeginTransactionAsync();
     Task<int> CommitAsync();

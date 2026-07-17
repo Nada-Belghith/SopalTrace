@@ -6,7 +6,7 @@ namespace SopalTrace.Application.Mappers;
 
 public static class PlanEchanMapper
 {
-    public static PlanEchanResponseDto? ToResponseDto(this PlanEchantillonnageEntete? entity)
+    public static PlanEchanResponseDto? ToResponseDto(this DocumentEchantillonnageEntete? entity)
     {
         if (entity == null) return null;
 
@@ -27,7 +27,9 @@ public static class PlanEchanMapper
             CommentaireVersion = entity.CommentaireVersion,
             Remarques = entity.Remarques,
             LegendeMoyens = entity.LegendeMoyens,
-            Regles = entity.PlanEchantillonnageRegles?.Select(r => new PlanEchanRegleDto
+            CritereAcceptationAc = entity.CritereAcceptationAc,
+            CritereRejetRe = entity.CritereRejetRe,
+            Regles = entity.DocumentEchantillonnageRegles?.Select(r => new PlanEchanRegleDto
             {
                 Id = r.Id,
                 TailleMinLot = r.TailleMinLot,
@@ -35,18 +37,16 @@ public static class PlanEchanMapper
                 LettreCode = r.LettreCode,
                 EffectifEchantillonA = r.EffectifEchantillonA,
                 NbPostesB = r.NbPostesB,
-                EffectifParPosteAb = r.EffectifParPosteAb,
-                CritereAcceptationAc = r.CritereAcceptationAc,
-                CritereRejetRe = r.CritereRejetRe
+                EffectifParPosteAb = r.EffectifParPosteAb
             }).ToList() ?? new()
         };
     }
 
-    public static PlanEchantillonnageEntete? ToEntity(this CreatePlanEchanRequestDto? dto)
+    public static DocumentEchantillonnageEntete? ToEntity(this CreatePlanEchanRequestDto? dto)
     {
         if (dto == null) return null;
 
-        return new PlanEchantillonnageEntete
+        return new DocumentEchantillonnageEntete
         {
             NiveauControle = dto.NiveauControle,
             TypePlan = dto.TypePlan,
@@ -55,21 +55,21 @@ public static class PlanEchanMapper
             CommentaireVersion = dto.CommentaireVersion,
             Remarques = dto.Remarques,
             LegendeMoyens = dto.LegendeMoyens,
-            PlanEchantillonnageRegles = dto.Regles?.Select(r => new PlanEchantillonnageRegle
+            CritereAcceptationAc = dto.CritereAcceptationAc,
+            CritereRejetRe = dto.CritereRejetRe,
+            DocumentEchantillonnageRegles = dto.Regles?.Select(r => new DocumentEchantillonnageRegle
             {
                 TailleMinLot = r.TailleMinLot,
                 TailleMaxLot = r.TailleMaxLot,
                 LettreCode = r.LettreCode,
                 EffectifEchantillonA = r.EffectifEchantillonA,
                 NbPostesB = r.NbPostesB,
-                EffectifParPosteAb = r.EffectifParPosteAb,
-                CritereAcceptationAc = r.CritereAcceptationAc,
-                CritereRejetRe = r.CritereRejetRe
+                EffectifParPosteAb = r.EffectifParPosteAb
             }).ToList() ?? new()
         };
     }
 
-    public static void UpdateEntity(this PlanEchantillonnageEntete entity, UpdatePlanEchanRequestDto dto)
+    public static void UpdateEntity(this DocumentEchantillonnageEntete entity, UpdatePlanEchanRequestDto dto)
     {
         if (entity == null || dto == null) return;
 
@@ -79,18 +79,20 @@ public static class PlanEchanMapper
         entity.NqaId = dto.NqaId ?? 0;
         entity.Remarques = dto.Remarques;
         entity.LegendeMoyens = dto.LegendeMoyens;
+        entity.CritereAcceptationAc = dto.CritereAcceptationAc;
+        entity.CritereRejetRe = dto.CritereRejetRe;
         entity.ModifiePar = dto.ModifiePar;
 
         // Note: For rules, it is better to handle them in the service layer 
         // to manage added/updated/deleted properly, or completely clear and recreate.
         // For simplicity, we clear and recreate.
-        entity.PlanEchantillonnageRegles.Clear();
+        entity.DocumentEchantillonnageRegles.Clear();
 
         if (dto.Regles != null)
         {
             foreach (var r in dto.Regles)
             {
-                entity.PlanEchantillonnageRegles.Add(new PlanEchantillonnageRegle
+                entity.DocumentEchantillonnageRegles.Add(new DocumentEchantillonnageRegle
                 {
                     FicheEnteteId = entity.Id,
                     TailleMinLot = r.TailleMinLot,
@@ -98,9 +100,7 @@ public static class PlanEchanMapper
                     LettreCode = r.LettreCode,
                     EffectifEchantillonA = r.EffectifEchantillonA,
                     NbPostesB = r.NbPostesB,
-                    EffectifParPosteAb = r.EffectifParPosteAb,
-                    CritereAcceptationAc = r.CritereAcceptationAc,
-                    CritereRejetRe = r.CritereRejetRe
+                    EffectifParPosteAb = r.EffectifParPosteAb
                 });
             }
         }

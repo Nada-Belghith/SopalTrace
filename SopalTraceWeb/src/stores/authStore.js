@@ -13,7 +13,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state) => {
       if (!state.token) return false;
-      
+
       try {
         const base64Url = state.token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -26,7 +26,7 @@ export const useAuthStore = defineStore('auth', {
     },
     userRole: (state) => state.user?.role || 'GUEST',
     userName: (state) => state.user?.nom || 'Utilisateur',
-    
+
     // Vérification de permissions spécifiques
     isAdmin: (state) => state.user?.role === 'ADMIN',
     isResponsable: (state) => {
@@ -62,7 +62,8 @@ export const useAuthStore = defineStore('auth', {
         this.setSession(data, matricule);
         return true;
       } catch (err) {
-        this.error = err.response?.data?.message || "Erreur lors de l'inscription";
+        // apiClient intercepte l'erreur et retourne un objet avec { message, status }
+        this.error = err.message || "Erreur lors de l'inscription";
         throw err;
       } finally {
         this.isLoading = false;
@@ -85,7 +86,7 @@ export const useAuthStore = defineStore('auth', {
         const { useOperateurStore } = await import('@/stores/execution/operateurStore');
         const operateurService = (await import('@/services/operateurService')).default;
         const operateurStore = useOperateurStore();
-        
+
         // Mettre en pause automatiquement les OFs en cours
         if (operateurStore && operateurStore.ofs) {
           for (const o of operateurStore.ofs) {
@@ -110,13 +111,13 @@ export const useAuthStore = defineStore('auth', {
         console.error("Erreur arrêt polling ou pause auto à la déconnexion", e);
       }
 
-      authService.logout().catch(() => {}); // Logout silencieux au back
+      authService.logout().catch(() => { }); // Logout silencieux au back
 
       this.user = null;
       this.token = null;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
+
       router.push('/login');
     },
 
@@ -126,10 +127,10 @@ export const useAuthStore = defineStore('auth', {
     hasAccess(requiredRoles) {
       if (!requiredRoles || requiredRoles.length === 0) return true;
       if (!this.user || !this.user.role) return false;
-      
+
       const userRole = this.user.role;
-      return requiredRoles.some(role => 
-        userRole === role || 
+      return requiredRoles.some(role =>
+        userRole === role ||
         (role === 'RESPONSABLE' && userRole.includes('RESPONSABLE'))
       );
     },
