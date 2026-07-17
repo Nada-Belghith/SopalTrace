@@ -109,13 +109,6 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
         entity.CreePar = creePar;
         entity.CreeLe = DateTime.Now;
 
-        foreach (var regle in entity.DocumentEchantillonnageRegles)
-        {
-            regle.Id = Guid.NewGuid();
-            regle.FicheEnteteId = entity.Id;
-        }
-
-        await ComputeIso2859RulesAsync(entity, request.ValeurNqa);
 
         await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(entity);
         await _unitOfWork.CommitAsync();
@@ -171,7 +164,6 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
         entity.NqaId = await ResolveNqaId(request.NqaId, request.ValeurNqa);
         entity.ModifieLe = DateTime.Now;
 
-        await ComputeIso2859RulesAsync(entity, request.ValeurNqa);
 
         await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(entity);
         await _unitOfWork.CommitAsync();
@@ -243,27 +235,6 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
             CritereRejetRe = request.Donnees.CritereRejetRe
         };
 
-        if (request.Donnees.Regles != null)
-        {
-            foreach (var r in request.Donnees.Regles)
-            {
-                nouveauPlan.DocumentEchantillonnageRegles.Add(new DocumentEchantillonnageRegle
-                {
-                    Id = Guid.NewGuid(),
-                    FicheEnteteId = nouveauPlan.Id,
-                    TailleMinLot = r.TailleMinLot,
-                    TailleMaxLot = r.TailleMaxLot,
-                    LettreCode = r.LettreCode,
-                    EffectifEchantillonA = r.EffectifEchantillonA,
-                    NbPostesB = r.NbPostesB,
-                    EffectifParPosteAb = r.EffectifParPosteAb,
-                    
-                    
-                });
-            }
-        }
-
-        await ComputeIso2859RulesAsync(nouveauPlan, request.Donnees.ValeurNqa);
 
         await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(ancienPlan);
         await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
@@ -336,22 +307,7 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
             CritereRejetRe = planARestaurer.CritereRejetRe
         };
 
-        foreach (var r in planARestaurer.DocumentEchantillonnageRegles)
-        {
-            nouveauPlan.DocumentEchantillonnageRegles.Add(new DocumentEchantillonnageRegle
-            {
-                Id = Guid.NewGuid(),
-                FicheEnteteId = nouveauPlan.Id,
-                TailleMinLot = r.TailleMinLot,
-                TailleMaxLot = r.TailleMaxLot,
-                LettreCode = r.LettreCode,
-                EffectifEchantillonA = r.EffectifEchantillonA,
-                NbPostesB = r.NbPostesB,
-                EffectifParPosteAb = r.EffectifParPosteAb,
-                
-                
-            });
-        }
+
 
         await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
         await _unitOfWork.CommitAsync();
@@ -379,26 +335,4 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
         return newNqa.Id;
     }
 
-    private async Task ComputeIso2859RulesAsync(DocumentEchantillonnageEntete entity, double? valeurNqa)
-    {
-        if (string.IsNullOrEmpty(entity.NiveauControle) || !valeurNqa.HasValue)
-            return;
-
-        foreach (var regle in entity.DocumentEchantillonnageRegles)
-        {
-            if (regle.TailleMinLot.HasValue)
-            {
-                var lettre = await _iso2859Service.GetLettreCodeAsync(regle.TailleMinLot.Value, entity.NiveauControle);
-                if (!string.IsNullOrEmpty(lettre))
-                {
-                    regle.LettreCode = lettre;
-                    var effectif = await _iso2859Service.GetEffectifEchantillonAsync(lettre, valeurNqa.Value);
-                    if (effectif.HasValue)
-                    {
-                        regle.EffectifEchantillonA = effectif.Value;
-                    }
-                }
-            }
-        }
-    }
 }

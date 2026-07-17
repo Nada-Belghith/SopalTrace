@@ -22,22 +22,8 @@ public record CreatePlanEchanRequestDto
     public string LegendeMoyens { get; init; }
     public int CritereAcceptationAc { get; init; }
     public int CritereRejetRe { get; init; }
-
-    public List<PlanEchanRegleDto> Regles { get; init; } = new();
 }
 
-public record PlanEchanRegleDto
-{
-    public Guid? Id { get; init; }
-    public int? TailleMinLot { get; init; }
-    public int? TailleMaxLot { get; init; }
-    public string LettreCode { get; init; }
-    
-    // Champs remplis plus tard par l'opérateur (vaudront 0 par défaut à la création par l'admin)
-    public int EffectifEchantillonA { get; init; }
-    public int NbPostesB { get; init; }
-    public int? EffectifParPosteAb { get; init; }
-}
 
 public record NouvelleVersionEchanRequestDto
 {
@@ -72,7 +58,6 @@ public record UpdatePlanEchanRequestDto
     public int CritereRejetRe { get; init; }
 
     public string ModifiePar { get; init; }
-    public List<PlanEchanRegleDto> Regles { get; init; } = new();
 }
 
 // ==========================================
@@ -101,8 +86,4 @@ public record PlanEchanResponseDto
     public int CritereAcceptationAc { get; init; }
     public int CritereRejetRe { get; init; }
 
-
-
-
-    public List<PlanEchanRegleDto> Regles { get; init; } = new();
 }

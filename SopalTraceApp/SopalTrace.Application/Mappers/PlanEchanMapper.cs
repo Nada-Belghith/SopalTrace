@@ -28,17 +28,7 @@ public static class PlanEchanMapper
             Remarques = entity.Remarques,
             LegendeMoyens = entity.LegendeMoyens,
             CritereAcceptationAc = entity.CritereAcceptationAc,
-            CritereRejetRe = entity.CritereRejetRe,
-            Regles = entity.DocumentEchantillonnageRegles?.Select(r => new PlanEchanRegleDto
-            {
-                Id = r.Id,
-                TailleMinLot = r.TailleMinLot,
-                TailleMaxLot = r.TailleMaxLot,
-                LettreCode = r.LettreCode,
-                EffectifEchantillonA = r.EffectifEchantillonA,
-                NbPostesB = r.NbPostesB,
-                EffectifParPosteAb = r.EffectifParPosteAb
-            }).ToList() ?? new()
+            CritereRejetRe = entity.CritereRejetRe
         };
     }
 
@@ -56,16 +46,7 @@ public static class PlanEchanMapper
             Remarques = dto.Remarques,
             LegendeMoyens = dto.LegendeMoyens,
             CritereAcceptationAc = dto.CritereAcceptationAc,
-            CritereRejetRe = dto.CritereRejetRe,
-            DocumentEchantillonnageRegles = dto.Regles?.Select(r => new DocumentEchantillonnageRegle
-            {
-                TailleMinLot = r.TailleMinLot,
-                TailleMaxLot = r.TailleMaxLot,
-                LettreCode = r.LettreCode,
-                EffectifEchantillonA = r.EffectifEchantillonA,
-                NbPostesB = r.NbPostesB,
-                EffectifParPosteAb = r.EffectifParPosteAb
-            }).ToList() ?? new()
+            CritereRejetRe = dto.CritereRejetRe
         };
     }
 
@@ -82,27 +63,5 @@ public static class PlanEchanMapper
         entity.CritereAcceptationAc = dto.CritereAcceptationAc;
         entity.CritereRejetRe = dto.CritereRejetRe;
         entity.ModifiePar = dto.ModifiePar;
-
-        // Note: For rules, it is better to handle them in the service layer 
-        // to manage added/updated/deleted properly, or completely clear and recreate.
-        // For simplicity, we clear and recreate.
-        entity.DocumentEchantillonnageRegles.Clear();
-
-        if (dto.Regles != null)
-        {
-            foreach (var r in dto.Regles)
-            {
-                entity.DocumentEchantillonnageRegles.Add(new DocumentEchantillonnageRegle
-                {
-                    FicheEnteteId = entity.Id,
-                    TailleMinLot = r.TailleMinLot,
-                    TailleMaxLot = r.TailleMaxLot,
-                    LettreCode = r.LettreCode,
-                    EffectifEchantillonA = r.EffectifEchantillonA,
-                    NbPostesB = r.NbPostesB,
-                    EffectifParPosteAb = r.EffectifParPosteAb
-                });
-            }
-        }
     }
 }

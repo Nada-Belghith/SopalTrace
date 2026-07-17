@@ -49,7 +49,7 @@ namespace SopalTrace.Application.Services
                 NumeroOf = numeroOf,
                 OperationCode = "OP_ENCF", // Arbitrary default or fetched from somewhere
                 PosteCode = posteCode,
-                TypePlan = "ENCF",
+                TypeOf = "ENCF",
                 Statut = "EN_COURS",
                 DateDebut = DateTime.Now,
                 PlanSourceId = Guid.Empty // Default

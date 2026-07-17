@@ -56,9 +56,9 @@ public class OccurrenceService : IOccurrenceService
         double simulationSpeedFactor = 1.0; // 15.0; 
         double simulatedIntervalMinutesTotal = (now - of.DateDebut).TotalMinutes * simulationSpeedFactor;
 
-        if (of.TypePlan == "FAB")
+        if (of.TypeOf == "FAB")
         {
-            var sectionsActives = await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId);
+            var sectionsActives = of.PlanSourceId.HasValue ? await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId.Value) : new List<PlanFabricationSection>();
             var newIntermediaires = new List<ExecPrelevementIntermediaire>();
 
             foreach (var s in sectionsActives)
@@ -224,7 +224,7 @@ public class OccurrenceService : IOccurrenceService
         var of = await _occurrenceRepository.GetExecControleOfWithIntermediairesAsync(execControleOfId);
         if (of == null) return;
 
-        var sectionsActives = await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId);
+        var sectionsActives = of.PlanSourceId.HasValue ? await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId.Value) : new List<PlanFabricationSection>();
         var newIntermediaires = new List<ExecPrelevementIntermediaire>();
         
         string trancheReglage = $"REGLAGE_COURS_{DateTime.Now:HH_mm}";
@@ -273,7 +273,7 @@ public class OccurrenceService : IOccurrenceService
         bool isPaused = of.Statut == "EN_PAUSE";
         DateTime pauseStart = of.DateFin ?? now;
         
-        var sectionsActives = await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId);
+        var sectionsActives = of.PlanSourceId.HasValue ? await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId.Value) : new List<PlanFabricationSection>();
         
         var sectionIntervals = new Dictionary<Guid, double>();
         var sectionSimulatedIntervals = new Dictionary<Guid, double>();

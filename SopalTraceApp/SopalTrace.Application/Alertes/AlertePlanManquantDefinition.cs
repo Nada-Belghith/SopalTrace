@@ -37,7 +37,7 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
     public string ConstruireCorps(PlanManquantContexte contexte)
     {
         var articleLigne = contexte.OperationCode == "ASS" 
-            ? $"<li><b>OF / Produit :</b> {contexte.ArticleCode}</li>" 
+            ? $"<li><b>OF / Produit :</b> {contexte.NumeroOf ?? contexte.ArticleCode} — {contexte.DesignationArticle ?? string.Empty}</li>" 
             : $"<li><b>Article :</b> {contexte.ArticleCode}</li>";
 
         return $@"

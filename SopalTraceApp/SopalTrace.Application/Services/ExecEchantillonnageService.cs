@@ -21,7 +21,7 @@ namespace SopalTrace.Application.Services
             _operateurRepository = operateurRepository;
         }
 
-        public async Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, int nbPostes)
+        public async Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, string? posteCode = null, int? nbPostes = null)
         {
             var execOf = await _unitOfWork.ExecControleOfRepository.GetByIdWithOFAsync(execControleOfId);
 
@@ -56,14 +56,29 @@ namespace SopalTrace.Application.Services
             int critereAc = plan.CritereAcceptationAc;
             int critereRe = plan.CritereRejetRe;
 
-            int? effectifParPoste = nbPostes > 0 ? (int?)Math.Ceiling((double)effectif.Value / nbPostes) : null;
+            var postesActifs = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
+            int nbPostesTotal = nbPostes ?? (postesActifs.Any() ? postesActifs.Count() : 1);
+            int effectifParPoste = (int)Math.Ceiling((double)effectif.Value / nbPostesTotal);
 
+            // 1. Create DocumentStatut to get its Id
+            var docStatut = new ExecControleDocumentStatut
+            {
+                Id = Guid.NewGuid(),
+                ExecControleOfId = execOf.Id,
+                TypeDocument = "ECHANTILLONNAGE",
+                PosteCode = posteCode,
+                DocId = plan.Id,
+                EstTermine = false
+            };
+            _operateurRepository.AddExecControleDocumentStatut(docStatut);
+
+            // 2. Create ExecEchantillonnage linked to DocumentStatut
             var execEchantillonnage = new ExecEchantillonnage
             {
                 Id = Guid.NewGuid(),
-                ExecControleOfId = execControleOfId,
+                ExecControleDocumentStatutId = docStatut.Id,
                 TailleLot = tailleLot,
-                NbPostesB = nbPostes,
+                NbPostesB = nbPostesTotal,
                 LettreCode = lettreCode,
                 EffectifEchantillonA = effectif.Value,
                 EffectifParPosteAb = effectifParPoste,
@@ -72,39 +87,32 @@ namespace SopalTrace.Application.Services
             };
 
             await _unitOfWork.ExecEchantillonnageRepository.AddAsync(execEchantillonnage);
-            
-            // Add to DocumentStatut so it shows up in the dashboard as created
-            _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
-            {
-                ExecControleOfId = execOf.Id,
-                TypeDocument = "ECHANTILLONNAGE",
-                DocId = plan.Id,
-                EstTermine = false
-            });
 
             await _unitOfWork.CommitAsync();
 
             return new ExecEchantillonnageDto
             {
                 Id = execEchantillonnage.Id,
-                ExecControleOfId = execEchantillonnage.ExecControleOfId,
+                ExecControleDocumentStatutId = execEchantillonnage.ExecControleDocumentStatutId,
+                ExecControleOfId = docStatut.ExecControleOfId,
                 TailleLot = execEchantillonnage.TailleLot,
                 NbPostesB = execEchantillonnage.NbPostesB,
                 LettreCode = execEchantillonnage.LettreCode,
                 EffectifEchantillonA = execEchantillonnage.EffectifEchantillonA,
                 EffectifParPosteAb = execEchantillonnage.EffectifParPosteAb,
+                PosteCode = docStatut.PosteCode,
                 CritereAcceptationAc = execEchantillonnage.CritereAcceptationAc,
                 CritereRejetRe = execEchantillonnage.CritereRejetRe
             };
         }
 
-        public async Task<ExecEchantillonnageDto?> GetPlanPourOfAsync(Guid execControleOfId)
+        public async Task<ExecEchantillonnageDto?> GetPlanPourOfAsync(Guid execControleOfId, string? posteCode)
         {
-            var exec = await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAsync(execControleOfId);
+            var exec = await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAndPosteAsync(execControleOfId, posteCode);
             if (exec == null) return null;
 
             var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
-            var statutEchantillonnage = statuts.FirstOrDefault(s => s.TypeDocument == "ECHANTILLONNAGE");
+            var statutEchantillonnage = statuts.FirstOrDefault(s => s.TypeDocument == "ECHANTILLONNAGE" && (posteCode == null || s.PosteCode == posteCode));
 
             string? niveauControle = null;
             string? typePlan = null;
@@ -126,12 +134,14 @@ namespace SopalTrace.Application.Services
             return new ExecEchantillonnageDto
             {
                 Id = exec.Id,
-                ExecControleOfId = exec.ExecControleOfId,
+                ExecControleDocumentStatutId = exec.ExecControleDocumentStatutId,
+                ExecControleOfId = statutEchantillonnage?.ExecControleOfId ?? execControleOfId,
                 TailleLot = exec.TailleLot,
                 NbPostesB = exec.NbPostesB,
                 LettreCode = exec.LettreCode,
                 EffectifEchantillonA = exec.EffectifEchantillonA,
                 EffectifParPosteAb = exec.EffectifParPosteAb,
+                PosteCode = statutEchantillonnage?.PosteCode,
                 CritereAcceptationAc = exec.CritereAcceptationAc,
                 CritereRejetRe = exec.CritereRejetRe,
                 NiveauControle = niveauControle,
@@ -147,7 +157,7 @@ namespace SopalTrace.Application.Services
             if (execOf == null) return false;
             
             // 1. Vérifier si on a DÉJÀ initialisé l'échantillonnage pour cet OF
-            var existingExec = await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAsync(execControleOfId);
+            var existingExec = await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAndPosteAsync(execControleOfId, null);
             if (existingExec != null) return true;
 
             // 2. Sinon, vérifier s'il y a un plan actif

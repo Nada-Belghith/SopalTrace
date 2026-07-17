@@ -146,10 +146,10 @@ public class OperateurRepository : IOperateurRepository
                     string? legendeMoyens = null;
                     string? remarques = null;
 
-                    if (execForOp != null)
+                    if (execForOp != null && execForOp.PlanSourceId.HasValue)
                     {
-                        aDesControlesReglage = await HasReglageSectionsAsync(execForOp.PlanSourceId);
-                        var plan = await _context.PlanFabricationEntetes.FirstOrDefaultAsync(p => p.Id == execForOp.PlanSourceId);
+                        aDesControlesReglage = await HasReglageSectionsAsync(execForOp.PlanSourceId.Value);
+                        var plan = await _context.PlanFabricationEntetes.FirstOrDefaultAsync(p => p.Id == execForOp.PlanSourceId.Value);
                         if (plan != null)
                         {
                             legendeMoyens = plan.LegendeMoyens;
@@ -315,5 +315,18 @@ public class OperateurRepository : IOperateurRepository
         return await _context.RefFormulaires
             .Where(f => ids.Contains(f.Id))
             .ToDictionaryAsync(f => f.Id, f => f.Designation);
+    }
+
+    public async Task<IEnumerable<ExecControleOf>> GetExecsAssemblageEnCoursAsync()
+    {
+        return await _context.ExecControleOfs
+            .Include(e => e.ExecControleOfPostes)
+            .Where(e => e.TypeOf == "ASS" && e.Statut == "EN_COURS")
+            .ToListAsync();
+    }
+
+    public void AddExecControleOfPoste(ExecControleOfPoste poste)
+    {
+        _context.ExecControleOfPostes.Add(poste);
     }
 }

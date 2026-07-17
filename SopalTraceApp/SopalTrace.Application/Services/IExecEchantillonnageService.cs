@@ -6,8 +6,8 @@ namespace SopalTrace.Application.Services
 {
     public interface IExecEchantillonnageService
     {
-        Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, int nbPostes);
-        Task<ExecEchantillonnageDto?> GetPlanPourOfAsync(Guid execControleOfId);
+        Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, string? posteCode = null, int? nbPostes = null);
+        Task<ExecEchantillonnageDto?> GetPlanPourOfAsync(Guid execControleOfId, string? posteCode);
         Task<bool> SourcePlanExistsAsync(Guid execControleOfId);
     }
 }

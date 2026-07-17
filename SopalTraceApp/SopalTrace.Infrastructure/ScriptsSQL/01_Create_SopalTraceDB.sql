@@ -514,18 +514,7 @@ CREATE TABLE dbo.Document_Echantillonnage_Entete (
 );
 GO
 
-CREATE TABLE dbo.Document_Echantillonnage_Regle (
-      Id                    UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-      FicheEnteteId         UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Document_Echantillonnage_Entete(Id) ON DELETE CASCADE,
-      TailleMinLot          INT,
-      TailleMaxLot          INT,
-      LettreCode            VARCHAR(5)  NOT NULL,
-      EffectifEchantillon_A INT         NOT NULL,
-      NbPostes_B            INT         NOT NULL DEFAULT 1,
-      EffectifParPoste_AB   INT,
-      UNIQUE (FicheEnteteId, LettreCode)
-  );
-  GO
+
 
 -- ================================================================================
 -- PARTIE 10 : MODÈLES DE FABRICATION (inchangés)
@@ -928,8 +917,8 @@ CREATE TABLE dbo.Exec_ControleOF (
     MachineCode      VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
     PosteCode        VARCHAR(30) REFERENCES dbo.PosteTravail(CodePoste),
     NumEquipe        INT         NOT NULL DEFAULT 1,
-    PlanSourceId     UNIQUEIDENTIFIER NOT NULL,
-    TypePlan         VARCHAR(10) NOT NULL CHECK (TypePlan IN ('FAB','DOC','ASS')),
+    PlanSourceId     UNIQUEIDENTIFIER NULL,
+    TypeOf         VARCHAR(10) NOT NULL CHECK (TypeOf IN ('FAB','DOC','ASS')),
     Statut           VARCHAR(20) NOT NULL DEFAULT 'EN_COURS'
         CHECK (Statut IN ('EN_COURS','CLOTURE','EN_PAUSE','REGLAGE')),
     EstEnReglage     BIT         NOT NULL DEFAULT 0,
@@ -1124,7 +1113,7 @@ PRINT '  Logique métier        → 100% backend C#';
 GO
 CREATE TABLE [dbo].[Exec_Echantillonnage] (
     [Id] UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
-    [ExecControleOfId] UNIQUEIDENTIFIER NOT NULL,
+    [ExecControleDocumentStatutId] UNIQUEIDENTIFIER NOT NULL,
     [TailleLot] INT NOT NULL,
     [NbPostesB] INT NOT NULL,
     [LettreCode] VARCHAR(10) NOT NULL,
@@ -1133,6 +1122,7 @@ CREATE TABLE [dbo].[Exec_Echantillonnage] (
     [CritereAcceptationAc] INT NOT NULL,
     [CritereRejetRe] INT NOT NULL,
     CONSTRAINT [PK_Exec_Echantillonnage] PRIMARY KEY ([Id]),
-    CONSTRAINT [FK_Exec_Echantillonnage_ExecControleOF] FOREIGN KEY ([ExecControleOfId]) REFERENCES [dbo].[Exec_ControleOF] ([Id]) ON DELETE CASCADE
+    CONSTRAINT [FK_Exec_Echantillonnage_ExecControleDocumentStatut] FOREIGN KEY ([ExecControleDocumentStatutId]) REFERENCES [dbo].[Exec_ControleDocumentStatut] ([Id]) ON DELETE CASCADE
+
 );
 GO

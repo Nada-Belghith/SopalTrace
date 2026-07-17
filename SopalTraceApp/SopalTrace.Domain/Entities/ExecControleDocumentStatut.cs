@@ -21,5 +21,7 @@ public partial class ExecControleDocumentStatut
 
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
 
+    public virtual ICollection<ExecEchantillonnage> ExecEchantillonnages { get; set; } = new List<ExecEchantillonnage>();
+
     public virtual PosteTravail? PosteCodeNavigation { get; set; }
 }

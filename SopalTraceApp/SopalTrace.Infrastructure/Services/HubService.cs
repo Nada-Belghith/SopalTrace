@@ -362,13 +362,11 @@ public class HubService : IHubService
         else if (category == "ECH")
         {
             var plan = await _context.DocumentEchantillonnageEntetes
-                .Include(p => p.DocumentEchantillonnageRegles)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (plan is null) return false;
             if (plan.Statut != StatutsPlan.Brouillon) return false;
 
-            _context.DocumentEchantillonnageRegles.RemoveRange(plan.DocumentEchantillonnageRegles);
             _context.DocumentEchantillonnageEntetes.Remove(plan);
 
             await _context.SaveChangesAsync();

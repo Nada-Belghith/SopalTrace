@@ -7,7 +7,7 @@ public partial class ExecEchantillonnage
 {
     public Guid Id { get; set; }
 
-    public Guid ExecControleOfId { get; set; }
+    public Guid ExecControleDocumentStatutId { get; set; }
 
     public int TailleLot { get; set; }
 
@@ -23,5 +23,5 @@ public partial class ExecEchantillonnage
 
     public int CritereRejetRe { get; set; }
 
-    public virtual ExecControleOf ExecControleOf { get; set; } = null!;
+    public virtual ExecControleDocumentStatut ExecControleDocumentStatut { get; set; } = null!;
 }

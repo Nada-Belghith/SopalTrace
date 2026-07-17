@@ -23,7 +23,9 @@ public interface IOperateurService
     
     // Nouveaux endpoints pour Assemblage
     Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request);
-    Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument);
+    Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument, string? posteCode);
     Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId);
     Task<bool> MarquerDocumentTermineAsync(Guid statutDocumentId);
+    Task<IEnumerable<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync();
+    Task<bool> AjouterPostesAsync(Guid execControleOfId, List<string> posteCodes);
 }

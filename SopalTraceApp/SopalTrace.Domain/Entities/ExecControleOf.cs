@@ -21,9 +21,9 @@ public partial class ExecControleOf
 
     public int NumEquipe { get; set; }
 
-    public Guid PlanSourceId { get; set; }
+    public Guid? PlanSourceId { get; set; }
 
-    public string TypePlan { get; set; } = null!;
+    public string TypeOf { get; set; } = null!;
 
     public string Statut { get; set; } = null!;
 
@@ -38,8 +38,6 @@ public partial class ExecControleOf
     public virtual ICollection<ExecControleOfPoste> ExecControleOfPostes { get; set; } = new List<ExecControleOfPoste>();
 
     public virtual ICollection<ExecControleTranche> ExecControleTranches { get; set; } = new List<ExecControleTranche>();
-
-    public virtual ICollection<ExecEchantillonnage> ExecEchantillonnages { get; set; } = new List<ExecEchantillonnage>();
 
     public virtual ICollection<ExecPieceType> ExecPieceTypes { get; set; } = new List<ExecPieceType>();
 

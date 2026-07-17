@@ -26,8 +26,7 @@ public class DocumentEchantillonnageEnteteRepository : IDocumentEchantillonnageE
         if (includeRelations)
         {
             query = query
-                .Include(p => p.Nqa)
-                .Include(p => p.DocumentEchantillonnageRegles);
+                .Include(p => p.Nqa);
         }
 
         return await query.FirstOrDefaultAsync(p => p.Id == id);
@@ -37,7 +36,6 @@ public class DocumentEchantillonnageEnteteRepository : IDocumentEchantillonnageE
     {
         return await _context.DocumentEchantillonnageEntetes
             .Include(p => p.Nqa)
-            .Include(p => p.DocumentEchantillonnageRegles)
             .Where(p => p.Statut == StatutsPlan.Actif)
             .OrderByDescending(p => p.Version)
             .FirstOrDefaultAsync();
@@ -46,7 +44,6 @@ public class DocumentEchantillonnageEnteteRepository : IDocumentEchantillonnageE
     public async Task<IEnumerable<DocumentEchantillonnageEntete>> GetAllWithRelationsAsync()
     {
         return await _context.DocumentEchantillonnageEntetes
-            .Include(p => p.DocumentEchantillonnageRegles)
             .OrderByDescending(p => p.CreeLe)
             .ToListAsync();
     }

@@ -11,8 +11,8 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? PosteCode { get; set; }
         public string? MachineCode { get; set; }
         public int NumEquipe { get; set; }
-        public Guid PlanSourceId { get; set; }
-        public string? TypePlan { get; set; }
+        public Guid? PlanSourceId { get; set; }
+        public string? TypeOf { get; set; }
         public string? Statut { get; set; }
         public DateTime DateDebut { get; set; }
         public DateTime? DateFin { get; set; }

@@ -5,6 +5,7 @@ namespace SopalTrace.Application.DTOs.Execution
     public class ExecEchantillonnageDto
     {
         public Guid Id { get; set; }
+        public Guid ExecControleDocumentStatutId { get; set; }
         public Guid ExecControleOfId { get; set; }
         public int TailleLot { get; set; }
         public int NbPostesB { get; set; }
@@ -16,6 +17,7 @@ namespace SopalTrace.Application.DTOs.Execution
         
         // Paramètres du plan
         public string? NiveauControle { get; set; }
+        public string? PosteCode { get; set; }
         public string? TypePlan { get; set; }
         public string? ModeControle { get; set; }
         public double? NqaValeur { get; set; }

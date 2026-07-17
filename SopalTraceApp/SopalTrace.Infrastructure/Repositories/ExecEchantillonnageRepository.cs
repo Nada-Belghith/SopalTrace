@@ -19,10 +19,13 @@ namespace SopalTrace.Infrastructure.Repositories
             await _context.Set<ExecEchantillonnage>().AddAsync(execEchantillonnage);
         }
 
-        public async Task<ExecEchantillonnage?> GetByExecControleOfIdAsync(Guid execControleOfId)
+        public async Task<ExecEchantillonnage?> GetByExecControleOfIdAndPosteAsync(Guid execControleOfId, string? posteCode)
         {
             return await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
-                _context.Set<ExecEchantillonnage>(), x => x.ExecControleOfId == execControleOfId);
+                _context.Set<ExecEchantillonnage>(), 
+                x => x.ExecControleDocumentStatut.ExecControleOfId == execControleOfId 
+                     && x.ExecControleDocumentStatut.PosteCode == posteCode
+                     && x.ExecControleDocumentStatut.TypeDocument == "ECHANTILLONNAGE");
         }
     }
 }

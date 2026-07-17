@@ -19,7 +19,7 @@ namespace SopalTrace.Application.Mappers.Execution
                 MachineCode = entity.MachineCode,
                 NumEquipe = entity.NumEquipe,
                 PlanSourceId = entity.PlanSourceId,
-                TypePlan = entity.TypePlan,
+                TypeOf = entity.TypeOf,
                 Statut = entity.Statut,
                 DateDebut = entity.DateDebut,
                 DateFin = entity.DateFin,
@@ -67,7 +67,7 @@ namespace SopalTrace.Application.Mappers.Execution
                 MachineCode = dto.MachineCode,
                 NumEquipe = dto.NumEquipe,
                 PlanSourceId = dto.PlanSourceId,
-                TypePlan = dto.TypePlan ?? "FAB",
+                TypeOf = dto.TypeOf ?? "FAB",
                 Statut = dto.Statut ?? "EN_COURS",
                 DateDebut = dto.DateDebut != default ? dto.DateDebut : System.DateTime.Now,
                 DateFin = dto.DateFin

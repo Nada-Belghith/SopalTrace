@@ -175,11 +175,11 @@ public class OperateurController : ControllerBase
     }
 
     [HttpPost("of/{execControleOfId:guid}/assemblage-documents/init/{typeDocument}")]
-    public async Task<IActionResult> InitDocumentsAssemblage(Guid execControleOfId, string typeDocument)
+    public async Task<IActionResult> InitDocumentsAssemblage(Guid execControleOfId, string typeDocument, [FromQuery] string? posteCode)
     {
         try
         {
-            var result = await _operateurService.InitDocumentsAsync(execControleOfId, typeDocument);
+            var result = await _operateurService.InitDocumentsAsync(execControleOfId, typeDocument, posteCode);
             return Ok(new { initialized = result });
         }
         catch (Exception ex)
@@ -201,5 +201,34 @@ public class OperateurController : ControllerBase
         var result = await _operateurService.MarquerDocumentTermineAsync(statutId);
         if (!result) return NotFound(new { Message = "Statut document introuvable." });
         return Ok();
+    }
+
+    [HttpGet("ofs/assemblage-statut")]
+    public async Task<IActionResult> GetOfsAssemblageStatut()
+    {
+        try
+        {
+            var result = await _operateurService.GetOfsAssemblageStatutAsync();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/ajouter-postes")]
+    public async Task<IActionResult> AjouterPostes(Guid execControleOfId, [FromBody] List<string> posteCodes)
+    {
+        try
+        {
+            var result = await _operateurService.AjouterPostesAsync(execControleOfId, posteCodes);
+            if (!result) return NotFound(new { Message = "Exécution introuvable." });
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
     }
 }

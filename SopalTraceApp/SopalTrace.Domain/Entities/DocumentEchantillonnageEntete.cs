@@ -39,8 +39,6 @@ public partial class DocumentEchantillonnageEntete
 
     public int CritereRejetRe { get; set; }
 
-    public virtual ICollection<DocumentEchantillonnageRegle> DocumentEchantillonnageRegles { get; set; } = new List<DocumentEchantillonnageRegle>();
-
     public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Nqa Nqa { get; set; } = null!;

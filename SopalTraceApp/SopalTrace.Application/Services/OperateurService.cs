@@ -75,7 +75,7 @@ public class OperateurService : IOperateurService
             OperationCode = request.OperationCode,
             NumEquipe = request.NumEquipe,
             PlanSourceId = planFab.Id,
-            TypePlan = "FAB",
+            TypeOf = "FAB",
             Statut = aDesControlesReglage ? "REGLAGE" : "EN_COURS",
             EstEnReglage = aDesControlesReglage,
             DateDebut = DateTime.Now
@@ -303,7 +303,9 @@ public class OperateurService : IOperateurService
         var execOf = await _operateurRepository.GetExecOfByIdAsync(execOfId);
         if (execOf == null) throw new Exception("OF introuvable");
         
-        bool aDesControlesReglage = await _operateurRepository.HasReglageSectionsAsync(execOf.PlanSourceId);
+        bool aDesControlesReglage = execOf.PlanSourceId.HasValue 
+            ? await _operateurRepository.HasReglageSectionsAsync(execOf.PlanSourceId.Value) 
+            : false;
 
         return new ExecControleOfDto
         {
@@ -403,8 +405,8 @@ public class OperateurService : IOperateurService
             NumeroOf = request.NumeroOf,
             OperationCode = request.OperationCode,
             NumEquipe = request.NumEquipe,
-            PlanSourceId = planAss?.Id ?? Guid.Empty, // S'il n'y a pas de plan d'assemblage, on peut lier à Guid.Empty
-            TypePlan = "ASS",
+            PlanSourceId = null, // ASS : pas de plan source unique — les documents sont dans Exec_ControleDocumentStatut
+            TypeOf = "ASS",
             Statut = "EN_COURS",
             DateDebut = DateTime.Now
         };
@@ -423,6 +425,9 @@ public class OperateurService : IOperateurService
             execOf.ExecControleOfPostes.Add(execPoste);
         }
 
+        // Persister les postes en base de données
+        await _operateurRepository.SaveChangesAsync();
+
         // Initialiser les statuts des documents
         // Conformément à la nouvelle architecture, la table Exec_ControleDocumentStatut
         // n'est plus pré-peuplée au démarrage. Les documents seront initialisés à la demande
@@ -438,22 +443,35 @@ public class OperateurService : IOperateurService
         };
     }
 
-    public async Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument)
+    public async Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument, string? posteCode)
     {
         var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
         if (execOf == null) throw new Exception("Exécution introuvable");
 
         var postes = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
         var existing = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
-        if (existing.Any(s => s.TypeDocument == typeDocument)) return true;
+        if (existing.Any(s => s.TypeDocument == typeDocument && (posteCode == null || s.PosteCode == posteCode))) return true;
 
         bool initializedAny = false;
 
-        if (typeDocument == "VERIF_MACHINE" || typeDocument == "RESULTAT_CONTROLE_POSTE")
+        if (typeDocument == "VERIF_MACHINE" || typeDocument == "RESULTAT_CONTROLE_POSTE" || execOf.TypeOf == "ASS")
         {
-            foreach (var p in postes)
+            var of = await _operateurRepository.GetOfAsync(execOf.NumeroOf);
+            // If posteCode is specified, only create for this post. Otherwise, loop (for legacy or global init if any).
+            var postesToInit = !string.IsNullOrEmpty(posteCode) ? new List<string> { posteCode } : postes.ToList();
+
+            foreach (var p in postesToInit)
             {
-                var forms = await _operateurRepository.GetFormulairesPourPosteAsync(p, typeDocument);
+                IEnumerable<RefFormulaire> forms;
+                if (typeDocument == "VERIF_MACHINE" || typeDocument == "RESULTAT_CONTROLE_POSTE")
+                {
+                    forms = await _operateurRepository.GetFormulairesPourPosteAsync(p, typeDocument);
+                }
+                else
+                {
+                    forms = of != null ? await _operateurRepository.GetFormulairesPourArticleAsync(of.CodeArticle, typeDocument) : Enumerable.Empty<RefFormulaire>();
+                }
+
                 foreach (var f in forms)
                 {
                     _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
@@ -468,7 +486,7 @@ public class OperateurService : IOperateurService
                 }
             }
         }
-        else if (typeDocument == "RESULTAT_CONTROLE_CF" || typeDocument == "PRODUIT_FINI")
+        else
         {
             var of = await _operateurRepository.GetOfAsync(execOf.NumeroOf);
             if (of != null)
@@ -479,6 +497,7 @@ public class OperateurService : IOperateurService
                     _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
                     {
                         ExecControleOfId = execControleOfId,
+                        PosteCode = null,
                         TypeDocument = typeDocument,
                         DocId = f.Id,
                         EstTermine = false
@@ -523,6 +542,61 @@ public class OperateurService : IOperateurService
 
         statut.EstTermine = true;
         statut.DateTermine = DateTime.Now;
+
+        await _operateurRepository.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<IEnumerable<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync()
+    {
+        // 1. Tous les OFs avec l'opération ASS
+        var allOfs = await _operateurRepository.GetAllOfOperationsDisponiblesAsync();
+        var ofsAss = allOfs.Where(o => o.GammeOperatoire.Any(g => g.OperationCode == "ASS")).ToList();
+
+        // 2. Toutes les exécutions ASS en cours
+        var execsEnCours = (await _operateurRepository.GetExecsAssemblageEnCoursAsync()).ToList();
+
+        var result = new List<OfAssemblageStatutDto>();
+
+        foreach (var of in ofsAss)
+        {
+            var execExistante = execsEnCours.FirstOrDefault(e => e.NumeroOf == of.NumeroOf);
+
+            result.Add(new OfAssemblageStatutDto
+            {
+                NumeroOf = of.NumeroOf,
+                DesignationArticle = of.DesignationArticle,
+                CodeArticle = of.CodeArticle,
+                QuantiteLancee = of.QuantiteLancee,
+                DateDebut = of.DateDebut,
+                Statut = execExistante != null ? "EN_COURS" : null,
+                ExecControleOfId = execExistante?.Id,
+                PostesExistants = execExistante?.ExecControleOfPostes.Select(p => p.PosteCode).ToList() ?? new List<string>()
+            });
+        }
+
+        return result;
+    }
+
+    public async Task<bool> AjouterPostesAsync(Guid execControleOfId, List<string> posteCodes)
+    {
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        if (execOf == null) return false;
+
+        // Récupérer les postes existants pour éviter les doublons
+        var postesExistants = (await _operateurRepository.GetPostesForExecutionAsync(execControleOfId)).ToHashSet();
+
+        foreach (var poste in posteCodes.Distinct())
+        {
+            if (!postesExistants.Contains(poste))
+            {
+                _operateurRepository.AddExecControleOfPoste(new ExecControleOfPoste
+                {
+                    ExecControleOfId = execControleOfId,
+                    PosteCode = poste
+                });
+            }
+        }
 
         await _operateurRepository.SaveChangesAsync();
         return true;

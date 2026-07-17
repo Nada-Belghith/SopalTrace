@@ -19,11 +19,11 @@ namespace SopalTrace.API.Controllers.Execution
         }
 
         [HttpPost("init/{execControleOfId}")]
-        public async Task<IActionResult> InitPlanPourOf([FromRoute] Guid execControleOfId, [FromQuery] int nbPostes)
+        public async Task<IActionResult> InitPlanPourOf([FromRoute] Guid execControleOfId, [FromQuery] string? posteCode, [FromQuery] int? nbPostes = null)
         {
             try
             {
-                var result = await _execEchantillonnageService.InitPlanPourOfAsync(execControleOfId, nbPostes);
+                var result = await _execEchantillonnageService.InitPlanPourOfAsync(execControleOfId, posteCode, nbPostes);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -33,11 +33,11 @@ namespace SopalTrace.API.Controllers.Execution
         }
 
         [HttpGet("{execControleOfId}")]
-        public async Task<IActionResult> GetPlanPourOf([FromRoute] Guid execControleOfId)
+        public async Task<IActionResult> GetPlanPourOf([FromRoute] Guid execControleOfId, [FromQuery] string? posteCode)
         {
             try
             {
-                var result = await _execEchantillonnageService.GetPlanPourOfAsync(execControleOfId);
+                var result = await _execEchantillonnageService.GetPlanPourOfAsync(execControleOfId, posteCode);
                 if (result == null) return NotFound("Plan non initialisé pour cet OF.");
                 return Ok(result); 
             }

@@ -32,4 +32,6 @@ public interface IOperateurRepository
     Task<IEnumerable<RefFormulaire>> GetFormulairesPourArticleAsync(string codeArticle, string role);
     Task<RefFormulaire?> GetFormulaireGlobalAsync(string role);
     Task<Dictionary<Guid, string>> GetFormulaireDesignationsAsync(IEnumerable<Guid> ids);
+    Task<IEnumerable<ExecControleOf>> GetExecsAssemblageEnCoursAsync();
+    void AddExecControleOfPoste(ExecControleOfPoste poste);
 }

@@ -9,13 +9,15 @@ const route = useRoute()
 const router = useRouter()
 const execControleOfId = route.params.execControleOfId
 
+const posteCode = route.query.posteCode || ''
+
 const echantillonnagePlan = ref(null)
 const isLoading = ref(true)
 const errorMessage = ref('')
 
 onMounted(async () => {
   try {
-    const response = await apiClient.get(`/ExecEchantillonnage/${execControleOfId}`)
+    const response = await apiClient.get(`/ExecEchantillonnage/${execControleOfId}?posteCode=${posteCode}`)
     echantillonnagePlan.value = response.data
   } catch (error) {
     console.error("Erreur chargement echantillonnage:", error)
@@ -25,14 +27,21 @@ onMounted(async () => {
   }
 })
 
-const goBack = () => {
-  router.back()
+const goBack = async () => {
+  if (echantillonnagePlan.value?.execControleDocumentStatutId) {
+    try {
+      await apiClient.put(`/Operateur/assemblage-documents/${echantillonnagePlan.value.execControleDocumentStatutId}/terminer`)
+    } catch (error) {
+      console.error('Erreur lors de la validation du statut:', error)
+    }
+  }
+  router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode } })
 }
 
 // Helpers for UI state
 const isNiveauActive = (lvl) => {
   if (!echantillonnagePlan.value?.niveauControle) return false;
-  return echantillonnagePlan.value.niveauControle.toUpperCase().includes(lvl);
+  return echantillonnagePlan.value.niveauControle.toUpperCase() === lvl;
 }
 
 const isPlanActive = (plan) => {
@@ -43,9 +52,9 @@ const isPlanActive = (plan) => {
 const isModeActive = (mode) => {
   if (!echantillonnagePlan.value?.modeControle) return false;
   const m = echantillonnagePlan.value.modeControle.toUpperCase();
-  if (mode === 'RÉDUIT') return m.includes('REDUIT') || m.includes('RÉDUIT');
-  if (mode === 'RENFORCÉ') return m.includes('RENFORCE') || m.includes('RENFORCÉ');
-  return m.includes(mode);
+  if (mode === 'RÉDUIT') return m === 'REDUIT' || m === 'RÉDUIT';
+  if (mode === 'RENFORCÉ') return m === 'RENFORCE' || m === 'RENFORCÉ';
+  return m === mode;
 }
 
 </script>

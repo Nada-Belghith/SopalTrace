@@ -80,9 +80,9 @@
         
         <div class="flex justify-between items-start mb-4">
           <span class="text-xs font-bold text-blue-600 tracking-wider">OF: {{ of.numeroOf }}</span>
-          <span class="px-2 py-1 bg-green-50 text-green-600 font-bold text-[10px] rounded uppercase tracking-wider"
-                :class="of.statutOf === 'EN_COURS' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'">
-            {{ of.statutOf }}
+          <span class="px-2 py-1 font-bold text-[10px] rounded uppercase tracking-wider"
+                :class="getStatutReel(of) === 'EN COURS' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'">
+            {{ getStatutReel(of) }}
           </span>
         </div>
 
@@ -471,6 +471,19 @@ const selectedOpState = computed(() => {
   if (!selectedOf.value || !form.value.operationCode) return null;
   return selectedOf.value.gammeOperatoire.find(o => o.operationCode === form.value.operationCode);
 });
+
+/**
+ * Statut réel d'un OF :
+ * - "EN COURS" si au moins une opération existe dans Exec_ControleOf (activeExecControleOfId != null) et n'est pas CLOTURÉ
+ * - "NON COMMENCÉ" si aucune opération n'a encore été démarrée dans Exec_ControleOf
+ */
+const getStatutReel = (of) => {
+  if (!of.gammeOperatoire || of.gammeOperatoire.length === 0) return 'NON COMMENCÉ';
+  const aUneOperationEnCours = of.gammeOperatoire.some(
+    op => op.activeExecControleOfId != null && op.activeExecStatut !== 'CLOTURE'
+  );
+  return aUneOperationEnCours ? 'EN COURS' : 'NON COMMENCÉ';
+};
 
 const reprendreOfExistant = () => {
   const opState = selectedOpState.value;
