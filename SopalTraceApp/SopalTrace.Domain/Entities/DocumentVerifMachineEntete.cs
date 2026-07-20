@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanVerifMachineEntete
+public partial class DocumentVerifMachineEntete
 {
     public Guid Id { get; set; }
 
@@ -29,11 +29,11 @@ public partial class PlanVerifMachineEntete
 
     public string? LegendeMoyens { get; set; }
 
+    public virtual ICollection<DocumentVerifMachineFamille> DocumentVerifMachineFamilles { get; set; } = new List<DocumentVerifMachineFamille>();
+
+    public virtual ICollection<DocumentVerifMachineLigne> DocumentVerifMachineLignes { get; set; } = new List<DocumentVerifMachineLigne>();
+
     public virtual RefFormulaire? Formulaire { get; set; }
 
     public virtual Machine MachineCodeNavigation { get; set; } = null!;
-
-    public virtual ICollection<PlanVerifMachineFamille> PlanVerifMachineFamilles { get; set; } = new List<PlanVerifMachineFamille>();
-
-    public virtual ICollection<PlanVerifMachineLigne> PlanVerifMachineLignes { get; set; } = new List<PlanVerifMachineLigne>();
 }

@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using SopalTrace.Application.DTOs.QualityPlans.PlanVerifMachines;
+using SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
 using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
@@ -9,29 +9,30 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace SopalTrace.Api.Controllers;
 
-[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite + "," + RolesApp.Operateur)]
 [ApiController]
 [Route("api/[controller]")]
-public class PlanVerifMachineController : ControllerBase
+public class DocumentVerifMachineController : ControllerBase
 {
-    private readonly IPlanVerifMachineService _planVerifMachineService;
+    private readonly IDocumentVerifMachineService _documentVerifMachineService;
 
-    public PlanVerifMachineController(IPlanVerifMachineService planVerifMachineService)
+    public DocumentVerifMachineController(IDocumentVerifMachineService documentVerifMachineService)
     {
-        _planVerifMachineService = planVerifMachineService;
+        _documentVerifMachineService = documentVerifMachineService;
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreatePlanVerifMachineRequestDto request)
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+    public async Task<IActionResult> Create([FromBody] CreateDocumentVerifMachineRequestDto request)
     {
-        var id = await _planVerifMachineService.CreerPlanVerifMachineAsync(request);
+        var id = await _documentVerifMachineService.CreerDocumentVerifMachineAsync(request);
         return Ok(new { id = id });
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var plan = await _planVerifMachineService.GetPlanVerifMachineByIdAsync(id);
+        var plan = await _documentVerifMachineService.GetDocumentVerifMachineByIdAsync(id);
         return Ok(plan);
     }
 
@@ -40,20 +41,21 @@ public class PlanVerifMachineController : ControllerBase
     {
         if (!string.IsNullOrEmpty(machineCode))
         {
-            var plans = await _planVerifMachineService.GetPlansByMachineCodeAsync(machineCode);
+            var plans = await _documentVerifMachineService.GetPlansByMachineCodeAsync(machineCode);
             return Ok(plans);
         }
         else
         {
-            var plans = await _planVerifMachineService.GetAllPlansAsync();
+            var plans = await _documentVerifMachineService.GetAllPlansAsync();
             return Ok(plans);
         }
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePlanVerifMachineRequestDto request)
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentVerifMachineRequestDto request)
     {
-        await _planVerifMachineService.MettreAJourPlanVerifMachineAsync(id, request);
+        await _documentVerifMachineService.MettreAJourDocumentVerifMachineAsync(id, request);
         return NoContent();
     }
 }

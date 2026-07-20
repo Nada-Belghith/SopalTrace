@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanVerifMachineFamille
+public partial class DocumentVerifMachineFamille
 {
     public Guid Id { get; set; }
 
@@ -13,9 +13,9 @@ public partial class PlanVerifMachineFamille
 
     public Guid RefFamilleCorpsId { get; set; }
 
-    public virtual PlanVerifMachineEntete PlanEntete { get; set; } = null!;
+    public virtual ICollection<DocumentVerifMachineMatricePiece> DocumentVerifMachineMatricePieces { get; set; } = new List<DocumentVerifMachineMatricePiece>();
 
-    public virtual ICollection<PlanVerifMachineMatricePiece> PlanVerifMachineMatricePieces { get; set; } = new List<PlanVerifMachineMatricePiece>();
+    public virtual DocumentVerifMachineEntete PlanEntete { get; set; } = null!;
 
     public virtual RefFamilleCorp RefFamilleCorps { get; set; } = null!;
 }

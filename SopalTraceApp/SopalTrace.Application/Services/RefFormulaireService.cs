@@ -16,20 +16,20 @@ public class RefFormulaireService : IRefFormulaireService
     private readonly IModeleFabricationService _modeleFabricationService;
     private readonly IPlanFabricationService _planFabricationService;
     private readonly IDocumentService _documentService;
-    private readonly IPlanVerifMachineService _planVerifMachineService;
+    private readonly IDocumentVerifMachineService _documentVerifMachineService;
 
     public RefFormulaireService(
         IUnitOfWork unitOfWork,
         IModeleFabricationService modeleFabricationService,
         IPlanFabricationService planFabricationService,
         IDocumentService documentService,
-        IPlanVerifMachineService planVerifMachineService)
+        IDocumentVerifMachineService documentVerifMachineService)
     {
         _unitOfWork = unitOfWork;
         _modeleFabricationService = modeleFabricationService;
         _planFabricationService = planFabricationService;
         _documentService = documentService;
-        _planVerifMachineService = planVerifMachineService;
+        _documentVerifMachineService = documentVerifMachineService;
     }
 
     public async Task<RefFormulaireDto> GetByIdAsync(Guid id)
@@ -99,7 +99,7 @@ public class RefFormulaireService : IRefFormulaireService
             await _modeleFabricationService.ArchiverModelesByFormulaireAsync(oldForm.Id);
             await _planFabricationService.ArchiverPlansByFormulaireAsync(oldForm.Id);
             await _documentService.ArchiverDocumentsByFormulaireAsync(oldForm.Id);
-            await _planVerifMachineService.ArchiverPlansByFormulaireAsync(oldForm.Id);
+            await _documentVerifMachineService.ArchiverPlansByFormulaireAsync(oldForm.Id);
             
             return newForm.Id;
         });

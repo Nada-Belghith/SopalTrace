@@ -3,9 +3,9 @@ using System;
 using System.Collections.Generic;
 using SopalTrace.Application.Helpers;
 
-namespace SopalTrace.Application.DTOs.QualityPlans.PlanVerifMachines;
+namespace SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
 
-public class CreatePlanVerifMachineRequestDto
+public class CreateDocumentVerifMachineRequestDto
 {
     public string Nom { get; set; } = string.Empty;
     public string MachineCode { get; set; } = string.Empty;
@@ -20,69 +20,69 @@ public class CreatePlanVerifMachineRequestDto
     public string? RefFormulaireCodeReference { get; set; }
     public List<ColonneJsonDto>? ColonneDefs { get; set; }
 
-    public List<CreatePlanVerifMachineFamilleDto> Familles { get; set; } = new();
-    public List<CreatePlanVerifMachineLigneDto> LignesConformite { get; set; } = new();
-    public List<CreatePlanVerifMachineLigneDto> LignesRisques { get; set; } = new();
+    public List<CreateDocumentVerifMachineFamilleDto> Familles { get; set; } = new();
+    public List<CreateDocumentVerifMachineLigneDto> LignesConformite { get; set; } = new();
+    public List<CreateDocumentVerifMachineLigneDto> LignesRisques { get; set; } = new();
 }
 
-public class UpdatePlanVerifMachineRequestDto : CreatePlanVerifMachineRequestDto
+public class UpdateDocumentVerifMachineRequestDto : CreateDocumentVerifMachineRequestDto
 {
 }
 
-public class NouvelleVersionPlanVerifMachineRequestDto : CreatePlanVerifMachineRequestDto
+public class NouvelleVersionDocumentVerifMachineRequestDto : CreateDocumentVerifMachineRequestDto
 {
     public Guid AncienId { get; set; }
 }
 
-public class RestaurerPlanVerifMachineRequestDto
+public class RestaurerDocumentVerifMachineRequestDto
 {
     public Guid AncienId { get; set; }
     public string ModifiePar { get; set; } = string.Empty;
     public string MotifModification { get; set; } = string.Empty;
 }
 
-public class CreatePlanVerifMachineFamilleDto
+public class CreateDocumentVerifMachineFamilleDto
 {
     public Guid Id { get; set; }
     public Guid RefFamilleCorpsId { get; set; }
     public int OrdreAffiche { get; set; }
 }
 
-public class CreatePlanVerifMachineLigneDto
+public class CreateDocumentVerifMachineLigneDto
 {
     public int OrdreAffiche { get; set; }
     public string TypeLigne { get; set; } = string.Empty;
     public string LibelleRisque { get; set; } = string.Empty;
     public string? LibelleMethode { get; set; }
     
-    public List<CreatePlanVerifMachineEcheanceDto> Echeances { get; set; } = new();
-    public List<CreatePlanVerifMachineExtraColonneDto> ExtraColonnes { get; set; } = new();
+    public List<CreateDocumentVerifMachineEcheanceDto> Echeances { get; set; } = new();
+    public List<CreateDocumentVerifMachineExtraColonneDto> ExtraColonnes { get; set; } = new();
 }
 
-public class CreatePlanVerifMachineExtraColonneDto
+public class CreateDocumentVerifMachineExtraColonneDto
 {
     public string CleColonne { get; set; } = string.Empty;
     public string? ValeurColonne { get; set; }
     public int OrdreAffiche { get; set; }
 }
 
-public class CreatePlanVerifMachineEcheanceDto
+public class CreateDocumentVerifMachineEcheanceDto
 {
     public int OrdreAffiche { get; set; }
-    public Guid PeriodiciteId { get; set; }
+    public Guid PeriodiciteMachineId { get; set; }
     public Guid? RefMoyenDetectionId { get; set; }
     
-    public List<CreatePlanVerifMachineMatricePieceDto> MatricePieces { get; set; } = new();
+    public List<CreateDocumentVerifMachineMatricePieceDto> MatricePieces { get; set; } = new();
 }
 
-public class CreatePlanVerifMachineMatricePieceDto
+public class CreateDocumentVerifMachineMatricePieceDto
 {
     public Guid? FamilleId { get; set; }
     public string RoleVerif { get; set; } = string.Empty;
     public Guid? PieceRefId { get; set; }
 }
 
-public class PlanVerifMachineEnteteDto
+public class DocumentVerifMachineEnteteDto
 {
     public Guid Id { get; set; }
     public string MachineCode { get; set; } = string.Empty;
@@ -101,18 +101,18 @@ public class PlanVerifMachineEnteteDto
     public bool AfficheFuiteEtalon { get; set; }
     public string? ConfigurationColonnesJson { get; set; }
 
-    public List<PlanVerifMachineFamilleDto> Familles { get; set; } = new();
-    public List<PlanVerifMachineLigneDto> Lignes { get; set; } = new();
+    public List<DocumentVerifMachineFamilleDto> Familles { get; set; } = new();
+    public List<DocumentVerifMachineLigneDto> Lignes { get; set; } = new();
 }
 
-public class PlanVerifMachineFamilleDto
+public class DocumentVerifMachineFamilleDto
 {
     public Guid Id { get; set; }
     public Guid RefFamilleCorpsId { get; set; }
     public int OrdreAffiche { get; set; }
 }
 
-public class PlanVerifMachineLigneDto
+public class DocumentVerifMachineLigneDto
 {
     public Guid Id { get; set; }
     public int OrdreAffiche { get; set; }
@@ -120,11 +120,11 @@ public class PlanVerifMachineLigneDto
     public string LibelleRisque { get; set; } = string.Empty;
     public string? LibelleMethode { get; set; }
     
-    public List<PlanVerifMachineEcheanceDto> Echeances { get; set; } = new();
-    public List<PlanVerifMachineExtraColonneDto> ExtraColonnes { get; set; } = new();
+    public List<DocumentVerifMachineEcheanceDto> Echeances { get; set; } = new();
+    public List<DocumentVerifMachineExtraColonneDto> ExtraColonnes { get; set; } = new();
 }
 
-public class PlanVerifMachineExtraColonneDto
+public class DocumentVerifMachineExtraColonneDto
 {
     public Guid Id { get; set; }
     public string CleColonne { get; set; } = string.Empty;
@@ -132,17 +132,17 @@ public class PlanVerifMachineExtraColonneDto
     public int OrdreAffiche { get; set; }
 }
 
-public class PlanVerifMachineEcheanceDto
+public class DocumentVerifMachineEcheanceDto
 {
     public Guid Id { get; set; }
     public int OrdreAffiche { get; set; }
-    public Guid PeriodiciteId { get; set; }
+    public Guid PeriodiciteMachineId { get; set; }
     public Guid? RefMoyenDetectionId { get; set; }
     
-    public List<PlanVerifMachineMatricePieceDto> MatricePieces { get; set; } = new();
+    public List<DocumentVerifMachineMatricePieceDto> MatricePieces { get; set; } = new();
 }
 
-public class PlanVerifMachineMatricePieceDto
+public class DocumentVerifMachineMatricePieceDto
 {
     public Guid Id { get; set; }
     public Guid? FamilleId { get; set; }

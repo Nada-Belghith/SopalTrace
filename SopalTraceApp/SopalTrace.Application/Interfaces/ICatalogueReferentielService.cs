@@ -13,6 +13,8 @@ public interface ICatalogueReferentielService
     
     Task<ControlePosteReferentielsDto> GetControlePosteReferentielsAsync();
 
+    Task<System.Collections.Generic.IEnumerable<InstrumentDto>> GetInstrumentsAsync();
+
     Task<ArticleDto?> GetArticleInfosAsync(string codeArticle);
 
     /// <summary>Autocomplete : articles SF (hors PISTON) dont le code contient la query.</summary>

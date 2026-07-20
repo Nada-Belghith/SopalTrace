@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import apiClient from '@/services/apiClient'
 import Button from 'primevue/button'
 import ProgressSpinner from 'primevue/progressspinner'
+import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,21 +22,29 @@ onMounted(async () => {
     const response = await apiClient.get(`/ExecEchantillonnage/${execControleOfId}?posteCode=${posteCode}`)
     echantillonnagePlan.value = response.data
   } catch (error) {
-    console.error("Erreur chargement echantillonnage:", error)
-    errorMessage.value = "Erreur lors du chargement des données d'échantillonnage."
+    console.error("Erreur chargement:", error)
+    errorMessage.value = "Erreur lors du chargement des données."
   } finally {
     isLoading.value = false
   }
 })
 
-const goBack = async () => {
-  if (echantillonnagePlan.value?.execControleDocumentStatutId) {
+const valider = async () => {
+  if (echantillonnagePlan.value) {
     try {
-      await apiClient.put(`/Operateur/assemblage-documents/${echantillonnagePlan.value.execControleDocumentStatutId}/terminer`)
+      await apiClient.put(`/ExecEchantillonnage/${echantillonnagePlan.value.id}`, echantillonnagePlan.value)
+      if (echantillonnagePlan.value.execControleDocumentStatutId) {
+        await apiClient.put(`/Operateur/assemblage-documents/${echantillonnagePlan.value.execControleDocumentStatutId}/terminer`)
+      }
+      router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode } })
     } catch (error) {
-      console.error('Erreur lors de la validation du statut:', error)
+      console.error('Erreur lors de la validation:', error)
+      errorMessage.value = "Erreur lors de la validation."
     }
   }
+}
+
+const goBack = () => {
   router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode } })
 }
 
@@ -80,6 +90,42 @@ const isModeActive = (mode) => {
 
     <div v-else-if="echantillonnagePlan" class="space-y-8 mt-6">
       
+      <!-- EN-TÊTE DU DOCUMENT -->
+      <div class="border rounded-md overflow-hidden shadow-sm bg-white">
+        <!-- Header -->
+        <div class="bg-[#1f2937] text-white px-5 py-3 flex items-center gap-2 font-bold uppercase tracking-wide text-[13px]">
+          <i class="pi pi-file-o text-green-400"></i> Informations Générales
+        </div>
+        <!-- Body -->
+        <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-center text-sm">
+          <div>
+            <p><span class="font-bold text-gray-700">Code article :</span> {{ echantillonnagePlan.codeArticle || '-' }}</p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Atelier :</span> {{ echantillonnagePlan.atelier || '-' }}</p>
+            <p class="mt-3 flex items-center gap-2">
+              <span class="font-bold text-gray-700 whitespace-nowrap">Poste / Machine :</span> 
+              <InputText v-model="echantillonnagePlan.posteCode" placeholder="Poste" class="w-20" />
+              <span class="text-gray-400">/</span>
+              <InputText v-model="echantillonnagePlan.codeMachine" placeholder="Machine" class="w-20" />
+            </p>
+          </div>
+          <div>
+            <p><span class="font-bold text-gray-700">Désignation :</span> <span class="text-blue-600 font-medium">{{ echantillonnagePlan.designation || '-' }}</span></p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Date de fabrication :</span> 
+              <input type="date" :disabled="echantillonnagePlan?.estTermine" :value="echantillonnagePlan.dateFabrication ? echantillonnagePlan.dateFabrication.split('T')[0] : ''" @input="echantillonnagePlan.dateFabrication = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500" />
+            </p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Code instrument de mesure :</span> 
+              <span class="text-blue-600">{{ echantillonnagePlan.instrumentCodes?.join('  ') || '-' }}</span>
+            </p>
+          </div>
+          <div>
+            <p><span class="font-bold text-gray-700">Numéro de l'OF :</span> <span class="text-blue-600">{{ echantillonnagePlan.numeroOf || '-' }}</span></p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Date de l'échantillonnage :</span> 
+              <input type="datetime-local" :disabled="echantillonnagePlan?.estTermine" :value="echantillonnagePlan.dateEchantillonnage ? echantillonnagePlan.dateEchantillonnage.substring(0, 16) : ''" @input="echantillonnagePlan.dateEchantillonnage = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500" />
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- PARAMÈTRES DU PLAN -->
       <div class="border rounded-md overflow-hidden shadow-sm bg-white">
         <!-- Header -->
@@ -161,12 +207,20 @@ const isModeActive = (mode) => {
               <tr>
                 <td class="py-5 px-2 border-r border-gray-200 text-gray-400">1</td>
                 <td class="py-5 px-2 border-r border-gray-200">{{ echantillonnagePlan.tailleLot }}</td>
-                <td class="py-5 px-2 border-r border-gray-200 text-blue-600">{{ echantillonnagePlan.lettreCode }}</td>
-                <td class="py-5 px-2 border-r border-gray-200">{{ echantillonnagePlan.effectifEchantillonA }}</td>
-                <td class="py-5 px-2 border-r border-gray-200">{{ echantillonnagePlan.nbPostesB }}</td>
-                <td class="py-5 px-2 border-r border-gray-200">{{ echantillonnagePlan.effectifParPosteAb || '-' }}</td>
-                <td class="py-5 px-2 border-r border-gray-200 text-[#059669] text-base">{{ echantillonnagePlan.critereAcceptationAc }}</td>
-                <td class="py-5 px-2 text-[#dc2626] text-base">{{ echantillonnagePlan.critereRejetRe }}</td>
+                <td class="py-2 px-2 border-r border-gray-200"><InputText v-model="echantillonnagePlan.lettreCode" :disabled="echantillonnagePlan?.estTermine" class="w-16 text-center" /></td>
+                <td class="py-2 px-2 border-r border-gray-200"><InputNumber v-model="echantillonnagePlan.effectifEchantillonA" :disabled="echantillonnagePlan?.estTermine" class="w-20" inputClass="text-center w-full" /></td>
+                <td class="py-2 px-2 border-r border-gray-200"><InputNumber v-model="echantillonnagePlan.nbPostesB" :disabled="echantillonnagePlan?.estTermine" class="w-16" inputClass="text-center w-full" /></td>
+                <td class="py-2 px-2 border-r border-gray-200"><InputNumber v-model="echantillonnagePlan.effectifParPosteAb" :disabled="echantillonnagePlan?.estTermine" class="w-20" inputClass="text-center w-full" /></td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <span class="font-bold text-[#059669] text-base">
+                    {{ echantillonnagePlan.critereAcceptationAc }}
+                  </span>
+                </td>
+                <td class="py-2 px-2">
+                  <span class="font-bold text-[#dc2626] text-base">
+                    {{ echantillonnagePlan.critereRejetRe }}
+                  </span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -175,7 +229,7 @@ const isModeActive = (mode) => {
 
       <div class="mt-8 flex justify-end">
         <Button label="Imprimer la fiche" icon="pi pi-print" class="p-button-outlined mr-3" />
-        <Button label="Commencer le contrôle" icon="pi pi-play" class="p-button-success shadow-lg" @click="goBack" />
+        <Button v-if="!echantillonnagePlan?.estTermine" label="Valider" icon="pi pi-check" class="p-button-success shadow-lg" @click="valider" />
       </div>
     </div>
   </div>

@@ -5,13 +5,13 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Interfaces.Repositories;
 
-public interface IPlanVerifMachineEnteteRepository
+public interface IDocumentVerifMachineEnteteRepository
 {
-    Task<PlanVerifMachineEntete?> GetByIdAsync(Guid id, bool includeRelations = true);
-    Task<IEnumerable<PlanVerifMachineEntete>> GetAllWithRelationsAsync();
-    Task<IEnumerable<PlanVerifMachineEntete>> GetByMachineCodeAsync(string machineCode);
-    Task AddAsync(PlanVerifMachineEntete entity);
-    Task UpdateAsync(PlanVerifMachineEntete entity);
-    Task DeleteAsync(PlanVerifMachineEntete entity);
-    Task<IEnumerable<PlanVerifMachineEntete>> GetByFormulaireIdAsync(Guid formulaireId);
+    Task<DocumentVerifMachineEntete?> GetByIdAsync(Guid id, bool includeRelations = true);
+    Task<IEnumerable<DocumentVerifMachineEntete>> GetAllWithRelationsAsync();
+    Task<IEnumerable<DocumentVerifMachineEntete>> GetByMachineCodeAsync(string machineCode);
+    Task AddAsync(DocumentVerifMachineEntete entity);
+    Task UpdateAsync(DocumentVerifMachineEntete entity);
+    Task DeleteAsync(DocumentVerifMachineEntete entity);
+    Task<IEnumerable<DocumentVerifMachineEntete>> GetByFormulaireIdAsync(Guid formulaireId);
 }

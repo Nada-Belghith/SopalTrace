@@ -21,5 +21,17 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? TypePlan { get; set; }
         public string? ModeControle { get; set; }
         public double? NqaValeur { get; set; }
+
+        // En-tête du document
+        public string? CodeArticle { get; set; }
+        public string? Designation { get; set; }
+        public string? NumeroOf { get; set; }
+        public string? Atelier { get; set; }
+        public DateTime? DateFabrication { get; set; }
+        public DateTime? DateEchantillonnage { get; set; }
+        public string? CodeMachine { get; set; }
+        public bool EstTermine { get; set; }
+
+        public System.Collections.Generic.List<string> InstrumentCodes { get; set; } = new System.Collections.Generic.List<string>();
     }
 }

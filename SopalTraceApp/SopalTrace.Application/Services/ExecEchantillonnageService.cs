@@ -21,7 +21,7 @@ namespace SopalTrace.Application.Services
             _operateurRepository = operateurRepository;
         }
 
-        public async Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, string? posteCode = null, int? nbPostes = null)
+        public async Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, InitEchantillonnageRequest request)
         {
             var execOf = await _unitOfWork.ExecControleOfRepository.GetByIdWithOFAsync(execControleOfId);
 
@@ -57,18 +57,21 @@ namespace SopalTrace.Application.Services
             int critereRe = plan.CritereRejetRe;
 
             var postesActifs = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
-            int nbPostesTotal = nbPostes ?? (postesActifs.Any() ? postesActifs.Count() : 1);
+            int nbPostesTotal = request.NbPostes ?? (postesActifs.Any() ? postesActifs.Count() : 1);
             int effectifParPoste = (int)Math.Ceiling((double)effectif.Value / nbPostesTotal);
 
-            // 1. Create DocumentStatut to get its Id
             var docStatut = new ExecControleDocumentStatut
             {
                 Id = Guid.NewGuid(),
                 ExecControleOfId = execOf.Id,
                 TypeDocument = "ECHANTILLONNAGE",
-                PosteCode = posteCode,
+                PosteCode = request.PosteCode,
                 DocId = plan.Id,
-                EstTermine = false
+                EstTermine = false,
+                DateExecution = DateTime.Now,
+                Equipe = request.Equipe,
+                MachineCode = request.MachineCode,
+                MatriculeOperateur = request.MatriculeOperateur
             };
             _operateurRepository.AddExecControleDocumentStatut(docStatut);
 
@@ -83,8 +86,13 @@ namespace SopalTrace.Application.Services
                 EffectifEchantillonA = effectif.Value,
                 EffectifParPosteAb = effectifParPoste,
                 CritereAcceptationAc = critereAc,
-                CritereRejetRe = critereRe
             };
+
+            if (request.InstrumentCodes != null && request.InstrumentCodes.Any())
+            {
+                var instruments = await _unitOfWork.DictionnaireQualiteRepository.GetInstrumentsByCodesAsync(request.InstrumentCodes);
+                execEchantillonnage.CodeInstruments = instruments;
+            }
 
             await _unitOfWork.ExecEchantillonnageRepository.AddAsync(execEchantillonnage);
 
@@ -102,7 +110,8 @@ namespace SopalTrace.Application.Services
                 EffectifParPosteAb = execEchantillonnage.EffectifParPosteAb,
                 PosteCode = docStatut.PosteCode,
                 CritereAcceptationAc = execEchantillonnage.CritereAcceptationAc,
-                CritereRejetRe = execEchantillonnage.CritereRejetRe
+                CritereRejetRe = execEchantillonnage.CritereRejetRe,
+                InstrumentCodes = request.InstrumentCodes // Passing it back from request for now
             };
         }
 
@@ -131,6 +140,8 @@ namespace SopalTrace.Application.Services
                 }
             }
 
+            var execOf = await _unitOfWork.ExecControleOfRepository.GetByIdWithOFAsync(execControleOfId);
+
             return new ExecEchantillonnageDto
             {
                 Id = exec.Id,
@@ -147,7 +158,17 @@ namespace SopalTrace.Application.Services
                 NiveauControle = niveauControle,
                 TypePlan = typePlan,
                 ModeControle = modeControle,
-                NqaValeur = nqaValeur
+                NqaValeur = nqaValeur,
+                CodeArticle = execOf?.NumeroOfNavigation?.CodeArticle,
+                Designation = execOf?.NumeroOfNavigation?.CodeArticleNavigation?.Designation,
+                NumeroOf = execOf?.NumeroOf,
+                Atelier = "ASS", // Or we can fetch it dynamically if available
+                DateFabrication = execOf?.DateDebut,
+                DateEchantillonnage = statutEchantillonnage?.DateTermine ?? statutEchantillonnage?.DateExecution ?? DateTime.Now,
+                CodeMachine = statutEchantillonnage?.MachineCode ?? execOf?.MachineCode,
+                EstTermine = statutEchantillonnage?.EstTermine ?? false,
+
+                InstrumentCodes = exec.CodeInstruments?.Select(i => i.CodeInstrument).ToList() ?? new System.Collections.Generic.List<string>()
             };
         }
 
@@ -160,9 +181,61 @@ namespace SopalTrace.Application.Services
             var existingExec = await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAndPosteAsync(execControleOfId, null);
             if (existingExec != null) return true;
 
-            // 2. Sinon, vérifier s'il y a un plan actif
             var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
             return plan != null;
+        }
+
+        public async Task<ExecEchantillonnageDto> UpdatePlanAsync(Guid id, ExecEchantillonnageDto request)
+        {
+            var exec = await _unitOfWork.ExecEchantillonnageRepository.GetByIdAsync(id);
+            if (exec == null)
+                throw new Exception("Exécution non trouvée.");
+
+            exec.LettreCode = request.LettreCode;
+            exec.EffectifEchantillonA = request.EffectifEchantillonA;
+            exec.NbPostesB = request.NbPostesB;
+            exec.EffectifParPosteAb = request.EffectifParPosteAb;
+            exec.CritereAcceptationAc = request.CritereAcceptationAc;
+            exec.CritereRejetRe = request.CritereRejetRe;
+            if (request.InstrumentCodes != null)
+            {
+                exec.CodeInstruments.Clear();
+                var instruments = await _unitOfWork.DictionnaireQualiteRepository.GetInstrumentsByCodesAsync(request.InstrumentCodes);
+                foreach (var inst in instruments)
+                {
+                    exec.CodeInstruments.Add(inst);
+                }
+            }
+
+            // Mettre à jour le poste et code machine si modifié (via ExecControleDocumentStatut)
+            var statuts = await _operateurRepository.GetDocumentStatutsAsync(exec.ExecControleDocumentStatut.ExecControleOfId);
+            var statut = statuts.FirstOrDefault(s => s.Id == exec.ExecControleDocumentStatutId);
+            if (statut != null)
+            {
+                statut.PosteCode = request.PosteCode;
+                statut.MachineCode = request.CodeMachine;
+                if (request.DateEchantillonnage.HasValue)
+                {
+                    statut.DateExecution = request.DateEchantillonnage.Value;
+                }
+                // Save statut
+                _operateurRepository.UpdateExecControleDocumentStatut(statut);
+            }
+
+            if (request.DateFabrication.HasValue)
+            {
+                var execOf = await _unitOfWork.ExecControleOfRepository.GetByIdWithOFAsync(exec.ExecControleDocumentStatut.ExecControleOfId);
+                if (execOf != null)
+                {
+                    execOf.DateDebut = request.DateFabrication.Value;
+                    // Note: Update ExecControleOF in repo if needed, assuming ChangeTracker handles it or explicit update needed
+                }
+            }
+
+            await _unitOfWork.ExecEchantillonnageRepository.UpdateAsync(exec);
+            await _unitOfWork.CommitAsync();
+
+            return request;
         }
     }
 }

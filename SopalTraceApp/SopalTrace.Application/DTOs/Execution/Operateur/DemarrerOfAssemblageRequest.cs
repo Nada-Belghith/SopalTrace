@@ -7,6 +7,5 @@ public class DemarrerOfAssemblageRequest
     public string NumeroOf { get; set; } = null!;
     public string OperationCode { get; set; } = null!; // Habituellement 'ASS'
     public List<string> PosteCodes { get; set; } = new List<string>();
-    public int NumEquipe { get; set; }
     public string MatriculeOperateur { get; set; } = null!;
 }

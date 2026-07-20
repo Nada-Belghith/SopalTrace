@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using SopalTrace.Application.DTOs.QualityPlans.PlanVerifMachines;
+using SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Entities;
@@ -10,17 +10,17 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Services;
 
-public class PlanVerifMachineService : IPlanVerifMachineService
+public class DocumentVerifMachineService : IDocumentVerifMachineService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
-    private readonly ILogger<PlanVerifMachineService> _logger;
+    private readonly ILogger<DocumentVerifMachineService> _logger;
     private readonly IFormulaireStructureService _formulaireStructureService;
 
-    public PlanVerifMachineService(
+    public DocumentVerifMachineService(
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        ILogger<PlanVerifMachineService> logger,
+        ILogger<DocumentVerifMachineService> logger,
         IFormulaireStructureService formulaireStructureService)
     {
         _unitOfWork = unitOfWork;
@@ -29,32 +29,32 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         _formulaireStructureService = formulaireStructureService;
     }
 
-    public async Task<Guid> CreerPlanVerifMachineAsync(CreatePlanVerifMachineRequestDto request)
+    public async Task<Guid> CreerDocumentVerifMachineAsync(CreateDocumentVerifMachineRequestDto request)
     {
         return await CreerOuMettreAJourPlanAsync(request, null);
     }
 
-    public async Task MettreAJourPlanVerifMachineAsync(Guid id, UpdatePlanVerifMachineRequestDto request)
+    public async Task MettreAJourDocumentVerifMachineAsync(Guid id, UpdateDocumentVerifMachineRequestDto request)
     {
-        var existing = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByIdAsync(id);
+        var existing = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(id);
         if (existing == null) throw new Exception("Plan introuvable");
 
         await CreerOuMettreAJourPlanAsync(request, id);
     }
 
-    private async Task<Guid> CreerOuMettreAJourPlanAsync(CreatePlanVerifMachineRequestDto request, Guid? id)
+    private async Task<Guid> CreerOuMettreAJourPlanAsync(CreateDocumentVerifMachineRequestDto request, Guid? id)
     {
         var user = _currentUserService.UserInfo;
 
-        PlanVerifMachineEntete? existingDoc = null;
+        DocumentVerifMachineEntete? existingDoc = null;
 
         if (id.HasValue)
         {
-            existingDoc = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByIdAsync(id.Value, includeRelations: true);
+            existingDoc = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(id.Value, includeRelations: true);
         }
         else
         {
-            var existingDocs = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
+            var existingDocs = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
             string baseNom = RemoveVersionSuffix(request.Nom).TrimEnd('-').Trim();
             existingDoc = existingDocs.Where(d => RemoveVersionSuffix(d.Nom).TrimEnd('-').Trim() == baseNom)
                                       .OrderByDescending(d => d.Version)
@@ -62,7 +62,7 @@ public class PlanVerifMachineService : IPlanVerifMachineService
             
             if (existingDoc != null)
             {
-                existingDoc = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByIdAsync(existingDoc.Id, includeRelations: true);
+                existingDoc = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(existingDoc.Id, includeRelations: true);
             }
         }
 
@@ -105,34 +105,34 @@ public class PlanVerifMachineService : IPlanVerifMachineService
             }
         }
 
-        var entite = PlanVerifMachineMapper.ToEntity(request, user, formulaireId);
+        var entite = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
         entite.Version = finalVersion;
         entite.Statut = finalStatut;
         entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
 
         // Archiver tous les plans existants actifs pour cette machine
-        var allExistingDocs = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
+        var allExistingDocs = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
         string baseNomToArchive = RemoveVersionSuffix(request.Nom).TrimEnd('-').Trim();
         var activeDocs = allExistingDocs.Where(d => RemoveVersionSuffix(d.Nom).TrimEnd('-').Trim() == baseNomToArchive && d.Statut == "ACTIF").ToList();
         
         foreach (var act in activeDocs)
         {
             act.Statut = "ARCHIVE";
-            await _unitOfWork.PlanVerifMachineEnteteRepository.UpdateAsync(act);
+            await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(act);
         }
         
-        await _unitOfWork.PlanVerifMachineEnteteRepository.AddAsync(entite);
+        await _unitOfWork.DocumentVerifMachineEnteteRepository.AddAsync(entite);
         await _unitOfWork.CommitAsync();
 
         return entite.Id;
     }
 
-    public async Task<PlanVerifMachineEnteteDto> GetPlanVerifMachineByIdAsync(Guid id)
+    public async Task<DocumentVerifMachineEnteteDto> GetDocumentVerifMachineByIdAsync(Guid id)
     {
-        var entite = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByIdAsync(id, includeRelations: true);
+        var entite = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(id, includeRelations: true);
         if (entite == null) throw new Exception("Plan Vérification Machine introuvable.");
 
-        var dto = PlanVerifMachineMapper.ToDto(entite);
+        var dto = DocumentVerifMachineMapper.ToDto(entite);
         if (entite.Formulaire != null)
         {
             var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(entite.Formulaire.CodeReference);
@@ -142,13 +142,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         return dto;
     }
 
-    public async Task<IEnumerable<PlanVerifMachineEnteteDto>> GetAllPlansAsync()
+    public async Task<IEnumerable<DocumentVerifMachineEnteteDto>> GetAllPlansAsync()
     {
-        var plans = await _unitOfWork.PlanVerifMachineEnteteRepository.GetAllWithRelationsAsync();
-        var dtos = new List<PlanVerifMachineEnteteDto>();
+        var plans = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetAllWithRelationsAsync();
+        var dtos = new List<DocumentVerifMachineEnteteDto>();
         foreach(var entite in plans)
         {
-            var dto = PlanVerifMachineMapper.ToDto(entite);
+            var dto = DocumentVerifMachineMapper.ToDto(entite);
             if (entite.Formulaire != null)
             {
                 var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(entite.Formulaire.CodeReference);
@@ -159,13 +159,13 @@ public class PlanVerifMachineService : IPlanVerifMachineService
         return dtos;
     }
 
-    public async Task<IEnumerable<PlanVerifMachineEnteteDto>> GetPlansByMachineCodeAsync(string machineCode)
+    public async Task<IEnumerable<DocumentVerifMachineEnteteDto>> GetPlansByMachineCodeAsync(string machineCode)
     {
-        var plans = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByMachineCodeAsync(machineCode);
-        var dtos = new List<PlanVerifMachineEnteteDto>();
+        var plans = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(machineCode);
+        var dtos = new List<DocumentVerifMachineEnteteDto>();
         foreach(var entite in plans)
         {
-            var dto = PlanVerifMachineMapper.ToDto(entite);
+            var dto = DocumentVerifMachineMapper.ToDto(entite);
             if (entite.Formulaire != null)
             {
                 var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(entite.Formulaire.CodeReference);
@@ -195,11 +195,11 @@ public class PlanVerifMachineService : IPlanVerifMachineService
 
     public async Task ArchiverPlansByFormulaireAsync(Guid formulaireId)
     {
-        var plans = await _unitOfWork.PlanVerifMachineEnteteRepository.GetByFormulaireIdAsync(formulaireId);
+        var plans = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByFormulaireIdAsync(formulaireId);
         foreach (var plan in plans.Where(p => p.Statut == "ACTIF"))
         {
             plan.Statut = "ARCHIVE";
-            await _unitOfWork.PlanVerifMachineEnteteRepository.UpdateAsync(plan);
+            await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(plan);
         }
     }
 }

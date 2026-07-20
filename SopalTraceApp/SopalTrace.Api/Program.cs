@@ -98,7 +98,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // Register new Document Domain services
 builder.Services.AddScoped<IDocumentEnteteRepository, DocumentEnteteRepository>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
-builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
+builder.Services.AddScoped<IDocumentVerifMachineService, DocumentVerifMachineService>();
 builder.Services.AddScoped<IDocumentEchantillonnageService, DocumentEchantillonnageService>();
 builder.Services.AddScoped<IIso2859Service, SopalTrace.Infrastructure.Services.Iso2859Service>();
 builder.Services.AddScoped<IExecEchantillonnageService, ExecEchantillonnageService>();

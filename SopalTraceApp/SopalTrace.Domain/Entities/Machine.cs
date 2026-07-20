@@ -21,6 +21,8 @@ public partial class Machine
 
     public virtual ICollection<DocumentLigne> DocumentLigneMachineCodeNavigations { get; set; } = new List<DocumentLigne>();
 
+    public virtual ICollection<DocumentVerifMachineEntete> DocumentVerifMachineEntetes { get; set; } = new List<DocumentVerifMachineEntete>();
+
     public virtual ICollection<ExecControleOf> ExecControleOfMachineCodeNavigations { get; set; } = new List<ExecControleOf>();
 
     public virtual ICollection<ExecControleOf> ExecControleOfMachineCodePrevuNavigations { get; set; } = new List<ExecControleOf>();
@@ -30,8 +32,6 @@ public partial class Machine
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
-
-    public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
 
     public virtual ICollection<PosteTravail> CodePostes { get; set; } = new List<PosteTravail>();
 

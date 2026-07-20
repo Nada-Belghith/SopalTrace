@@ -13,6 +13,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   // --- DICTIONNAIRES (chargés depuis le backend) ---
   const machines = ref([]);
   const periodicites = ref([]);
+  const periodicitesMachine = ref([]);
   const famillesCorps = ref([]);
   const moyensDetection = ref([]);
   const piecesReference = ref([]);
@@ -67,7 +68,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
   const creerGroupVide = () => ({
     _uid: genererUid(),
-    periodiciteId: '',
+    periodiciteMachineId: '',
     rows: [creerRowVide()],
   });
 
@@ -105,7 +106,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       Familles: familles.value
         .filter((f, idx, self) => self.findIndex(t => t.refFamilleCorpsId === f.refFamilleCorpsId) === idx)
         .map((f, idx) => ({
-          Id: f.id,
+          Id: f.refFamilleCorpsId || f.id,
           RefFamilleCorpsId: f.refFamilleCorpsId,
           OrdreAffiche: idx + 1,
         })),
@@ -117,22 +118,22 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const mapLigneVersBackend = (ligne, indexLigne, typeLigne) => {
-    const rawEcheances = ligne.groups.flatMap((group, gIdx) =>
+    const echeancesAplaties = ligne.groups.flatMap((group, gIdx) =>
       group.rows.map((row, rIdx) => ({
-        PeriodiciteId: group.periodiciteId || '00000000-0000-0000-0000-000000000000',
+        PeriodiciteMachineId: group.periodiciteMachineId || '00000000-0000-0000-0000-000000000000',
         RefMoyenDetectionId: row.refMoyenDetectionId || null,
         MatricePieces: row.matricePieces.map(mp => ({
           FamilleId: mp.familleId || null,
-          RoleVerif: mp.roleVerif || '',
-          PieceRefId: mp.pieceRefId || null,
-        })),
+          RoleVerif: mp.roleVerif,
+          PieceRefId: mp.pieceRefId
+        }))
       }))
-    ).filter(ech => ech.PeriodiciteId !== '00000000-0000-0000-0000-000000000000');
+    ).filter(ech => ech.PeriodiciteMachineId !== '00000000-0000-0000-0000-000000000000');
 
     // Fusionner les doublons (Perio + Moyen) pour éviter les erreurs SQL UNIQUE KEY
     const mergedMap = new Map();
-    rawEcheances.forEach(ech => {
-      const key = `${ech.PeriodiciteId}|${ech.RefMoyenDetectionId || 'null'}`;
+    for (const ech of echeancesAplaties) {
+      const key = `${ech.PeriodiciteMachineId}|${ech.RefMoyenDetectionId || 'null'}`;
       if (!mergedMap.has(key)) {
         mergedMap.set(key, { ...ech, MatricePieces: [...ech.MatricePieces] });
       } else {
@@ -144,7 +145,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
           if (!mpExists) existing.MatricePieces.push(mp);
         });
       }
-    });
+    }
 
     return {
       OrdreAffiche: indexLigne + 1,
@@ -324,6 +325,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       const data = response.data.data || response.data;
       machines.value = data.machines || [];
       periodicites.value = data.periodicites || [];
+      periodicitesMachine.value = data.periodicitesMachine || [];
       famillesCorps.value = data.famillesCorps || [];
       moyensDetection.value = data.moyensDetection || [];
       piecesReference.value = data.piecesReferences || [];
@@ -375,19 +377,28 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         refFormulaireCodeReference: data.formulaire?.codeReference || `FE-VM-${data.machineCode}`,
       };
 
-      familles.value = (data.familles || []).map(f => {
-        const dicoFam = famillesCorps.value.find(fc => fc.id === f.refFamilleCorpsId);
-        return {
-          id: f.id || genererUid(),
-          refFamilleCorpsId: f.refFamilleCorpsId,
-          libelle: dicoFam ? dicoFam.libelle : 'Inconnue',
-        };
-      });
+      familles.value = (data.familles || [])
+        .slice()
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .map(f => {
+          const dicoFam = famillesCorps.value.find(fc => fc.id === f.refFamilleCorpsId);
+          return {
+            id: f.id || genererUid(),
+            refFamilleCorpsId: f.refFamilleCorpsId,
+            libelle: dicoFam ? dicoFam.libelle : 'Inconnue',
+          };
+        });
 
       const toutesLesLignes = data.lignes || data.Lignes || [];
-      lignesConformite.value = toutesLesLignes.filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'CONFORMITE').map(mapPlanLigneFromBackend);
-      lignesRisques.value = toutesLesLignes.filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'RISQUE').map(mapPlanLigneFromBackend);
-      
+      lignesConformite.value = toutesLesLignes
+        .filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'CONFORMITE')
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .map(mapPlanLigneFromBackend);
+      lignesRisques.value = toutesLesLignes
+        .filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'RISQUE')
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .map(mapPlanLigneFromBackend);
+
 
       planInitialise.value = true;
       prendreSnapshot();
@@ -401,35 +412,46 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     const groups = [];
     const groupedByPerio = {};
 
-    (ligne.echeances || ligne.Echeances || []).forEach(ech => {
-      const pId = ech.periodiciteId || ech.PeriodiciteId || 'none';
-      if (!groupedByPerio[pId]) {
-        groupedByPerio[pId] = {
+    (ligne.echeances || ligne.Echeances || [])
+      .slice()
+      .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+      .forEach(ech => {
+        const pId = ech.periodiciteMachineId || ech.PeriodiciteMachineId || 'none';
+        if (!groupedByPerio[pId]) {
+          groupedByPerio[pId] = {
+            _uid: genererUid(),
+            periodiciteMachineId: ech.periodiciteMachineId || ech.PeriodiciteMachineId || '',
+            rows: []
+          };
+          groups.push(groupedByPerio[pId]);
+        }
+        groupedByPerio[pId].rows.push({
           _uid: genererUid(),
-          periodiciteId: ech.periodiciteId || ech.PeriodiciteId || '',
-          rows: []
-        };
-        groups.push(groupedByPerio[pId]);
-      }
-      groupedByPerio[pId].rows.push({
-        _uid: genererUid(),
-        refMoyenDetectionId: ech.refMoyenDetectionId || ech.RefMoyenDetectionId || '',
-        matricePieces: (ech.matricePieces || ech.MatricePieces || ech.piecesRef || []).map(mp => ({
-          familleId: mp.familleId || mp.FamilleId || null,
-          roleVerif: mp.roleVerif || mp.RoleVerif || '',
-          pieceRefId: mp.pieceRefId || mp.PieceRefId || null,
-        }))
+          id: ech.id || ech.Id,
+          refMoyenDetectionId: ech.refMoyenDetectionId || ech.RefMoyenDetectionId || '',
+          matricePieces: (ech.matricePieces || ech.MatricePieces || ech.piecesRef || []).map(mp => {
+            const backendFamilleId = mp.familleId || mp.FamilleId || null;
+            const matchedFamille = familles.value.find(f => f.id === backendFamilleId);
+            return {
+              familleId: matchedFamille ? matchedFamille.refFamilleCorpsId : backendFamilleId,
+              roleVerif: mp.roleVerif || mp.RoleVerif || '',
+              pieceRefId: mp.pieceRefId || mp.PieceRefId || null,
+            };
+          })
+        });
       });
-    });
 
     return {
       _uid: genererUid(),
       libelleRisque: ligne.libelleRisque || ligne.LibelleRisque || '',
       libelleMethode: ligne.libelleMethode || ligne.LibelleMethode || '',
-      valeursColonnesSpecifiques: (ligne.extraColonnes || ligne.ExtraColonnes || []).reduce((acc, col) => {
-        acc[col.cleColonne || col.CleColonne] = col.valeurColonne || col.ValeurColonne;
-        return acc;
-      }, {}),
+      valeursColonnesSpecifiques: (ligne.extraColonnes || ligne.ExtraColonnes || [])
+        .slice()
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .reduce((acc, col) => {
+          acc[col.cleColonne || col.CleColonne] = col.valeurColonne || col.ValeurColonne;
+          return acc;
+        }, {}),
       groups: groups.length > 0 ? groups : [creerGroupVide()],
     };
   };
@@ -544,7 +566,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
           valeursColonnesSpecifiques: li.colonnesSupplementaires || {},
           groups: li.echeances.map(ech => ({
             _uid: genererUid(),
-            periodiciteId: ech.periodiciteId || '',
+            periodiciteMachineId: ech.periodiciteMachineId || '',
             // 🟢 NOUVEAU : Mapper chaque Row (moyen) sous la périodicité
             rows: (ech.rows || []).map(rowItem => ({
               _uid: genererUid(),
@@ -594,27 +616,12 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         }));
       };
 
-      const checkMachineSansConformite = (machineCode) => {
-        if (!machineCode) return false;
-        const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-        return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
-          code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
-      };
-
-      if (checkMachineSansConformite(entete.value.machineCode)) {
-        // Force all lines into Risques if the machine doesn't support Conformite
-        const combinedLines = [...(data.lignesConformite || []), ...(data.lignesRisques || [])];
-        if (combinedLines.length > 0) {
-          lignesRisques.value = mapLignes(combinedLines);
-        }
-      } else {
-        if (data.lignesConformite?.length > 0) {
-          lignesConformite.value = mapLignes(data.lignesConformite);
-          entete.value.afficheConformite = true;
-        }
-        if (data.lignesRisques?.length > 0) {
-          lignesRisques.value = mapLignes(data.lignesRisques);
-        }
+      if (data.lignesConformite?.length > 0) {
+        lignesConformite.value = mapLignes(data.lignesConformite);
+        entete.value.afficheConformite = true;
+      }
+      if (data.lignesRisques?.length > 0) {
+        lignesRisques.value = mapLignes(data.lignesRisques);
       }
 
       return { success: true };
@@ -624,7 +631,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   return {
-    machines, periodicites, famillesCorps, moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded, formulairesReferences,
+    machines,
+    periodicites,
+    periodicitesMachine,
+    famillesCorps,
+    moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded, formulairesReferences,
     entete, familles, lignesConformite, lignesRisques,
     isLoading, planInitialise, plansExistants,
     genererUid, creerGroupVide, creerLigneVide,

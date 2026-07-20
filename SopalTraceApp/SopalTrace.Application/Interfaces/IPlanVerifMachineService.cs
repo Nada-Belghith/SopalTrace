@@ -1,16 +1,16 @@
-using SopalTrace.Application.DTOs.QualityPlans.PlanVerifMachines;
+using SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Interfaces;
 
-public interface IPlanVerifMachineService
+public interface IDocumentVerifMachineService
 {
-    Task<Guid> CreerPlanVerifMachineAsync(CreatePlanVerifMachineRequestDto request);
-    Task<PlanVerifMachineEnteteDto> GetPlanVerifMachineByIdAsync(Guid id);
-    Task<IEnumerable<PlanVerifMachineEnteteDto>> GetAllPlansAsync();
-    Task<IEnumerable<PlanVerifMachineEnteteDto>> GetPlansByMachineCodeAsync(string machineCode);
-    Task MettreAJourPlanVerifMachineAsync(Guid id, UpdatePlanVerifMachineRequestDto request);
+    Task<Guid> CreerDocumentVerifMachineAsync(CreateDocumentVerifMachineRequestDto request);
+    Task<DocumentVerifMachineEnteteDto> GetDocumentVerifMachineByIdAsync(Guid id);
+    Task<IEnumerable<DocumentVerifMachineEnteteDto>> GetAllPlansAsync();
+    Task<IEnumerable<DocumentVerifMachineEnteteDto>> GetPlansByMachineCodeAsync(string machineCode);
+    Task MettreAJourDocumentVerifMachineAsync(Guid id, UpdateDocumentVerifMachineRequestDto request);
     Task ArchiverPlansByFormulaireAsync(Guid formulaireId);
 }

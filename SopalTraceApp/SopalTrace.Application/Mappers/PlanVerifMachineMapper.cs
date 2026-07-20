@@ -1,15 +1,15 @@
-using SopalTrace.Application.DTOs.QualityPlans.PlanVerifMachines;
+using SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Linq;
 
 namespace SopalTrace.Application.Mappers;
 
-public static class PlanVerifMachineMapper
+public static class DocumentVerifMachineMapper
 {
-    public static PlanVerifMachineEntete ToEntity(CreatePlanVerifMachineRequestDto dto, string user, Guid? formulaireId = null)
+    public static DocumentVerifMachineEntete ToEntity(CreateDocumentVerifMachineRequestDto dto, string user, Guid? formulaireId = null)
     {
-        var entete = new PlanVerifMachineEntete
+        var entete = new DocumentVerifMachineEntete
         {
             Id = Guid.NewGuid(),
             MachineCode = dto.MachineCode,
@@ -30,7 +30,7 @@ public static class PlanVerifMachineMapper
             var newFamilleId = Guid.NewGuid();
             oldFamilleIdToNewIdMap[familleDto.Id] = newFamilleId;
 
-            entete.PlanVerifMachineFamilles.Add(new PlanVerifMachineFamille
+            entete.DocumentVerifMachineFamilles.Add(new DocumentVerifMachineFamille
             {
                 Id = newFamilleId,
                 PlanEnteteId = entete.Id,
@@ -43,7 +43,7 @@ public static class PlanVerifMachineMapper
 
         foreach (var ligneDto in allLignes)
         {
-            var ligne = new PlanVerifMachineLigne
+            var ligne = new DocumentVerifMachineLigne
             {
                 Id = Guid.NewGuid(),
                 PlanEnteteId = entete.Id,
@@ -55,7 +55,7 @@ public static class PlanVerifMachineMapper
 
             foreach (var extraDto in ligneDto.ExtraColonnes)
             {
-                ligne.PlanVerifMachineLigneExtraColonnes.Add(new PlanVerifMachineLigneExtraColonne
+                ligne.DocumentVerifMachineLigneExtraColonnes.Add(new DocumentVerifMachineLigneExtraColonne
                 {
                     Id = Guid.NewGuid(),
                     LigneId = ligne.Id,
@@ -67,18 +67,18 @@ public static class PlanVerifMachineMapper
 
             foreach (var echDto in ligneDto.Echeances)
             {
-                var ech = new PlanVerifMachineEcheance
+                var ech = new DocumentVerifMachineEcheance
                 {
                     Id = Guid.NewGuid(),
                     PlanLigneId = ligne.Id,
                     OrdreAffiche = echDto.OrdreAffiche,
-                    PeriodiciteId = echDto.PeriodiciteId,
+                    PeriodiciteMachineId = echDto.PeriodiciteMachineId,
                     RefMoyenDetectionId = echDto.RefMoyenDetectionId
                 };
 
                 foreach (var matDto in echDto.MatricePieces)
                 {
-                    ech.PlanVerifMachineMatricePieces.Add(new PlanVerifMachineMatricePiece
+                    ech.DocumentVerifMachineMatricePieces.Add(new DocumentVerifMachineMatricePiece
                     {
                         Id = Guid.NewGuid(),
                         EcheanceId = ech.Id,
@@ -90,18 +90,18 @@ public static class PlanVerifMachineMapper
                     });
                 }
                 
-                ligne.PlanVerifMachineEcheances.Add(ech);
+                ligne.DocumentVerifMachineEcheances.Add(ech);
             }
 
-            entete.PlanVerifMachineLignes.Add(ligne);
+            entete.DocumentVerifMachineLignes.Add(ligne);
         }
 
         return entete;
     }
 
-    public static PlanVerifMachineEnteteDto ToDto(PlanVerifMachineEntete entity)
+    public static DocumentVerifMachineEnteteDto ToDto(DocumentVerifMachineEntete entity)
     {
-        return new PlanVerifMachineEnteteDto
+        return new DocumentVerifMachineEnteteDto
         {
             Id = entity.Id,
             MachineCode = entity.MachineCode,
@@ -113,44 +113,44 @@ public static class PlanVerifMachineMapper
             FormulaireId = entity.FormulaireId,
             Remarques = entity.Remarques,
             LegendeMoyens = entity.LegendeMoyens,
-            AfficheConformite = entity.PlanVerifMachineLignes.Any(l => l.TypeLigne == "CONFORMITE"),
-            AfficheFamilles = entity.PlanVerifMachineFamilles.Any(),
-            AfficheMoyenDetectionRisques = entity.PlanVerifMachineLignes
+            AfficheConformite = entity.DocumentVerifMachineLignes.Any(l => l.TypeLigne == "CONFORMITE"),
+            AfficheFamilles = entity.DocumentVerifMachineFamilles.Any(),
+            AfficheMoyenDetectionRisques = entity.DocumentVerifMachineLignes
                 .Where(l => l.TypeLigne == "RISQUE")
-                .SelectMany(l => l.PlanVerifMachineEcheances)
+                .SelectMany(l => l.DocumentVerifMachineEcheances)
                 .Any(e => e.RefMoyenDetectionId.HasValue),
-            AfficheFuiteEtalon = entity.PlanVerifMachineLignes
-                .SelectMany(l => l.PlanVerifMachineEcheances)
-                .SelectMany(e => e.PlanVerifMachineMatricePieces)
+            AfficheFuiteEtalon = entity.DocumentVerifMachineLignes
+                .SelectMany(l => l.DocumentVerifMachineEcheances)
+                .SelectMany(e => e.DocumentVerifMachineMatricePieces)
                 .Any(m => m.RoleVerif == "FEC" || m.RoleVerif == "FENC"),
             ConfigurationColonnesJson = null,
-            Familles = entity.PlanVerifMachineFamilles.Select(f => new PlanVerifMachineFamilleDto
+            Familles = entity.DocumentVerifMachineFamilles.Select(f => new DocumentVerifMachineFamilleDto
             {
                 Id = f.Id,
                 RefFamilleCorpsId = f.RefFamilleCorpsId,
                 OrdreAffiche = f.OrdreAffiche
             }).ToList(),
-            Lignes = entity.PlanVerifMachineLignes.Select(l => new PlanVerifMachineLigneDto
+            Lignes = entity.DocumentVerifMachineLignes.Select(l => new DocumentVerifMachineLigneDto
             {
                 Id = l.Id,
                 OrdreAffiche = l.OrdreAffiche,
                 TypeLigne = l.TypeLigne ?? string.Empty,
                 LibelleRisque = l.LibelleRisque,
                 LibelleMethode = l.LibelleMethode,
-                ExtraColonnes = l.PlanVerifMachineLigneExtraColonnes.Select(ec => new PlanVerifMachineExtraColonneDto
+                ExtraColonnes = l.DocumentVerifMachineLigneExtraColonnes.Select(ec => new DocumentVerifMachineExtraColonneDto
                 {
                     Id = ec.Id,
                     CleColonne = ec.CleColonne,
                     ValeurColonne = ec.ValeurColonne,
                     OrdreAffiche = ec.OrdreAffiche
                 }).ToList(),
-                Echeances = l.PlanVerifMachineEcheances.Select(e => new PlanVerifMachineEcheanceDto
+                Echeances = l.DocumentVerifMachineEcheances.Select(e => new DocumentVerifMachineEcheanceDto
                 {
                     Id = e.Id,
                     OrdreAffiche = e.OrdreAffiche,
-                    PeriodiciteId = e.PeriodiciteId,
+                    PeriodiciteMachineId = e.PeriodiciteMachineId,
                     RefMoyenDetectionId = e.RefMoyenDetectionId,
-                    MatricePieces = e.PlanVerifMachineMatricePieces.Select(m => new PlanVerifMachineMatricePieceDto
+                    MatricePieces = e.DocumentVerifMachineMatricePieces.Select(m => new DocumentVerifMachineMatricePieceDto
                     {
                         Id = m.Id,
                         FamilleId = m.FamilleId,

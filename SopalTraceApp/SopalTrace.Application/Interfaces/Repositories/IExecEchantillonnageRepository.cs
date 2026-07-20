@@ -8,5 +8,7 @@ namespace SopalTrace.Application.Interfaces.Repositories
     {
         Task AddAsync(ExecEchantillonnage execEchantillonnage);
         Task<ExecEchantillonnage?> GetByExecControleOfIdAndPosteAsync(Guid execControleOfId, string? posteCode);
+        Task<ExecEchantillonnage?> GetByIdAsync(Guid id);
+        Task UpdateAsync(ExecEchantillonnage execEchantillonnage);
     }
 }

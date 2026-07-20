@@ -35,9 +35,9 @@ public class UnitOfWork : IUnitOfWork
     public IRefFormulaireRepository RefFormulaireRepository
         => _refFormulaireRepository ??= new RefFormulaireRepository(_context);
 
-    private IPlanVerifMachineEnteteRepository? _planVerifMachineEnteteRepository;
-    public IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository
-        => _planVerifMachineEnteteRepository ??= new PlanVerifMachineEnteteRepository(_context);
+    private IDocumentVerifMachineEnteteRepository? _documentVerifMachineEnteteRepository;
+    public IDocumentVerifMachineEnteteRepository DocumentVerifMachineEnteteRepository
+        => _documentVerifMachineEnteteRepository ??= new DocumentVerifMachineEnteteRepository(_context);
 
     private IDocumentEchantillonnageEnteteRepository? _DocumentEchantillonnageEnteteRepository;
     public IDocumentEchantillonnageEnteteRepository DocumentEchantillonnageEnteteRepository

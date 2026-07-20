@@ -27,9 +27,9 @@ public class AlertesController : ControllerBase
     [HttpPost("plan-manquant")]
     public async Task<IActionResult> SignalerPlanManquant([FromBody] PlanManquantContexte request)
     {
-        if (string.IsNullOrWhiteSpace(request.PosteCode) || string.IsNullOrWhiteSpace(request.ArticleCode))
+        if (string.IsNullOrWhiteSpace(request.PosteCode))
         {
-            return BadRequest("Le poste et l'article sont obligatoires.");
+            return BadRequest("Le poste est obligatoire.");
         }
 
         // Toujours récupérer les infos de l'opérateur connecté depuis la base de données

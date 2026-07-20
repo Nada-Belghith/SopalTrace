@@ -25,4 +25,6 @@ public class OfAssemblageStatutDto
     /// Postes déjà enregistrés dans Exec_ControleOf_Poste (vide si non commencé)
     /// </summary>
     public List<string> PostesExistants { get; set; } = new();
+
+    public string? Equipe { get; set; }
 }

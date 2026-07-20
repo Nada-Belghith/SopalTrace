@@ -17,23 +17,37 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
 
     public async Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle)
     {
-        if (string.IsNullOrEmpty(libelle)) return null;
-        var normalized = libelle.Trim().ToLower();
         return await _context.Periodicites
-            .FirstOrDefaultAsync(p => p.Libelle.Trim().ToLower() == normalized);
+            .FirstOrDefaultAsync(p => p.Libelle.ToLower() == libelle.ToLower());
     }
 
     public async Task<Periodicite?> GetPeriodiciteByCodeAsync(string code)
     {
-        if (string.IsNullOrEmpty(code)) return null;
-        var normalized = code.Trim().ToLower();
         return await _context.Periodicites
-            .FirstOrDefaultAsync(p => p.Code.Trim().ToLower() == normalized);
+            .FirstOrDefaultAsync(p => p.Code == code);
     }
 
     public Task AddPeriodiciteAsync(Periodicite entite)
     {
         _context.Periodicites.Add(entite);
+        return Task.CompletedTask;
+    }
+
+    public async Task<PeriodiciteMachine?> GetPeriodiciteMachineByLibelleAsync(string libelle)
+    {
+        return await _context.PeriodiciteMachines
+            .FirstOrDefaultAsync(p => p.Libelle.ToLower() == libelle.ToLower());
+    }
+
+    public async Task<PeriodiciteMachine?> GetPeriodiciteMachineByCodeAsync(string code)
+    {
+        return await _context.PeriodiciteMachines
+            .FirstOrDefaultAsync(p => p.Code == code);
+    }
+
+    public Task AddPeriodiciteMachineAsync(PeriodiciteMachine entite)
+    {
+        _context.PeriodiciteMachines.Add(entite);
         return Task.CompletedTask;
     }
 
@@ -245,7 +259,9 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
     public async Task<System.Collections.Generic.List<MoyenControle>> GetActiveMoyenControlesAsync() => await _context.MoyenControles.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<PosteTravail>> GetActivePosteTravailsAsync() => await _context.PosteTravails.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<Periodicite>> GetAllPeriodicitesAsync() => await _context.Periodicites.ToListAsync();
+    public async Task<System.Collections.Generic.List<PeriodiciteMachine>> GetAllPeriodicitesMachineAsync() => await _context.PeriodiciteMachines.ToListAsync();
     public async Task<System.Collections.Generic.List<Instrument>> GetActiveInstrumentsAsync() => await _context.Instruments.Where(x => x.Actif).ToListAsync();
+    public async Task<System.Collections.Generic.List<Instrument>> GetInstrumentsByCodesAsync(System.Collections.Generic.List<string> codes) => await _context.Instruments.Where(x => codes.Contains(x.CodeInstrument)).ToListAsync();
     public async Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync() => await _context.Nqas.ToListAsync();
     public async Task AddNqaAsync(Nqa entite) => await _context.Nqas.AddAsync(entite);
     public async Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync() => await _context.Defautheques.Where(x => x.Actif).ToListAsync();

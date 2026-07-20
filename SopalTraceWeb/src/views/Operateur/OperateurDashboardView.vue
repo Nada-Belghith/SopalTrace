@@ -142,7 +142,7 @@
           </div>
           <div class="text-right">
             <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Date début</p>
-            <p class="text-sm font-medium text-slate-600">{{ formatDate(of.dateDebut) }}</p>
+            <p class="text-sm font-medium text-slate-600">{{ getStatutReel(of) === 'EN COURS' && of.dateDebut ? formatDate(of.dateDebut) : '-' }}</p>
           </div>
         </div>
       </div>

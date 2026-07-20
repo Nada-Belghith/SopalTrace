@@ -12,7 +12,7 @@ namespace SopalTrace.Application.Interfaces;
     
     IDictionnaireQualiteRepository DictionnaireQualiteRepository { get; }
     IRefFormulaireRepository RefFormulaireRepository { get; }
-    IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository { get; }
+    IDocumentVerifMachineEnteteRepository DocumentVerifMachineEnteteRepository { get; }
     IDocumentEchantillonnageEnteteRepository DocumentEchantillonnageEnteteRepository { get; }
     IModeleFabricationEnteteRepository ModeleFabricationEnteteRepository { get; }
     IPlanFabricationEnteteRepository PlanFabricationEnteteRepository { get; }

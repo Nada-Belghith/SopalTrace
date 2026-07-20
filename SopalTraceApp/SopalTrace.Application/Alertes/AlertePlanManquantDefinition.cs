@@ -31,7 +31,8 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
     public string ConstruireSujet(PlanManquantContexte contexte)
     {
         var refCible = contexte.OperationCode == "ASS" ? "" : $" et l'article {contexte.ArticleCode}";
-        return $"[Alerte] Plan manquant pour l'opération {contexte.OperationCode}, le poste/machine {contexte.PosteCode}{refCible}";
+        var machineText = string.IsNullOrEmpty(contexte.MachineCode) ? "" : $" / {contexte.MachineCode}";
+        return $"[Alerte] Plan manquant pour l'opération {contexte.OperationCode}, le poste/machine {contexte.PosteCode}{machineText}{refCible}";
     }
 
     public string ConstruireCorps(PlanManquantContexte contexte)
@@ -39,15 +40,17 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
         var articleLigne = contexte.OperationCode == "ASS" 
             ? $"<li><b>OF / Produit :</b> {contexte.NumeroOf ?? contexte.ArticleCode} — {contexte.DesignationArticle ?? string.Empty}</li>" 
             : $"<li><b>Article :</b> {contexte.ArticleCode}</li>";
+            
+        var machineText = string.IsNullOrEmpty(contexte.MachineCode) ? contexte.PosteCode : $"{contexte.PosteCode} / {contexte.MachineCode}";
 
         return $@"
 <html>
 <body style='font-family: Arial, sans-serif;'>
-    <h2 style='color: #d9534f;'>Alerte : Plan manquant signalé</h2>
-    <p>L'opérateur <b>{contexte.NomOperateur}</b> a signalé un plan manquant lors de sa saisie.</p>
+    <h2 style='color: #d9534f;'>Alerte : Document manquant signalé</h2>
+    <p>L'opérateur <b>{contexte.NomOperateur}</b> a signalé un document manquant lors de sa saisie.</p>
     <ul>
         <li><b>Opération :</b> {contexte.OperationCode}</li>
-        <li><b>Poste / Machine :</b> {contexte.PosteCode}</li>
+        <li><b>Poste / Machine :</b> {machineText}</li>
         {articleLigne}
     </ul>
     <p><b>Description du problème / Note de l'opérateur :</b><br/>
@@ -60,6 +63,6 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
 
     public string ExtraireCleEntite(PlanManquantContexte contexte)
     {
-        return $"{contexte.OperationCode}_{contexte.PosteCode}_{contexte.ArticleCode}";
+        return $"{contexte.OperationCode}_{contexte.PosteCode}_{contexte.MachineCode}_{contexte.ArticleCode}";
     }
 }

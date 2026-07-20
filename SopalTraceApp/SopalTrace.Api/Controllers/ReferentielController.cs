@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace SopalTrace.Api.Controllers;
 
-[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite + "," + RolesApp.Operateur)]
 [Route("api/referentiels")]
 [ApiController]
 public class ReferentielController : ControllerBase
@@ -40,6 +40,13 @@ public class ReferentielController : ControllerBase
     public async Task<IActionResult> GetDictionnairesControlePoste()
     {
         var data = await _referentielService.GetControlePosteReferentielsAsync();
+        return Ok(new { success = true, data });
+    }
+
+    [HttpGet("instruments")]
+    public async Task<IActionResult> GetInstruments()
+    {
+        var data = await _referentielService.GetInstrumentsAsync();
         return Ok(new { success = true, data });
     }
 

@@ -20,6 +20,7 @@ public partial class ExcelImportService : IExcelImportService
     protected readonly IFrequencyParserService _frequencyParserService;
 
     protected readonly Dictionary<string, Periodicite> _createdPerioCache = new();
+    protected readonly Dictionary<string, PeriodiciteMachine> _createdPerioMachineCache = new();
     protected readonly Dictionary<string, PieceReference> _createdPiecesCache = new();
     protected readonly Dictionary<string, RefFamilleCorp> _createdFamiliesCache = new();
     protected readonly Dictionary<string, RefMoyenDetection> _createdMoyensCache = new();

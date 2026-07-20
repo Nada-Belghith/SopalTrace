@@ -14,26 +14,26 @@ export const verifMachineService = {
   },
 
   getTousLesPlans() {
-    return apiClient.get('/PlanVerifMachine');
+    return apiClient.get('/DocumentVerifMachine');
   },
 
   getPlanVerif(id) {
-    return apiClient.get(`/PlanVerifMachine/${id}`);
+    return apiClient.get(`/DocumentVerifMachine/${id}`);
   },
 
   creerPlanVerif(payload) {
-    return apiClient.post('/PlanVerifMachine', payload);
+    return apiClient.post('/DocumentVerifMachine', payload);
   },
 
   mettreAJourPlanVerif(id, payload) {
-    // Le backend PlanVerifMachineController renvoie 204 NoContent, donc on mock la réponse pour le store
-    return apiClient.put(`/PlanVerifMachine/${id}`, payload).then(() => {
+    // Le backend DocumentVerifMachineController renvoie 204 NoContent, donc on mock la réponse pour le store
+    return apiClient.put(`/DocumentVerifMachine/${id}`, payload).then(() => {
       return { data: { id: id, version: payload.version } };
     });
   },
 
   restaurerPlanVerif(payload) {
-    return apiClient.post(`/PlanVerifMachine/${payload.AncienId}/restaurer`, payload);
+    return apiClient.post(`/DocumentVerifMachine/${payload.AncienId}/restaurer`, payload);
   },
 
   importExcel(file, configColonnesJson) {

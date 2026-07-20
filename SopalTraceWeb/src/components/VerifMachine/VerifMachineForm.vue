@@ -528,7 +528,7 @@ const onSauvegarder = async () => {
       }
 
       for (const group of l.groups) {
-        if (!group.periodiciteId) {
+        if (!group.periodiciteMachineId) {
           toast.add({ severity: 'error', summary: 'Validation', detail: `${prefix} : La périodicité est obligatoire.`, life: 4000 });
           return false;
         }
@@ -604,7 +604,9 @@ const onSauvegarder = async () => {
 onMounted(async () => {
   try {
     await store.fetchDictionnaires();
-    await store.fetchTousLesPlans();
+    if (!props.isReadOnly) {
+      await store.fetchTousLesPlans();
+    }
   } catch {
     // Fallback data
   }

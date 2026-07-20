@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
 
-public partial class PlanVerifMachineLigneExtraColonne
+public partial class DocumentVerifMachineLigneExtraColonne
 {
     public Guid Id { get; set; }
 
@@ -15,5 +15,5 @@ public partial class PlanVerifMachineLigneExtraColonne
 
     public int OrdreAffiche { get; set; }
 
-    public virtual PlanVerifMachineLigne Ligne { get; set; } = null!;
+    public virtual DocumentVerifMachineLigne Ligne { get; set; } = null!;
 }

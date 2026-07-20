@@ -19,8 +19,6 @@ public partial class ExecControleOf
 
     public string? PosteCode { get; set; }
 
-    public int NumEquipe { get; set; }
-
     public Guid? PlanSourceId { get; set; }
 
     public string TypeOf { get; set; } = null!;

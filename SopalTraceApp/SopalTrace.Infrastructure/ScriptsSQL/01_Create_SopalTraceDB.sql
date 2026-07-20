@@ -3,7 +3,7 @@
 --
 -- ARCHITECTURE :
 --   Plan_Fabrication_*   → inchangé
---   Plan_VerifMachine_*  → inchangé
+--   Document_VerifMachine_*  → inchangé
 --   Tous les autres      → Document_Entete / Document_Section / Document_Ligne
 --
 -- PRINCIPES :
@@ -121,6 +121,16 @@ CREATE TABLE dbo.Periodicite (
     OrdreAffichage INT          NOT NULL DEFAULT 0,
     Actif          BIT          NOT NULL DEFAULT 1
 );
+GO
+
+CREATE TABLE dbo.PeriodiciteMachine (
+    Id             UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    Code           VARCHAR(30)  NOT NULL UNIQUE,
+    Libelle        VARCHAR(200) NOT NULL,
+    OrdreAffichage INT          NOT NULL DEFAULT 0,
+    Actif          BIT          NOT NULL DEFAULT 1
+);
+GO
 GO
 
 CREATE TABLE dbo.Ref_RegleEchantillonnage (
@@ -784,7 +794,7 @@ GO
 -- PARTIE 13 : PLANS DE VÉRIFICATION MACHINE (inchangés)
 -- ================================================================================
 
-CREATE TABLE dbo.Plan_VerifMachine_Entete (
+CREATE TABLE dbo.Document_VerifMachine_Entete (
     Id                        UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     MachineCode               VARCHAR(30)  NOT NULL REFERENCES dbo.Machine(CodeMachine),
     Nom                       VARCHAR(150) NOT NULL,
@@ -801,18 +811,18 @@ CREATE TABLE dbo.Plan_VerifMachine_Entete (
 );
 GO
 
-CREATE TABLE dbo.Plan_VerifMachine_Famille (
+CREATE TABLE dbo.Document_VerifMachine_Famille (
     Id                UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId      UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_VerifMachine_Entete(Id) ON DELETE CASCADE,
+    PlanEnteteId      UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Document_VerifMachine_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche      INT              NOT NULL,
     RefFamilleCorpsId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Ref_FamilleCorps(Id),
     UNIQUE (PlanEnteteId, RefFamilleCorpsId)
 );
 GO
 
-CREATE TABLE dbo.Plan_VerifMachine_Ligne (
+CREATE TABLE dbo.Document_VerifMachine_Ligne (
     Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanEnteteId            UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_VerifMachine_Entete(Id) ON DELETE CASCADE,
+    PlanEnteteId            UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Document_VerifMachine_Entete(Id) ON DELETE CASCADE,
     OrdreAffiche            INT              NOT NULL,
     TypeLigne               VARCHAR(20)      DEFAULT 'RISQUE'
         CHECK (TypeLigne IN ('CONFORMITE','RISQUE')),
@@ -821,10 +831,10 @@ CREATE TABLE dbo.Plan_VerifMachine_Ligne (
 );
 GO
 
--- Extra-colonnes pour Plan_VerifMachine_Ligne
-CREATE TABLE dbo.Plan_VerifMachine_Ligne_ExtraColonne (
+-- Extra-colonnes pour Document_VerifMachine_Ligne
+CREATE TABLE dbo.Document_VerifMachine_Ligne_ExtraColonne (
     Id            UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    LigneId       UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_VerifMachine_Ligne(Id) ON DELETE CASCADE,
+    LigneId       UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Document_VerifMachine_Ligne(Id) ON DELETE CASCADE,
     CleColonne    VARCHAR(60)   NOT NULL,
     ValeurColonne NVARCHAR(500),
     OrdreAffiche  INT           NOT NULL DEFAULT 0,
@@ -832,19 +842,19 @@ CREATE TABLE dbo.Plan_VerifMachine_Ligne_ExtraColonne (
 );
 GO
 
-CREATE TABLE dbo.Plan_VerifMachine_Echeance (
+CREATE TABLE dbo.Document_VerifMachine_Echeance (
     Id                  UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    PlanLigneId         UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_VerifMachine_Ligne(Id) ON DELETE CASCADE,
-    PeriodiciteId       UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Periodicite(Id),
+    PlanLigneId         UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Document_VerifMachine_Ligne(Id) ON DELETE CASCADE,
+    PeriodiciteMachineId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.PeriodiciteMachine(Id),
     RefMoyenDetectionId UNIQUEIDENTIFIER REFERENCES dbo.Ref_MoyenDetection(Id),
     OrdreAffiche        INT              NOT NULL DEFAULT 0
 );
 GO
 
-CREATE TABLE dbo.Plan_VerifMachine_MatricePiece (
+CREATE TABLE dbo.Document_VerifMachine_MatricePiece (
     Id         UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    EcheanceId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Plan_VerifMachine_Echeance(Id) ON DELETE CASCADE,
-    FamilleId  UNIQUEIDENTIFIER REFERENCES dbo.Plan_VerifMachine_Famille(Id),
+    EcheanceId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Document_VerifMachine_Echeance(Id) ON DELETE CASCADE,
+    FamilleId  UNIQUEIDENTIFIER REFERENCES dbo.Document_VerifMachine_Famille(Id),
     RoleVerif  VARCHAR(10) CHECK (RoleVerif IN ('PRC','PRNC','FEC','FENC')),
     PieceRefId UNIQUEIDENTIFIER REFERENCES dbo.PieceReference(Id),
     UNIQUE (EcheanceId, FamilleId, RoleVerif, PieceRefId)
@@ -916,7 +926,6 @@ CREATE TABLE dbo.Exec_ControleOF (
     PosteCodePrevu   VARCHAR(30) REFERENCES dbo.PosteTravail(CodePoste),
     MachineCode      VARCHAR(30) REFERENCES dbo.Machine(CodeMachine),
     PosteCode        VARCHAR(30) REFERENCES dbo.PosteTravail(CodePoste),
-    NumEquipe        INT         NOT NULL DEFAULT 1,
     PlanSourceId     UNIQUEIDENTIFIER NULL,
     TypeOf         VARCHAR(10) NOT NULL CHECK (TypeOf IN ('FAB','DOC','ASS')),
     Statut           VARCHAR(20) NOT NULL DEFAULT 'EN_COURS'
@@ -939,9 +948,13 @@ CREATE TABLE dbo.Exec_ControleDocumentStatut (
     ExecControleOfId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
     TypeDocument VARCHAR(50) NOT NULL,
     PosteCode VARCHAR(30) NULL REFERENCES dbo.PosteTravail(CodePoste),
+    MachineCode VARCHAR(50) NULL,
     DocId UNIQUEIDENTIFIER NULL,
     EstTermine BIT NOT NULL DEFAULT 0,
-    DateTermine DATETIME NULL
+    DateTermine DATETIME NULL,
+    Equipe VARCHAR(20) NULL,
+    DateExecution DATETIME NULL,
+    MatriculeOperateur VARCHAR(50) NULL
 );
 GO
 
@@ -1099,17 +1112,7 @@ CREATE INDEX IX_MFGHEAD_CodeArticle          ON dbo.MFGHEAD_OrdreFabrication(Cod
 CREATE INDEX IX_PlanFab_CodeArticle          ON dbo.Plan_Fabrication_Entete(CodeArticleSageVersionne);
 CREATE INDEX IX_PlanFab_Statut               ON dbo.Plan_Fabrication_Entete(Statut);
 CREATE INDEX IX_Machine_Operation            ON dbo.Machine(OperationCode);
-GO
 
-PRINT '✅ SopalTraceDB V4.0 FINAL créée avec succès !';
-PRINT '';
-PRINT '  Plan_Fabrication_*    → inchangé';
-PRINT '  Plan_VerifMachine_*   → inchangé';
-PRINT '  Document_*            → unifié (Assemblage + PF + CtrlPoste + ResultatCF)';
-PRINT '  Ref_Caracteristique   → LibelleNormalise fourni par le backend C# (pas de colonne calculée)';
-PRINT '  JSON supprimé         → ExtraColonne (EAV) + Libre1..5';
-PRINT '  Triggers              → ISO 9001 uniquement (interdit DELETE physique)';
-PRINT '  Logique métier        → 100% backend C#';
 GO
 CREATE TABLE [dbo].[Exec_Echantillonnage] (
     [Id] UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
@@ -1125,4 +1128,42 @@ CREATE TABLE [dbo].[Exec_Echantillonnage] (
     CONSTRAINT [FK_Exec_Echantillonnage_ExecControleDocumentStatut] FOREIGN KEY ([ExecControleDocumentStatutId]) REFERENCES [dbo].[Exec_ControleDocumentStatut] ([Id]) ON DELETE CASCADE
 
 );
+GO
+
+CREATE TABLE [dbo].[Exec_Echantillonnage_Instrument] (
+    [ExecEchantillonnageId] UNIQUEIDENTIFIER NOT NULL,
+    [CodeInstrument] VARCHAR(40) NOT NULL,
+    CONSTRAINT [PK_Exec_Echantillonnage_Instrument] PRIMARY KEY ([ExecEchantillonnageId], [CodeInstrument]),
+    CONSTRAINT [FK_ExecEchantillonnageInstrument_ExecEchantillonnage] FOREIGN KEY ([ExecEchantillonnageId]) REFERENCES [dbo].[Exec_Echantillonnage] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_ExecEchantillonnageInstrument_Instrument] FOREIGN KEY ([CodeInstrument]) REFERENCES [dbo].[Instrument] ([CodeInstrument]) ON DELETE CASCADE
+);
+GO
+
+CREATE TABLE [dbo].[Exec_VerifMachine_Reponse] (
+    [Id] UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
+    [ExecControleDocumentStatutId] UNIQUEIDENTIFIER NOT NULL,
+    [DocumentVerifMachineEcheanceId] UNIQUEIDENTIFIER NOT NULL,
+    [DateExecution] DATETIME NOT NULL,
+    [MatriculeOperateur] VARCHAR(50) NOT NULL,
+    [PressionEntree] FLOAT NULL,
+    [FuiteAffichee] FLOAT NULL,
+    [Conforme] BIT NULL,
+    [Observation] VARCHAR(500) NULL,
+    CONSTRAINT [PK_ExecVerifMachineReponse] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_ExecVerifMachineReponse_Statut] FOREIGN KEY ([ExecControleDocumentStatutId]) REFERENCES [dbo].[Exec_ControleDocumentStatut] ([Id]),
+    CONSTRAINT [FK_ExecVerifMachineReponse_Echeance] FOREIGN KEY ([DocumentVerifMachineEcheanceId]) REFERENCES [dbo].[Document_VerifMachine_Echeance] ([Id])
+);
+GO
+
+
+PRINT '✅ SopalTraceDB V4.0 FINAL créée avec succès !';
+PRINT '';
+PRINT '  Plan_Fabrication_*    → inchangé';
+PRINT '  Document_VerifMachine_*   → inchangé';
+PRINT '  Document_*            → unifié (Assemblage + PF + CtrlPoste + ResultatCF)';
+PRINT '  Ref_Caracteristique   → LibelleNormalise fourni par le backend C# (pas de colonne calculée)';
+PRINT '  JSON supprimé         → ExtraColonne (EAV) + Libre1..5';
+PRINT '  Triggers              → ISO 9001 uniquement (interdit DELETE physique)';
+PRINT '  Logique métier        → 100% backend C#';
+
 GO

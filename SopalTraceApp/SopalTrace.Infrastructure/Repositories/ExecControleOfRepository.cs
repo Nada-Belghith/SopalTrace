@@ -20,6 +20,7 @@ namespace SopalTrace.Infrastructure.Repositories
         {
             return await _context.ExecControleOfs
                 .Include(x => x.NumeroOfNavigation)
+                    .ThenInclude(n => n.CodeArticleNavigation)
                 .FirstOrDefaultAsync(x => x.Id == id);
         }
     }

@@ -24,4 +24,6 @@ public partial class ExecEchantillonnage
     public int CritereRejetRe { get; set; }
 
     public virtual ExecControleDocumentStatut ExecControleDocumentStatut { get; set; } = null!;
+
+    public virtual ICollection<Instrument> CodeInstruments { get; set; } = new List<Instrument>();
 }

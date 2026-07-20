@@ -19,7 +19,7 @@ public partial class PieceReference
 
     public bool Actif { get; set; }
 
-    public virtual RefFamilleCorp? FamilleCorps { get; set; }
+    public virtual ICollection<DocumentVerifMachineMatricePiece> DocumentVerifMachineMatricePieces { get; set; } = new List<DocumentVerifMachineMatricePiece>();
 
-    public virtual ICollection<PlanVerifMachineMatricePiece> PlanVerifMachineMatricePieces { get; set; } = new List<PlanVerifMachineMatricePiece>();
+    public virtual RefFamilleCorp? FamilleCorps { get; set; }
 }

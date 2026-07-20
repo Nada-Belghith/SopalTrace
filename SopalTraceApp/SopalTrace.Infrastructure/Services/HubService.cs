@@ -88,7 +88,7 @@ public class HubService : IHubService
             ));
         }
 
-        var vmModeles = await _context.PlanVerifMachineEntetes
+        var vmModeles = await _context.DocumentVerifMachineEntetes
             .AsNoTracking()
             .Include(v => v.Formulaire)
             .Where(v => v.Statut == StatutsPlan.Actif || v.Statut == StatutsPlan.Archive || v.Statut == StatutsPlan.Brouillon)
@@ -218,7 +218,7 @@ public class HubService : IHubService
         }
         else if (category == "VM")
         {
-            var m = await _context.PlanVerifMachineEntetes.FindAsync(id);
+            var m = await _context.DocumentVerifMachineEntetes.FindAsync(id);
             if (m is null) return false;
             m.Statut = statut;
         }
@@ -270,7 +270,7 @@ public class HubService : IHubService
         }
         else if (category == "VM")
         {
-            var p = await _context.PlanVerifMachineEntetes.FindAsync(id);
+            var p = await _context.DocumentVerifMachineEntetes.FindAsync(id);
             if (p is null) return false;
 
             if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
@@ -339,22 +339,22 @@ public class HubService : IHubService
         }
         else if (category == "VM")
         {
-            var plan = await _context.PlanVerifMachineEntetes
-                .Include(v => v.PlanVerifMachineLignes)
-                    .ThenInclude(l => l.PlanVerifMachineLigneExtraColonnes)
-                .Include(v => v.PlanVerifMachineFamilles)
+            var plan = await _context.DocumentVerifMachineEntetes
+                .Include(v => v.DocumentVerifMachineLignes)
+                    .ThenInclude(l => l.DocumentVerifMachineLigneExtraColonnes)
+                .Include(v => v.DocumentVerifMachineFamilles)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (plan is null) return false;
             if (plan.Statut != StatutsPlan.Brouillon) return false;
 
-            foreach (var ligne in plan.PlanVerifMachineLignes)
+            foreach (var ligne in plan.DocumentVerifMachineLignes)
             {
-                _context.Set<PlanVerifMachineLigneExtraColonne>().RemoveRange(ligne.PlanVerifMachineLigneExtraColonnes);
+                _context.Set<DocumentVerifMachineLigneExtraColonne>().RemoveRange(ligne.DocumentVerifMachineLigneExtraColonnes);
             }
-            _context.PlanVerifMachineLignes.RemoveRange(plan.PlanVerifMachineLignes);
-            _context.PlanVerifMachineFamilles.RemoveRange(plan.PlanVerifMachineFamilles);
-            _context.PlanVerifMachineEntetes.Remove(plan);
+            _context.DocumentVerifMachineLignes.RemoveRange(plan.DocumentVerifMachineLignes);
+            _context.DocumentVerifMachineFamilles.RemoveRange(plan.DocumentVerifMachineFamilles);
+            _context.DocumentVerifMachineEntetes.Remove(plan);
 
             await _context.SaveChangesAsync();
             return true;

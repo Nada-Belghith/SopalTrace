@@ -147,14 +147,16 @@ INSERT INTO dbo.TypeSection (Code, Libelle) VALUES
 INSERT INTO dbo.NQA (ValeurNQA) VALUES (0.01),(0.015),(0.025),(0.04),(0.065),(0.1),(0.15),(0.25),(0.4),(0.65),(1.0),(1.5),(2.5),(4.0),(6.5),(10.0);
 
 INSERT INTO dbo.Periodicite (Code, Libelle, FrequenceNum, FrequenceUnite, OrdreAffichage) VALUES 
-('DEM', 'Au démarrage', NULL, NULL, 0), 
-('PAU', 'Après la pause', NULL, NULL, 0), 
-('FIN', 'A la fin du poste', NULL, NULL, 0),
 ('SERIE_5P', 'une série de 5 pièces', 5, 'SERIE', 5),
 ('4P_1H', '4 pièces / heure', 4, '1_HEURE', 5),
 ('1P_1H', '1 pièce / heure', 1, '1_HEURE', 5),
 ('100PCT_1H', '100% des pièces/h', 100, 'PCT_HEURE', 5),
 ('1P_4H', '1 pièce / 4 heures', 1, '4_HEURE', 5);
+
+INSERT INTO dbo.PeriodiciteMachine (Code, Libelle, OrdreAffichage) VALUES 
+('DEM', 'Au démarrage', 0), 
+('PAU', 'Après la pause', 0), 
+('FIN', 'A la fin du poste', 0);
 
 INSERT INTO dbo.Ref_RegleEchantillonnage (Code, Libelle) VALUES 
 ('REG-9F43B', 'selon ISO 2859-1 : Tableau 2-A, avec un NQA de 0,65'),

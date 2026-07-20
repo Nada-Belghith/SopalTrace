@@ -2,16 +2,24 @@ import { defineStore } from 'pinia';
 import operateurService from '@/services/operateurService';
 
 export const useOperateurStore = defineStore('operateur', {
-  state: () => ({
-    ofs: [],
-    activeOfContext: {},
-    knownAlerts: new Set(),
-    pollingInterval: null,
-    isPollingPaused: false, // Bloque le rafraîchissement si l'utilisateur est en train de répondre
-    isFirstLoad: true, // Prevents showing toasts for already existing alerts on login
-    alertesParOf: {},  // Stocke les alertes par execControleOfId
-    loadingOfs: false
-  }),
+  state: () => {
+    let savedContext = {};
+    try {
+      const stored = sessionStorage.getItem('activeOfContext');
+      if (stored) savedContext = JSON.parse(stored);
+    } catch (e) { }
+
+    return {
+      ofs: [],
+      activeOfContext: savedContext,
+      knownAlerts: new Set(),
+      pollingInterval: null,
+      isPollingPaused: false, // Bloque le rafraîchissement si l'utilisateur est en train de répondre
+      isFirstLoad: true, // Prevents showing toasts for already existing alerts on login
+      alertesParOf: {},  // Stocke les alertes par execControleOfId
+      loadingOfs: false
+    };
+  },
   actions: {
     async chargerOfs() {
       if (this.isPollingPaused) return;
@@ -109,10 +117,14 @@ export const useOperateurStore = defineStore('operateur', {
     // Définir le contexte actif (quand l'utilisateur ouvre un OF spécifique)
     setActiveOfContext(context) {
       this.activeOfContext = context;
+      try {
+        sessionStorage.setItem('activeOfContext', JSON.stringify(context));
+      } catch (e) { }
     },
 
     clearActiveOfContext() {
       this.activeOfContext = {};
+      sessionStorage.removeItem('activeOfContext');
     }
   }
 });

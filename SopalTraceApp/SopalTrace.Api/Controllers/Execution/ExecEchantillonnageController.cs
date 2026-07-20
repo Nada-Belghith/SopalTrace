@@ -19,11 +19,12 @@ namespace SopalTrace.API.Controllers.Execution
         }
 
         [HttpPost("init/{execControleOfId}")]
-        public async Task<IActionResult> InitPlanPourOf([FromRoute] Guid execControleOfId, [FromQuery] string? posteCode, [FromQuery] int? nbPostes = null)
+        public async Task<IActionResult> InitPlanPourOf([FromRoute] Guid execControleOfId, [FromBody] SopalTrace.Application.DTOs.Execution.InitEchantillonnageRequest request)
         {
             try
             {
-                var result = await _execEchantillonnageService.InitPlanPourOfAsync(execControleOfId, posteCode, nbPostes);
+                request.MatriculeOperateur = User.FindFirst("matricule")?.Value;
+                var result = await _execEchantillonnageService.InitPlanPourOfAsync(execControleOfId, request);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -54,6 +55,20 @@ namespace SopalTrace.API.Controllers.Execution
             {
                 var exists = await _execEchantillonnageService.SourcePlanExistsAsync(execControleOfId);
                 return Ok(new { exists });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdatePlan([FromRoute] Guid id, [FromBody] SopalTrace.Application.DTOs.Execution.ExecEchantillonnageDto request)
+        {
+            try
+            {
+                var result = await _execEchantillonnageService.UpdatePlanAsync(id, request);
+                return Ok(result);
             }
             catch (Exception ex)
             {

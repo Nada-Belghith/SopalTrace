@@ -272,20 +272,43 @@ public class OperateurRepository : IOperateurRepository
     public async Task<ExecControleDocumentStatut?> GetDocumentStatutByIdAsync(Guid statutId)
     {
         return await _context.Set<ExecControleDocumentStatut>()
+            .Include(d => d.ExecControleOf)
+                .ThenInclude(e => e.NumeroOfNavigation)
+                    .ThenInclude(o => o.CodeArticleNavigation)
             .FirstOrDefaultAsync(d => d.Id == statutId);
     }
 
     public void AddExecControleDocumentStatut(ExecControleDocumentStatut statut)
     {
-        _context.Set<ExecControleDocumentStatut>().Add(statut);
+        _context.ExecControleDocumentStatuts.Add(statut);
+    }
+
+    public void UpdateExecControleDocumentStatut(ExecControleDocumentStatut statut)
+    {
+        _context.ExecControleDocumentStatuts.Update(statut);
     }
 
     public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourPosteAsync(string posteCode, string role)
     {
-        // Pour un poste donné et un rôle (ex: VERIF_MACHINE, RESULTAT_CONTROLE_POSTE)
+        // Pour un poste donné et un rôle (ex: RESULTAT_CONTROLE_POSTE)
         return await _context.RefFormulaires
             .Where(f => f.Statut == "ACTIF" && f.Role == role && f.CodeReference.Contains(posteCode))
             .ToListAsync();
+    }
+
+    public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourMachineAsync(string machineCode, string role)
+    {
+        var planActif = await _context.DocumentVerifMachineEntetes
+            .Include(p => p.Formulaire)
+            .Where(p => p.MachineCode == machineCode && p.Statut == "ACTIF")
+            .FirstOrDefaultAsync();
+
+        if (planActif == null || planActif.Formulaire == null)
+        {
+            throw new Exception("Aucun plan de vérification actif n'a été trouvé pour cette machine. Veuillez signaler au superviseur pour le créer.");
+        }
+
+        return new List<RefFormulaire> { planActif.Formulaire };
     }
 
     public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourArticleAsync(string codeArticle, string role)
@@ -328,5 +351,88 @@ public class OperateurRepository : IOperateurRepository
     public void AddExecControleOfPoste(ExecControleOfPoste poste)
     {
         _context.ExecControleOfPostes.Add(poste);
+    }
+
+    public async Task<IEnumerable<Machine>> GetMachinesByPosteAsync(string posteCode)
+    {
+        var poste = await _context.PosteTravails
+            .Include(p => p.CodeMachines)
+            .FirstOrDefaultAsync(p => p.CodePoste == posteCode);
+            
+        if (poste == null) return new List<Machine>();
+        return poste.CodeMachines.Where(m => m.Actif).ToList();
+    }
+
+    public async Task<IEnumerable<Machine>> GetAllMachinesAsync()
+    {
+        return await _context.Machines.Where(m => m.Actif).ToListAsync();
+    }
+
+    public async Task<Dictionary<string, string>> GetMachineLabelsAsync(IEnumerable<string> machineCodes)
+    {
+        return await _context.Machines
+            .Where(m => machineCodes.Contains(m.CodeMachine))
+            .ToDictionaryAsync(m => m.CodeMachine, m => m.Libelle);
+    }
+
+    public async Task<bool> AjouterPostesAsync(Guid execControleOfId, List<string> posteCodes)
+    {
+        var existingPostes = await _context.ExecControleOfPostes
+            .Where(p => p.ExecControleOfId == execControleOfId)
+            .Select(p => p.PosteCode)
+            .ToListAsync();
+
+        var newPostes = posteCodes.Except(existingPostes).ToList();
+        foreach(var p in newPostes)
+        {
+            _context.ExecControleOfPostes.Add(new ExecControleOfPoste
+            {
+                ExecControleOfId = execControleOfId,
+                PosteCode = p
+            });
+        }
+        await SaveChangesAsync();
+        return true;
+    }
+
+
+    public void AddExecVerifMachineReponses(IEnumerable<ExecVerifMachineReponse> reponses)
+    {
+        _context.ExecVerifMachineReponses.AddRange(reponses);
+    }
+
+    public void RemoveExecVerifMachineReponses(IEnumerable<ExecVerifMachineReponse> reponses)
+    {
+        _context.ExecVerifMachineReponses.RemoveRange(reponses);
+    }
+
+    public async Task<List<ExecVerifMachineReponse>> GetExecVerifMachineReponsesAsync(Guid statutId, Guid? periodiciteId = null)
+    {
+        var query = _context.ExecVerifMachineReponses
+            .Where(r => r.ExecControleDocumentStatutId == statutId);
+
+        if (periodiciteId.HasValue)
+        {
+            query = query.Where(r => r.DocumentVerifMachineEcheance.PeriodiciteMachineId == periodiciteId.Value);
+        }
+
+        return await query.ToListAsync();
+    }
+
+    public async Task<List<ExecControleDocumentStatut>> GetDocumentStatutsForMachineAsync(Guid execControleOfId, string machineCode)
+    {
+        return await _context.ExecControleDocumentStatuts
+            .Where(s => s.ExecControleOfId == execControleOfId && s.MachineCode == machineCode && s.TypeDocument == "VERIF_MACHINE")
+            .OrderByDescending(s => s.DateExecution)
+            .ThenBy(s => s.Equipe)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<PeriodiciteMachine>> GetPeriodicitesMachineAsync()
+    {
+        return await _context.PeriodiciteMachines
+            .Where(p => p.Actif)
+            .OrderBy(p => p.OrdreAffichage)
+            .ToListAsync();
     }
 }

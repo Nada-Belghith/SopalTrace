@@ -19,7 +19,7 @@ public partial class ExcelImportService
     protected virtual VerifMachineColumnMapping BuildVMMap(List<IXLRow> rows, int startIdx, string? configurationColonnesJson = null)
     {
         var map = new VerifMachineColumnMapping();
-        var searchRows = rows.Skip(startIdx).Take(8).ToList();
+        var searchRows = rows.Skip(startIdx).Take(20).ToList();
         
         if (!string.IsNullOrWhiteSpace(configurationColonnesJson))
         {
@@ -105,6 +105,57 @@ public partial class ExcelImportService
             }
             if (foundFamiliesInThisRow) break;
         }
+
+        // Empêcher les collisions de colonnes si des mots-clés sont trouvés dans la même colonne
+        if (map.MethodeCol == map.RisqueCol && map.MethodeCol > 0) map.MethodeCol = 0;
+        if (map.PerioCol == map.MethodeCol && map.PerioCol > 0) map.PerioCol = 0;
+        if (map.PerioCol == map.RisqueCol && map.PerioCol > 0) map.PerioCol = 0;
+
+        // Si PerioCol toujours non trouvé, tenter de le détecter via les données
+        if (map.PerioCol == 0)
+        {
+            var dataRows = rows.Skip(startIdx + 8).Take(15).ToList();
+            int risqueCol = map.RisqueCol > 0 ? map.RisqueCol : 1;
+            int methodeCol = map.MethodeCol > 0 ? map.MethodeCol : 2;
+            int minPeCol = methodeCol + 1;
+            int maxPeCol = map.PieceRefStartCol > 0 ? map.PieceRefStartCol - 1 : 9;
+
+            // Parcourir les colonnes candidates entre Méthode et Pièce
+            var colScores = new Dictionary<int, int>();
+            foreach (var dr in dataRows)
+            {
+                for (int ci = minPeCol; ci <= maxPeCol; ci++)
+                {
+                    string v = dr.Cell(ci).IsMerged()
+                        ? dr.Cell(ci).MergedRange().FirstCell().GetString().Trim()
+                        : dr.Cell(ci).GetString().Trim();
+                    if (!string.IsNullOrWhiteSpace(v))
+                    {
+                        string nv = NormalizeForSearch(v);
+                        // Score élevé si le contenu ressemble à une périodicité
+                        if (nv.Contains("demarr") || nv.Contains("demar") || nv.Contains("piece") ||
+                            nv.Contains("quotid") || nv.Contains("semain") || nv.Contains("mensuel") ||
+                            nv.Contains("annuel") || nv.Contains("shift") || nv.Contains("heure") ||
+                            nv.Contains("produc") || nv.Contains("debut") || nv.Contains("chaque"))
+                        {
+                            if (!colScores.ContainsKey(ci)) colScores[ci] = 0;
+                            colScores[ci] += 2;
+                        }
+                        else if (ci != methodeCol && ci != risqueCol)
+                        {
+                            if (!colScores.ContainsKey(ci)) colScores[ci] = 0;
+                            colScores[ci] += 1;
+                        }
+                    }
+                }
+            }
+
+            if (colScores.Count > 0)
+                map.PerioCol = colScores.OrderByDescending(kv => kv.Value).First().Key;
+        }
+
+        Console.WriteLine($"[DEBUG EXCEL MAP] RisqueCol={map.RisqueCol}, MethodeCol={map.MethodeCol}, PerioCol={map.PerioCol}, MoyenDetCol={map.MoyenDetCol}");
+
         return map;
     }
 
@@ -132,10 +183,14 @@ public partial class ExcelImportService
         // Détecter la section initiale à partir des lignes d'en-tête (qui seront sautées par la boucle principale)
         for (int j = 0; j <= map.HeaderBottomRow && j < rows.Count; j++)
         {
-            string txt = NormalizeForSearch(string.Join(" ", rows[j].CellsUsed().Select(c => SafeGetCellValue(c))));
-            bool hasConformiteInitial = MatchesAny(txt, ConformiteKeywords) && !txt.Contains("nonconformit");
-            if (MatchesAny(txt, CaractKeywords) && !hasConformiteInitial) inConformite = false;
-            else if (hasConformiteInitial) inConformite = true;
+            bool hasConformiteInitial = rows[j].CellsUsed().Any(c => 
+             MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), ConformiteKeywords) && 
+             !NormalizeForSearch(SafeGetCellValue(c)).Contains("nonconformit"));
+         bool hasCaractInitial = rows[j].CellsUsed().Any(c => 
+             MatchesAny(NormalizeForSearch(SafeGetCellValue(c)), CaractKeywords));
+
+         if (hasCaractInitial && !hasConformiteInitial) inConformite = false;
+         else if (hasConformiteInitial) inConformite = true;
         }
 
 
@@ -157,9 +212,12 @@ public partial class ExcelImportService
         foreach (var ll in lignesLogiques)
         {
             var pRow = ll.Principale;
+            int actualMethodeCol = map.MethodeCol > 0 ? map.MethodeCol : 2;
+            int actualPerioCol = map.PerioCol > 0 ? map.PerioCol : 4;
+
             string rawColA = SafeGetCellValue(pRow.Cell(map.RisqueCol > 0 ? map.RisqueCol : 1));
-            string rawColB = SafeGetCellValue(pRow.Cell(map.MethodeCol > 0 ? map.MethodeCol : 2));
-            string rawColC = SafeGetCellValue(pRow.Cell(map.PerioCol > 0 ? map.PerioCol : 3));
+            string rawColB = SafeGetCellValue(pRow.Cell(actualMethodeCol));
+            string rawColC = SafeGetCellValue(pRow.Cell(actualPerioCol));
 
             string pFullText = string.Join(" ", pRow.CellsUsed().Select(c => SafeGetCellValue(c)).Where(v => !string.IsNullOrWhiteSpace(v)));
             string normalizedFullText = NormalizeForSearch(pFullText);
@@ -225,8 +283,8 @@ public partial class ExcelImportService
 
             foreach (var sRow in allSubRows)
             {
-                string methode = sRow.TryGetValue(map.MethodeCol > 0 ? map.MethodeCol : 2, out string? m) && !string.IsNullOrWhiteSpace(m) ? m : "";
-                string perio = sRow.TryGetValue(map.PerioCol > 0 ? map.PerioCol : 3, out string? p) && !string.IsNullOrWhiteSpace(p) ? p : "";
+                string methode = sRow.TryGetValue(actualMethodeCol, out string? m) && !string.IsNullOrWhiteSpace(m) ? m : "";
+                string perio = sRow.TryGetValue(actualPerioCol, out string? p) && !string.IsNullOrWhiteSpace(p) ? p : "";
                 string moyenDet = map.MoyenDetCol.HasValue && sRow.TryGetValue(map.MoyenDetCol.Value, out string? md) ? md : "";
 
                 bool hasPieceInRow = map.PieceRefStartCol > 0 && sRow.TryGetValue(map.PieceRefStartCol, out string? pf) && !string.IsNullOrWhiteSpace(pf);
@@ -315,17 +373,24 @@ public partial class ExcelImportService
                         var normalizedPerio = periodiciteLibelle?.Trim();
                         if (!string.IsNullOrEmpty(normalizedPerio))
                         {
-                            if (!_createdPerioCache.TryGetValue(normalizedPerio, out var periodicite))
+                            if (!_createdPerioMachineCache.TryGetValue(normalizedPerio, out var periodicite))
                             {
-                                periodicite = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync(normalizedPerio);
+                                periodicite = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteMachineByLibelleAsync(normalizedPerio);
                                 if (periodicite == null)
                                 {
-                                    periodicite = new Periodicite { Id = Guid.NewGuid(), Code = SafeSubstring(normalizedPerio.Replace(" ", "").ToUpper(), 22) + normalizedPerio.GetHashCode().ToString("X").PadLeft(6, '0').Substring(0, 6), Libelle = SafeSubstring(normalizedPerio, 80), Actif = true };
-                                    await _unitOfWork.DictionnaireQualiteRepository.AddPeriodiciteAsync(periodicite);
+                                    var allPerios = await _unitOfWork.DictionnaireQualiteRepository.GetAllPeriodicitesMachineAsync();
+                                    periodicite = allPerios.FirstOrDefault(p => 
+                                        NormalizeForSearch(p.Libelle).Contains(NormalizeForSearch(normalizedPerio)) ||
+                                        NormalizeForSearch(normalizedPerio).Contains(NormalizeForSearch(p.Libelle)));
+
+                                    if (periodicite == null)
+                                    {
+                                        throw new Exception($"La périodicité '{periodiciteLibelle}' n'est pas reconnue. La création automatique est désactivée. Valeurs acceptées : Au démarrage de la machine, Après la pause, A la fin de poste.");
+                                    }
                                 }
-                                _createdPerioCache[normalizedPerio] = periodicite;
+                                _createdPerioMachineCache[normalizedPerio] = periodicite;
                             }
-                            echeance.PeriodiciteId = periodicite.Id;
+                            echeance.PeriodiciteMachineId = periodicite.Id;
                         }
                         
                         currentLigne.Echeances.Add(echeance);

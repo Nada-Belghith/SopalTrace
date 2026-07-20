@@ -95,11 +95,14 @@ public record ReferentielsResponseDto(
 public record VerifMachineReferentielsDto(
     List<ReferenceItemDto> Machines,
     List<PeriodiciteDto> Periodicites,
+    List<PeriodiciteMachineDto> PeriodicitesMachine,
     List<PieceRefDto> PiecesReferences,
     List<PieceRefDto> FuitesEtalon,
     List<ReferenceItemDto> FamillesCorps,
     List<ReferenceItemDto> MoyensDetection
 );
+
+public record PeriodiciteMachineDto(Guid Id, string Code, string Libelle, int OrdreAffichage, bool Actif);
 
 public record PieceRefDto(
     Guid Id,

@@ -29,9 +29,9 @@ public partial class RefFormulaire
 
     public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
 
+    public virtual ICollection<DocumentVerifMachineEntete> DocumentVerifMachineEntetes { get; set; } = new List<DocumentVerifMachineEntete>();
+
     public virtual ICollection<ModeleFabricationEntete> ModeleFabricationEntetes { get; set; } = new List<ModeleFabricationEntete>();
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
-
-    public virtual ICollection<PlanVerifMachineEntete> PlanVerifMachineEntetes { get; set; } = new List<PlanVerifMachineEntete>();
 }

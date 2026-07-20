@@ -6,7 +6,7 @@
         <i class="ri-add-line"></i> Nouveau Risque
       </button>
     </div>
-    <table class="w-full min-w-[1400px] text-left border-collapse text-sm border-x border-b border-slate-300 rounded-b-lg shadow-sm">
+    <table @keydown.enter.prevent="focusNextInput" class="w-full min-w-[1400px] text-left border-collapse text-sm border-x border-b border-slate-300 rounded-b-lg shadow-sm">
       <thead class="bg-slate-900 text-white text-[11px] uppercase tracking-wider font-bold border-b border-slate-700 text-center">
         
         <!-- HEADER SPÉCIFIQUE POUR LES RISQUES -->
@@ -42,7 +42,15 @@
             <template v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp">
               <th v-for="cCol in getCustomColumnsAfter('risques', 'dp_affichee')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             </template>
-            <th :colspan="hasSubHeaders ? 2 : 1" :rowspan="1" class="p-2 border-r border-slate-700 w-[5%] text-[10px]">Résultats</th>
+            <th :colspan="hasSubHeaders ? 2 : 1" :rowspan="1" class="p-2 border-r border-slate-700 w-[5%] text-[10px]">
+              <div class="flex flex-col items-center gap-1">
+                <span>Résultats</span>
+                <div v-if="props.isExecution && !hasSubHeaders" class="flex gap-1 mt-1">
+                  <button @click="checkAllVisible(true)" class="text-[8px] bg-emerald-900/50 hover:bg-emerald-700 text-emerald-300 px-1 py-0.5 rounded shadow">TOUT C</button>
+                  <button @click="checkAllVisible(false)" class="text-[8px] bg-rose-900/50 hover:bg-rose-700 text-rose-300 px-1 py-0.5 rounded shadow">TOUT NC</button>
+                </div>
+              </div>
+            </th>
             <th v-for="cCol in getCustomColumnsAfter('risques', 'resultat')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
             <th :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[12%] text-[10px]">{{ strategy.isSER05 ? 'Action en cas de non-conformité' : 'Observation en cas de non-conformité' }}</th>
             <th v-for="cCol in getCustomColumnsAfter('risques', 'observation')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
@@ -52,8 +60,18 @@
             <template v-if="hasFamilleHeaders">
               <th v-for="fam in store.familles" :key="fam.id" class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-24">{{ fam.libelle }}</th>
             </template>
-            <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-emerald-400">C</th>
-            <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-rose-400">NC</th>
+            <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-emerald-400">
+              <div class="flex flex-col items-center gap-1">
+                <span>C</span>
+                <button v-if="props.isExecution" @click="checkAllVisible(true)" class="text-[8px] bg-emerald-900/50 hover:bg-emerald-700 text-emerald-300 px-1 py-0.5 rounded shadow">TOUT</button>
+              </div>
+            </th>
+            <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-rose-400">
+              <div class="flex flex-col items-center gap-1">
+                <span>NC</span>
+                <button v-if="props.isExecution" @click="checkAllVisible(false)" class="text-[8px] bg-rose-900/50 hover:bg-rose-700 text-rose-300 px-1 py-0.5 rounded shadow">TOUT</button>
+              </div>
+            </th>
           </tr>
     </thead>
     <tbody class="divide-y divide-slate-100">
@@ -99,12 +117,12 @@
             <td v-if="rInfo.isDynFirst_Perio" :rowspan="rInfo.dynRowspan_Perio" :colspan="(strategy.isMAS26 && store.entete.afficheMoyenDetectionRisques) ? 2 : 1" class="p-3 border-r border-slate-400 bg-slate-100/30 align-top">
               <div class="flex flex-col gap-2">
                   <div class="flex items-center gap-1">
-                      <div v-if="props.isReadOnly" class="text-[11px] font-black uppercase text-slate-700 whitespace-normal leading-tight">
-                           {{ store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (rInfo.group.periodiciteId || '').toString().toLowerCase())?.libelle || store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (rInfo.group.periodiciteId || '').toString().toLowerCase())?.Libelle || '--' }}
+                      <div v-if="props.isReadOnly" class="text-[10px] font-black uppercase text-slate-800">
+                           {{ store.periodicitesMachine.find(p => (p.id || p.Id || '').toString().toLowerCase() === (rInfo.group.periodiciteMachineId || '').toString().toLowerCase())?.libelle || store.periodicitesMachine.find(p => (p.id || p.Id || '').toString().toLowerCase() === (rInfo.group.periodiciteMachineId || '').toString().toLowerCase())?.Libelle || '--' }}
                       </div>
-                      <select v-else :value="rInfo.group.periodiciteId" @change="e => updatePeriodiciteValue(e.target.value, rInfo.dynRowspan_Perio, rowIndex, flattenedRowsRisques)" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm transition-all">
+                      <select v-else v-model="rInfo.group.periodiciteMachineId" @change="e => updatePeriodiciteValue(e.target.value, rInfo.dynRowspan_Perio, rowIndex, flattenedRowsRisques)" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm transition-all">
                           <option value="">-- PERIODE --</option>
-                          <option v-for="p in store.periodicites" :key="p.id" :value="p.id">{{ p.libelle }}</option>
+                          <option v-for="p in store.periodicitesMachine" :key="p.id" :value="p.id">{{ p.libelle }}</option>
                       </select>
                       <button v-if="!props.isReadOnly" @click="store.ajouterGroupPeriodicite(rInfo.ligne)" class="text-blue-600 hover:text-blue-800" title="Ajouter une autre période">
                           <i class="ri-add-circle-fill text-xl"></i>
@@ -123,7 +141,7 @@
 
             <!-- NIVEAU 4 : DÉTAILS -->
             <td v-if="store.entete.afficheMoyenDetectionRisques && !strategy.isMAS26" class="p-2 border-r border-slate-400">
-              <select v-model="rInfo.row.refMoyenDetectionId" :disabled="props.isReadOnly" class="w-full text-xs text-center border-transparent rounded p-1 uppercase focus:border-slate-500 outline-none bg-transparent">
+              <select v-model="rInfo.row.refMoyenDetectionId" :disabled="props.isReadOnly" class="w-full text-xs text-center border-transparent rounded p-1 uppercase focus:border-slate-500 outline-none bg-transparent" :class="{ 'appearance-none': props.isReadOnly }">
                 <option value="">--</option>
                 <option v-for="md in store.moyensDetection" :key="md.id" :value="md.id">{{ md.libelle }}</option>
               </select>
@@ -142,7 +160,7 @@
                 <select :value="store.getPieceValue(rInfo.row, fam.refFamilleCorpsId, 'PRNC') || store.getPieceValue(rInfo.row, fam.refFamilleCorpsId, 'PRC')"
                   @change="e => onPieceSelectChange(e, rInfo.row, fam.refFamilleCorpsId, store.getPieceValue(rInfo.row, fam.refFamilleCorpsId, 'PRC') ? 'PRC' : 'PRNC')"
                   :disabled="props.isReadOnly"
-                  class="w-full text-xs text-center border border-slate-200 rounded p-1 uppercase text-slate-900 font-bold focus:border-slate-500 outline-none bg-white/50 disabled:border-transparent">
+                  class="w-full text-xs text-center border border-slate-200 rounded p-1 uppercase text-slate-900 font-bold focus:border-slate-500 outline-none bg-white/50 disabled:border-transparent" :class="{ 'appearance-none': props.isReadOnly }">
                   <option value="">--</option>
                   <option v-for="pr in store.piecesReference" :key="pr.id" :value="pr.id">{{ pr.code }}</option>
                   <option v-if="!props.isReadOnly" value="__ADD__" class="text-emerald-700 font-black">+ Ajouter...</option>
@@ -154,7 +172,7 @@
                 <select :value="store.getPieceValue(rInfo.row, null, 'PRNC') || store.getPieceValue(rInfo.row, null, 'PRC')"
                   @change="e => onPieceSelectChange(e, rInfo.row, null, store.getPieceValue(rInfo.row, null, 'PRC') ? 'PRC' : 'PRNC')"
                   :disabled="props.isReadOnly"
-                  class="w-full text-xs text-center border rounded p-1 uppercase focus:border-slate-500 outline-none bg-transparent disabled:border-transparent">
+                  class="w-full text-xs text-center border rounded p-1 uppercase focus:border-slate-500 outline-none bg-transparent disabled:border-transparent" :class="{ 'appearance-none': props.isReadOnly }">
                   <option value="">--</option>
                   <option v-for="pr in store.piecesReference" :key="pr.id" :value="pr.id">{{ pr.code }}</option>
                   <option v-if="!props.isReadOnly" value="__ADD__" class="text-emerald-700 font-black">+ Ajouter...</option>
@@ -174,7 +192,7 @@
               <select :value="getFuiteValue(rInfo.row)"
                 @change="e => onFuiteSelectChange(e, rInfo.row)"
                 :disabled="props.isReadOnly"
-                class="w-full text-xs text-center border rounded p-1 text-slate-900 focus:border-slate-500 uppercase outline-none bg-transparent disabled:border-transparent">
+                class="w-full text-xs text-center border rounded p-1 text-slate-900 focus:border-slate-500 uppercase outline-none bg-transparent disabled:border-transparent" :class="{ 'appearance-none': props.isReadOnly }">
                 <option value="">--</option>
                 <option v-for="pr in store.fuitesEtalon" :key="pr.id" :value="pr.id">{{ pr.code }}</option>
                 <option v-if="!props.isReadOnly" value="__ADD__" class="text-emerald-700 font-black">+ Ajouter...</option>
@@ -190,7 +208,14 @@
 </template>
 
             <!-- COLONNES OPÉRATEUR -->
-            <td v-if="!strategy.hidePressionAndDp" class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px]">Saisi par l'opérateur</td>
+            <td v-if="!strategy.hidePressionAndDp" class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+              <template v-if="props.isExecution">
+                <InputNumber v-model="getReponse(rInfo.row.id).pressionEntree" mode="decimal" :minFractionDigits="1" :maxFractionDigits="3" class="w-full text-xs" inputClass="p-1 text-center w-full" />
+              </template>
+              <template v-else>
+                <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
+              </template>
+            </td>
             <!-- CUSTOM après pression_entree -->
             <template v-for="cCol in getCustomColumnsAfter('risques', 'pression_entree')" :key="cCol.key">
   <td v-if="rInfo[`isDynFirst_${cCol.key}`]" :rowspan="rInfo[`dynRowspan_${cCol.key}`]" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
@@ -198,7 +223,14 @@
     <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(rInfo.ligne)[cCol.key] || '--' }}</div>
   </td>
 </template>
-            <td v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp" class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px]">Saisi par l'opérateur</td>
+            <td v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp" class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+              <template v-if="props.isExecution">
+                <InputNumber v-model="getReponse(rInfo.row.id).fuiteAffichee" mode="decimal" :minFractionDigits="0" :maxFractionDigits="3" class="w-full text-xs" inputClass="p-1 text-center w-full" />
+              </template>
+              <template v-else>
+                <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
+              </template>
+            </td>
             <!-- CUSTOM après dp_affichee -->
             <template v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp">
               <template v-for="cCol in getCustomColumnsAfter('risques', 'dp_affichee')" :key="cCol.key">
@@ -209,11 +241,35 @@
               </template>
             </template>
             <template v-if="hasSubHeaders">
-              <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center"></td>
-              <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center"></td>
+              <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+                <template v-if="props.isExecution">
+                  <div class="flex justify-center"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="true" :name="'res_'+rInfo.row.id" /></div>
+                </template>
+              </td>
+              <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+                <template v-if="props.isExecution">
+                  <div class="flex justify-center"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="false" :name="'res_'+rInfo.row.id" /></div>
+                </template>
+              </td>
             </template>
             <template v-else>
-              <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px] font-bold">C / NC</td>
+              <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+                <template v-if="props.isExecution">
+                   <div class="flex items-center justify-center gap-2">
+                     <div class="flex items-center gap-1">
+                       <RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="true" :name="'res_'+rInfo.row.id" />
+                       <label class="text-[10px] text-green-600 font-bold m-0 cursor-pointer" @click="getReponse(rInfo.row.id).conforme = true">C</label>
+                     </div>
+                     <div class="flex items-center gap-1">
+                       <RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="false" :name="'res_'+rInfo.row.id" />
+                       <label class="text-[10px] text-red-600 font-bold m-0 cursor-pointer" @click="getReponse(rInfo.row.id).conforme = false">NC</label>
+                     </div>
+                   </div>
+                </template>
+                <template v-else>
+                  <span class="text-slate-400 italic text-[10px] font-bold">C / NC</span>
+                </template>
+              </td>
             </template>
             <!-- CUSTOM après resultat -->
             <template v-for="cCol in getCustomColumnsAfter('risques', 'resultat')" :key="cCol.key">
@@ -222,7 +278,14 @@
     <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(rInfo.ligne)[cCol.key] || '--' }}</div>
   </td>
 </template>
-            <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px]">Saisi par l'opérateur</td>
+            <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+              <template v-if="props.isExecution">
+                <InputText v-model="getReponse(rInfo.row.id).observation" :disabled="getReponse(rInfo.row.id).conforme === true" class="w-full text-xs p-1" placeholder="Obs..." />
+              </template>
+              <template v-else>
+                <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
+              </template>
+            </td>
             <!-- CUSTOM après observation -->
             <template v-for="cCol in getCustomColumnsAfter('risques', 'observation')" :key="cCol.key">
   <td v-if="rInfo[`isDynFirst_${cCol.key}`]" :rowspan="rInfo[`dynRowspan_${cCol.key}`]" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
@@ -255,9 +318,15 @@
 <script setup>
 import { computed } from 'vue';
 import { useVerifMachineTable } from '../composables/useVerifMachineTable';
+import InputNumber from 'primevue/inputnumber';
+import InputText from 'primevue/inputtext';
+import RadioButton from 'primevue/radiobutton';
 
 const props = defineProps({
-  isReadOnly: { type: Boolean, default: false }
+  isReadOnly: { type: Boolean, default: false },
+  isExecution: { type: Boolean, default: false },
+  execReponses: { type: Array, default: () => [] },
+  selectedPeriodiciteId: { type: String, default: null }
 });
 
 const emit = defineEmits(['add-piece']);
@@ -273,12 +342,48 @@ const {
   setFuiteValue
 } = useVerifMachineTable();
 
+const getReponse = (echeanceId) => {
+  if (!echeanceId) return {};
+  let r = props.execReponses.find(x => x.documentVerifMachineEcheanceId === echeanceId);
+  if (!r) {
+    r = { documentVerifMachineEcheanceId: echeanceId, pressionEntree: null, fuiteAffichee: null, conforme: null, observation: '' };
+    props.execReponses.push(r);
+  }
+  return r;
+}
+
+const checkAllVisible = (val) => {
+  if (!props.isExecution) return;
+  flattenedRowsRisques.value.forEach(rInfo => {
+    if (rInfo.row && rInfo.row.id) {
+      getReponse(rInfo.row.id).conforme = val;
+    }
+  });
+};
+
+const focusNextInput = (e) => {
+  if (!e.currentTarget) return;
+  const focusable = Array.from(e.currentTarget.querySelectorAll('input:not([disabled]), textarea:not([disabled]), select:not([disabled])'))
+    .filter(el => el.offsetParent !== null && el.tabIndex >= 0);
+  
+  const index = focusable.indexOf(e.target);
+  if (index > -1 && index < focusable.length - 1) {
+    focusable[index + 1].focus();
+    if (typeof focusable[index + 1].select === 'function') {
+      try { focusable[index + 1].select(); } catch (err) {}
+    }
+  }
+};
+
 // --- Computed pour l'aplatissement du tableau Risques ---
 const flattenedRowsRisques = computed(() => {
     let allTuples = [];
     if (store.lignesRisques && store.lignesRisques.length > 0) {
       store.lignesRisques.forEach(ligne => {
         ligne.groups.forEach(group => {
+          if (props.selectedPeriodiciteId && group.periodiciteMachineId !== props.selectedPeriodiciteId) {
+             return;
+          }
           group.rows.forEach(row => {
             allTuples.push({ ligne, group, row });
           });
@@ -289,13 +394,13 @@ const flattenedRowsRisques = computed(() => {
         const perioOrder = [];
         store.lignesRisques.forEach(l => {
             l.groups.forEach(g => {
-                if (!perioOrder.includes(g.periodiciteId)) {
-                    perioOrder.push(g.periodiciteId);
+                if (!perioOrder.includes(g.periodiciteMachineId)) {
+                    perioOrder.push(g.periodiciteMachineId);
                 }
             });
         });
         allTuples.sort((a, b) => {
-            return perioOrder.indexOf(a.group.periodiciteId) - perioOrder.indexOf(b.group.periodiciteId);
+            return perioOrder.indexOf(a.group.periodiciteMachineId) - perioOrder.indexOf(b.group.periodiciteMachineId);
         });
       }
     }
@@ -355,7 +460,7 @@ const flattenedRowsRisques = computed(() => {
       let startIdxPerio = 0;
       for (let i = 0; i < allTuples.length; i++) {
           
-          const val = allTuples[i].group.periodiciteId;
+          const val = allTuples[i].group.periodiciteMachineId;
           if (i === 0) {
               currentPerioId = val;
               allTuples[i].isDynFirst_Perio = true;
@@ -429,28 +534,36 @@ const flattenedRowsRisques = computed(() => {
 
 const updateCustomColumnValue = (key, newValue, rowspan, startIdx, rowsArray) => {
     for (let i = 0; i < rowspan; i++) {
-        const targetLigne = rowsArray[startIdx + i].ligne;
-        ensureColonnes(targetLigne)[key] = newValue;
+        const row = rowsArray[startIdx + i];
+        if (row && row.ligne) {
+            ensureColonnes(row.ligne)[key] = newValue;
+        }
     }
 };
 
 const updateRisqueValue = (newValue, rowspan, startIdx, rowsArray) => {
     for (let i = 0; i < rowspan; i++) {
-        rowsArray[startIdx + i].ligne.libelleRisque = newValue;
+        const row = rowsArray[startIdx + i];
+        if (row && row.ligne) {
+            row.ligne.libelleRisque = newValue;
+        }
     }
 };
 
 const updateMethodeValue = (newValue, rowspan, startIdx, rowsArray) => {
     for (let i = 0; i < rowspan; i++) {
-        rowsArray[startIdx + i].ligne.libelleMethode = newValue;
+        const row = rowsArray[startIdx + i];
+        if (row && row.ligne) {
+            row.ligne.libelleMethode = newValue;
+        }
     }
 };
 
 const updatePeriodiciteValue = (newEcheance, rowspan, startIdx, rowsArray) => {
     for (let i = 0; i < rowspan; i++) {
-        const targetGroup = rowsArray[startIdx + i].group;
-        if (targetGroup) {
-             targetGroup.echeance = newEcheance ? { ...newEcheance } : null;
+        const row = rowsArray[startIdx + i];
+        if (row && row.group) {
+            row.group.periodiciteMachineId = newEcheance;
         }
     }
 };

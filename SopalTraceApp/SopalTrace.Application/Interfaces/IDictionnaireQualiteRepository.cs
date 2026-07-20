@@ -9,6 +9,10 @@ public interface IDictionnaireQualiteRepository
     Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle);
     Task<Periodicite?> GetPeriodiciteByCodeAsync(string code);
     Task AddPeriodiciteAsync(Periodicite entite);
+
+    Task<PeriodiciteMachine?> GetPeriodiciteMachineByLibelleAsync(string libelle);
+    Task<PeriodiciteMachine?> GetPeriodiciteMachineByCodeAsync(string code);
+    Task AddPeriodiciteMachineAsync(PeriodiciteMachine entite);
     Task<TypeSection?> GetTypeSectionByLibelleAsync(string libelle);
     Task AddTypeSectionAsync(TypeSection entite);
     Task<System.Collections.Generic.List<TypeSection>> GetAllTypeSectionsAsync();
@@ -49,7 +53,9 @@ public interface IDictionnaireQualiteRepository
     Task<System.Collections.Generic.List<MoyenControle>> GetActiveMoyenControlesAsync();
     Task<System.Collections.Generic.List<PosteTravail>> GetActivePosteTravailsAsync();
     Task<System.Collections.Generic.List<Periodicite>> GetAllPeriodicitesAsync();
+    Task<System.Collections.Generic.List<PeriodiciteMachine>> GetAllPeriodicitesMachineAsync();
     Task<System.Collections.Generic.List<Instrument>> GetActiveInstrumentsAsync();
+    Task<System.Collections.Generic.List<Instrument>> GetInstrumentsByCodesAsync(System.Collections.Generic.List<string> codes);
     Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync();
     Task AddNqaAsync(Nqa entite);
     Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync();

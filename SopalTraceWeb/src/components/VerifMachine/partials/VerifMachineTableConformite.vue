@@ -86,8 +86,7 @@
             <!-- NIVEAU 1 : RISQUE (Rowspan global) -->
             <td v-if="gIdx === 0 && rIdx === 0" :rowspan="getLigneTotalRows(ligne)" class="p-2 border-r border-slate-400 align-top bg-white">
               <textarea 
-                :value="ligne.libelleRisque" 
-                @input="e => onUpdateRisqueName(ligne.libelleRisque, e.target.value)"
+                v-model="ligne.libelleRisque" 
                 rows="2" :disabled="props.isReadOnly"
                 class="w-full text-xs font-bold text-slate-900 border border-slate-200 focus:border-slate-400 rounded p-1 outline-none resize-none disabled:bg-transparent disabled:border-transparent"></textarea>
             </td>
@@ -116,18 +115,16 @@
             <!-- NIVEAU 2 : PÉRIODICITÉ -->
             <td v-if="rIdx === 0" :rowspan="group.rows.length" class="p-3 border-r border-slate-400 bg-slate-100/30 align-top">
               <div class="flex flex-col gap-2">
-                  <div class="flex items-center gap-1">
-                      <div v-if="props.isReadOnly" class="text-[11px] font-black uppercase text-slate-700 whitespace-normal leading-tight px-2 py-1">
-                          {{ store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteId || '').toString().toLowerCase())?.libelle || store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteId || '').toString().toLowerCase())?.Libelle || '--' }}
-                      </div>
-                      <select v-else v-model="group.periodiciteId" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm">
-                          <option value="">-- PERIODE --</option>
-                          <option v-for="p in store.periodicites" :key="p.id" :value="p.id">{{ p.libelle }}</option>
-                      </select>
-                      <button v-if="!props.isReadOnly" @click="store.ajouterGroupPeriodicite(ligne)" class="text-blue-600 hover:text-blue-800" title="Ajouter une autre période">
-                          <i class="ri-add-circle-fill text-xl"></i>
-                      </button>
-                  </div>
+                <div v-if="props.isReadOnly" class="text-[10px] font-black uppercase text-slate-800">
+                  {{ store.periodicitesMachine.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteMachineId || '').toString().toLowerCase())?.libelle || store.periodicitesMachine.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteMachineId || '').toString().toLowerCase())?.Libelle || '--' }}
+                </div>
+                <select v-else v-model="group.periodiciteMachineId" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm">
+                  <option value="">-- PERIODE --</option>
+                  <option v-for="p in store.periodicitesMachine" :key="p.id" :value="p.id">{{ p.libelle }}</option>
+                </select>
+                <button v-if="!props.isReadOnly" @click="store.ajouterGroupPeriodicite(ligne)" class="text-blue-600 hover:text-blue-800" title="Ajouter une autre période">
+                  <i class="ri-add-circle-fill text-xl"></i>
+                </button>
               </div>
             </td>
 

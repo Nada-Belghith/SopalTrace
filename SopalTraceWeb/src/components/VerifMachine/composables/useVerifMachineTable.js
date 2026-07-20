@@ -55,16 +55,7 @@ export function useVerifMachineTable() {
     });
 
     const onUpdateRisqueName = (oldValue, newValue) => {
-        store.lignesRisques.forEach(l => {
-            if (l.libelleRisque === oldValue) {
-                l.libelleRisque = newValue;
-            }
-        });
-        store.lignesConformite.forEach(l => {
-            if (l.libelleRisque === oldValue) {
-                l.libelleRisque = newValue;
-            }
-        });
+        // Obsolete function, logic removed.
     };
 
     const getFuiteValue = (row) => {

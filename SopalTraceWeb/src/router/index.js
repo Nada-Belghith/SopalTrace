@@ -201,6 +201,16 @@ const router = createRouter({
           path: 'echantillonnage/:execControleOfId',
           name: 'exec-echantillonnage',
           component: () => import('@/views/Operateur/ExecEchantillonnageView.vue')
+        },
+        {
+          path: 'verif-machine/:id',
+          name: 'operateur-vm-view',
+          component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue')
+        },
+        {
+          path: 'verif-machine-exec/:id',
+          name: 'operateur-vm-exec',
+          component: () => import('@/components/Operateur/OperateurVerifMachineExec.vue')
         }
       ]
     },

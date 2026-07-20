@@ -175,11 +175,12 @@ public class OperateurController : ControllerBase
     }
 
     [HttpPost("of/{execControleOfId:guid}/assemblage-documents/init/{typeDocument}")]
-    public async Task<IActionResult> InitDocumentsAssemblage(Guid execControleOfId, string typeDocument, [FromQuery] string? posteCode)
+    public async Task<IActionResult> InitDocumentsAssemblage(Guid execControleOfId, string typeDocument, [FromQuery] string? posteCode, [FromQuery] string? machineCode, [FromQuery] string? equipe)
     {
         try
         {
-            var result = await _operateurService.InitDocumentsAsync(execControleOfId, typeDocument, posteCode);
+            var matricule = User.FindFirst("matricule")?.Value;
+            var result = await _operateurService.InitDocumentsAsync(execControleOfId, typeDocument, posteCode, machineCode, equipe, matricule);
             return Ok(new { initialized = result });
         }
         catch (Exception ex)
@@ -195,10 +196,25 @@ public class OperateurController : ControllerBase
         return Ok(statuts);
     }
 
+    [HttpGet("postes/{posteCode}/machines")]
+    public async Task<IActionResult> GetMachinesByPoste(string posteCode)
+    {
+        var machines = await _operateurService.GetMachinesByPosteAsync(posteCode);
+        return Ok(machines);
+    }
+
+    [HttpGet("machines")]
+    public async Task<IActionResult> GetAllMachines()
+    {
+        var machines = await _operateurService.GetAllMachinesAsync();
+        return Ok(machines);
+    }
+
     [HttpPut("assemblage-documents/{statutId:guid}/terminer")]
     public async Task<IActionResult> MarquerDocumentTermine(Guid statutId)
     {
-        var result = await _operateurService.MarquerDocumentTermineAsync(statutId);
+        var matricule = User.FindFirst("matricule")?.Value;
+        var result = await _operateurService.MarquerDocumentTermineAsync(statutId, matricule);
         if (!result) return NotFound(new { Message = "Statut document introuvable." });
         return Ok();
     }
@@ -225,6 +241,62 @@ public class OperateurController : ControllerBase
             var result = await _operateurService.AjouterPostesAsync(execControleOfId, posteCodes);
             if (!result) return NotFound(new { Message = "Exécution introuvable." });
             return Ok();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    // --- Endpoints pour Vérification Machine ---
+    [HttpGet("verif-machine/periodicites")]
+    public async Task<IActionResult> GetPeriodicitesMachine()
+    {
+        var periodes = await _operateurService.GetPeriodicitesMachineAsync();
+        return Ok(periodes);
+    }
+
+    [HttpGet("verif-machine/statut/{statutId:guid}")]
+    public async Task<IActionResult> GetAllExecVerifMachine(Guid statutId)
+    {
+        var exec = await _operateurService.GetExecVerifMachineAsync(statutId, null);
+        return Ok(exec);
+    }
+
+    [HttpGet("verif-machine/statut/{statutId:guid}/periodicite/{periodiciteId:guid}")]
+    public async Task<IActionResult> GetExecVerifMachine(Guid statutId, Guid periodiciteId)
+    {
+        var exec = await _operateurService.GetExecVerifMachineAsync(statutId, periodiciteId);
+        return Ok(exec);
+    }
+
+    [HttpPost("verif-machine/save")]
+    public async Task<IActionResult> SaveExecVerifMachine([FromBody] SopalTrace.Application.Dtos.VerifMachine.SaveExecVerifMachineRequest request)
+    {
+        try
+        {
+            var matricule = User.FindFirst("matricule")?.Value;
+            if (string.IsNullOrEmpty(request.MatriculeOperateur) && !string.IsNullOrEmpty(matricule)) 
+            {
+                request.MatriculeOperateur = matricule;
+            }
+
+            var result = await _operateurService.SaveExecVerifMachineAsync(request);
+            return Ok(new { success = result });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    [HttpPut("of/{execControleOfId}/machine/{machineCode}/terminer-tout")]
+    public async Task<IActionResult> TerminerToutDocumentsMachine(Guid execControleOfId, string machineCode)
+    {
+        try
+        {
+            var result = await _operateurService.TerminerToutDocumentsMachineAsync(execControleOfId, machineCode);
+            return Ok(new { success = result });
         }
         catch (Exception ex)
         {

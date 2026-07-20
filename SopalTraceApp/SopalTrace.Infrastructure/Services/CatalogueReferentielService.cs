@@ -150,6 +150,12 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             .Select(p => new PeriodiciteDto(p.Id, p.Code, p.Libelle, p.FrequenceNum, p.FrequenceUnite, p.OrdreAffichage, true))
             .ToList();
 
+        var periodicitesMachine = (await _repository.GetAllPeriodicitesMachineAsync())
+            .Where(p => p.Actif)
+            .OrderBy(p => p.OrdreAffichage)
+            .Select(p => new PeriodiciteMachineDto(p.Id, p.Code, p.Libelle, p.OrdreAffichage, true))
+            .ToList();
+
         var allPieces = await _repository.GetActivePieceReferencesAsync();
         var piecesRef = allPieces.Where(p => p.TypePiece == "PRC" || p.TypePiece == "PRNC")
                                  .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.FamilleDesc, p.TypePiece)).ToList();
@@ -166,7 +172,15 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             .Select(m => new ReferenceItemDto(m.Id, m.Code, m.Designation, true, null))
             .ToList();
 
-        return new VerifMachineReferentielsDto(machines, periodicites, piecesRef, fuitesEtalon, famillesCorps, moyensDetection);
+        return new VerifMachineReferentielsDto(machines, periodicites, periodicitesMachine, piecesRef, fuitesEtalon, famillesCorps, moyensDetection);
+    }
+
+    public async Task<System.Collections.Generic.IEnumerable<InstrumentDto>> GetInstrumentsAsync()
+    {
+        var instruments = (await _repository.GetActiveInstrumentsAsync())
+            .Select(x => new InstrumentDto(x.CodeInstrument, x.Designation, true))
+            .ToList();
+        return instruments;
     }
 
     public async Task<ArticleDto?> GetArticleInfosAsync(string codeArticle)

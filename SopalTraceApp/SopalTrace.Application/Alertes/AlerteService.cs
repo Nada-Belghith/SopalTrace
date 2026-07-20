@@ -26,7 +26,7 @@ public class AlerteService<TContexte>
     public async Task DeclencherAsync(TContexte contexte)
     {
         var cle = _definition.ExtraireCleEntite(contexte);
-        var seuil = DateTime.UtcNow - _definition.FenetreAntiSpam;
+        var seuil = DateTime.Now - _definition.FenetreAntiSpam;
 
         var dejaAlerte = await _unitOfWork.AlerteRepository
             .ExisteNonResolueDepuisAsync(_definition.TypeAlerte, cle, seuil);

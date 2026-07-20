@@ -23,9 +23,17 @@ public interface IOperateurService
     
     // Nouveaux endpoints pour Assemblage
     Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request);
-    Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument, string? posteCode);
+    Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument, string? posteCode, string? machineCode = null, string? equipe = null, string? matricule = null);
     Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId);
-    Task<bool> MarquerDocumentTermineAsync(Guid statutDocumentId);
+    Task<bool> MarquerDocumentTermineAsync(Guid statutId, string? matricule = null);
+    Task<IEnumerable<MachineDto>> GetMachinesByPosteAsync(string posteCode);
+    Task<IEnumerable<MachineDto>> GetAllMachinesAsync();
     Task<IEnumerable<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync();
     Task<bool> AjouterPostesAsync(Guid execControleOfId, List<string> posteCodes);
+
+    // Verif Machine Exec
+    Task<SopalTrace.Application.Dtos.VerifMachine.ExecVerifMachineSessionDto> GetExecVerifMachineAsync(Guid statutId, Guid? periodiciteId = null);
+    Task<bool> SaveExecVerifMachineAsync(SopalTrace.Application.Dtos.VerifMachine.SaveExecVerifMachineRequest request);
+    Task<bool> TerminerToutDocumentsMachineAsync(Guid execControleOfId, string machineCode);
+    Task<IEnumerable<object>> GetPeriodicitesMachineAsync();
 }
