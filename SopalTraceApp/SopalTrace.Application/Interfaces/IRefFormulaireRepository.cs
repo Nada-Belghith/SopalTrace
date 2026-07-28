@@ -14,8 +14,8 @@ public interface IRefFormulaireRepository
     Task<System.Collections.Generic.IEnumerable<RefFormulaire>> GetFormulairesByRoleAsync(string role);
     Task<int> GetMaxVersionByCodeReferenceAsync(string codeReference);
     Task UpdateStatutAsync(Guid formulaireId, string statut);
-    Task SyncColonnesAsync(string codeReference, System.Collections.Generic.List<SopalTrace.Application.Helpers.ColonneJsonDto> parsedCols);
-    Task<System.Collections.Generic.List<RefFormulaireColonneDef>> GetColonnesActivesByCodeReferenceAsync(string codeReference);
-    Task<System.Collections.Generic.List<RefFormulaireEquipe>> GetEquipesActivesByCodeReferenceAsync(string codeReference);
-    Task SyncEquipesAsync(string codeReference, System.Collections.Generic.List<SopalTrace.Application.Helpers.EquipeJsonDto> parsedEquipes);
+    Task SyncColonnesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.ColonneJsonDto> parsedCols);
+    Task<System.Collections.Generic.List<RefFormulaireColonneDef>> GetColonnesActivesByFormulaireIdAsync(Guid formulaireId);
+    Task<System.Collections.Generic.List<RefFormulaireEquipe>> GetEquipesActivesByFormulaireIdAsync(Guid formulaireId);
+    Task SyncEquipesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.EquipeJsonDto> parsedEquipes);
 }

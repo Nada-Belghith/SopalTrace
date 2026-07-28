@@ -15,7 +15,8 @@ export const controlePosteService = {
 
   getControlePoste: (id) => documentService.getById(id).then(data => ({ data })),
 
-  mettreAJourPlan: (id, payload) => apiClient.put(`/Document/${id}`, payload),
+  mettreAJourPlan: (id, payload) => documentService.updateDocument(id, payload),
+  mettreAJourControlePoste: (id, payload) => documentService.updateDocument(id, payload),
 
   creerNouvelleVersion: (payload) => {
     payload.typeDocumentCode = 'CTRL_POSTE';

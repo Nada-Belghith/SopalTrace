@@ -21,6 +21,11 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
 
     public async Task<List<string>> ResoudreDestinatairesAsync(PlanManquantContexte contexte)
     {
+        if (string.IsNullOrWhiteSpace(contexte.FamilleArticle))
+        {
+            contexte.FamilleArticle = await _unitOfWork.DictionnaireQualiteRepository.GetFamilleArticleLibelleAsync(contexte.ArticleCode, contexte.NumeroOf);
+        }
+
         if (contexte.OperationCode == "ASS")
         {
             return await _unitOfWork.UserRepository.GetEmailsByRoleAsync("SUPERVISEUR_QUALITE");
@@ -41,6 +46,10 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
             ? $"<li><b>OF / Produit :</b> {contexte.NumeroOf ?? contexte.ArticleCode} — {contexte.DesignationArticle ?? string.Empty}</li>" 
             : $"<li><b>Article :</b> {contexte.ArticleCode}</li>";
             
+        var familleLigne = !string.IsNullOrWhiteSpace(contexte.FamilleArticle)
+            ? $"<li><b>Famille de l'article :</b> {contexte.FamilleArticle}</li>"
+            : string.Empty;
+
         var machineText = string.IsNullOrEmpty(contexte.MachineCode) ? contexte.PosteCode : $"{contexte.PosteCode} / {contexte.MachineCode}";
 
         return $@"
@@ -52,6 +61,7 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
         <li><b>Opération :</b> {contexte.OperationCode}</li>
         <li><b>Poste / Machine :</b> {machineText}</li>
         {articleLigne}
+        {familleLigne}
     </ul>
     <p><b>Description du problème / Note de l'opérateur :</b><br/>
     <i>{contexte.DescriptionProbleme}</i></p>

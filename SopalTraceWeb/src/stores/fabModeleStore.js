@@ -80,6 +80,19 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     applyFormulaireConfiguration(null, true);
   };
 
+  const applyFormulaireVersionConfiguration = (codeReference, version) => {
+    if (!codeReference || version === undefined || version === null) return;
+    const refs = formulairesReferences.value || [];
+    const refObj = refs.find(r => (r.codeReference || '').trim() === codeReference.trim() && (r.version === version || r.Version === version));
+    if (refObj) {
+      entete.value.refFormulaireCodeReference = refObj.codeReference || '';
+      entete.value.configurationColonnes = parseConfigurationColonnes(getFormulaireConfigJson(refObj));
+    } else {
+      // Fallback
+      applyFormulaireConfiguration(codeReference, true);
+    }
+  };
+
   /** Colonnes PRC/PRNC : Retourner les colonnes de l'entete si elles existent, sinon celles du formulaire actif */
   const effectiveConfigurationColonnes = computed(() => {
     if (entete.value.configurationColonnes !== undefined && entete.value.configurationColonnes !== null) {
@@ -347,6 +360,23 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     }
   };
 
+
+
+  const restaurerModele = async (motif) => {
+    if (!entete.value.id) return;
+    isLoading.value = true;
+    try {
+      const payload = {
+        documentArchiveId: entete.value.id,
+        motifRestoration: motif
+      };
+      const response = await fabModeleService.restoreModele(payload);
+      return response.data;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   const importerDepuisExcel = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -426,8 +456,9 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     fetchFormulairesReferences,
     applyFormulaireConfiguration,
     syncConfigurationFromFormulaire,
+    applyFormulaireVersionConfiguration,
     addSection,
-    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft, importerDepuisExcel,
+    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft, restaurerModele, importerDepuisExcel,
     isBeingLoaded
   };
 });

@@ -335,4 +335,43 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
             .Take(maxResults)
             .ToListAsync();
     }
+
+    public async Task<string?> GetFamilleArticleLibelleAsync(string? codeArticle, string? numeroOf = null)
+    {
+        if (string.IsNullOrWhiteSpace(codeArticle) || codeArticle == "Inconnu")
+        {
+            if (!string.IsNullOrWhiteSpace(numeroOf))
+            {
+                var mfg = await _context.MfgheadOrdreFabrications.FirstOrDefaultAsync(m => m.NumeroOf == numeroOf);
+                if (mfg != null && !string.IsNullOrWhiteSpace(mfg.CodeArticle))
+                {
+                    codeArticle = mfg.CodeArticle;
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(codeArticle) || codeArticle == "Inconnu")
+            return null;
+
+        var codeNormalise = codeArticle.Trim();
+
+        // 1. Chercher dans ProduitFini
+        var pf = await _context.ProduitFinis
+            .Include(p => p.FamilleProduitFiniCodeNavigation)
+            .FirstOrDefaultAsync(p => p.CodeArticle == codeNormalise);
+
+        if (pf != null)
+        {
+            if (pf.FamilleProduitFiniCodeNavigation != null && !string.IsNullOrWhiteSpace(pf.FamilleProduitFiniCodeNavigation.Designation))
+            {
+                return $"{pf.FamilleProduitFiniCode} — {pf.FamilleProduitFiniCodeNavigation.Designation}";
+            }
+            if (!string.IsNullOrWhiteSpace(pf.FamilleProduitFiniCode))
+            {
+                return pf.FamilleProduitFiniCode;
+            }
+        }
+
+        return null;
+    }
 }

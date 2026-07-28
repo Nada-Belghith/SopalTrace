@@ -37,7 +37,7 @@ public class RefFormulaireService : IRefFormulaireService
         var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(id);
         if (form == null) throw new InvalidOperationException("Formulaire introuvable.");
 
-        var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference);
+        var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id);
 
         return new RefFormulaireDto
         {
@@ -58,7 +58,7 @@ public class RefFormulaireService : IRefFormulaireService
         if (form == null) return false;
 
         var parsedCols = ColonneJsonMapper.Deserialize(dto.ConfigurationStructureJson);
-        await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(form.CodeReference, parsedCols);
+        await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(form.Id, parsedCols);
 
         await _unitOfWork.RefFormulaireRepository.UpdateAsync(form);
         await _unitOfWork.CommitAsync();
@@ -72,7 +72,7 @@ public class RefFormulaireService : IRefFormulaireService
             var oldForm = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(dto.AncienId);
             if (oldForm == null) throw new InvalidOperationException("Ancien formulaire introuvable.");
 
-            var oldCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(oldForm.CodeReference);
+            var oldCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(oldForm.Id);
 
             // Archiver l'ancien
             await _unitOfWork.RefFormulaireRepository.UpdateStatutAsync(oldForm.Id, StatutsPlan.Archive);
@@ -90,7 +90,7 @@ public class RefFormulaireService : IRefFormulaireService
             };
 
             var parsedCols = ColonneJsonMapper.Deserialize(dto.ConfigurationStructureJson ?? ColonneJsonMapper.Serialize(oldCols));
-            await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(newForm.CodeReference, parsedCols);
+            await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(newForm.Id, parsedCols);
 
             await _unitOfWork.RefFormulaireRepository.AddAsync(newForm);
 

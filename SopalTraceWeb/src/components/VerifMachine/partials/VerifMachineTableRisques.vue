@@ -210,7 +210,7 @@
             <!-- COLONNES OPÉRATEUR -->
             <td v-if="!strategy.hidePressionAndDp" class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
               <template v-if="props.isExecution">
-                <InputNumber v-model="getReponse(rInfo.row.id).pressionEntree" mode="decimal" :minFractionDigits="1" :maxFractionDigits="3" class="w-full text-xs" inputClass="p-1 text-center w-full" />
+                <InputNumber v-model="getReponse(rInfo.row.id).pressionEntree" :readonly="props.isConsultationMode" mode="decimal" :minFractionDigits="1" :maxFractionDigits="3" class="w-full text-xs" :class="{'pointer-events-none': props.isConsultationMode}" inputClass="p-1 text-center w-full" />
               </template>
               <template v-else>
                 <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
@@ -219,13 +219,13 @@
             <!-- CUSTOM après pression_entree -->
             <template v-for="cCol in getCustomColumnsAfter('risques', 'pression_entree')" :key="cCol.key">
   <td v-if="rInfo[`isDynFirst_${cCol.key}`]" :rowspan="rInfo[`dynRowspan_${cCol.key}`]" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
-    <textarea v-if="!props.isReadOnly" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rowIndex, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
+    <textarea v-if="!props.isReadOnly && !props.isConsultationMode" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rIdx, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
     <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(rInfo.ligne)[cCol.key] || '--' }}</div>
   </td>
 </template>
             <td v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp" class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
               <template v-if="props.isExecution">
-                <InputNumber v-model="getReponse(rInfo.row.id).fuiteAffichee" mode="decimal" :minFractionDigits="0" :maxFractionDigits="3" class="w-full text-xs" inputClass="p-1 text-center w-full" />
+                <InputNumber v-model="getReponse(rInfo.row.id).fuiteAffichee" :readonly="props.isConsultationMode" mode="decimal" :minFractionDigits="0" :maxFractionDigits="3" class="w-full text-xs" :class="{'pointer-events-none': props.isConsultationMode}" inputClass="p-1 text-center w-full" />
               </template>
               <template v-else>
                 <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
@@ -235,7 +235,7 @@
             <template v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp">
               <template v-for="cCol in getCustomColumnsAfter('risques', 'dp_affichee')" :key="cCol.key">
                 <td v-if="rInfo[`isDynFirst_${cCol.key}`]" :rowspan="rInfo[`dynRowspan_${cCol.key}`]" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
-                  <textarea v-if="!props.isReadOnly" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rowIndex, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
+                  <textarea v-if="!props.isReadOnly && !props.isConsultationMode" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rIdx, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
                   <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(rInfo.ligne)[cCol.key] || '--' }}</div>
                 </td>
               </template>
@@ -243,26 +243,30 @@
             <template v-if="hasSubHeaders">
               <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
                 <template v-if="props.isExecution">
-                  <div class="flex justify-center"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="true" :name="'res_'+rInfo.row.id" /></div>
+                  <div class="flex justify-center" :class="{'pointer-events-none': props.isConsultationMode}">
+                    <div @click.capture="handleRadioClick($event, rInfo.row.id, true)"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="true" :name="'res_'+rInfo.row.id" /></div>
+                  </div>
                 </template>
               </td>
               <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
                 <template v-if="props.isExecution">
-                  <div class="flex justify-center"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="false" :name="'res_'+rInfo.row.id" /></div>
+                  <div class="flex justify-center" :class="{'pointer-events-none': props.isConsultationMode}">
+                    <div @click.capture="handleRadioClick($event, rInfo.row.id, false)"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="false" :name="'res_'+rInfo.row.id" /></div>
+                  </div>
                 </template>
               </td>
             </template>
             <template v-else>
               <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
                 <template v-if="props.isExecution">
-                   <div class="flex items-center justify-center gap-2">
+                   <div class="flex items-center justify-center gap-2" :class="{'pointer-events-none': props.isConsultationMode}">
                      <div class="flex items-center gap-1">
-                       <RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="true" :name="'res_'+rInfo.row.id" />
-                       <label class="text-[10px] text-green-600 font-bold m-0 cursor-pointer" @click="getReponse(rInfo.row.id).conforme = true">C</label>
+                       <div @click.capture="handleRadioClick($event, rInfo.row.id, true)"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="true" :name="'res_'+rInfo.row.id" /></div>
+                       <label class="text-[10px] text-green-600 font-bold m-0" :class="{'cursor-pointer': !props.isConsultationMode}" @click="toggleConformeLabel(rInfo.row.id, true)">C</label>
                      </div>
                      <div class="flex items-center gap-1">
-                       <RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="false" :name="'res_'+rInfo.row.id" />
-                       <label class="text-[10px] text-red-600 font-bold m-0 cursor-pointer" @click="getReponse(rInfo.row.id).conforme = false">NC</label>
+                       <div @click.capture="handleRadioClick($event, rInfo.row.id, false)"><RadioButton v-model="getReponse(rInfo.row.id).conforme" :value="false" :name="'res_'+rInfo.row.id" /></div>
+                       <label class="text-[10px] text-red-600 font-bold m-0" :class="{'cursor-pointer': !props.isConsultationMode}" @click="toggleConformeLabel(rInfo.row.id, false)">NC</label>
                      </div>
                    </div>
                 </template>
@@ -274,13 +278,13 @@
             <!-- CUSTOM après resultat -->
             <template v-for="cCol in getCustomColumnsAfter('risques', 'resultat')" :key="cCol.key">
   <td v-if="rInfo[`isDynFirst_${cCol.key}`]" :rowspan="rInfo[`dynRowspan_${cCol.key}`]" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
-    <textarea v-if="!props.isReadOnly" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rowIndex, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
+    <textarea v-if="!props.isReadOnly && !props.isConsultationMode" :value="ensureColonnes(rInfo.ligne)[cCol.key]" @input="updateCustomColumnValue(cCol.key, $event.target.value, rInfo[`dynRowspan_${cCol.key}`], rIdx, flattenedRowsRisques)" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
     <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(rInfo.ligne)[cCol.key] || '--' }}</div>
   </td>
 </template>
             <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
               <template v-if="props.isExecution">
-                <InputText v-model="getReponse(rInfo.row.id).observation" :disabled="getReponse(rInfo.row.id).conforme === true" class="w-full text-xs p-1" placeholder="Obs..." />
+                <InputText v-model="getReponse(rInfo.row.id).observation" :readonly="props.isConsultationMode" :disabled="!props.isConsultationMode && getReponse(rInfo.row.id).conforme === true" class="w-full text-xs p-1" :class="{'pointer-events-none': props.isConsultationMode}" placeholder="Obs..." />
               </template>
               <template v-else>
                 <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
@@ -325,6 +329,7 @@ import RadioButton from 'primevue/radiobutton';
 const props = defineProps({
   isReadOnly: { type: Boolean, default: false },
   isExecution: { type: Boolean, default: false },
+  isConsultationMode: { type: Boolean, default: false },
   execReponses: { type: Array, default: () => [] },
   selectedPeriodiciteId: { type: String, default: null }
 });
@@ -566,6 +571,26 @@ const updatePeriodiciteValue = (newEcheance, rowspan, startIdx, rowsArray) => {
             row.group.periodiciteMachineId = newEcheance;
         }
     }
+};
+
+const handleRadioClick = (e, rowId, val) => {
+  if (props.isConsultationMode) return;
+  const reponse = getReponse(rowId);
+  if (reponse.conforme === val) {
+    reponse.conforme = null;
+    e.stopPropagation();
+    e.preventDefault();
+  }
+};
+
+const toggleConformeLabel = (rowId, val) => {
+  if (props.isConsultationMode) return;
+  const reponse = getReponse(rowId);
+  if (reponse.conforme === val) {
+    reponse.conforme = null;
+  } else {
+    reponse.conforme = val;
+  }
 };
 
 const onPieceSelectChange = (event, row, familleCorpsId, role) => {

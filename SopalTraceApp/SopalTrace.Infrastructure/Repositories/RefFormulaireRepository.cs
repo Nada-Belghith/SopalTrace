@@ -98,18 +98,23 @@ public class RefFormulaireRepository : IRefFormulaireRepository
             .ExecuteUpdateAsync(s => s.SetProperty(f => f.Statut, statut));
     }
 
-    public async Task<System.Collections.Generic.List<RefFormulaireColonneDef>> GetColonnesActivesByCodeReferenceAsync(string codeReference)
+    public async Task<System.Collections.Generic.List<RefFormulaireColonneDef>> GetColonnesActivesByFormulaireIdAsync(Guid formulaireId)
     {
         return await _context.RefFormulaireColonneDefs
             .AsNoTracking()
-            .Where(c => c.CodeReference == codeReference && c.Actif)
+            .Where(c => c.FormulaireId == formulaireId && c.Actif)
             .ToListAsync();
     }
 
-    public async Task SyncColonnesAsync(string codeReference, System.Collections.Generic.List<SopalTrace.Application.Helpers.ColonneJsonDto> parsedCols)
+    public async Task SyncColonnesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.ColonneJsonDto> parsedCols)
     {
+        // AsNoTracking() is critical here: this method can be called from within a larger
+        // unit-of-work (e.g. MettreAJourDocumentAsync) that has already loaded other tracked
+        // entities. Loading these with tracking would pollute the change tracker and cause
+        // DbUpdateConcurrencyException on the outer CommitAsync().
         var existingCols = await _context.RefFormulaireColonneDefs
-            .Where(c => c.CodeReference == codeReference)
+            .AsNoTracking()
+            .Where(c => c.FormulaireId == formulaireId)
             .ToListAsync();
 
         var parsedKeys = parsedCols.Select(p => p.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -136,7 +141,7 @@ public class RefFormulaireRepository : IRefFormulaireRepository
             .Select(p => new RefFormulaireColonneDef
             {
                 Id = Guid.NewGuid(),
-                CodeReference = codeReference,
+                FormulaireId = formulaireId,
                 CleColonne = p.Key,
                 LabelAffiche = p.Label,
                 TypeValeur = string.IsNullOrWhiteSpace(p.Type) ? "TEXT" : p.Type,
@@ -176,19 +181,21 @@ public class RefFormulaireRepository : IRefFormulaireRepository
         }
     }
 
-    public async Task<System.Collections.Generic.List<RefFormulaireEquipe>> GetEquipesActivesByCodeReferenceAsync(string codeReference)
+    public async Task<System.Collections.Generic.List<RefFormulaireEquipe>> GetEquipesActivesByFormulaireIdAsync(Guid formulaireId)
     {
         return await _context.RefFormulaireEquipes
             .AsNoTracking()
-            .Where(e => e.CodeReference == codeReference && e.Actif)
+            .Where(e => e.FormulaireId == formulaireId && e.Actif)
             .OrderBy(e => e.OrdreAffiche)
             .ToListAsync();
     }
 
-    public async Task SyncEquipesAsync(string codeReference, System.Collections.Generic.List<SopalTrace.Application.Helpers.EquipeJsonDto> parsedEquipes)
+    public async Task SyncEquipesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.EquipeJsonDto> parsedEquipes)
     {
+        // AsNoTracking() is critical here: same reason as SyncColonnesAsync.
         var existingEquipes = await _context.RefFormulaireEquipes
-            .Where(e => e.CodeReference == codeReference)
+            .AsNoTracking()
+            .Where(e => e.FormulaireId == formulaireId)
             .ToListAsync();
 
         var parsedNames = parsedEquipes.Select(p => p.Nom).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -213,7 +220,7 @@ public class RefFormulaireRepository : IRefFormulaireRepository
             .Select((p, idx) => new RefFormulaireEquipe
             {
                 Id = Guid.NewGuid(),
-                CodeReference = codeReference,
+                FormulaireId = formulaireId,
                 NomEquipe = p.Nom,
                 HeureDebut = p.Debut,
                 HeureFin = p.Fin,

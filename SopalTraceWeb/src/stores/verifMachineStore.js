@@ -382,10 +382,21 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
         .map(f => {
           const dicoFam = famillesCorps.value.find(fc => fc.id === f.refFamilleCorpsId);
+          let libelle = 'Inconnue';
+
+          if (dicoFam) {
+            libelle = dicoFam.libelle;
+          } else {
+            const pieceRef = piecesReference.value.find(pr => pr.id === f.refFamilleCorpsId);
+            if (pieceRef) {
+              libelle = pieceRef.code + (pieceRef.designation ? ` - ${pieceRef.designation}` : '');
+            }
+          }
+
           return {
             id: f.id || genererUid(),
             refFamilleCorpsId: f.refFamilleCorpsId,
-            libelle: dicoFam ? dicoFam.libelle : 'Inconnue',
+            libelle: libelle,
           };
         });
 
@@ -466,7 +477,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       const payload = buildPayload();
       if (entete.value.id) {
         const response = await verifMachineService.mettreAJourPlanVerif(entete.value.id, payload);
-        const newId = response.data.planId || response.data.id;
+        const newId = response.data.planId || response.data.id || entete.value.id;
         entete.value.id = newId;
         prendreSnapshot();
         return { id: newId, noChanges: false, version: response.data.version };
@@ -478,6 +489,28 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         await fetchTousLesPlans();
         return { id: newId, noChanges: false, version: response.data.version, isNew: true };
       }
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const creerNouvelleVersion = async (motif) => {
+    isLoading.value = true;
+    try {
+      const payload = {
+        ancienId: entete.value.id,
+        modifiePar: 'ADMIN',
+        motifModification: motif,
+        donnees: buildPayload()
+      };
+      const response = await verifMachineService.creerNouvelleVersion(payload);
+      const newId = response.data.planId || response.data.id;
+      entete.value.id = newId;
+      prendreSnapshot();
+      await fetchTousLesPlans();
+      return { success: true, newId };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || 'Erreur création nouvelle version' };
     } finally {
       isLoading.value = false;
     }
@@ -522,9 +555,6 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         lignesConformite.value = [];
         lignesRisques.value = [];
       }
-
-      // Re-charger les dictionnaires pour inclure les éventuelles nouvelles pièces créées par le backend
-      await fetchDictionnaires(true);
 
       // ✅ IMPORT DES FAMILLES DÉTECTÉES DANS L'EXCEL
       // On importe les familles de l'Excel UNIQUEMENT si la machine n'a pas déjà de familles configurées.
@@ -576,36 +606,56 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
               )?.id || '',
               matricePieces: (() => {
                 const pieces = (rowItem.matricePieces || []).map(mp => {
-                  const pieceRef = piecesReference.value.find(p => p.code === mp.pieceRefCode)
-                    || fuitesEtalon.value.find(p => p.code === mp.pieceRefCode);
+                  const pieceRef = piecesReference.value.find(p =>
+                    (mp.pieceRefId && p.id === mp.pieceRefId) ||
+                    (mp.pieceRefCode && p.code?.trim().toUpperCase() === mp.pieceRefCode?.trim().toUpperCase())
+                  ) || fuitesEtalon.value.find(p =>
+                    (mp.pieceRefId && p.id === mp.pieceRefId) ||
+                    (mp.pieceRefCode && p.code?.trim().toUpperCase() === mp.pieceRefCode?.trim().toUpperCase())
+                  );
+
+                  const finalPieceRefId = mp.pieceRefId || (pieceRef ? pieceRef.id : null);
 
                   let matchingFamId = null;
                   if (mp.familleCode) {
-                    // Correction des fautes de frappe courantes dans les fichiers Excel
-                    let correctedFamCode = mp.familleCode
-                      .replace('2580A01', '25B0A01')
-                      .replace('25AUA01', '25UA01');
+                    const rawFamCode = mp.familleCode;
+                    const normMpFam = rawFamCode.replace(/\s+/g, '').toUpperCase();
 
-                    const normMpFam = correctedFamCode.replace(/\s+/g, '').toUpperCase();
-                    const importedFam = familles.value.find(f => {
-                      const normFLib = f.libelle?.replace(/\s+/g, '').toUpperCase() || '';
-                      return normFLib === normMpFam || correctedFamCode.includes(`(${f.libelle})`);
+                    let importedFam = familles.value.find(f => {
+                      const normFLib = (f.libelle || '').replace(/\s+/g, '').toUpperCase();
+                      const normFCode = (f.code || '').replace(/\s+/g, '').toUpperCase();
+                      return normFLib === normMpFam || normFCode === normMpFam || normMpFam.includes(normFLib) || (normFCode && normMpFam.includes(normFCode));
                     });
-                    if (importedFam) matchingFamId = importedFam.refFamilleCorpsId;
+
+                    if (!importedFam && famillesCorps.value) {
+                      const globalFam = famillesCorps.value.find(fc => {
+                        const normLib = (fc.libelle || '').replace(/\s+/g, '').toUpperCase();
+                        const normCode = (fc.code || '').replace(/\s+/g, '').toUpperCase();
+                        return normLib === normMpFam || normCode === normMpFam || normMpFam.includes(normLib) || (normCode && normMpFam.includes(normCode)) || rawFamCode.includes(`(${fc.libelle})`);
+                      });
+
+                      if (globalFam) {
+                        ajouterFamille(globalFam.id);
+                        importedFam = familles.value.find(f => f.refFamilleCorpsId === globalFam.id);
+                      }
+                    }
+
+                    if (importedFam) {
+                      matchingFamId = importedFam.refFamilleCorpsId;
+                    }
                   }
 
                   return {
                     familleId: matchingFamId,
                     roleVerif: mp.roleVerif,
-                    pieceRefId: mp.pieceRefId || (pieceRef ? pieceRef.id : null)
+                    pieceRefId: finalPieceRefId
                   };
                 });
 
-                // Deduplicate to prevent UNIQUE KEY violations
                 const seen = new Set();
                 return pieces.filter(p => {
-                  if (!p.pieceRefId) return false;
-                  const key = `${p.familleId || 'null'}-${p.roleVerif}`;
+                  if (!p.pieceRefId || !p.familleId) return false;
+                  const key = `${p.familleId}-${p.roleVerif}`;
                   if (seen.has(key)) return false;
                   seen.add(key);
                   return true;
@@ -644,7 +694,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,
     ajouterGroupPeriodicite, supprimerGroupPeriodicite, ajouterRowDetail, supprimerRowDetail,
     getPieceValue, setPieceValue,
-    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications,
+    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications, creerNouvelleVersion,
     restaurerPlanVerif, importerDepuisExcel
   };
 });

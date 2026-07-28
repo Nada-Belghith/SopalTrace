@@ -203,6 +203,16 @@ const router = createRouter({
           component: () => import('@/views/Operateur/ExecEchantillonnageView.vue')
         },
         {
+          path: 'resultat-controle/:execControleOfId',
+          name: 'exec-resultat-controle',
+          component: () => import('@/views/Operateur/ExecRcPosteView.vue')
+        },
+        {
+          path: 'plan-assemblage/:execControleOfId',
+          name: 'exec-plan-assemblage',
+          component: () => import('@/views/Operateur/ExecPlanAssemblageView.vue')
+        },
+        {
           path: 'verif-machine/:id',
           name: 'operateur-vm-view',
           component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue')

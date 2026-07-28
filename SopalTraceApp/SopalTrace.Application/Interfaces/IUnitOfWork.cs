@@ -25,6 +25,12 @@ namespace SopalTrace.Application.Interfaces;
     /// <summary>Sauvegarde immédiate sans fermer la transaction — utile pour flush les suppressions avant réinsertion.</summary>
     Task<int> FlushDeletesAsync();
     Task RollbackAsync();
+    /// <summary>
+    /// Detaches all tracked entities from the EF Core change tracker.
+    /// Use this before calling infrastructure services that perform an intermediate
+    /// SaveChangesAsync() to avoid contaminating the outer unit-of-work state.
+    /// </summary>
+    void DetachAllEntities();
 
     Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation);
 }

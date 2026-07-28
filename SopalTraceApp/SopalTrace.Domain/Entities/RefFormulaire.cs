@@ -34,4 +34,8 @@ public partial class RefFormulaire
     public virtual ICollection<ModeleFabricationEntete> ModeleFabricationEntetes { get; set; } = new List<ModeleFabricationEntete>();
 
     public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
+
+    public virtual ICollection<RefFormulaireColonneDef> RefFormulaireColonneDefs { get; set; } = new List<RefFormulaireColonneDef>();
+
+    public virtual ICollection<RefFormulaireEquipe> RefFormulaireEquipes { get; set; } = new List<RefFormulaireEquipe>();
 }

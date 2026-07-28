@@ -10,6 +10,8 @@
     <div class="flex flex-col gap-4">
       <p v-if="description" class="text-slate-600 text-sm">{{ description }}</p>
       
+      <slot></slot>
+
       <div v-if="showMotif">
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-2 tracking-widest">
           {{ motifLabel }}

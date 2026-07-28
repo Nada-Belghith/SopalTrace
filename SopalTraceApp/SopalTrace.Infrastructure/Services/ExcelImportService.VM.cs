@@ -385,12 +385,15 @@ public partial class ExcelImportService
 
                                     if (periodicite == null)
                                     {
-                                        throw new Exception($"La périodicité '{periodiciteLibelle}' n'est pas reconnue. La création automatique est désactivée. Valeurs acceptées : Au démarrage de la machine, Après la pause, A la fin de poste.");
+                                        // On ignore la périodicité non reconnue au lieu de crasher (demandé par l'utilisateur)
                                     }
                                 }
                                 _createdPerioMachineCache[normalizedPerio] = periodicite;
                             }
-                            echeance.PeriodiciteMachineId = periodicite.Id;
+                            if (periodicite != null)
+                            {
+                                echeance.PeriodiciteMachineId = periodicite.Id;
+                            }
                         }
                         
                         currentLigne.Echeances.Add(echeance);

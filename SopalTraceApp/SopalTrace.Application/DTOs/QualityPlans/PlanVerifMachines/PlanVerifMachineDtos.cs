@@ -149,3 +149,11 @@ public class DocumentVerifMachineMatricePieceDto
     public string RoleVerif { get; set; } = string.Empty;
     public Guid? PieceRefId { get; set; }
 }
+
+public class NouvelleVersionVerifMachineRequestDto
+{
+    public Guid AncienId { get; set; }
+    public string ModifiePar { get; set; } = string.Empty;
+    public string MotifModification { get; set; } = string.Empty;
+    public CreateDocumentVerifMachineRequestDto Donnees { get; set; } = new();
+}

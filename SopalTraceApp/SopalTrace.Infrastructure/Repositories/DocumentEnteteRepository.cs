@@ -76,9 +76,8 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
     {
         if (_context.Entry(document).State == EntityState.Detached)
         {
-            _context.DocumentEntetes.Attach(document);
+            _context.DocumentEntetes.Update(document);
         }
-        _context.Entry(document).State = EntityState.Modified;
         return Task.CompletedTask;
     }
 
@@ -155,6 +154,7 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
     {
         var query = _context.DocumentEntetes
             .Include(d => d.TypeDocumentCodeNavigation)
+            .Include(d => d.Formulaire)
             .Where(d => d.TypeDocumentCodeNavigation != null && d.TypeDocumentCodeNavigation.Code == typeDocumentCode)
             .AsQueryable();
 

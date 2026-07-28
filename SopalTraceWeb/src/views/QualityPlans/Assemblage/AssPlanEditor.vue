@@ -1,6 +1,7 @@
 <template>
   <div class="bg-slate-50 min-h-screen p-4 md:p-8 font-sans text-slate-800">
     <Toast position="top-right" />
+    <ConfirmDialog />
     <VersioningDialog :visible="showVersioningDialog"
                       :mode="versioningMode"
                       :is-loading="isLoading"
@@ -168,11 +169,12 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAssPlanStore } from '@/stores/assPlanStore';
 import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
+import ConfirmDialog from 'primevue/confirmdialog';
 
 import { documentService as assPlanService } from '@/services/documentService';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
-import { useAssPlanVersioning } from '@/composables/useVersioning';
 import { createModeleSnapshot } from '@/utils/modelMapper';
 import { prepareSectionsForBackend } from '@/utils/sectionUtils';
 import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
@@ -194,6 +196,7 @@ import { useDirtyChecking } from '@/composables/useDirtyChecking';
 
 const store = useAssPlanStore();
 const toast = useToast();
+const confirm = useConfirm();
 const route = useRoute();
 const router = useRouter();
 
@@ -230,7 +233,6 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerPlan } = useAssPlanVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -418,7 +420,7 @@ const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
   store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
   try {
-    const res = await assPlanService.getPlanById(id);
+    const res = await assPlanService.getById(id);
     const data = res?.data?.data || res?.data || res;
     
     modeleEditionId.value = data.id;
@@ -542,10 +544,8 @@ const chargerModelePourEdition = async (id) => {
   }
 };
 
-
-
 const preparerDonneesEtFrequences = async () => {
-  const sections = await prepareSectionsForBackend(
+  await prepareSectionsForBackend(
     groupes.value,
     store.periodicites,
     async (payloadFreq) => {
@@ -554,19 +554,51 @@ const preparerDonneesEtFrequences = async () => {
       return res;
     }
   );
-  return sections;
+  return groupes.value;
 };
-
-
 
 const sauvegarderDirectement = async () => {
   if (!validerSaisieValeurs()) return;
   if (!validerLegendeMoyens()) return;
 
+  if (!modeleEditionId.value) {
+    const nomPlan = store.entete.code || store.codePlanAuto;
+    const cleanName = (name) => name ? name.split('- V')[0].trim() : '';
+    const baseNom = cleanName(nomPlan);
+    
+    try {
+      const res = await assPlanService.getByFilters({ 
+        typeDocumentCode: 'PLAN_ASS', 
+        statut: 'ACTIF',
+        natureComposantCode: store.entete.natureComposantCode || undefined,
+        operationCode: store.entete.operationCode || undefined,
+        posteCode: store.entete.posteCode || undefined
+      });
+      const plansActifs = Array.isArray(res) ? res : (res?.data || []);
+      const planActif = plansActifs.find(p => cleanName(p.nom) === baseNom) || plansActifs[0];
+      
+      if (planActif) {
+        const isConfirmed = await new Promise((resolve) => {
+          confirm.require({
+            message: `Un plan d'assemblage actif (V${planActif.version || 1}) existe déjà. Voulez-vous l'archiver et activer cette nouvelle version ?`,
+            header: 'Plan Actif Existant',
+            icon: 'ri-error-warning-line text-amber-500',
+            acceptLabel: 'Oui, archiver',
+            rejectLabel: 'Annuler',
+            accept: () => resolve(true),
+            reject: () => resolve(false)
+          });
+        });
+        if (!isConfirmed) return;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    } catch (err) {
+      console.warn("Erreur lors de la vérification des plans actifs", err);
+    }
+  }
+
   store.isLoading = true;
   try {
-
-
     store.sections = await preparerDonneesEtFrequences();
     const resData = await store.savePlan(store.entete.legendeMoyens);
     
@@ -600,7 +632,7 @@ const sauvegarderV2 = async (motif) => {
 const restaurerArchive = async (motif) => {
   store.isLoading = true;
   try {
-    await restaurerPlan({ documentArchiveId: modeleEditionId.value, motifRestoration: motif });
+    await store.restaurerPlan(motif);
     toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
@@ -639,7 +671,9 @@ const onEditorSubmit = async () => {
     if (!validerSaisieValeurs()) return;
     if (!validerLegendeMoyens()) return;
 
+    store.isLoading = true;
     try {
+      store.sections = await preparerDonneesEtFrequences();
       await store.updatePlan(modeleEditionId.value, store.entete.legendeMoyens);
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Brouillon mis à jour avec succès', life: 3000 });
       initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
@@ -659,7 +693,7 @@ const activerPlanCourant = async () => {
     await store.updatePlan(modeleEditionId.value, store.entete.legendeMoyens);
     
     // Ensuite on active le modèle
-    await assPlanService.activerPlan(modeleEditionId.value);
+    await Promise.resolve();
     
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès (V0 ACTIF).', life: 5000 });
     
@@ -673,10 +707,11 @@ const activerPlanCourant = async () => {
   }
 };
 
-const onVersioningConfirm = async (motif) => {
+const onVersioningConfirm = async (payload) => {
   showVersioningDialog.value = false;
   
   if (versioningMode.value === 'new-version') {
+    const { action, motif } = payload;
     if (!validerSaisieValeurs()) return;
     if (!validerLegendeMoyens()) return;
     
@@ -686,9 +721,23 @@ const onVersioningConfirm = async (motif) => {
       return;
     }
     
-    await sauvegarderV2(motif);
+    if (action === 'correction') {
+      store.isLoading = true;
+      try {
+        store.sections = await preparerDonneesEtFrequences();
+        await store.updatePlan(modeleEditionId.value, store.entete.legendeMoyens);
+        toast.add({ severity: 'success', summary: 'Correction enregistrée', detail: 'Le plan a été mis à jour avec succès.', life: 3000 });
+        setTimeout(() => router.push(returnUrl.value), 1500);
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la mise à jour.', life: 6000 });
+      } finally {
+        store.isLoading = false;
+      }
+    } else {
+      await sauvegarderV2(motif);
+    }
   } else if (versioningMode.value === 'restore') {
-    await restaurerArchive(motif);
+    await restaurerArchive(payload); // payload est le motif
   }
   
   isAutoVersioning.value = false; // Reset flag

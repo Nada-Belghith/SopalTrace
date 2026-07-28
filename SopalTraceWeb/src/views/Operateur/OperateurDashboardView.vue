@@ -330,7 +330,7 @@
         </div>
       </div>
     </Dialog>
-    <!-- Modal Motif Pause Obligatoire -->
+    <!-- Modal Motif Pause Optionnel -->
     <div v-if="raisonModalConfig.show" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
       <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl animate-fade-in-up">
         <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center">
@@ -341,14 +341,13 @@
         <textarea v-model="raisonModalConfig.texte" 
                   rows="3" 
                   class="w-full border border-gray-300 rounded-lg shadow-sm focus:border-yellow-500 focus:ring-yellow-500 p-3 mb-4 text-sm" 
-                  placeholder="Saisissez le motif (obligatoire)..."
+                  placeholder="Saisissez le motif (Optionnel)..."
                   @keyup.enter="confirmerRaison"
                   autofocus></textarea>
         <div class="flex justify-end gap-3">
           <button @click="annulerRaison" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Annuler</button>
           <button @click="confirmerRaison" 
-                  class="px-4 py-2 bg-yellow-600 text-white hover:bg-yellow-700 rounded-lg font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-                  :disabled="!raisonModalConfig.texte.trim()">
+                  class="px-4 py-2 bg-yellow-600 text-white hover:bg-yellow-700 rounded-lg font-medium shadow-sm transition-colors">
             Confirmer la Pause
           </button>
         </div>
@@ -650,7 +649,6 @@ const annulerRaison = () => {
 };
 
 const confirmerRaison = () => {
-  if (!raisonModalConfig.value.texte.trim()) return;
   const { action, texte, payload } = raisonModalConfig.value;
   raisonModalConfig.value.show = false;
   if (action) {
@@ -661,7 +659,7 @@ const confirmerRaison = () => {
 const mettreEnPause = () => {
   demanderRaisonPause(
     'Mettre en Pause',
-    'Voulez-vous vraiment mettre la production en pause ? Veuillez saisir le motif (obligatoire) :',
+    'Voulez-vous vraiment mettre la production en pause ? (Motif Optionnel) :',
     async (raison) => {
       try {
         await operateurService.mettreEnPause(activeOfContext.value.id, raison);

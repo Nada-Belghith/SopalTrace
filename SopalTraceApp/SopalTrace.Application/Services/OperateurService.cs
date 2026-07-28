@@ -13,11 +13,13 @@ public class OperateurService : IOperateurService
 {
     private readonly IOperateurRepository _operateurRepository;
     private readonly IOccurrenceService _occurrenceService;
+    private readonly IOccurrenceRepository _occurrenceRepository;
 
-    public OperateurService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService)
+    public OperateurService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IOccurrenceRepository occurrenceRepository)
     {
         _operateurRepository = operateurRepository;
         _occurrenceService = occurrenceService;
+        _occurrenceRepository = occurrenceRepository;
     }
 
     public async Task<ExecControleOfDto> DemarrerOfAsync(DemarrerOfRequest request)
@@ -198,20 +200,9 @@ public class OperateurService : IOperateurService
         if (execOf == null || execOf.Statut != "EN_COURS") return false;
 
         execOf.Statut = "EN_PAUSE";
-        execOf.DateFin = DateTime.Now; // Utiliser DateFin temporairement pour stocker l'heure de début de pause
+        execOf.DateFin = DateTime.Now; // Stocker l'heure de début de pause
 
-        // Supprimer toutes les occurrences prévues dans le futur qui n'ont pas encore été répondues
-        // Elles seront régénérées proprement à la reprise en utilisant la nouvelle Baseline
-        var futureUnansweredOccurrences = execOf.ExecPrelevementIntermediaires
-            .Where(o => o.HeureNotifPrevue > DateTime.Now && !o.EstRepondu)
-            .ToList();
-            
-        foreach (var occ in futureUnansweredOccurrences)
-        {
-            execOf.ExecPrelevementIntermediaires.Remove(occ);
-        }
-
-        // Ajouter la raison dans la tranche en cours (ou la plus récente)
+        // Ajouter la raison dans la tranche en cours
         await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, $"Mise en pause : {raison}");
 
         // Synchroniser le statut dans Mag_PreparationOF
@@ -229,12 +220,13 @@ public class OperateurService : IOperateurService
 
         var pauseStart = execOf.DateFin ?? DateTime.Now;
         var pauseDuration = DateTime.Now - pauseStart;
+        if (pauseDuration < TimeSpan.Zero) pauseDuration = TimeSpan.Zero;
 
         execOf.Statut = "EN_COURS";
-        execOf.DateDebut = execOf.DateDebut.Add(pauseDuration); // Gèle le temps logique simulé
-        execOf.DateFin = null; // La date de fin de pause est effacée, DateDebut est la seule référence
-        
-        // Les occurrences déjà créées avant la pause restent intactes (on ne modifie pas leur HeureNotifPrevue)
+        execOf.DateDebut = execOf.DateDebut.Add(pauseDuration);
+        execOf.DateFin = null;
+
+        // Les occurrences non répondues ne sont pas modifiées et restent telles quelles en BDD
 
         // Resynchroniser le statut dans Mag_PreparationOF
         var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
@@ -257,13 +249,28 @@ public class OperateurService : IOperateurService
         // Ajouter la remarque dans la tranche en cours
         await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, "Clôture de l'opération pour cet OF");
 
-        foreach (var occ in execOf.ExecPrelevementIntermediaires.Where(n => !n.EstRepondu))
+        var unanswered = execOf.ExecPrelevementIntermediaires.Where(n => !n.EstRepondu).ToList();
+        foreach (var occ in unanswered)
         {
             occ.Resultat = "IGNORE";
+            occ.EstRepondu = true;
+            occ.HeureReponse = DateTime.Now;
+        }
+
+        if (unanswered.Any())
+        {
+            _occurrenceRepository.RemoveIntermediaires(unanswered);
+        }
+
+        // Marquer tous les statuts de document pour cet OF comme Terminé afin que les cartes s'affichent en "Terminé"
+        var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
+        foreach (var s in statuts)
+        {
+            s.EstTermine = true;
+            s.DateTermine = DateTime.Now;
         }
 
         // On vérifie si TOUTES les opérations de l'OF sont désormais clôturées
-        // Si oui, on ferme l'OF globalement. Sinon, on le laisse ouvert pour les autres opérations.
         bool allClosed = await _operateurRepository.AreAllOperationsClosedAsync(execOf.NumeroOf);
         
         if (allClosed)
@@ -368,8 +375,9 @@ public class OperateurService : IOperateurService
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null) return false;
 
+        var cleanTranche = trancheHoraire.Split('|')[0];
         var occurrences = execOf.ExecPrelevementIntermediaires
-            .Where(o => o.TrancheHoraire == trancheHoraire && !o.EstRepondu)
+            .Where(o => (o.TrancheHoraire == trancheHoraire || o.TrancheHoraire.StartsWith(cleanTranche) || o.TrancheHoraire.Split('|')[0] == cleanTranche) && !o.EstRepondu)
             .ToList();
 
         var ids = occurrences.Select(o => o.Id).ToList();
@@ -382,8 +390,9 @@ public class OperateurService : IOperateurService
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null) return false;
 
+        var cleanTranche = trancheHoraire.Split('|')[0];
         var occurrences = execOf.ExecPrelevementIntermediaires
-            .Where(o => o.TrancheHoraire == trancheHoraire && !o.EstRepondu)
+            .Where(o => (o.TrancheHoraire == trancheHoraire || o.TrancheHoraire.StartsWith(cleanTranche) || o.TrancheHoraire.Split('|')[0] == cleanTranche) && !o.EstRepondu)
             .ToList();
 
         var ids = occurrences.Select(o => o.Id).ToList();
@@ -472,7 +481,11 @@ public class OperateurService : IOperateurService
                 }
                 else if (typeDocument == "RESULTAT_CONTROLE_POSTE")
                 {
-                    forms = await _operateurRepository.GetFormulairesPourPosteAsync(p, typeDocument);
+                    var plan = await _operateurRepository.GetPlanControlePosteAsync(p, of?.CodeArticle ?? "");
+                    if (plan != null)
+                    {
+                        forms = new List<RefFormulaire> { new RefFormulaire { Id = plan.Id } };
+                    }
                 }
                 else
                 {
@@ -532,9 +545,43 @@ public class OperateurService : IOperateurService
 
     public async Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId)
     {
-        var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
+        var statuts = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId)).ToList();
         
-        var formIds = statuts.Where(s => s.DocId.HasValue && s.TypeDocument != "ECHANTILLONNAGE").Select(s => s.DocId.Value).Distinct();
+        var today = DateTime.Now.Date;
+        bool hasChanges = false;
+        foreach (var s in statuts)
+        {
+            if (!s.EstTermine && s.DateExecution.HasValue && s.DateExecution.Value.Date < today)
+            {
+                s.EstTermine = true;
+                s.DateTermine = s.DateExecution.Value.Date.AddDays(1).AddTicks(-1); // Fin de cette journée
+                _operateurRepository.UpdateExecControleDocumentStatut(s);
+                hasChanges = true;
+            }
+
+            if ((s.TypeDocument == "PLAN_ASS" || s.TypeDocument == "PLAN_ASSEMBLAGE") && !s.DocId.HasValue)
+            {
+                var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+                var of = execOf != null ? await _operateurRepository.GetOfAsync(execOf.NumeroOf) : null;
+                if (of != null)
+                {
+                    var planAss = await _operateurRepository.GetPlanAssemblageActifAsync(of.CodeArticle);
+                    if (planAss != null)
+                    {
+                        s.DocId = planAss.Id;
+                        _operateurRepository.UpdateExecControleDocumentStatut(s);
+                        hasChanges = true;
+                    }
+                }
+            }
+        }
+        
+        if (hasChanges)
+        {
+            await _operateurRepository.SaveChangesAsync();
+        }
+
+        var formIds = statuts.Where(s => s.DocId.HasValue && s.TypeDocument != "ECHANTILLONNAGE").Select(s => s.DocId.GetValueOrDefault()).Distinct();
         var designations = await _operateurRepository.GetFormulaireDesignationsAsync(formIds);
 
         var machineCodes = statuts.Where(s => !string.IsNullOrEmpty(s.MachineCode)).Select(s => s.MachineCode!).Distinct().ToList();
@@ -692,13 +739,7 @@ public class OperateurService : IOperateurService
         if (docStatut != null)
         {
             docStatut.DateExecution ??= dateExecution;
-            // N'affecte la DateTermine que si le document n'était pas déjà terminé
-            if (!docStatut.EstTermine || !docStatut.DateTermine.HasValue)
-            {
-                docStatut.DateTermine = dateExecution;
-            }
             docStatut.MatriculeOperateur ??= request.MatriculeOperateur;
-            docStatut.EstTermine = true;
             _operateurRepository.UpdateExecControleDocumentStatut(docStatut);
         }
 
@@ -749,6 +790,31 @@ public class OperateurService : IOperateurService
                 _operateurRepository.UpdateExecControleDocumentStatut(s);
             }
         }
+        await _operateurRepository.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> CloturerTousVerifMachineAsync(Guid execControleOfId, string posteCode)
+    {
+        var clotureDoc = new ExecControleDocumentStatut
+        {
+            Id = Guid.NewGuid(),
+            ExecControleOfId = execControleOfId,
+            PosteCode = posteCode,
+            TypeDocument = "CLOTURE_VM_POSTE",
+            DateExecution = DateTime.Now,
+            EstTermine = true
+        };
+        _operateurRepository.AddExecControleDocumentStatut(clotureDoc);
+        
+        var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
+        foreach (var s in statuts.Where(s => s.PosteCode == posteCode && s.TypeDocument == "VERIF_MACHINE" && !s.EstTermine))
+        {
+            s.EstTermine = true;
+            s.DateTermine ??= DateTime.Now;
+            _operateurRepository.UpdateExecControleDocumentStatut(s);
+        }
+        
         await _operateurRepository.SaveChangesAsync();
         return true;
     }

@@ -14,4 +14,8 @@ public interface IDocumentVerifMachineEnteteRepository
     Task UpdateAsync(DocumentVerifMachineEntete entity);
     Task DeleteAsync(DocumentVerifMachineEntete entity);
     Task<IEnumerable<DocumentVerifMachineEntete>> GetByFormulaireIdAsync(Guid formulaireId);
+    void RemoveFamille(DocumentVerifMachineFamille famille);
+    void AddFamille(DocumentVerifMachineFamille famille);
+    void RemoveLigne(DocumentVerifMachineLigne ligne);
+    void AddLigne(DocumentVerifMachineLigne ligne);
 }

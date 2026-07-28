@@ -169,9 +169,11 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAppToast } from '@/composables/useAppToast';
+import { useConfirm } from 'primevue/useconfirm';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 import { usePfPlanStore } from '@/stores/pfPlanStore';
+import { documentService as pfPlanService } from '@/services/documentService';
 import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
 
@@ -191,6 +193,7 @@ const route = useRoute();
 const router = useRouter();
 const toast = useAppToast();
 const store = usePfPlanStore();
+const confirm = useConfirm();
 
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
 const isForcedView = ref(route.query.view === 'true');
@@ -379,6 +382,40 @@ const sauvegarderDirectement = async () => {
   }
   if (!validerSaisieValeurs()) return;
 
+  if (!planId.value) {
+    const nomPlan = `PLAN_PF_${store.entete.familleProduitFiniCode}`;
+    const cleanName = (name) => name ? name.split('- V')[0].trim() : '';
+    const baseNom = cleanName(nomPlan);
+    
+    try {
+      const res = await pfPlanService.getByFilters({ 
+        typeDocumentCode: 'PLAN_PF', 
+        statut: 'ACTIF',
+        familleProduitCode: store.entete.familleProduitFiniCode || undefined
+      });
+      const plansActifs = Array.isArray(res) ? res : (res?.data || []);
+      const planActif = plansActifs.find(p => cleanName(p.nom) === baseNom) || plansActifs[0];
+      
+      if (planActif) {
+        const isConfirmed = await new Promise((resolve) => {
+          confirm.require({
+            message: `Un plan produit fini actif (V${planActif.version || 1}) existe déjà pour cette famille. Voulez-vous l'archiver et activer cette nouvelle version ?`,
+            header: 'Plan Actif Existant',
+            icon: 'ri-error-warning-line text-amber-500',
+            acceptLabel: 'Oui, archiver',
+            rejectLabel: 'Annuler',
+            accept: () => resolve(true),
+            reject: () => resolve(false)
+          });
+        });
+        if (!isConfirmed) return;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    } catch (err) {
+      console.warn("Erreur lors de la vérification des plans actifs", err);
+    }
+  }
+
   isSaving.value = true;
   try {
     store.sections = sections.value;
@@ -413,11 +450,24 @@ const onEditorSubmit = async () => {
        versioningMode.value = 'new-version';
        showVersioningDialog.value = true;
        return;
+    } else {
+       // C'est un BROUILLON, on enregistre directement
+       isSaving.value = true;
+       try {
+         store.sections = sections.value;
+         await store.updatePlan();
+         toast.success('Brouillon mis à jour avec succès.');
+         router.push('/dev/hub');
+       } catch (error) {
+         toast.error(error.response?.data?.message || 'Erreur lors de la mise à jour.');
+       } finally {
+         isSaving.value = false;
+       }
     }
   }
 };
 
-const onVersioningConfirm = async (motif) => {
+const onVersioningConfirm = async (payload) => {
   showVersioningDialog.value = false;
   isVersioningSaving.value = true;
   try {
@@ -425,19 +475,25 @@ const onVersioningConfirm = async (motif) => {
     
     if (isArchived.value) {
       // Cas Restauration : on appelle l'endpoint dédié
-      await store.restaurerPlan(motif);
+      await store.restaurerPlan(payload); // payload est le motif ici
       toast.success('Version restaurée et activée.');
     } else {
-      // Cas Nouvelle Version (depuis un plan Actif)
-      await store.creerNouvelleVersion(motif);
-      toast.success('Nouvelle version activée.');
+      const { action, motif } = payload;
+      if (action === 'correction') {
+        await store.updatePlan();
+        toast.success('Correction enregistrée.');
+      } else {
+        // Cas Nouvelle Version (depuis un plan Actif)
+        await store.creerNouvelleVersion(motif);
+        toast.success('Nouvelle version activée.');
+      }
     }
     
     router.push(`/dev/hub`);
 
   } catch (error) {
-    const action = isArchived.value ? 'la restauration' : 'le versioning';
-    toast.error(error.response?.data?.message || `Erreur lors de ${action}.`);
+    const actionDesc = isArchived.value ? 'la restauration' : 'le versioning';
+    toast.error(error.response?.data?.message || `Erreur lors de ${actionDesc}.`);
   } finally {
     isVersioningSaving.value = false;
   }

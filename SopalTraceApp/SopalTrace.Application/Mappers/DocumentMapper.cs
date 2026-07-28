@@ -126,7 +126,7 @@ public static class DocumentMapper
             Version = dto.VersionInitiale ?? 0,
             Statut = "ACTIF", // Default
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? null : dto.OperationCode,
-            FormulaireId = formulaireId,
+            FormulaireId = formulaireId ?? dto.FormulaireId,
             LegendeMoyens = dto.LegendeMoyens,
             Remarques = dto.Remarques,
             NatureArticleCode = string.IsNullOrWhiteSpace(dto.NatureArticleCode) ? null : dto.NatureArticleCode,

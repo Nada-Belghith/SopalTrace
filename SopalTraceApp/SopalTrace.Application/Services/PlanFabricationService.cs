@@ -6,6 +6,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using SopalTrace.Application.Helpers;
 
 namespace SopalTrace.Application.Services;
 
@@ -36,19 +37,31 @@ public class PlanFabricationService : IPlanFabricationService
         var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
         if (plan == null) return null;
 
+        string? configJson = null;
+        if (plan.FormulaireId.HasValue)
+        {
+            var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(plan.FormulaireId.Value);
+            if (activeCols != null)
+            {
+                configJson = ColonneJsonMapper.Serialize(activeCols);
+            }
+        }
+
         return new PlanFabricationEnteteDto
         {
             Id = plan.Id,
             Nom = plan.Nom,
             CodeArticleSageVersionne = plan.CodeArticleSageVersionne,
             Designation = plan.Designation,
-            Version = plan.Version,
-            Statut = plan.Statut,
+            Version = plan?.Version ?? 1,
+            Statut = plan?.Statut ?? "BROUILLON",
             OperationCode = plan.OperationCode,
-            FormulaireId = plan.FormulaireId,
+            FormulaireId = plan?.FormulaireId,
             FormulaireCodeReference = plan?.Formulaire?.CodeReference,
+            FormulaireVersion = plan?.Formulaire?.Version,
             LegendeMoyens = plan?.LegendeMoyens,
             Remarques = plan?.Remarques,
+            ConfigurationColonnesJson = configJson,
             CreePar = plan?.CreePar ?? "",
             CreeLe = plan?.CreeLe ?? DateTime.UtcNow,
             ModeleSourceId = plan?.ModeleSourceId,
@@ -114,6 +127,7 @@ public class PlanFabricationService : IPlanFabricationService
             OperationCode = p.OperationCode,
             FormulaireId = p.FormulaireId,
             FormulaireCodeReference = p.Formulaire?.CodeReference,
+            FormulaireVersion = p.Formulaire?.Version,
             CreePar = p.CreePar ?? "",
             CreeLe = p.CreeLe,
         }).ToList();
@@ -207,9 +221,7 @@ public class PlanFabricationService : IPlanFabricationService
             var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(formulaireId.Value);
             if (form != null)
             {
-                plan.Version = form.Version; // Hérite de la version du formulaire
-                
-                var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference);
+                var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id);
                 if (request.Sections != null)
                 {
                     foreach (var s in request.Sections)
@@ -345,6 +357,8 @@ public class PlanFabricationService : IPlanFabricationService
             Designation = existingPlan.Designation,
             OperationCode = existingPlan.OperationCode,
             VersionInitiale = request.VersionInitiale,
+            Statut = request.Statut,
+            CodeArticleSageVersionne = request.CodeArticleSageVersionne,
             LegendeMoyens = request.LegendeMoyens ?? existingPlan.LegendeMoyens,
             RefFormulaireCodeReference = request.RefFormulaireCodeReference ?? existingPlan.Formulaire?.CodeReference,
             ModeleSourceId = request.ModeleSourceId ?? existingPlan.ModeleSourceId,
@@ -387,10 +401,19 @@ public class PlanFabricationService : IPlanFabricationService
         var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
         if (plan == null) return false;
 
-        // Mettre à jour les champs de l'entête
         plan.Remarques = request.Remarques;
         plan.LegendeMoyens = request.LegendeMoyens;
         plan.OperationCode = request.OperationCode ?? plan.OperationCode;
+        if (!string.IsNullOrWhiteSpace(request.CodeArticleSageVersionne))
+        {
+            plan.CodeArticleSageVersionne = request.CodeArticleSageVersionne;
+            plan.Nom = request.CodeArticleSageVersionne;
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Nom))
+        {
+            plan.CodeArticleSageVersionne = request.Nom;
+            plan.Nom = request.Nom;
+        }
         plan.ModifiePar = _currentUserService.UserInfo ?? "";
         plan.ModifieLe = DateTime.UtcNow;
 
@@ -400,10 +423,9 @@ public class PlanFabricationService : IPlanFabricationService
         if (formStruct != null)
         {
             plan.FormulaireId = formStruct.Id;
-            plan.Version = formStruct.Version;
             var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(formStruct.Id);
             if (form != null)
-                activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference))?.ToList();
+                activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id))?.ToList();
         }
 
         // Supprimer les anciennes sections et lignes explicitement

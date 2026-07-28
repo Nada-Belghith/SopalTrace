@@ -34,6 +34,22 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         return await CreerOuMettreAJourPlanAsync(request, null);
     }
 
+    public async Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionVerifMachineRequestDto request)
+    {
+        var ancien = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(request.AncienId);
+        if (ancien == null) throw new Exception("Ancien plan introuvable.");
+
+        // On archive l'ancien
+        ancien.Statut = "ARCHIVE";
+        await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(ancien);
+
+        // On force l'incrémentation de la version
+        request.Donnees.VersionInitiale = ancien.Version + 1;
+
+        // On utilise CreerOuMettreAJourPlanAsync avec null pour créer une nouvelle version
+        return await CreerOuMettreAJourPlanAsync(request.Donnees, null);
+    }
+
     public async Task MettreAJourDocumentVerifMachineAsync(Guid id, UpdateDocumentVerifMachineRequestDto request)
     {
         var existing = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(id);
@@ -70,6 +86,12 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         string finalStatut = existingDoc?.Statut ?? "BROUILLON";
         Guid? formulaireId = existingDoc?.FormulaireId;
 
+        // Auto-increment version if creating a new plan over an active one
+        if (!id.HasValue && request.VersionInitiale == null && existingDoc != null && existingDoc.Statut == "ACTIF")
+        {
+            request.VersionInitiale = existingDoc.Version + 1;
+        }
+
         // Mise à jour de la structure (Ref_Formulaire)
         if (!string.IsNullOrWhiteSpace(request.RefFormulaireCodeReference))
         {
@@ -81,7 +103,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
                 : null;
                 
             var result = await _formulaireStructureService.UpdateFormulaireStructureAsync(
-                role, colsJson, request.RefFormulaireCodeReference, request.VersionInitiale
+                role, colsJson, request.RefFormulaireCodeReference, id.HasValue ? null : request.VersionInitiale, isCorrectionMineure: id.HasValue
             );
 
             if (result.HasValue)
@@ -105,26 +127,72 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
             }
         }
 
-        var entite = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
-        entite.Version = finalVersion;
-        entite.Statut = finalStatut;
-        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
-
-        // Archiver tous les plans existants actifs pour cette machine
-        var allExistingDocs = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
-        string baseNomToArchive = RemoveVersionSuffix(request.Nom).TrimEnd('-').Trim();
-        var activeDocs = allExistingDocs.Where(d => RemoveVersionSuffix(d.Nom).TrimEnd('-').Trim() == baseNomToArchive && d.Statut == "ACTIF").ToList();
-        
-        foreach (var act in activeDocs)
+        if (id.HasValue && existingDoc != null)
         {
-            act.Statut = "ARCHIVE";
-            await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(act);
-        }
-        
-        await _unitOfWork.DocumentVerifMachineEnteteRepository.AddAsync(entite);
-        await _unitOfWork.CommitAsync();
+            var newEntity = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
 
-        return entite.Id;
+            // In-place update
+            existingDoc.MachineCode = request.MachineCode;
+            existingDoc.Nom = UpdateVersionInString(request.Nom, finalVersion);
+            existingDoc.Remarques = request.Remarques;
+            existingDoc.LegendeMoyens = request.LegendeMoyens;
+            existingDoc.ModifiePar = user ?? "";
+            existingDoc.ModifieLe = DateTime.UtcNow;
+            existingDoc.FormulaireId = formulaireId;
+
+            // Update lists (Clear and re-add for simplicity of Correction Mineure)
+            foreach (var f in existingDoc.DocumentVerifMachineFamilles.ToList())
+            {
+                _unitOfWork.DocumentVerifMachineEnteteRepository.RemoveFamille(f);
+            }
+            existingDoc.DocumentVerifMachineFamilles.Clear();
+
+            foreach (var f in newEntity.DocumentVerifMachineFamilles)
+            {
+                f.PlanEnteteId = existingDoc.Id;
+                _unitOfWork.DocumentVerifMachineEnteteRepository.AddFamille(f);
+            }
+
+            foreach (var l in existingDoc.DocumentVerifMachineLignes.ToList())
+            {
+                _unitOfWork.DocumentVerifMachineEnteteRepository.RemoveLigne(l);
+            }
+            existingDoc.DocumentVerifMachineLignes.Clear();
+
+            foreach (var l in newEntity.DocumentVerifMachineLignes)
+            {
+                l.PlanEnteteId = existingDoc.Id;
+                _unitOfWork.DocumentVerifMachineEnteteRepository.AddLigne(l);
+            }
+
+            await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(existingDoc);
+            await _unitOfWork.CommitAsync();
+
+            return existingDoc.Id;
+        }
+        else
+        {
+            var entite = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
+            entite.Version = finalVersion;
+            entite.Statut = finalStatut;
+            entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
+
+            // Archiver tous les plans existants actifs pour cette machine
+            var allExistingDocs = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
+            string baseNomToArchive = RemoveVersionSuffix(request.Nom).TrimEnd('-').Trim();
+            var activeDocs = allExistingDocs.Where(d => RemoveVersionSuffix(d.Nom).TrimEnd('-').Trim() == baseNomToArchive && d.Statut == "ACTIF").ToList();
+            
+            foreach (var act in activeDocs)
+            {
+                act.Statut = "ARCHIVE";
+                await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(act);
+            }
+            
+            await _unitOfWork.DocumentVerifMachineEnteteRepository.AddAsync(entite);
+            await _unitOfWork.CommitAsync();
+
+            return entite.Id;
+        }
     }
 
     public async Task<DocumentVerifMachineEnteteDto> GetDocumentVerifMachineByIdAsync(Guid id)
@@ -135,7 +203,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         var dto = DocumentVerifMachineMapper.ToDto(entite);
         if (entite.Formulaire != null)
         {
-            var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(entite.Formulaire.CodeReference);
+            var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(entite.FormulaireId.Value);
             dto.ConfigurationColonnesJson = SopalTrace.Application.Helpers.ColonneJsonMapper.Serialize(cols);
         }
 
@@ -151,7 +219,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
             var dto = DocumentVerifMachineMapper.ToDto(entite);
             if (entite.Formulaire != null)
             {
-                var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(entite.Formulaire.CodeReference);
+                var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(entite.FormulaireId.Value);
                 dto.ConfigurationColonnesJson = SopalTrace.Application.Helpers.ColonneJsonMapper.Serialize(cols);
             }
             dtos.Add(dto);
@@ -168,7 +236,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
             var dto = DocumentVerifMachineMapper.ToDto(entite);
             if (entite.Formulaire != null)
             {
-                var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(entite.Formulaire.CodeReference);
+                var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(entite.FormulaireId.Value);
                 dto.ConfigurationColonnesJson = SopalTrace.Application.Helpers.ColonneJsonMapper.Serialize(cols);
             }
             dtos.Add(dto);

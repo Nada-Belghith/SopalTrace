@@ -8,6 +8,7 @@ import InputText from 'primevue/inputtext'
 import { useVerifMachineStore } from '@/stores/verifMachineStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
+import VerifMachineTableConformite from '@/components/VerifMachine/partials/VerifMachineTableConformite.vue'
 import VerifMachineTableRisques from '@/components/VerifMachine/partials/VerifMachineTableRisques.vue'
 
 const router = useRouter()
@@ -21,6 +22,7 @@ const planId = route.params.id
 const currentStatutId = ref(route.query.statutId)
 
 const viewMode = ref(route.query.mode === 'all' ? 'gallery' : 'details')
+const isConsultationMode = ref(route.query.mode === 'all')
 const loading = ref(false)
 const execReponses = ref([])
 const availableSessions = ref([])
@@ -131,12 +133,22 @@ const onDateFilterChange = (event) => {
   }
 }
 
+const checkConsultationMode = (statutId) => {
+  const session = availableSessions.value.find(s => s.statutId === statutId)
+  if (session && isSessionTerminee(session)) {
+    isConsultationMode.value = true
+  } else {
+    isConsultationMode.value = false
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
     await store.fetchDictionnaires()
     await store.chargerPlanVerif(planId)
     await fetchSessionData(currentStatutId.value)
+    checkConsultationMode(currentStatutId.value)
   } catch (err) {
     toast.error('Erreur', 'Impossible de charger les données.')
   } finally {
@@ -147,10 +159,12 @@ onMounted(async () => {
 const changeSession = (statutIdToLoad) => {
   if (statutIdToLoad === currentStatutId.value) return
   fetchSessionData(statutIdToLoad)
+  checkConsultationMode(statutIdToLoad)
 }
 
 const selectCardSession = async (statutIdToLoad) => {
   await fetchSessionData(statutIdToLoad)
+  checkConsultationMode(statutIdToLoad)
   viewMode.value = 'details'
 }
 
@@ -179,19 +193,45 @@ const save = async () => {
     await apiClient.post('/Operateur/verif-machine/save', payload)
     toast.success('Succès', 'Vérification machine enregistrée avec succès.')
     
-    // Retour automatique à la page Exécution Assemblage
-    goBack()
+    // Mettre à jour les données pour rafraîchir la liste des sessions
+    await fetchSessionData(currentStatutId.value)
+    
+    // Retour automatique à la vue galerie (les cartes)
+    switchToGalleryMode()
   } catch (err) {
     toast.error('Erreur', 'Impossible de sauvegarder.')
   }
 }
 
 const goBack = () => {
+  const execControleOfId = route.query.execControleOfId 
+    || operateurStore.activeOfContext?.execControleOfId 
+    || operateurStore.activeOfContext?.id 
+    || route.params.id
+
+  const posteCode = route.query.posteCode 
+    || operateurStore.activeOfContext?.posteCode 
+    || docHeader.value.posteCode
+
   const opCode = operateurStore.activeOfContext?.operationCode
   if (opCode === 'ASS' || !opCode) {
-    router.push({ name: 'operateur-of-fini' })
+    router.push({
+      name: 'operateur-of-fini',
+      query: { execControleOfId, posteCode }
+    })
   } else {
-    router.push({ name: 'operateur-of-semi-fini' })
+    router.push({
+      name: 'operateur-of-semi-fini',
+      query: { execControleOfId, posteCode }
+    })
+  }
+}
+
+const handleBackArrow = () => {
+  if (viewMode.value === 'details') {
+    switchToGalleryMode()
+  } else {
+    goBack()
   }
 }
 
@@ -205,21 +245,33 @@ const getTodayDate = () => {
   <div class="p-4 max-w-[1400px] mx-auto">
     <div class="flex items-center justify-between gap-3 mb-6">
       <div class="flex items-center gap-3">
-        <Button icon="pi pi-arrow-left" class="p-button-rounded p-button-text p-button-secondary" @click="goBack" />
+        <Button icon="pi pi-arrow-left" class="p-button-rounded p-button-text p-button-secondary" @click="handleBackArrow" />
         <h2 class="m-0 text-xl font-bold text-slate-800">
           {{ viewMode === 'gallery' ? 'Galerie des rapports d\'exécution' : 'Exécution : Vérification Machine' }}
         </h2>
       </div>
 
-      <!-- Mode Toggle Button -->
-      <button 
-        v-if="availableSessions.length > 0 && viewMode === 'details'"
-        @click="switchToGalleryMode"
-        class="px-4 py-2 rounded-xl text-xs font-bold bg-white text-blue-600 border border-slate-300 shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center gap-2"
-      >
-        <i class="pi pi-th-large"></i>
-        <span>Voir toutes les cartes ({{ availableSessions.length }})</span>
-      </button>
+      <div class="flex items-center gap-3">
+        <!-- Mode Toggle Button -->
+        <button 
+          v-if="availableSessions.length > 0 && viewMode === 'details'"
+          @click="switchToGalleryMode"
+          class="px-4 py-2 rounded-xl text-xs font-bold bg-white text-blue-600 border border-slate-300 shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center gap-2"
+        >
+          <i class="pi pi-th-large"></i>
+          <span>Voir toutes les cartes ({{ availableSessions.length }})</span>
+        </button>
+
+        <!-- Modifier Button -->
+        <button 
+          v-if="viewMode === 'details' && isConsultationMode"
+          @click="isConsultationMode = false"
+          class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 text-white shadow-sm hover:bg-amber-600 transition-all flex items-center gap-2"
+        >
+          <i class="pi pi-pencil"></i>
+          <span>Modifier</span>
+        </button>
+      </div>
     </div>
 
     <!-- ──────────────── MODE 1 : GALERIE DE CARTES ──────────────── -->
@@ -393,20 +445,34 @@ const getTodayDate = () => {
         </div>
       </div>
 
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+      <!-- SECTION CONFORMITÉ -->
+      <div v-if="store.lignesConformite.length > 0" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
         <div class="overflow-x-auto w-full">
-          <VerifMachineTableRisques 
-            v-if="store.lignesRisques.length > 0"
+          <VerifMachineTableConformite 
             :isReadOnly="true"
             :isExecution="true"
+            :isConsultationMode="isConsultationMode"
+            :execReponses="execReponses"
+            :selectedPeriodiciteId="selectedPeriodiciteId"
+          />
+        </div>
+      </div>
+
+      <!-- SECTION RISQUES & DÉFAUTS -->
+      <div v-if="store.lignesRisques.length > 0" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+        <div class="overflow-x-auto w-full">
+          <VerifMachineTableRisques 
+            :isReadOnly="true"
+            :isExecution="true"
+            :isConsultationMode="isConsultationMode"
             :execReponses="execReponses"
             :selectedPeriodiciteId="selectedPeriodiciteId"
           />
         </div>
       </div>
       
-      <div class="bg-slate-50 border border-slate-200 p-6 flex justify-end rounded-xl shadow-sm">
-        <Button label="Valider la vérification" icon="pi pi-check" @click="save" class="p-button-success shadow-md" />
+      <div v-if="!isConsultationMode" class="bg-slate-50 border border-slate-200 p-6 flex justify-end rounded-xl shadow-sm">
+        <Button label="Enregistrer la vérification" icon="pi pi-save" @click="save" class="p-button-success shadow-md" />
       </div>
     </div>
     </div>

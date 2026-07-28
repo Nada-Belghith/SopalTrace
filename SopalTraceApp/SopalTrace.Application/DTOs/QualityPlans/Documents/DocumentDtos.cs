@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace SopalTrace.Application.DTOs.QualityPlans.Documents;
 
@@ -8,35 +9,56 @@ public class DocumentEnteteDto
     public Guid Id { get; set; }
     public string TypeDocumentCode { get; set; } = string.Empty;
     public string Nom { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Designation { get; set; }
     public int Version { get; set; }
     public string Statut { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OperationCode { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OperationLibelle { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Guid? FormulaireId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FormulaireCodeReference { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LegendeMoyens { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Remarques { get; set; }
     public string CreePar { get; set; } = string.Empty;
     public DateTime CreeLe { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ModifiePar { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTime? ModifieLe { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NatureArticleCode { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FamilleProduitFiniCode { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Guid? ModeleSourceId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PosteCode { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PosteLibelle { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Libre1 { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Libre2 { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Libre3 { get; set; }
 
-    // For CTRL_POSTE documents: the JSON configuration of equipes/columns
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ConfigurationColonnesJson { get; set; }
-    // For CTRL_POSTE documents: the list of control lines (machine + defaut)
-    public List<ControlePosteLigneDto> LignesControlePoste { get; set; } = new();
+    
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ControlePosteLigneDto>? LignesControlePoste { get; set; }
 
-    public List<DocumentColonneDefDto> ColonneDefs { get; set; } = new();
-    public List<DocumentSectionDto> Sections { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<DocumentColonneDefDto>? ColonneDefs { get; set; }
+    
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<DocumentSectionDto>? Sections { get; set; }
 }
 
 public class ControlePosteLigneDto
@@ -129,6 +151,7 @@ public class CreateDocumentRequestDto
     public string? Designation { get; set; }
     public int? VersionInitiale { get; set; }
     public string? OperationCode { get; set; }
+    public Guid? FormulaireId { get; set; }
     public string? RefFormulaireCodeReference { get; set; }
     public string? LegendeMoyens { get; set; }
     public string? Remarques { get; set; }

@@ -16,7 +16,7 @@ public interface IFormulaireStructureService
     /// Archive le formulaire actif identifié par son codeReference et crée une nouvelle version active avec version+1.
     /// Si codeReference est null, utilise le role pour trouver le formulaire actif (comportement générique).
     /// </summary>
-    Task<(Guid Id, int Version)?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null, int? versionInitiale = null);
+    Task<(Guid Id, int Version)?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null, int? versionInitiale = null, bool isCorrectionMineure = false);
     
     Task<bool> ActiverFormulaireAsync(Guid id);
 }

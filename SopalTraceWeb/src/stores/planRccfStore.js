@@ -14,8 +14,12 @@ export const usePlanRccfStore = defineStore('planRccf', {
   actions: {
     resetCurrentPlan() {
       this.entete = {
+        id: null,
+        statut: null,
+        version: null,
         posteCode: '',
         formulaireId: null,
+        formulaireCodeReference: null,
         nom: '',
         remarques: '',
         notes: '',
@@ -39,7 +43,8 @@ export const usePlanRccfStore = defineStore('planRccf', {
       this.isLoading = true;
       try {
         const response = await rccfService.getTousLesPlans();
-        this.plans = response.data.data || [];
+        const data = response?.data;
+        this.plans = Array.isArray(data) ? data : (data?.data || []);
       } catch (error) {
         this.error = error.response?.data?.message || 'Erreur lors du chargement des plans';
         throw error;
@@ -99,7 +104,7 @@ export const usePlanRccfStore = defineStore('planRccf', {
       }
     },
 
-    async savePlan() {
+    async savePlan(isCorrection = false) {
       this.isLoading = true;
       try {
         // Build document payload
@@ -128,7 +133,7 @@ export const usePlanRccfStore = defineStore('planRccf', {
 
         let response;
         if (this.entete.id) {
-          if (this.entete.statut === 'ACTIF' || this.entete.statut === 'ARCHIVE') {
+          if (!isCorrection && (this.entete.statut === 'ACTIF' || this.entete.statut === 'ARCHIVE')) {
             // Document est actif, la modification crée une nouvelle version brouillon
             payload.ancienId = this.entete.id;
             response = await rccfService.creerNouvelleVersion(payload);
@@ -137,7 +142,7 @@ export const usePlanRccfStore = defineStore('planRccf', {
             await this.chargerPlan(newId);
             return { success: true, planId: newId };
           } else {
-            // Document est en brouillon, mise à jour simple
+            // Document est en brouillon, mise à jour simple, ou correction mineure
             response = await rccfService.mettreAJourPlan(this.entete.id, payload);
             await this.chargerPlan(this.entete.id); // Reload to ensure frontend and backend are in sync
             return { success: true, planId: this.entete.id };
@@ -187,7 +192,7 @@ export const usePlanRccfStore = defineStore('planRccf', {
       try {
         const payload = {
           TypeDocumentCode: 'RESULTAT_CF',
-          AncienId: this.entete.id,
+          ancienId: this.entete.id,
           PosteCode: this.entete.posteCode,
           RefFormulaireCodeReference: this.entete.formulaireCodeReference,
           Nom: this.entete.nom,

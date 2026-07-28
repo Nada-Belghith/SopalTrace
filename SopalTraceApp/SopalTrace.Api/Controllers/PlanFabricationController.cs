@@ -107,20 +107,7 @@ public class PlanFabricationController : ControllerBase
         }
     }
 
-    [HttpPost("restaurer")]
-    public async Task<IActionResult> Restaurer([FromBody] RestaurerDocumentRequestDto request)
-    {
-        try
-        {
-            var id = await _planService.RestaurerPlanArchiveAsync(request);
-            return Ok(new { id });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erreur lors de la restauration du plan.");
-            return StatusCode(500, "Une erreur est survenue.");
-        }
-    }
+
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)

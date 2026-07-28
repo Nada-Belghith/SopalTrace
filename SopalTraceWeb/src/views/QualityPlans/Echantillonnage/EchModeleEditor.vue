@@ -4,7 +4,7 @@
     <ConfirmDialog />
 
     <VersioningDialog :visible="showVersioningDialog"
-                      mode="ECHAN"
+                      :mode="versioningMode"
                       :is-loading="isVersioningSaving"
                       @confirm="onVersioningConfirm"
                       @cancel="showVersioningDialog = false"
@@ -180,14 +180,6 @@
             {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
           </button>
         </div>
-
-        <!-- Vue lecture seule (ARCHIVE) : Restaurer -->
-        <div v-if="isArchived" class="bg-amber-50 border-t border-amber-200 p-6 flex justify-end mt-6 rounded-b-xl">
-          <button @click="onRestaurer" :disabled="isVersioningSaving"
-            class="flex items-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg shadow transition-all active:scale-95 disabled:opacity-50">
-            <i class="pi pi-history"></i> Restaurer cette version
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -197,6 +189,7 @@
 import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
@@ -207,6 +200,7 @@ import { usePlanEchanStore } from '@/stores/planEchanStore';
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
+const confirm = useConfirm();
 const store = usePlanEchanStore();
 
 const isSaving = ref(false);
@@ -276,19 +270,44 @@ onMounted(async () => {
   }
 });
 
+const versioningMode = ref('restore');
+
 const onEnregistrer = async () => {
+  if (!isEditMode.value) {
+    try {
+      const planActif = await store.getPlanActif();
+      if (planActif) {
+        const isConfirmed = await new Promise((resolve) => {
+          confirm.require({
+            message: `Un plan d'échantillonnage actif (v${planActif.version}) existe déjà. Voulez-vous l'archiver et activer ce nouveau plan ?`,
+            header: 'Plan Actif Existant',
+            icon: 'ri-error-warning-line text-amber-500',
+            acceptLabel: 'Oui, archiver',
+            rejectLabel: 'Annuler',
+            accept: () => resolve(true),
+            reject: () => resolve(false)
+          });
+        });
+        if (!isConfirmed) return;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    } catch (err) {
+      console.warn("Erreur lors de la vérification du plan actif", err);
+    }
+  }
+
   isSaving.value = true;
   try {
     if (store.entete.statut === 'ACTIF' && isEditMode.value) {
-      // Si le plan est déjà ACTIF et qu'on le modifie, on crée automatiquement une nouvelle version
-      await store.creerNouvelleVersion("Modification automatique via Enregistrer");
-      toast.add({ severity: 'success', summary: 'Nouvelle Version', detail: 'Modifications enregistrées. L\'ancienne version a été archivée.', life: 3000 });
+      // Afficher le dialog au lieu d'enregistrer auto
+      versioningMode.value = 'new-version';
+      showVersioningDialog.value = true;
     } else {
       // Nouveau plan ou BROUILLON (Le backend crée le plan directement en ACTIF et synchronise FE-ECHAN-01)
       await store.sauvegarderPlan();
       toast.add({ severity: 'success', summary: 'Enregistré', detail: 'Plan enregistré et activé avec succès.', life: 3000 });
+      router.push('/dev/hub');
     }
-    router.push('/dev/hub');
   } catch (err) {
     toast.add({ severity: 'error', summary: 'Erreur', detail: err.response?.data?.message || 'Échec de l\'enregistrement.', life: 3000 });
   } finally {
@@ -297,16 +316,26 @@ const onEnregistrer = async () => {
 };
 
 const onRestaurer = () => {
+  versioningMode.value = 'restore';
   showVersioningDialog.value = true;
 };
 
-const onVersioningConfirm = async (motif) => {
+const onVersioningConfirm = async (payload) => {
   showVersioningDialog.value = false;
   isVersioningSaving.value = true;
   try {
-    if (isArchived.value) {
-      await store.restaurerPlan(motif);
+    if (versioningMode.value === 'restore') {
+      await store.restaurerPlan(payload); // payload est le motif
       toast.add({ severity: 'success', summary: 'Succès', detail: 'Version restaurée et activée (v' + (store.entete.version) + ' ACTIF).', life: 4000 });
+    } else {
+      const { action, motif } = payload;
+      if (action === 'correction') {
+        await store.sauvegarderPlan();
+        toast.add({ severity: 'success', summary: 'Succès', detail: 'Correction enregistrée avec succès.', life: 3000 });
+      } else {
+        await store.creerNouvelleVersion(motif);
+        toast.add({ severity: 'success', summary: 'Nouvelle Version', detail: 'Modifications enregistrées. L\'ancienne version a été archivée.', life: 3000 });
+      }
     }
     router.push('/dev/hub');
   } catch (error) {

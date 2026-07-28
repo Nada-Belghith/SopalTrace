@@ -253,13 +253,63 @@ public class OperateurRepository : IOperateurRepository
         var pf = await _context.ProduitFinis.FirstOrDefaultAsync(p => p.CodeArticle == codeArticle);
         var familleCode = pf?.FamilleProduitFiniCode;
 
-        if (string.IsNullOrEmpty(familleCode)) return null;
+        bool isSoupape = pf != null && !string.IsNullOrEmpty(pf.FamilleProduitFiniCode) && pf.FamilleProduitFiniCode.IndexOf("soupape", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         !string.IsNullOrEmpty(codeArticle) && (codeArticle.IndexOf("PAS", StringComparison.OrdinalIgnoreCase) >= 0 || codeArticle.IndexOf("soupape", StringComparison.OrdinalIgnoreCase) >= 0);
 
-        return await _context.Set<DocumentEntete>()
+        var plans = await _context.Set<DocumentEntete>()
             .Include(p => p.DocumentSections)
                 .ThenInclude(s => s.DocumentLignes)
-            .Where(p => p.Statut == "ACTIF" && p.FamilleProduitFiniCode == familleCode && p.TypeDocumentCode == "PLAN_ASS")
-            .FirstOrDefaultAsync();
+            .Include(p => p.Formulaire)
+            .Where(p => p.Statut == "ACTIF")
+            .OrderByDescending(p => p.CreeLe)
+            .ToListAsync();
+
+        var plansAss = plans.Where(p => p.TypeDocumentCode == "PLAN_ASS" || p.TypeDocumentCode == "PLAN_ASSEMBLAGE" || p.TypeDocumentCode == "PLAN_FAB" || p.TypeDocumentCode == "MODELE_FAB").ToList();
+        if (!plansAss.Any())
+        {
+            plansAss = plans.Where(p => p.TypeDocumentCode == "RESULTAT_CF" || p.TypeDocumentCode == "RCCF" || p.TypeDocumentCode == "CTRL_POSTE" || p.TypeDocumentCode == "RESULTAT_CONTROLE_POSTE").ToList();
+        }
+        
+        DocumentEntete? match = null;
+        if (isSoupape)
+        {
+            match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
+            if (match == null)
+            {
+                match = plansAss.FirstOrDefault(p => (p.Nom != null && (p.Nom.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Nom.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                                                     (p.Designation != null && (p.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                                                     (p.Formulaire != null && p.Formulaire.CodeReference != null && (p.Formulaire.CodeReference.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.CodeReference.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                                                     (p.Formulaire != null && p.Formulaire.Designation != null && (p.Formulaire.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                                                     (p.FamilleProduitFiniCode != null && (p.FamilleProduitFiniCode.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.FamilleProduitFiniCode.Contains("PAS", StringComparison.OrdinalIgnoreCase))));
+            }
+        }
+        if (match == null) match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
+        if (match == null && !string.IsNullOrEmpty(familleCode)) match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == familleCode);
+        if (match == null) match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == "GEN" || string.IsNullOrEmpty(p.FamilleProduitFiniCode));
+
+        return match ?? plansAss.FirstOrDefault();
+    }
+
+    public async Task<DocumentEntete?> GetPlanControlePosteAsync(string posteCode, string codeArticle)
+    {
+        var pf = await _context.ProduitFinis.FirstOrDefaultAsync(p => p.CodeArticle == codeArticle);
+        bool isSoupape = pf != null && !string.IsNullOrEmpty(pf.FamilleProduitFiniCode) && pf.FamilleProduitFiniCode.IndexOf("soupape", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        var plans = await _context.DocumentEntetes
+            .Include(p => p.Formulaire)
+            .Where(p => (string.IsNullOrEmpty(posteCode) || p.PosteCode == posteCode || p.PosteCode == "TOUS") &&
+                        (p.TypeDocumentCode == "CTRL_POSTE" || p.TypeDocumentCode == "RESULTAT_CONTROLE_POSTE" || p.TypeDocumentCode == "RESULTAT_CF") && 
+                        p.Statut == "ACTIF")
+            .ToListAsync();
+            
+        if (isSoupape)
+        {
+            return plans.FirstOrDefault(p => p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
+        }
+        else
+        {
+            return plans.FirstOrDefault(p => p.Formulaire == null || p.Formulaire.CodeReference == null || !p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
+        }
     }
 
     public async Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId)
@@ -303,16 +353,35 @@ public class OperateurRepository : IOperateurRepository
             .Where(p => p.MachineCode == machineCode && p.Statut == "ACTIF")
             .FirstOrDefaultAsync();
 
-        if (planActif == null || planActif.Formulaire == null)
+        if (planActif == null)
         {
             throw new Exception("Aucun plan de vérification actif n'a été trouvé pour cette machine. Veuillez signaler au superviseur pour le créer.");
         }
 
-        return new List<RefFormulaire> { planActif.Formulaire };
+        return new List<RefFormulaire> { new RefFormulaire { Id = planActif.Id } };
     }
 
     public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourArticleAsync(string codeArticle, string role)
     {
+        if (role == "PLAN_ASS" || role == "PLAN_ASSEMBLAGE")
+        {
+            var planAss = await GetPlanAssemblageActifAsync(codeArticle);
+            if (planAss != null)
+            {
+                return new List<RefFormulaire>
+                {
+                    new RefFormulaire
+                    {
+                        Id = planAss.Id,
+                        CodeReference = planAss.TypeDocumentCode,
+                        Designation = planAss.Nom ?? planAss.Designation ?? "Plan Assemblage",
+                        Statut = "ACTIF"
+                    }
+                };
+            }
+            return new List<RefFormulaire>();
+        }
+
         // Pour un article et un rôle (ex: PRODUIT_FINI, RESULTAT_CONTROLE_CF, ECHANTILLONNAGE)
         // La logique ici peut dépendre de la famille, mais comme c'est un repo on peut faire une recherche par mot clé
         // Ou utiliser les plans directement si ça existe.

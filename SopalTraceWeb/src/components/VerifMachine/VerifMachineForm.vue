@@ -498,7 +498,7 @@ const onMachineChange = async (newMachineCode) => {
 
 
 
-const emit = defineEmits(['saved']);
+const emit = defineEmits(['saved', 'trigger-versioning']);
 const onSauvegarder = async () => {
   if (store.isLoading) return;
   
@@ -563,7 +563,6 @@ const onSauvegarder = async () => {
             icon: 'ri-error-warning-line text-amber-500',
             acceptLabel: 'Oui, archiver',
             rejectLabel: 'Annuler',
-            acceptClass: 'p-button-danger',
             accept: () => resolve(true),
             reject: () => resolve(false),
             onHide: () => resolve(false)
@@ -571,7 +570,13 @@ const onSauvegarder = async () => {
         });
         
         if (!isConfirmed) return;
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
+    }
+
+    if (store.entete.id && store.entete.statut === 'ACTIF') {
+      emit('trigger-versioning');
+      return;
     }
 
     const result = await store.sauvegarderPlanVerif();

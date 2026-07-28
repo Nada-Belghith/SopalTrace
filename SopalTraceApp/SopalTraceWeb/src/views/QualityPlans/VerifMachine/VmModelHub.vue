@@ -76,7 +76,9 @@
 
           <p class="text-xs text-slate-500 flex items-center gap-2">
             <i class="pi pi-info-circle"></i> 
-            {{ modele.creePar && modele.creeLe ? `Créé par ${modele.creePar} le ${formatDate(modele.creeLe)}` : 'Aucune info' }}
+            <span v-if="modele.creePar && modele.creeLe">Créé par {{ modele.creePar }} le {{ formatDate(modele.creeLe) }}</span>
+            <span v-else-if="modele.creeLe">Créé le {{ formatDate(modele.creeLe) }}</span>
+            <span v-else>Aucune info</span>
           </p>
         </div>
 

@@ -35,5 +35,6 @@ public interface IOperateurService
     Task<SopalTrace.Application.Dtos.VerifMachine.ExecVerifMachineSessionDto> GetExecVerifMachineAsync(Guid statutId, Guid? periodiciteId = null);
     Task<bool> SaveExecVerifMachineAsync(SopalTrace.Application.Dtos.VerifMachine.SaveExecVerifMachineRequest request);
     Task<bool> TerminerToutDocumentsMachineAsync(Guid execControleOfId, string machineCode);
+    Task<bool> CloturerTousVerifMachineAsync(Guid execControleOfId, string posteCode);
     Task<IEnumerable<object>> GetPeriodicitesMachineAsync();
 }

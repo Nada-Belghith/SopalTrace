@@ -1,4 +1,4 @@
-﻿/**
+/**
  * sectionUtils.js — Source unique de vérité pour la logique des sections
  *
  * Utilisé par : AssPlanEditor, FabPlanEditor, FabModeleEditor, pfPlanStore, assPlanStore
@@ -24,7 +24,7 @@ export function mapLigneForBackend(ligne, lIdx) {
   }));
 
   return {
-    id: ligne.isFromDb ? ligne.id : null,
+    id: (ligne.id && String(ligne.id).trim() !== '') ? ligne.id : null,
     ordreAffiche: lIdx + 1,
     typeCaracteristiqueId: ligne.typeCaracteristiqueId || null,
     libelleAffiche: ligne.libelleAffiche || null,
@@ -58,7 +58,7 @@ export function mapSectionForBackend(section, idx, periodicites = []) {
   })();
 
   return {
-    id: section.isFromDb ? section.id : null,
+    id: (section.id && String(section.id).trim() !== '') ? section.id : null,
     ordreAffiche: idx + 1,
     typeSectionId: (section.typeSectionId && section.typeSectionId !== '') ? section.typeSectionId : null,
     libelleSection: section.libelleSection || section.nom || `Section ${idx + 1}`,
@@ -175,7 +175,7 @@ export function hydrateSectionFromBackend(section, periodicites = [], reglesEcha
           Object.assign(valeursColonnesSpecifiques, typeof l.colonnesSupplementaires === 'string'
             ? JSON.parse(l.colonnesSupplementaires) : l.colonnesSupplementaires);
         }
-        return { ...l, valeursColonnesSpecifiques };
+        return { ...l, isFromDb: true, valeursColonnesSpecifiques };
       });
   }
 

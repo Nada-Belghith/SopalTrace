@@ -301,6 +301,7 @@ import { useRouter } from 'vue-router';
 import { usePlanRccfStore } from '@/stores/planRccfStore';
 import { useReferentielStore } from '@/stores/referentielStore';
 import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import Dropdown from 'primevue/dropdown';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
@@ -313,7 +314,10 @@ defineProps({
 const store = usePlanRccfStore();
 const referentielStore = useReferentielStore();
 const toast = useToast();
+const confirm = useConfirm();
 const router = useRouter();
+
+const emit = defineEmits(['trigger-versioning']);
 
 const fileInput = ref(null);
 const isImporting = ref(false);
@@ -410,7 +414,8 @@ const onFormulaireChange = (event) => {
 onMounted(async () => {
   await Promise.all([
     referentielStore.fetchFormulaires(),
-    referentielStore.fetchPostesTravail()
+    referentielStore.fetchPostesTravail(),
+    store.loadAllPlans()
   ]);
 
   // Si le code poste n'est pas renseigné, on assigne automatiquement le premier pour satisfaire le backend
@@ -480,6 +485,47 @@ const savePlan = async () => {
     return;
   }
   
+  if (store.entete.id && store.entete.statut === 'ACTIF') {
+    emit('trigger-versioning');
+    return;
+  }
+  
+  if (!store.entete.id) {
+    // Comparer par formulaireCodeReference ou formulaireId (FE-RC-PAS71 != FE-RC-PAS71_SOUPAPE = plans indépendants)
+    const currentRef = store.entete.formulaireCodeReference;
+    const currentFormId = store.entete.formulaireId;
+    const targetPoste = String(store.entete.posteCode || '').toLowerCase();
+
+    const planActif = store.plans.find(p => {
+      if (p.statut !== 'ACTIF') return false;
+      if (String(p.posteCode || '').toLowerCase() !== targetPoste) return false;
+
+      if (currentRef && p.formulaireCodeReference) {
+        return String(p.formulaireCodeReference).toLowerCase() === String(currentRef).toLowerCase();
+      }
+      if (currentFormId && p.formulaireId) {
+        return String(p.formulaireId).toLowerCase() === String(currentFormId).toLowerCase();
+      }
+      return !currentRef && !currentFormId && !p.formulaireId && !p.formulaireCodeReference;
+    });
+    
+    if (planActif) {
+        const isConfirmed = await new Promise((resolve) => {
+            confirm.require({
+                message: `Un plan RCCF actif (V${planActif.version || 1}) existe déjà pour ce formulaire. Voulez-vous l'archiver et activer cette nouvelle version ?`,
+                header: 'Plan Actif Existant',
+                icon: 'ri-error-warning-line text-amber-500',
+                acceptLabel: 'Oui, archiver',
+                rejectLabel: 'Annuler',
+                accept: () => resolve(true),
+                reject: () => resolve(false)
+            });
+        });
+        if (!isConfirmed) return;
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+
   const res = await store.savePlan();
   if (res.success) {
     toast.add({ severity: 'success', summary: 'Succès', detail: 'Le plan ENCF a été enregistré.', life: 3000 });

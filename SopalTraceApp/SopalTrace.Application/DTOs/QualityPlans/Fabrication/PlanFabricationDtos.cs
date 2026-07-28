@@ -34,6 +34,7 @@ public class CreatePlanFabricationRequestDto
 public class UpdatePlanFabricationRequestDto
 {
     public string? Nom { get; set; }
+    public string? CodeArticleSageVersionne { get; set; }
     public string? LegendeMoyens { get; set; }
     public string? Remarques { get; set; }
     public string? Libre1 { get; set; }
@@ -118,6 +119,7 @@ public class PlanFabricationEnteteDto
     public string? OperationLibelle { get; set; }
     public Guid? FormulaireId { get; set; }
     public string? FormulaireCodeReference { get; set; }
+    public int? FormulaireVersion { get; set; }
     public string? LegendeMoyens { get; set; }
     public string? Remarques { get; set; }
     public string CreePar { get; set; } = string.Empty;

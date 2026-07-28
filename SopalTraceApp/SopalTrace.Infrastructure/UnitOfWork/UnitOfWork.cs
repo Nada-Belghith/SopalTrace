@@ -5,6 +5,7 @@ using SopalTrace.Infrastructure.Data;
 using SopalTrace.Infrastructure.Repositories;
 using SopalTrace.Application.Interfaces.Repositories;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.UnitOfWork;
@@ -81,6 +82,39 @@ public class UnitOfWork : IUnitOfWork
         }
         catch (DbUpdateException ex)
         {
+            // Log details to a file for diagnosis
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"[CommitAsync] DbUpdateException at {DateTime.UtcNow:O}");
+                sb.AppendLine($"  Type: {ex.GetType().FullName}");
+                sb.AppendLine($"  Message: {ex.Message}");
+                if (ex.InnerException != null)
+                    sb.AppendLine($"  InnerException: {ex.InnerException.Message}");
+                var entriesProperty = ex.GetType().GetProperty("Entries");
+                if (entriesProperty != null)
+                {
+                    var entries = entriesProperty.GetValue(ex) as System.Collections.IEnumerable;
+                    if (entries != null)
+                    {
+                        foreach (var entry in entries)
+                        {
+                            var entityProp = entry.GetType().GetProperty("Entity");
+                            var stateProp = entry.GetType().GetProperty("State");
+                            var entity = entityProp?.GetValue(entry);
+                            var state = stateProp?.GetValue(entry);
+                            // Try to get Id
+                            var idProp = entity?.GetType().GetProperty("Id");
+                            var id = idProp?.GetValue(entity);
+                            sb.AppendLine($"  Entry: {entity?.GetType().Name}, State={state}, Id={id}");
+                        }
+                    }
+                }
+                var logPath = @"c:\Users\LAPTOP\OneDrive - Ministere de l'Enseignement Superieur et de la Recherche Scientifique\Bureau\pfe\SopalTraceApp\SopalTraceApp\concurrency_debug.log";
+                System.IO.File.WriteAllText(logPath, sb.ToString());
+            }
+            catch { /* ignore logging errors */ }
+
             await RollbackAsync();
             throw ex.ToDomainExceptionOrSelf("Un enregistrement concurrent a déjà été validé.");
         }
@@ -103,6 +137,15 @@ public class UnitOfWork : IUnitOfWork
     public async Task<int> FlushDeletesAsync()
     {
         return await _context.SaveChangesAsync();
+    }
+
+    /// <inheritdoc/>
+    public void DetachAllEntities()
+    {
+        foreach (var entry in _context.ChangeTracker.Entries().ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
     }
 
     public async Task RollbackAsync()

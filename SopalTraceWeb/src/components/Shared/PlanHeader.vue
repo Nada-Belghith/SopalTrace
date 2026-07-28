@@ -30,14 +30,15 @@
         </span>
       </template>
 
-      <!-- Bouton Restaurer Universel (Le bouton JAUNE demandé par l'utilisateur) -->
-      <button v-if="statut === 'ARCHIVE'" 
-              @click="$emit('restaurer')" 
-              :disabled="isRestoring"
-              class="ml-2 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-lg shadow-md flex items-center gap-2 transition-all disabled:opacity-50 ring-1 ring-amber-600/50">
-        <i class="pi pi-history" :class="{'pi-spin': isRestoring}"></i> 
-        Mettre à jour
-      </button>
+      <template v-if="showRestaurerBtn && statut === 'ARCHIVE'">
+        <button 
+          @click="$emit('restaurer')"
+          :disabled="isRestoring"
+          class="flex items-center gap-2 bg-white border-2 border-blue-500 text-blue-600 px-4 py-1.5 rounded-lg font-bold text-xs hover:bg-blue-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="pi pi-sync" :class="{ 'animate-spin': isRestoring }"></i>
+          {{ isRestoring ? 'Mise à niveau...' : 'Mettre à niveau' }}
+        </button>
+      </template>
 
       <slot name="actions"></slot>
     </div>
@@ -58,7 +59,8 @@ defineProps({
   isReadOnly: { type: Boolean, default: false },
   version: { type: [String, Number], default: null },
   statut: { type: String, default: 'NOUVEAU' },
-  isRestoring: { type: Boolean, default: false }
+  isRestoring: { type: Boolean, default: false },
+  showRestaurerBtn: { type: Boolean, default: true }
 });
 
 defineEmits(['restaurer']);

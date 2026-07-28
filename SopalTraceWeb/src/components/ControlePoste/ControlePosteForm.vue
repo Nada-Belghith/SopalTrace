@@ -1,7 +1,5 @@
 <template>
   <div class="space-y-6 max-w-[1200px] mx-auto animate-fade-in">
-      <Toast />
-      <ConfirmDialog />
       <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
         <div class="flex items-start justify-between">
           <div class="flex-1">
@@ -181,7 +179,7 @@
                               </td>
 
                                 <!-- Colonnes dynamiques fusionnées -->
-                                <td v-if="index === 0" :colspan="totalColCount" :rowspan="store.lignes.length" class="p-2 border-r align-middle text-center bg-slate-50/50">
+                                <td v-if="index === 0" :colspan="totalColCount" :rowspan="store.lignes.length + 2" class="p-2 border-r align-middle text-center bg-slate-50/50">
                                     <span class="text-xs font-bold text-slate-400 italic tracking-wider uppercase">À remplir lors de la production</span>
                                 </td>
 
@@ -193,6 +191,16 @@
                                       <i class="pi pi-trash"></i>
                                   </button>
                               </td>
+                          </tr>
+                          
+                          <!-- Lignes de totaux (Aperçu) -->
+                          <tr v-if="store.lignes.length > 0" class="bg-slate-100 border-t-2 border-slate-200">
+                              <td colspan="3" class="p-4 font-bold text-slate-700 text-center border-r">Total Non conforme :</td>
+                              <td v-if="!isReadOnly" class="p-2 bg-slate-50/30"></td>
+                          </tr>
+                          <tr v-if="store.lignes.length > 0" class="bg-slate-100 border-t border-slate-200">
+                              <td colspan="3" class="p-4 font-bold text-slate-700 text-center border-r">Total réalisé :</td>
+                              <td v-if="!isReadOnly" class="p-2 bg-slate-50/30"></td>
                           </tr>
                       </tbody>
                   </table>
@@ -347,6 +355,8 @@ const props = defineProps({
     isReadOnly: { type: Boolean, default: false }
 });
 
+const emit = defineEmits(['trigger-versioning']);
+
 const store = useControlePosteStore();
 const toast = useToast();
 const confirm = useConfirm();
@@ -379,6 +389,8 @@ const standardColumns = computed(() => {
   cols.push({ id: 'col_tot_defauts', header: 'Total des défauts', type: 'TEXT' });
   cols.push({ id: 'col_tot_pieces', header: 'Total des pièces testées', type: 'TEXT' });
   cols.push({ id: 'col_taux_nc', header: 'Taux de NC', type: 'TEXT' });
+  cols.push({ id: 'col_nb_pieces_rebus', header: 'NB des pièces rebutées', type: 'TEXT' });
+  cols.push({ id: 'col_nb_pieces_conformes', header: 'NB des pièces conformes', type: 'TEXT' });
   
   return cols;
 });
@@ -614,10 +626,24 @@ const handleSauvegarder = async () => {
 
     // 4. Confirmation d'archivage si on crée un nouveau plan et qu'un actif existe
     if (!store.entete.id) {
-        // Comparer par formulaireId si disponible (FE-RC-PAS71 != FE-RC-PAS71_SOUPAPE = plans indépendants)
-        const planActif = store.entete.formulaireId
-            ? store.plansExistants.find(p => p.statut === 'ACTIF' && p.formulaireId === store.entete.formulaireId)
-            : store.plansExistants.find(p => p.statut === 'ACTIF' && p.posteCode === store.entete.posteCode && !p.formulaireId);
+        await store.fetchTousLesPlans();
+        // Comparer par formulaireCodeReference ou formulaireId (FE-RC-PAS71 != FE-RC-PAS71_SOUPAPE = plans indépendants)
+        const currentRef = store.entete.formulaireCodeReference;
+        const currentFormId = store.entete.formulaireId;
+        const targetPoste = String(store.entete.posteCode || '').toLowerCase();
+
+        const planActif = store.plansExistants.find(p => {
+            if (p.statut !== 'ACTIF') return false;
+            if (String(p.posteCode || '').toLowerCase() !== targetPoste) return false;
+
+            if (currentRef && p.formulaireCodeReference) {
+                return String(p.formulaireCodeReference).toLowerCase() === String(currentRef).toLowerCase();
+            }
+            if (currentFormId && p.formulaireId) {
+                return String(p.formulaireId).toLowerCase() === String(currentFormId).toLowerCase();
+            }
+            return !currentRef && !currentFormId && !p.formulaireId && !p.formulaireCodeReference;
+        });
         
         if (planActif) {
             const isConfirmed = await new Promise((resolve) => {
@@ -632,7 +658,13 @@ const handleSauvegarder = async () => {
                 });
             });
             if (!isConfirmed) return;
+            await new Promise(resolve => setTimeout(resolve, 200));
         }
+    }
+
+    if (store.entete.id && store.entete.statut === 'ACTIF') {
+      emit('trigger-versioning');
+      return;
     }
 
     try {

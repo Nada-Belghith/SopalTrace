@@ -70,7 +70,7 @@ const isModeActive = (mode) => {
 </script>
 
 <template>
-  <div class="p-6 max-w-7xl mx-auto font-sans">
+  <div class="p-6 min-h-screen bg-slate-50 font-sans">
     <div class="flex items-center gap-4 mb-6">
       <Button icon="pi pi-arrow-left" class="p-button-rounded p-button-text" @click="goBack" />
       <div>
@@ -103,24 +103,31 @@ const isModeActive = (mode) => {
             <p class="mt-3"><span class="font-bold text-gray-700">Atelier :</span> {{ echantillonnagePlan.atelier || '-' }}</p>
             <p class="mt-3 flex items-center gap-2">
               <span class="font-bold text-gray-700 whitespace-nowrap">Poste / Machine :</span> 
-              <InputText v-model="echantillonnagePlan.posteCode" placeholder="Poste" class="w-20" />
-              <span class="text-gray-400">/</span>
-              <InputText v-model="echantillonnagePlan.codeMachine" placeholder="Machine" class="w-20" />
+              <template v-if="!echantillonnagePlan?.estTermine">
+                <InputText v-model="echantillonnagePlan.posteCode" placeholder="Poste" class="w-20" />
+                <span class="text-gray-400">/</span>
+                <InputText v-model="echantillonnagePlan.codeMachine" placeholder="Machine" class="w-20" />
+              </template>
+              <template v-else>
+                <span class="text-gray-800 font-medium">{{ echantillonnagePlan.posteCode || '-' }} <template v-if="echantillonnagePlan.codeMachine">/ {{ echantillonnagePlan.codeMachine }}</template></span>
+              </template>
             </p>
           </div>
           <div>
-            <p><span class="font-bold text-gray-700">Désignation :</span> <span class="text-blue-600 font-medium">{{ echantillonnagePlan.designation || '-' }}</span></p>
+            <p><span class="font-bold text-gray-700">Désignation :</span> <span class="text-gray-800 font-medium">{{ echantillonnagePlan.designation || '-' }}</span></p>
             <p class="mt-3"><span class="font-bold text-gray-700">Date de fabrication :</span> 
-              <input type="date" :disabled="echantillonnagePlan?.estTermine" :value="echantillonnagePlan.dateFabrication ? echantillonnagePlan.dateFabrication.split('T')[0] : ''" @input="echantillonnagePlan.dateFabrication = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500" />
+              <input v-if="!echantillonnagePlan?.estTermine" type="date" :value="echantillonnagePlan.dateFabrication ? echantillonnagePlan.dateFabrication.split('T')[0] : ''" @input="echantillonnagePlan.dateFabrication = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500" />
+              <span v-else class="text-gray-800 font-medium ml-2">{{ echantillonnagePlan.dateFabrication ? echantillonnagePlan.dateFabrication.split('T')[0] : '-' }}</span>
             </p>
             <p class="mt-3"><span class="font-bold text-gray-700">Code instrument de mesure :</span> 
-              <span class="text-blue-600">{{ echantillonnagePlan.instrumentCodes?.join('  ') || '-' }}</span>
+              <span class="text-gray-800">{{ echantillonnagePlan.instrumentCodes?.join('  ') || '-' }}</span>
             </p>
           </div>
           <div>
-            <p><span class="font-bold text-gray-700">Numéro de l'OF :</span> <span class="text-blue-600">{{ echantillonnagePlan.numeroOf || '-' }}</span></p>
+            <p><span class="font-bold text-gray-700">Numéro de l'OF :</span> <span class="text-gray-800">{{ echantillonnagePlan.numeroOf || '-' }}</span></p>
             <p class="mt-3"><span class="font-bold text-gray-700">Date de l'échantillonnage :</span> 
-              <input type="datetime-local" :disabled="echantillonnagePlan?.estTermine" :value="echantillonnagePlan.dateEchantillonnage ? echantillonnagePlan.dateEchantillonnage.substring(0, 16) : ''" @input="echantillonnagePlan.dateEchantillonnage = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500" />
+              <input v-if="!echantillonnagePlan?.estTermine" type="datetime-local" :value="echantillonnagePlan.dateEchantillonnage ? echantillonnagePlan.dateEchantillonnage.substring(0, 16) : ''" @input="echantillonnagePlan.dateEchantillonnage = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500" />
+              <span v-else class="text-gray-800 font-medium ml-2">{{ echantillonnagePlan.dateEchantillonnage ? echantillonnagePlan.dateEchantillonnage.substring(0, 16).replace('T', ' ') : '-' }}</span>
             </p>
           </div>
         </div>
@@ -207,10 +214,22 @@ const isModeActive = (mode) => {
               <tr>
                 <td class="py-5 px-2 border-r border-gray-200 text-gray-400">1</td>
                 <td class="py-5 px-2 border-r border-gray-200">{{ echantillonnagePlan.tailleLot }}</td>
-                <td class="py-2 px-2 border-r border-gray-200"><InputText v-model="echantillonnagePlan.lettreCode" :disabled="echantillonnagePlan?.estTermine" class="w-16 text-center" /></td>
-                <td class="py-2 px-2 border-r border-gray-200"><InputNumber v-model="echantillonnagePlan.effectifEchantillonA" :disabled="echantillonnagePlan?.estTermine" class="w-20" inputClass="text-center w-full" /></td>
-                <td class="py-2 px-2 border-r border-gray-200"><InputNumber v-model="echantillonnagePlan.nbPostesB" :disabled="echantillonnagePlan?.estTermine" class="w-16" inputClass="text-center w-full" /></td>
-                <td class="py-2 px-2 border-r border-gray-200"><InputNumber v-model="echantillonnagePlan.effectifParPosteAb" :disabled="echantillonnagePlan?.estTermine" class="w-20" inputClass="text-center w-full" /></td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputText v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.lettreCode" class="w-16 text-center" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.lettreCode }}</span>
+                </td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputNumber v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.effectifEchantillonA" class="w-20" inputClass="text-center w-full" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.effectifEchantillonA }}</span>
+                </td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputNumber v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.nbPostesB" class="w-16" inputClass="text-center w-full" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.nbPostesB }}</span>
+                </td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputNumber v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.effectifParPosteAb" class="w-20" inputClass="text-center w-full" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.effectifParPosteAb }}</span>
+                </td>
                 <td class="py-2 px-2 border-r border-gray-200">
                   <span class="font-bold text-[#059669] text-base">
                     {{ echantillonnagePlan.critereAcceptationAc }}
@@ -227,9 +246,8 @@ const isModeActive = (mode) => {
         </div>
       </div>
 
-      <div class="mt-8 flex justify-end">
-        <Button label="Imprimer la fiche" icon="pi pi-print" class="p-button-outlined mr-3" />
-        <Button v-if="!echantillonnagePlan?.estTermine" label="Valider" icon="pi pi-check" class="p-button-success shadow-lg" @click="valider" />
+      <div class="flex justify-end mt-6">
+        <Button v-if="!echantillonnagePlan?.estTermine" label="Valider" icon="pi pi-check" class="p-button-success" @click="valider" />
       </div>
     </div>
   </div>

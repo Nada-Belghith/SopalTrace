@@ -303,4 +303,18 @@ public class OperateurController : ControllerBase
             return BadRequest(new { Message = ex.Message });
         }
     }
+
+    [HttpPost("of/{execControleOfId}/verif-machine/cloturer-tous")]
+    public async Task<IActionResult> CloturerTousVerifMachine(Guid execControleOfId, [FromQuery] string posteCode)
+    {
+        try
+        {
+            var result = await _operateurService.CloturerTousVerifMachineAsync(execControleOfId, posteCode);
+            return Ok(new { success = result });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
 }

@@ -65,79 +65,57 @@ public class OccurrenceService : IOccurrenceService
             {
                 var typeCode = s.TypeSection?.Code;
                 bool isReglage = typeCode == "REGLAGE" || typeCode == "REGLAGE_PROD";
-                bool isProd = typeCode == "EN_COURS" || typeCode == "ECHANT_NQA" || typeCode == "REGLAGE_PROD" || string.IsNullOrEmpty(typeCode);
-
-                // 1. Génération des occurrences de Réglage de démarrage
-                bool hasValidStartupReglage = of.ExecPieceTypes != null && of.ExecPieceTypes.Any(pt => pt.Resultat == "C");
-                
-                // Si on a déjà un réglage valide (C), cela veut dire qu'on est en milieu de production (ex: suite à un MettreEnReglage)
-                // Donc on ne doit plus afficher le réglage de démarrage initial.
-                if (isReglage && of.EstEnReglage && !hasValidStartupReglage)
+                bool isTimeBased = false;
+                if (s.Periodicite != null)
                 {
-                    string trancheReglage = "REGLAGE_DEBUT";
-                    
-                    if (!of.ExecPrelevementIntermediaires.Any(x => x.SectionId == s.Id && x.TrancheHoraire == trancheReglage))
+                    string perCode = (s.Periodicite.Code ?? "").ToUpper();
+                    string unite = (s.Periodicite.FrequenceUnite ?? "").ToUpper();
+                    if (unite.Contains("HEURE") || unite.Contains("PCT_HEURE") || perCode.EndsWith("H"))
                     {
-                        newIntermediaires.Add(new ExecPrelevementIntermediaire
-                        {
-                            ExecControleOfid = of.Id,
-                            SectionId = s.Id,
-                            TrancheHoraire = trancheReglage,
-                            NumeroOccurrence = 0, // 0 pour signifier que ce n'est pas une prod périodique
-                            HeureNotifPrevue = of.DateDebut, // Le contrôle de réglage doit être fait dès le début
-                            EstRepondu = false,
-                            EstEnRetard = false
-                        });
+                        isTimeBased = true;
                     }
                 }
-
-                // 2. Génération des occurrences Périodiques (Prod)
-                if (isProd && s.Periodicite != null && !of.EstEnReglage)
+                if (s.RegleEchantillonnage != null)
                 {
-                    int freqNum = s.Periodicite.FrequenceNum ?? 1;
-                    int freqHeures = 1;
-                    if (!string.IsNullOrEmpty(s.Periodicite.FrequenceUnite))
+                    string regleLib = (s.RegleEchantillonnage.Libelle ?? "").ToLower();
+                    if (regleLib.Contains("p/h") || regleLib.Contains("heure"))
                     {
-                        var match = System.Text.RegularExpressions.Regex.Match(s.Periodicite.FrequenceUnite, @"\d+");
-                        if (match.Success) freqHeures = int.Parse(match.Value);
+                        isTimeBased = true;
                     }
-                    
-                    double simulatedIntervalMinutes = (freqHeures * 60.0) / freqNum;
-                
+                }
+                bool isProd = isTimeBased;
+
+                // Génération supprimée : L'occurrence de réglage n'est plus générée automatiquement au démarrage.
+                // Elle sera générée manuellement via le bouton "Déclarer comme Réglage" / MettreEnReglageAsync.
+
+                if (isProd && !of.EstEnReglage)
+                {
+                    double simulatedIntervalMinutes = 15.0; // Défaut: 4 pièces/heure
+                    if (s.Periodicite != null)
+                    {
+                        int freqNum = s.Periodicite.FrequenceNum ?? 4;
+                        int freqHeures = 1;
+                        if (!string.IsNullOrEmpty(s.Periodicite.FrequenceUnite))
+                        {
+                            var match = System.Text.RegularExpressions.Regex.Match(s.Periodicite.FrequenceUnite, @"\d+");
+                            if (match.Success) freqHeures = int.Parse(match.Value);
+                        }
+                        simulatedIntervalMinutes = (freqHeures * 60.0) / Math.Max(freqNum, 1);
+                    }
                     DateTime baseline = of.DateDebut;
-
                     double simulatedIntervalSinceBaseline = (now - baseline).TotalMinutes * simulationSpeedFactor;
-                    // On ajoute +2 : 
-                    // +1 pour l'occurrence actuelle (ex: 0 intervalle passé -> occurrence #1)
-                    // +1 supplémentaire pour générer la PROCHAINE occurrence (À VENIR)
-                    int expectedOccurrencesSinceBaseline = (int)Math.Floor(simulatedIntervalSinceBaseline / simulatedIntervalMinutes) + 2;
-
+                    int expectedOccurrencesSinceBaseline = (int)Math.Floor(simulatedIntervalSinceBaseline / simulatedIntervalMinutes) + 1;
                     int expectedTotalOccurrences = expectedOccurrencesSinceBaseline;
-
                     var sectionOccurrences = of.ExecPrelevementIntermediaires.Where(x => x.SectionId == s.Id && x.NumeroOccurrence > 0).ToList();
                     int maxNumeroOccurrence = sectionOccurrences.Any() ? sectionOccurrences.Max(x => x.NumeroOccurrence) : 0;
-
-                    // SÉCURITÉ : Ne générer qu'un maximum de 500 nouvelles occurrences d'un coup (batch)
-                    // pour éviter les boucles trop longues, mais SANS bloquer la génération globale !
                     if (expectedTotalOccurrences > maxNumeroOccurrence + 500)
-                    {
                         expectedTotalOccurrences = maxNumeroOccurrence + 500;
-                    }
 
                     for (int i = maxNumeroOccurrence + 1; i <= expectedTotalOccurrences; i++)
                     {
-                        int occurrenceIndexSinceBaseline = i;
-
-                        
-                        // Le temps RÉEL où l'alerte aurait dû apparaître
-                        DateTime intendedRealTime = baseline.AddMinutes((simulatedIntervalMinutes * occurrenceIndexSinceBaseline) / simulationSpeedFactor);
-                        
-                        // Le temps LOGIQUE (affichage pour l'utilisateur, ex: 14:30)
+                        DateTime intendedRealTime = baseline.AddMinutes((simulatedIntervalMinutes * i) / simulationSpeedFactor);
                         DateTime logicalTime = of.DateDebut.AddMinutes((intendedRealTime - of.DateDebut).TotalMinutes * SimulationSpeedFactor);
                         string tranche = $"H_{logicalTime.Hour:00}_{logicalTime.Hour + 1:00}";
-
-                        // SÉCURITÉ CONTRAINTE UNIQUE: On utilise un numéro négatif temporaire pour l'insertion
-                        // Il sera recalculé globalement et mis à jour juste après.
                         if (!of.ExecPrelevementIntermediaires.Any(x => x.SectionId == s.Id && Math.Abs((x.HeureNotifPrevue - intendedRealTime).TotalMinutes) < 1))
                         {
                             newIntermediaires.Add(new ExecPrelevementIntermediaire
@@ -145,8 +123,8 @@ public class OccurrenceService : IOccurrenceService
                                 ExecControleOfid = of.Id,
                                 SectionId = s.Id,
                                 TrancheHoraire = tranche,
-                                NumeroOccurrence = -(10000 + i + s.Id.GetHashCode() % 1000), 
-                                HeureNotifPrevue = intendedRealTime, 
+                                NumeroOccurrence = -(10000 + i + s.Id.GetHashCode() % 1000),
+                                HeureNotifPrevue = intendedRealTime,
                                 EstRepondu = false,
                                 EstEnRetard = false
                             });
@@ -158,6 +136,74 @@ public class OccurrenceService : IOccurrenceService
             if (newIntermediaires.Any())
             {
                 _occurrenceRepository.AddIntermediaires(newIntermediaires);
+                await _occurrenceRepository.SaveChangesAsync();
+            }
+        }
+        else if (of.TypeOf == "ASS")
+        {
+            // Pour les OF d'assemblage : les sections ECHANTILLONNAGE viennent du plan d'assemblage (DocumentSection)
+            // La periodicite est n pieces/heure (effectifParHeure depuis ExecEchantillonnage)
+            var assNewIntermediaires = new List<ExecPrelevementIntermediaire>();
+            var sectionsEch = await _occurrenceRepository.GetDocumentSectionsEchantillonnageAsync(execControleOfId);
+
+            // Récupérer effectifParHeure (n pièces par heure = interval de 60/n minutes)
+            // On calcule l'intervalle : si 4 pièces/h -> 15 min entre chaque occurrence
+            // On cherche d'abord une périodicité dans la section, sinon on utilise effectifParHeure
+            foreach (var sec in sectionsEch)
+            {
+                double intervalMinutes = 15.0; // défaut: 4 pièces/heure
+                if (sec.Periodicite != null)
+                {
+                    int freqNum = sec.Periodicite.FrequenceNum ?? 4;
+                    int freqHeures = 1;
+                    if (!string.IsNullOrEmpty(sec.Periodicite.FrequenceUnite))
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(sec.Periodicite.FrequenceUnite, @"\d+");
+                        if (match.Success) freqHeures = int.Parse(match.Value);
+                        
+                        // Si c'est un pourcentage (ex: 100PCT_1H), la fréquence de l'alerte est 1 fois par tranche horaire
+                        if (sec.Periodicite.FrequenceUnite.Contains("PCT"))
+                        {
+                            freqNum = 1;
+                        }
+                    }
+                    intervalMinutes = (freqHeures * 60.0) / Math.Max(freqNum, 1);
+                }
+
+                DateTime baseline = of.DateDebut;
+                double simulatedIntervalSinceBaseline = (now - baseline).TotalMinutes * simulationSpeedFactor;
+                int expectedOccurrencesSinceBaseline = (int)Math.Floor(simulatedIntervalSinceBaseline / intervalMinutes) + 1;
+                int expectedTotalOccurrences = Math.Min(expectedOccurrencesSinceBaseline, 500);
+
+                var sectionOccurrences = of.ExecPrelevementIntermediaires
+                    .Where(x => x.SectionId == sec.Id && x.NumeroOccurrence > 0).ToList();
+                int maxNumero = sectionOccurrences.Any() ? sectionOccurrences.Max(x => x.NumeroOccurrence) : 0;
+                if (expectedTotalOccurrences > maxNumero + 500)
+                    expectedTotalOccurrences = maxNumero + 500;
+
+                for (int i = maxNumero + 1; i <= expectedTotalOccurrences; i++)
+                {
+                    DateTime intendedTime = baseline.AddMinutes((intervalMinutes * i) / simulationSpeedFactor);
+                    string tranche = $"H_{intendedTime.Hour:00}_{intendedTime.Hour + 1:00}";
+                    if (!of.ExecPrelevementIntermediaires.Any(x => x.SectionId == sec.Id && Math.Abs((x.HeureNotifPrevue - intendedTime).TotalMinutes) < 1))
+                    {
+                        assNewIntermediaires.Add(new ExecPrelevementIntermediaire
+                        {
+                            ExecControleOfid = of.Id,
+                            SectionId = sec.Id,
+                            TrancheHoraire = tranche,
+                            NumeroOccurrence = -(10000 + i + sec.Id.GetHashCode() % 1000),
+                            HeureNotifPrevue = intendedTime,
+                            EstRepondu = false,
+                            EstEnRetard = false
+                        });
+                    }
+                }
+            }
+
+            if (assNewIntermediaires.Any())
+            {
+                _occurrenceRepository.AddIntermediaires(assNewIntermediaires);
                 await _occurrenceRepository.SaveChangesAsync();
             }
         }
@@ -249,6 +295,29 @@ public class OccurrenceService : IOccurrenceService
             }
         }
 
+        if (of.TypeOf == "ASS")
+        {
+            var assSections = await _occurrenceRepository.GetDocumentSectionsActivesAsync(execControleOfId);
+            foreach (var s in assSections)
+            {
+                var typeCode = s.TypeSection?.Code;
+                bool isReglage = typeCode == "REGLAGE" || typeCode == "REGLAGE_PROD";
+                if (isReglage)
+                {
+                    newIntermediaires.Add(new ExecPrelevementIntermediaire
+                    {
+                        ExecControleOfid = of.Id,
+                        SectionId = s.Id,
+                        TrancheHoraire = trancheReglage,
+                        NumeroOccurrence = 0,
+                        HeureNotifPrevue = DateTime.Now,
+                        EstRepondu = false,
+                        EstEnRetard = false
+                    });
+                }
+            }
+        }
+
         if (newIntermediaires.Any())
         {
             _occurrenceRepository.AddIntermediaires(newIntermediaires);
@@ -262,6 +331,27 @@ public class OccurrenceService : IOccurrenceService
         await GenererOccurrencesInitialesAsync(execControleOfId);
 
         var occurrences = await _occurrenceRepository.GetIntermediairesActifsAsync(execControleOfId);
+
+        // Nettoyage automatique des anciennes occurrences intermédiaires répondues dont la tranche est terminée
+        var allIntermediaires = await _occurrenceRepository.GetIntermediairesParOfAsync(execControleOfId);
+        var answeredGrouped = allIntermediaires.Where(o => o.EstRepondu).GroupBy(o => o.TrancheHoraire.Split('|')[0]).ToList();
+        bool cleanedAny = false;
+        foreach (var grp in answeredGrouped)
+        {
+            var trEx = await _occurrenceRepository.GetTrancheExistanteAsync(execControleOfId, grp.Key);
+            var allForTranche = allIntermediaires.Where(o => o.TrancheHoraire == grp.Key || o.TrancheHoraire.StartsWith(grp.Key)).ToList();
+            if (trEx != null && !string.IsNullOrEmpty(trEx.ResultatFinal) && allForTranche.All(o => o.EstRepondu))
+            {
+                _occurrenceRepository.RemoveIntermediaires(allForTranche);
+                cleanedAny = true;
+            }
+        }
+        if (cleanedAny)
+        {
+            await _occurrenceRepository.SaveChangesAsync();
+            occurrences = await _occurrenceRepository.GetIntermediairesActifsAsync(execControleOfId);
+        }
+
         occurrences = occurrences.OrderBy(o => o.HeureNotifPrevue).ToList();
 
         DateTime now = DateTime.Now;
@@ -290,6 +380,29 @@ public class OccurrenceService : IOccurrenceService
                     if (match.Success) freqHeures = int.Parse(match.Value);
                 }
                 double simulatedIntervalMinutes = (freqHeures * 60.0) / freqNum;
+                double realIntervalMinutes = simulatedIntervalMinutes / SimulationSpeedFactor;
+                sectionIntervals[s.Id] = realIntervalMinutes;
+                sectionSimulatedIntervals[s.Id] = simulatedIntervalMinutes;
+            }
+        }
+        if (of.TypeOf == "ASS")
+        {
+            var assSections = await _occurrenceRepository.GetDocumentSectionsEchantillonnageAsync(execControleOfId);
+            foreach (var s in assSections)
+            {
+                double simulatedIntervalMinutes = 15.0; // défaut 15 min (4 pcs/h)
+                if (s.Periodicite != null)
+                {
+                    int freqHeures = 1;
+                    int freqNum = s.Periodicite.FrequenceNum ?? 4;
+                    if (freqNum <= 0) freqNum = 4;
+                    if (!string.IsNullOrEmpty(s.Periodicite.FrequenceUnite))
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(s.Periodicite.FrequenceUnite, @"\d+");
+                        if (match.Success) freqHeures = int.Parse(match.Value);
+                    }
+                    simulatedIntervalMinutes = (freqHeures * 60.0) / freqNum;
+                }
                 double realIntervalMinutes = simulatedIntervalMinutes / SimulationSpeedFactor;
                 sectionIntervals[s.Id] = realIntervalMinutes;
                 sectionSimulatedIntervals[s.Id] = simulatedIntervalMinutes;
@@ -415,35 +528,75 @@ public class OccurrenceService : IOccurrenceService
 
         var sectionIds = alertesVisibles.Select(o => o.SectionId).Distinct().ToList();
         var lignesPerSection = new Dictionary<Guid, List<PlanFabricationLigne>>();
+        var docLignesPerSection = new Dictionary<Guid, List<DocumentLigne>>();
+
+        // Pour les sections FAB, on charge PlanFabricationLigne (via planSourceId)
+        // Pour les sections ASS (DocumentSection), on charge DocumentLigne
+        bool isAssOf = of.TypeOf == "ASS";
+
         foreach (var sid in sectionIds)
         {
-            lignesPerSection[sid] = await _occurrenceRepository.GetLignesForSectionAsync(sid);
+            if (isAssOf)
+            {
+                docLignesPerSection[sid] = await _occurrenceRepository.GetDocumentLignesForSectionAsync(sid);
+            }
+            else
+            {
+                lignesPerSection[sid] = await _occurrenceRepository.GetLignesForSectionAsync(sid);
+            }
         }
+
+        // Récupérer les libellés de sections pour ASS
+        var docSectionsForLabels = isAssOf 
+            ? await _occurrenceRepository.GetDocumentSectionsEchantillonnageAsync(execControleOfId)
+            : new List<DocumentSection>();
 
         var tranchesList = alertesVisibles.Select(o => o.TrancheHoraire.Split('|')[0]).Distinct().ToList();
         var execTranches = new Dictionary<string, string?>();
         foreach (var t in tranchesList)
         {
             var tr = await _occurrenceRepository.GetTrancheExistanteAsync(execControleOfId, t);
-            // Si on ne le trouve pas par H_12_13, on cherche par StartsWith si nécessaire, 
-            // mais l'idéal est de vérifier si n'importe quelle sous-tranche a un résultat.
-            if (tr == null)
-            {
-                var allTr = await _occurrenceRepository.GetIntermediairesActifsAsync(execControleOfId);
-                // (Just fallback logic if needed, but usually we just want to know if the global tranche has a result)
-            }
             if (tr != null) execTranches[t] = tr.ResultatFinal;
         }
+
+        var colDefsMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Guid? formulaireId = null;
+
+        if (of.PlanSourceId.HasValue)
+        {
+            var planSource = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(of.PlanSourceId.Value);
+            formulaireId = planSource?.FormulaireId;
+        }
+        else if (isAssOf)
+        {
+            var stat = of.ExecControleDocumentStatuts?.FirstOrDefault(s => s.TypeDocument == "PLAN_ASSEMBLAGE");
+            if (stat != null && stat.DocId.HasValue)
+            {
+                var doc = await _unitOfWork.DocumentEnteteRepository.GetByIdAsync(stat.DocId.Value);
+                formulaireId = doc?.FormulaireId;
+            }
+        }
+
+        if (formulaireId.HasValue)
+        {
+            var colDefs = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(formulaireId.Value);
+            foreach (var c in colDefs)
+            {
+                if (!string.IsNullOrEmpty(c.CleColonne))
+                    colDefsMap[c.CleColonne] = c.LabelAffiche;
+            }
+        }
+
 
         var grouped = alertesVisibles.GroupBy(o => o.TrancheHoraire.Split('|')[0]).Select(g => new TrancheAlertesDto
         {
             TrancheHoraire = g.Key,
             ResultatFinal = execTranches.ContainsKey(g.Key) ? execTranches[g.Key] : null,
-            Occurrences = g.GroupBy(o => o.HeureNotifPrevue.ToString("yyyyMMddHHmmss")).Select(timeGroup => 
+            Occurrences = g.GroupBy(o => o.HeureNotifPrevue.ToString("yyyyMMddHHmmss")).Select(timeGroup =>
             {
                 var firstOcc = timeGroup.First();
                 var numeros = timeGroup.Where(x => x.NumeroOccurrence > 0).Select(x => x.NumeroOccurrence).Distinct().ToList();
-                string titreCombine = numeros.Count > 0 
+                string titreCombine = numeros.Count > 0
                     ? "Occurrence #" + numeros.Max()
                     : "Occurrence #" + firstOcc.NumeroOccurrence;
 
@@ -458,29 +611,74 @@ public class OccurrenceService : IOccurrenceService
                     NumeroOccurrence = firstOcc.NumeroOccurrence,
                     TitreCombine = titreCombine,
                     HeureNotifPrevue = firstOcc.HeureNotifPrevue,
-                    HeureSimulee = computedHeureLogique, // Utilisé pour l'affichage dans Vue
+                    HeureSimulee = computedHeureLogique,
                     EstEnRetard = timeGroup.Any(x => x.EstEnRetard),
                     Resultat = firstOcc.Resultat,
-                    Caracteristiques = timeGroup.SelectMany(x => 
-                    {
-                        var lignes = lignesPerSection.ContainsKey(x.SectionId) ? lignesPerSection[x.SectionId] : new List<PlanFabricationLigne>();
-                        var section = sectionsActives.FirstOrDefault(s => s.Id == x.SectionId);
-                        string sectionLibelle = section?.LibelleSection ?? "Caractéristiques";
-                        
-                        return lignes.Select(l => new CaracteristiqueARepondreDto
+                    Caracteristiques = isAssOf
+                        ? timeGroup.SelectMany(x =>
                         {
-                            SectionId = x.SectionId,
-                            SectionLibelle = sectionLibelle,
-                            LignePlanId = l.Id,
-                            Libelle = l.LibelleAffiche ?? "",
-                            LimiteSpecTexte = l.LimiteSpecTexte,
-                            Observations = l.Observations,
-                            TypeControle = l.TypeControle?.Code ?? "N/A",
-                            MoyenControle = l.MoyenControle?.Code,
-                            Instrument = l.InstrumentCode,
-                            ImageBase64 = l.ImageBase64
-                        }).ToList();
-                    }).ToList()
+                            var lignes = docLignesPerSection.ContainsKey(x.SectionId) ? docLignesPerSection[x.SectionId] : new List<DocumentLigne>();
+                            var sec = docSectionsForLabels.FirstOrDefault(s => s.Id == x.SectionId);
+                            string sectionLibelle = sec?.LibelleSection ?? "Caractéristiques";
+                            if (!string.IsNullOrEmpty(sectionLibelle))
+                            {
+                                sectionLibelle = sectionLibelle
+                                    .Replace("Effectif de l'échantillon /poste (A/B) (p/h)", "4 p/h")
+                                    .Replace("échantillon /poste...", "4 p/h")
+                                    .Replace("(p/h)", "(4 p/h)");
+                            }
+                            return lignes.Select(l => new CaracteristiqueARepondreDto
+                            {
+                                SectionId = x.SectionId,
+                                SectionLibelle = sectionLibelle,
+                                LignePlanId = l.Id,
+                                Libelle = l.LibelleAffiche ?? l.Caracteristique?.Libelle ?? "",
+                                LimiteSpecTexte = l.LimiteSpecTexte,
+                                Observations = l.Observations,
+                                TypeControle = l.TypeControle?.Code ?? "N/A",
+                                MoyenControle = l.MoyenControle?.Libelle,
+                                Instrument = l.InstrumentCode,
+                                ImageBase64 = l.ImageBase64,
+                                ExtraColonnes = l.DocumentLigneExtraColonnes?.Select(ec => new CaracteristiqueExtraColonneDto
+                                {
+                                    CleColonne = ec.CleColonne,
+                                    LabelAffiche = colDefsMap.TryGetValue(ec.CleColonne, out var lbl) ? lbl : ec.CleColonne,
+                                    ValeurColonne = ec.ValeurColonne
+                                }).ToList() ?? new()
+                            }).ToList();
+                        }).ToList()
+                        : timeGroup.SelectMany(x =>
+                        {
+                            var lignes = lignesPerSection.ContainsKey(x.SectionId) ? lignesPerSection[x.SectionId] : new List<PlanFabricationLigne>();
+                            var section = sectionsActives.FirstOrDefault(s => s.Id == x.SectionId);
+                            string sectionLibelle = section?.LibelleSection ?? "Caractéristiques";
+                            if (!string.IsNullOrEmpty(sectionLibelle))
+                            {
+                                sectionLibelle = sectionLibelle
+                                    .Replace("Effectif de l'échantillon /poste (A/B) (p/h)", "4 p/h")
+                                    .Replace("échantillon /poste...", "4 p/h")
+                                    .Replace("(p/h)", "(4 p/h)");
+                            }
+                            return lignes.Select(l => new CaracteristiqueARepondreDto
+                            {
+                                SectionId = x.SectionId,
+                                SectionLibelle = sectionLibelle,
+                                LignePlanId = l.Id,
+                                Libelle = l.LibelleAffiche ?? "",
+                                LimiteSpecTexte = l.LimiteSpecTexte,
+                                Observations = l.Observations,
+                                TypeControle = l.TypeControle?.Code ?? "N/A",
+                                MoyenControle = l.MoyenControle?.Libelle,
+                                Instrument = l.InstrumentCode,
+                                ImageBase64 = l.ImageBase64,
+                                ExtraColonnes = l.PlanFabricationLigneExtraColonnes?.Select(ec => new CaracteristiqueExtraColonneDto
+                                {
+                                    CleColonne = ec.CleColonne,
+                                    LabelAffiche = colDefsMap.TryGetValue(ec.CleColonne, out var lbl) ? lbl : ec.CleColonne,
+                                    ValeurColonne = ec.ValeurColonne
+                                }).ToList() ?? new()
+                            }).ToList();
+                        }).ToList()
                 };
             }).ToList()
         }).ToList();
@@ -522,35 +720,48 @@ public class OccurrenceService : IOccurrenceService
             // Logique de création de la tranche (Exécutée une seule fois par groupe)
             if (!trancheUpdated)
             {
-                var remarquesC = request.Lignes.Where(l => l.Resultat == "C" && !string.IsNullOrWhiteSpace(l.Remarque)).Select(l => l.Remarque).ToList();
-                var detailsNc = request.Lignes.Where(l => l.Resultat == "NC" && !string.IsNullOrWhiteSpace(l.Remarque)).Select(l => l.Remarque).ToList();
-                
-                if (!string.IsNullOrWhiteSpace(request.Raison))
-                {
-                    remarquesC.Add(request.Resultat == "IGNORE" ? $"Ignoré : {request.Raison}" : request.Raison);
-                }
+                string contexte = await _occurrenceRepository.GetContexteOccurrenceAsync(occurrence.SectionId);
+                if (occurrence.TrancheHoraire.StartsWith("REGLAGE")) contexte = "REGLAGE";
 
-                var nouvellesRemarques = string.Join(" | ", remarquesC);
-                var nouveauxDetailsNc = string.Join(" | ", detailsNc);
-                var nouvellesActions = string.Join(" | ", request.Lignes.Where(l => l.Resultat == "NC" && !string.IsNullOrWhiteSpace(l.ActionCorrective)).Select(l => l.ActionCorrective));
-
-                if (occurrence.TrancheHoraire.StartsWith("REGLAGE"))
+                if (contexte == "REGLAGE" || contexte == "LOT" || contexte == "100PCT")
                 {
-                    var finalRemarque = string.IsNullOrWhiteSpace(nouvellesActions) ? nouvellesRemarques : $"{nouvellesRemarques} (Actions: {nouvellesActions})";
-                    
-                    var pieceType = new ExecPieceType
+                    var operateurId = await _occurrenceRepository.GetUtilisateurIdByMatriculeAsync(request.MatriculeOperateur ?? "");
+                    var guidOperateur = operateurId ?? Guid.Empty;
+
+                    var listeReponses = new List<ExecControleLigneReponse>();
+                    foreach(var ligne in request.Lignes)
                     {
-                        Id = Guid.NewGuid(),
-                        ExecControleOfid = occurrence.ExecControleOfid,
-                        HeureValidation = DateTime.Now,
-                        Resultat = request.Resultat,
-                        Remarque = finalRemarque,
-                        MatriculeOperateur = request.MatriculeOperateur ?? "SYSTEM"
-                    };
-                    _occurrenceRepository.AddPieceType(pieceType);
+                        listeReponses.Add(new ExecControleLigneReponse
+                        {
+                            Id = Guid.NewGuid(),
+                            ExecControleOfid = occurrence.ExecControleOfid,
+                            DocumentLigneId = ofContext.TypeOf == "ASS" ? ligne.LignePlanId : null,
+                            Contexte = contexte,
+                            NumeroReglage = contexte == "REGLAGE" ? "REG" + occurrence.NumeroOccurrence : null,
+                            ResultatType = ligne.Resultat == "C" ? "CONFORME" : ligne.Resultat == "NC" ? "NON_CONFORME" : "MESURE",
+                            ValeurMesuree = (decimal?)ligne.ValeurMesuree,
+                            DetailsNc = ligne.Resultat == "NC" ? ligne.Remarque : null,
+                            ActionsCorrection = ligne.ActionCorrective,
+                            OperateurId = guidOperateur,
+                            DateSaisie = DateTime.Now
+                        });
+                    }
+                    _occurrenceRepository.AddLigneReponses(listeReponses);
                 }
                 else
                 {
+                    var remarquesC = request.Lignes.Where(l => l.Resultat == "C" && !string.IsNullOrWhiteSpace(l.Remarque)).Select(l => l.Remarque).ToList();
+                    var detailsNc = request.Lignes.Where(l => l.Resultat == "NC" && !string.IsNullOrWhiteSpace(l.Remarque)).Select(l => l.Remarque).ToList();
+                    
+                    if (!string.IsNullOrWhiteSpace(request.Raison))
+                    {
+                        remarquesC.Add(request.Resultat == "IGNORE" ? $"Ignoré : {request.Raison}" : request.Raison);
+                    }
+
+                    var nouvellesRemarques = string.Join(" | ", remarquesC);
+                    var nouveauxDetailsNc = string.Join(" | ", detailsNc);
+                    var nouvellesActions = string.Join(" | ", request.Lignes.Where(l => l.Resultat == "NC" && !string.IsNullOrWhiteSpace(l.ActionCorrective)).Select(l => l.ActionCorrective));
+
                     var trancheExistante = await _occurrenceRepository.GetTrancheExistanteAsync(occurrence.ExecControleOfid, occurrence.TrancheHoraire);
                     
                     if (trancheExistante == null)
@@ -655,6 +866,12 @@ public class OccurrenceService : IOccurrenceService
                     }
                         
                     await _occurrenceRepository.SaveChangesAsync();
+
+                    if (allRepondu)
+                    {
+                        _occurrenceRepository.RemoveIntermediaires(allOccurrencesTranche);
+                        await _occurrenceRepository.SaveChangesAsync();
+                    }
                 }
             }
         }

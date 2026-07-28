@@ -45,9 +45,10 @@ export const planFabricationService = {
     return response.data;
   },
 
-  async mettreAJourValeurs(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage) {
+  async mettreAJourValeurs(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage, codeArticleSageVersionne) {
     const payload = {
       nom: nomPlan,
+      codeArticleSageVersionne: codeArticleSageVersionne,
       legendeMoyens: legendeMoyens,
       remarques: remarques,
       libre1: codeArticleSage,

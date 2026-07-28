@@ -29,6 +29,14 @@ public class DocumentVerifMachineController : ControllerBase
         return Ok(new { id = id });
     }
 
+    [HttpPost("nouvelle-version")]
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+    public async Task<IActionResult> CreateNouvelleVersion([FromBody] NouvelleVersionVerifMachineRequestDto request)
+    {
+        var id = await _documentVerifMachineService.CreerNouvelleVersionAsync(request);
+        return Ok(new { id = id });
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {

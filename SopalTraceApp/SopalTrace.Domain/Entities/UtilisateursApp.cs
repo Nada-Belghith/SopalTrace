@@ -31,5 +31,7 @@ public partial class UtilisateursApp
 
     public bool? EstActif { get; set; }
 
+    public virtual ICollection<ExecControleLigneReponse> ExecControleLigneReponses { get; set; } = new List<ExecControleLigneReponse>();
+
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

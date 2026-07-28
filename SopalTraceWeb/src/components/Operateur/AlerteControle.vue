@@ -1,6 +1,6 @@
 <template>
-  <div class="bg-white border rounded-lg p-4 mt-4 shadow-sm relative">
-    <div class="flex justify-between items-center mb-4 border-b pb-2">
+  <div :class="showHeader ? 'bg-white border rounded-lg p-4 mt-4 shadow-sm relative' : 'relative'">
+    <div v-if="showHeader" class="flex justify-between items-center mb-4 border-b pb-2">
       <h3 class="text-xl font-bold text-gray-800">Alertes de Contrôle Actives</h3>
       <div class="text-lg font-mono bg-gray-100 px-3 py-1 rounded text-gray-700 font-semibold border">
         Date et Heure actuelle : {{ currentTime }}
@@ -128,6 +128,7 @@
               <thead class="text-xs text-gray-700 bg-slate-100 border-b">
                 <tr>
                   <th class="px-3 py-3 w-48">Caractéristique</th>
+                  <th v-for="col in extraCols" :key="col.key" class="px-3 py-3 w-32 font-semibold text-gray-700 uppercase tracking-wider text-xs">{{ col.label }}</th>
                   <th class="px-3 py-3 w-32">Spécification</th>
                   <th class="px-3 py-3 w-32">Type</th>
                   <th class="px-3 py-3 w-32">Moyen</th>
@@ -144,8 +145,8 @@
               </thead>
               <tbody v-for="group in groupedCaracteristiques" :key="group.sectionId">
                 <tr class="bg-blue-100 border-b border-blue-200">
-                  <td :colspan="selectedOcc.trancheHoraire?.startsWith('REGLAGE') ? 7 : 8" class="px-3 py-2 text-center font-bold text-blue-900 shadow-sm">
-                    {{ group.sectionLibelle }}
+                  <td :colspan="(selectedOcc.trancheHoraire?.startsWith('REGLAGE') ? 7 : 8) + extraCols.length" class="px-3 py-2 text-center font-bold text-blue-900 shadow-sm">
+                    {{ formatSectionLibelle(group.sectionLibelle) }}
                   </td>
                 </tr>
                 <tr v-for="cara in group.items" :key="cara.lignePlanId" class="border-b last:border-b-0 hover:bg-blue-50 transition-colors">
@@ -154,6 +155,9 @@
                       <img :src="cara.imageBase64" class="max-h-12 object-contain rounded border border-slate-200 shadow-sm" alt="Image caractéristique" />
                     </div>
                     {{ cara.libelle }}
+                  </td>
+                  <td v-for="col in extraCols" :key="col.key" class="px-3 py-3 text-gray-700 text-xs font-mono font-medium bg-gray-50/50">
+                    {{ getExtraValue(cara, col.key) }}
                   </td>
                   <td class="px-3 py-3 text-gray-600 font-mono bg-gray-50 font-medium">{{ cara.limiteSpecTexte || '-' }}</td>
                   <td class="px-3 py-3 text-gray-600 text-xs">{{ cara.typeControle || '-' }}</td>
@@ -239,7 +243,7 @@
         </div>
       </div>
     </div>
-    <!-- Modal Motif Obligatoire -->
+    <!-- Modal Motif Optionnel -->
     <div v-if="raisonModalConfig.show" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
       <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl animate-fade-in-up">
         <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center">
@@ -250,14 +254,13 @@
         <textarea v-model="raisonModalConfig.texte" 
                   rows="3" 
                   class="w-full border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 p-3 mb-4 text-sm" 
-                  placeholder="Saisissez le motif (obligatoire)..."
+                  placeholder="Saisissez le motif (Optionnel)..."
                   @keyup.enter="confirmerRaison"
                   autofocus></textarea>
         <div class="flex justify-end gap-3">
           <button @click="raisonModalConfig.show = false" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Annuler</button>
           <button @click="confirmerRaison" 
-                  class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-                  :disabled="!raisonModalConfig.texte.trim()">
+                  class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium shadow-sm transition-colors">
             Confirmer
           </button>
         </div>
@@ -308,6 +311,10 @@ const props = defineProps({
   remarques: {
     type: String,
     default: ''
+  },
+  showHeader: {
+    type: Boolean,
+    default: true
   }
 });
 
@@ -335,23 +342,50 @@ const tranchesProd = computed(() => {
 const groupedCaracteristiques = computed(() => {
   if (!selectedOcc.value || !selectedOcc.value.caracteristiques) return [];
   
-  const groups = [];
-  let currentGroup = null;
-  
+  const map = new Map();
   for (const cara of selectedOcc.value.caracteristiques) {
-    if (!currentGroup || currentGroup.sectionId !== cara.sectionId) {
-      currentGroup = {
+    if (!map.has(cara.sectionId)) {
+      map.set(cara.sectionId, {
         sectionId: cara.sectionId,
         sectionLibelle: cara.sectionLibelle || 'Caractéristiques',
         items: []
-      };
-      groups.push(currentGroup);
+      });
     }
-    currentGroup.items.push(cara);
+    map.get(cara.sectionId).items.push(cara);
   }
   
-  return groups;
+  return Array.from(map.values());
 });
+
+const formatSectionLibelle = (lib) => {
+  if (!lib) return '';
+  return lib
+    .replace("Effectif de l'échantillon /poste (A/B) (p/h)", "4 p/h")
+    .replace("échantillon /poste...", "4 p/h")
+    .replace("(p/h)", "(4 p/h)");
+};
+
+const extraCols = computed(() => {
+  if (!selectedOcc.value?.caracteristiques) return [];
+  const map = new Map();
+  selectedOcc.value.caracteristiques.forEach(c => {
+    if (c.extraColonnes && Array.isArray(c.extraColonnes)) {
+      c.extraColonnes.forEach(ec => {
+        if (ec.cleColonne) {
+          const label = ec.labelAffiche || ec.cleColonne;
+          map.set(ec.cleColonne, label);
+        }
+      });
+    }
+  });
+  return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
+});
+
+const getExtraValue = (cara, key) => {
+  if (!cara.extraColonnes || !Array.isArray(cara.extraColonnes)) return '-';
+  const found = cara.extraColonnes.find(ec => ec.cleColonne === key);
+  return found?.valeurColonne || '-';
+};
 
 const updateClock = () => {
   currentTime.value = new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -549,7 +583,6 @@ const demanderRaison = (titre, description, actionCallback, payload = null) => {
 };
 
 const confirmerRaison = () => {
-  if (!raisonModalConfig.value.texte.trim()) return;
   const { action, texte, payload } = raisonModalConfig.value;
   raisonModalConfig.value.show = false;
   if (action) {

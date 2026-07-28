@@ -2,7 +2,7 @@
   <div class="p-6">
     <Toast position="top-right" />
     <VersioningDialog :visible="showVersioningDialog"
-                      mode="restore"
+                      :mode="versioningMode"
                       :is-loading="isRestoring"
                       @confirm="onVersioningConfirm"
                       @cancel="showVersioningDialog = false"
@@ -22,7 +22,7 @@
       @restaurer="onRestaurerClick"
     />
     
-    <VerifMachineForm :isReadOnly="isReadOnly" @saved="onSaved" />
+    <VerifMachineForm :isReadOnly="isReadOnly" @saved="onSaved" @trigger-versioning="onTriggerVersioning" />
   </div>
 </template>
 
@@ -43,6 +43,7 @@ const store = useVerifMachineStore();
 
 const isReadOnly = computed(() => route.query.view === 'true' || store.entete.statut === 'ARCHIVE');
 const showVersioningDialog = ref(false);
+const versioningMode = ref('new-version');
 const isRestoring = ref(false);
 
 onMounted(async () => {
@@ -78,22 +79,52 @@ const onSaved = (result) => {
 };
 
 const onRestaurerClick = () => {
+  versioningMode.value = 'restore';
   showVersioningDialog.value = true;
 };
 
-const onVersioningConfirm = async (motif) => {
+const onTriggerVersioning = () => {
+  versioningMode.value = 'new-version';
+  showVersioningDialog.value = true;
+};
+
+const onVersioningConfirm = async (payload) => {
   isRestoring.value = true;
   showVersioningDialog.value = false;
   try {
-    const res = await store.restaurerPlanVerif(store.entete.id, motif);
-    if (res.success) {
-      toast.success('Le plan a été restauré avec succès.', 'Restauré');
-      setTimeout(() => {
-        router.push('/dev/hub');
-      }, 1500);
+    if (versioningMode.value === 'restore') {
+      const res = await store.restaurerPlanVerif(store.entete.id, payload); // payload est le motif
+      if (res.success) {
+        toast.success('Modèle restauré avec succès.', 'Succès');
+        if (res.planId) {
+            router.replace('/dev/hub');
+        }
+      }
+    } else {
+      const { action, motif } = payload;
+      if (action === 'correction') {
+        const res = await store.sauvegarderPlanVerif();
+        if (res.noChanges) {
+          toast.info('Pas de modification.', 'Info');
+        } else if (res.id) {
+          toast.success('Correction enregistrée avec succès.', 'Succès');
+          router.replace('/dev/hub');
+        } else {
+          toast.error(res.error || 'Erreur lors de la sauvegarde.', 'Erreur');
+        }
+      } else {
+        const res = await store.creerNouvelleVersion(motif);
+        if (res.success) {
+          toast.success('Nouvelle version créée.', 'Succès');
+          router.replace('/dev/hub');
+        } else {
+          toast.error(res.message || 'Erreur lors de la création de la nouvelle version.', 'Erreur');
+        }
+      }
     }
-  } catch {
-    toast.error('Échec de la restauration.');
+  } catch (err) {
+    console.error('[VmModeleEditor] Exception lors de onVersioningConfirm :', err);
+    toast.error('Échec de l\'opération', 'Erreur');
   } finally {
     isRestoring.value = false;
   }

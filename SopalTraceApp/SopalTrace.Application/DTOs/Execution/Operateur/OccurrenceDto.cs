@@ -20,6 +20,13 @@ public class OccurrenceDto
     public List<CaracteristiqueARepondreDto> Caracteristiques { get; set; } = new();
 }
 
+public class CaracteristiqueExtraColonneDto
+{
+    public string CleColonne { get; set; } = string.Empty;
+    public string? LabelAffiche { get; set; }
+    public string? ValeurColonne { get; set; }
+}
+
 public class CaracteristiqueARepondreDto
 {
     public Guid SectionId { get; set; }
@@ -32,6 +39,7 @@ public class CaracteristiqueARepondreDto
     public string? MoyenControle { get; set; }
     public string? Instrument { get; set; }
     public string? ImageBase64 { get; set; }
+    public List<CaracteristiqueExtraColonneDto> ExtraColonnes { get; set; } = new();
 }
 
 public class TrancheAlertesDto

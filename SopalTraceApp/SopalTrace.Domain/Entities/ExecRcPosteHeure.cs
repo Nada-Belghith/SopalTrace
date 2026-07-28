@@ -7,11 +7,21 @@ public partial class ExecRcPosteHeure
 {
     public Guid Id { get; set; }
 
-    public Guid LigneBilanId { get; set; }
+    public Guid ExecControleDocumentStatutId { get; set; }
+
+    public Guid DocLigneId { get; set; }
+
+    public DateTime DateExecution { get; set; }
+
+    public string? MatriculeOp { get; set; }
+
+    public string? Equipe { get; set; }
 
     public string TrancheHoraire { get; set; } = null!;
 
-    public double NbDefauts { get; set; }
+    public double NbNcParHeure { get; set; }
 
-    public virtual ExecRcPosteLigneBilan LigneBilan { get; set; } = null!;
+    public virtual DocumentLigne DocLigne { get; set; } = null!;
+
+    public virtual ExecControleDocumentStatut ExecControleDocumentStatut { get; set; } = null!;
 }

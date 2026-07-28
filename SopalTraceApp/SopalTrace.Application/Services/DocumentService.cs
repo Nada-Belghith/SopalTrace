@@ -18,17 +18,20 @@ public class DocumentService : IDocumentService
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<DocumentService> _logger;
     private readonly IFormulaireStructureService _formulaireStructureService;
+    private readonly IEnumerable<IDocumentTypeStrategy> _strategies;
 
     public DocumentService(
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         ILogger<DocumentService> logger,
-        IFormulaireStructureService formulaireStructureService)
+        IFormulaireStructureService formulaireStructureService,
+        IEnumerable<IDocumentTypeStrategy> strategies)
     {
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _logger = logger;
         _formulaireStructureService = formulaireStructureService;
+        _strategies = strategies;
     }
 
     public async Task<Guid> CreerDocumentAsync(CreateDocumentRequestDto request)
@@ -41,15 +44,15 @@ public class DocumentService : IDocumentService
             
         string? formCodeRef = request.RefFormulaireCodeReference;
 
+        var strategy = _strategies.FirstOrDefault(s => s.DocumentTypeCode == request.TypeDocumentCode);
+
         // Auto-generate RefFormulaireCodeReference for specific plans if not provided
-        if (string.IsNullOrWhiteSpace(formCodeRef))
+        if (string.IsNullOrWhiteSpace(formCodeRef) && strategy != null)
         {
-            if (request.TypeDocumentCode == "CTRL_POSTE" && !string.IsNullOrWhiteSpace(request.PosteCode))
-                formCodeRef = $"FE-RC-{request.PosteCode.Trim()}";
-            else if (request.TypeDocumentCode == "PLAN_PF" && !string.IsNullOrWhiteSpace(request.FamilleProduitFiniCode))
-                formCodeRef = $"FE-PF-{request.FamilleProduitFiniCode.Trim()}";
-            else if (request.TypeDocumentCode == "PLAN_ASS" && !string.IsNullOrWhiteSpace(request.NatureArticleCode))
-                formCodeRef = $"FE-ASS-{request.NatureArticleCode.Trim()}";
+            formCodeRef = strategy.GetDefaultFormulaireCodeRef(new DocumentContextInfo(
+                request.PosteCode, 
+                request.FamilleProduitFiniCode, 
+                request.NatureArticleCode));
         }
 
         Guid? knownFormulaireId = null;
@@ -89,8 +92,8 @@ public class DocumentService : IDocumentService
             }
             else
             {
-                // Archive ALL existing active documents with the same name
-                var activeDocs = existingDocs.Where(d => d.Nom == request.Nom && d.Statut == "ACTIF").ToList();
+                // Archive ALL existing active documents with the same name and same formulaireId
+                var activeDocs = existingDocs.Where(d => d.Nom == request.Nom && d.Statut == "ACTIF" && d.FormulaireId == knownFormulaireId).ToList();
                 foreach (var act in activeDocs)
                 {
                     act.Statut = "ARCHIVE";
@@ -127,7 +130,7 @@ public class DocumentService : IDocumentService
                         "EN_COURS_DE_FABRICATION", 
                         colsJson, 
                         formStruct.CodeReference, 
-                        request.VersionInitiale
+                        finalVersion
                     );
                 }
             }
@@ -138,7 +141,7 @@ public class DocumentService : IDocumentService
             
             // If the document is being saved, and it references a RefFormulaire,
             // we MUST sync the RefFormulaire version and status as well!
-            string role = form?.Role ?? (request.TypeDocumentCode == "CTRL_POSTE" ? "RESULTAT_CONTROLE_POSTE" : "UNKNOWN");
+            string role = form?.Role ?? (strategy?.GetDefaultFormRole() ?? "UNKNOWN");
             
             var colsJson = request.ConfigurationColonnesJson ?? (request.ColonneDefs != null && request.ColonneDefs.Any()
                 ? System.Text.Json.JsonSerializer.Serialize(request.ColonneDefs, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })
@@ -148,7 +151,7 @@ public class DocumentService : IDocumentService
                 role,
                 colsJson,
                 formCodeRef,
-                request.VersionInitiale
+                finalVersion
             );
 
             if (result.HasValue)
@@ -174,7 +177,7 @@ public class DocumentService : IDocumentService
                 entite.Statut = form.Statut ?? entite.Statut;
 
                 // Sync extra columns for all lines based on form definition
-                var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference);
+                var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id);
                 if (activeCols != null && activeCols.Any())
                 {
                     foreach (var section in entite.DocumentSections)
@@ -221,6 +224,31 @@ public class DocumentService : IDocumentService
             null
         );
         
+        // Si le nouveau document est ACTIF, archiver les anciens documents actifs pour le même contexte et le même nom
+        if (entite.Statut == "ACTIF")
+        {
+            var activeDocs = await _unitOfWork.DocumentEnteteRepository.GetByFiltersAsync(
+                request.TypeDocumentCode, 
+                request.NatureArticleCode, 
+                request.OperationCode, 
+                request.PosteCode, 
+                request.FamilleProduitFiniCode, 
+                "ACTIF"
+            );
+            
+            var baseNomRequest = System.Text.RegularExpressions.Regex.Replace(request.Nom ?? "", @"([ -]*)V\d+$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).TrimEnd('-').Trim();
+            var sameNameDocs = activeDocs.Where(d => 
+                System.Text.RegularExpressions.Regex.Replace(d.Nom ?? "", @"([ -]*)V\d+$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).TrimEnd('-').Trim() == baseNomRequest
+                && d.FormulaireId == formulaireId
+            ).ToList();
+            
+            foreach (var act in sameNameDocs)
+            {
+                act.Statut = "ARCHIVE";
+                await _unitOfWork.DocumentEnteteRepository.UpdateAsync(act);
+            }
+        }
+
         await _unitOfWork.DocumentEnteteRepository.AddAsync(entite);
         await _unitOfWork.CommitAsync();
 
@@ -232,17 +260,26 @@ public class DocumentService : IDocumentService
         var entite = await _unitOfWork.DocumentEnteteRepository.GetByIdAsync(documentId, includeRelations: true);
         if (entite == null) throw new Exception("Document introuvable.");
 
-        var codeRef = entite.Formulaire?.CodeReference ?? entite.TypeDocumentCode;
-        var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(codeRef);
+        List<SopalTrace.Domain.Entities.RefFormulaireColonneDef> cols = new();
+        if (entite.FormulaireId.HasValue)
+        {
+            cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(entite.FormulaireId.Value);
+        }
+        else
+        {
+            var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(entite.TypeDocumentCode);
+            if (form != null)
+            {
+                cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id);
+            }
+        }
 
         var dto = DocumentMapper.ToDto(entite, cols);
 
-        if (entite.TypeDocumentCode == "CTRL_POSTE")
+        var strategy = _strategies.FirstOrDefault(s => s.DocumentTypeCode == entite.TypeDocumentCode);
+        if (strategy != null)
         {
-            var equipes = await _unitOfWork.RefFormulaireRepository.GetEquipesActivesByCodeReferenceAsync(codeRef);
-            var eqList = equipes.Select(e => new { nom = e.NomEquipe, debut = e.HeureDebut, fin = e.HeureFin }).ToList();
-            var cList = cols.Select(c => new { key = c.CleColonne, label = c.LabelAffiche, type = c.TypeValeur, insertAfter = c.InsertAfter, targetTable = c.TargetTable }).ToList();
-            dto.ConfigurationColonnesJson = System.Text.Json.JsonSerializer.Serialize(new { equipes = eqList, customCols = cList }, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+            await strategy.PopulateDtoAsync(entite, dto);
         }
 
         return dto;
@@ -262,8 +299,19 @@ public class DocumentService : IDocumentService
         var dtos = new List<DocumentEnteteDto>();
         foreach (var doc in result)
         {
-            var codeRef = doc.Formulaire?.CodeReference ?? doc.TypeDocumentCode;
-            var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(codeRef);
+            List<SopalTrace.Domain.Entities.RefFormulaireColonneDef> cols = new();
+            if (doc.FormulaireId.HasValue)
+            {
+                cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(doc.FormulaireId.Value);
+            }
+            else
+            {
+                var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(doc.TypeDocumentCode);
+                if (form != null)
+                {
+                    cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id);
+                }
+            }
             dtos.Add(DocumentMapper.ToDto(doc, cols));
         }
 
@@ -359,7 +407,7 @@ public class DocumentService : IDocumentService
                 nouveauDoc.Statut = form.Statut ?? "ACTIF";
 
                 // Sync extra columns for all lines based on form definition
-                var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference);
+                var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id);
                 if (activeCols != null && activeCols.Any())
                 {
                     foreach (var section in nouveauDoc.DocumentSections)
@@ -521,39 +569,13 @@ public class DocumentService : IDocumentService
         if (request.LegendeMoyens != null) doc.LegendeMoyens = request.LegendeMoyens;
         if (request.Remarques != null) doc.Remarques = request.Remarques;
         if (request.Libre1 != null) doc.Libre1 = request.Libre1;
-        // For CTRL_POSTE: persist ConfigurationColonnesJson in Libre3
-        if (doc.TypeDocumentCode == "CTRL_POSTE" && request.ConfigurationColonnesJson != null)
-            doc.Libre3 = request.ConfigurationColonnesJson;
+        
+        var strategy = _strategies.FirstOrDefault(s => s.DocumentTypeCode == doc.TypeDocumentCode);
 
-        string? formCodeRef = request.RefFormulaireCodeReference ?? doc.Formulaire?.CodeReference;
-        if (string.IsNullOrWhiteSpace(formCodeRef))
+        if (strategy != null)
         {
-            if (doc.TypeDocumentCode == "CTRL_POSTE" && !string.IsNullOrWhiteSpace(doc.PosteCode))
-                formCodeRef = $"FE-RC-{doc.PosteCode.Trim()}";
-            else if (doc.TypeDocumentCode == "PLAN_PF" && !string.IsNullOrWhiteSpace(doc.FamilleProduitFiniCode))
-                formCodeRef = $"FE-PF-{doc.FamilleProduitFiniCode.Trim()}";
-            else if (doc.TypeDocumentCode == "PLAN_ASS" && !string.IsNullOrWhiteSpace(doc.NatureArticleCode))
-                formCodeRef = $"FE-ASS-{doc.NatureArticleCode.Trim()}";
+            strategy.ApplyCustomProperties(doc, request.ConfigurationColonnesJson);
         }
-
-        if (!string.IsNullOrWhiteSpace(formCodeRef) && doc.Statut == "BROUILLON" && request.ConfigurationColonnesJson != null)
-        {
-            var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(formCodeRef);
-            string role = form?.Role ?? (doc.TypeDocumentCode == "CTRL_POSTE" ? "RESULTAT_CONTROLE_POSTE" : "UNKNOWN");
-            
-            var result = await _formulaireStructureService.UpdateFormulaireStructureAsync(
-                role,
-                request.ConfigurationColonnesJson,
-                formCodeRef,
-                null // it's an update, don't change version
-            );
-
-            if (result.HasValue)
-            {
-                doc.FormulaireId = result.Value.Id;
-            }
-        }
-
 
         SopalTrace.Application.Utilities.SectionUpdateHelper.UpdateSections(
             doc.DocumentSections,
@@ -667,21 +689,35 @@ public class DocumentService : IDocumentService
                 lig.Libre4 = dto.Libre4;
                 lig.Libre5 = dto.Libre5;
                 
-                foreach(var ec in lig.DocumentLigneExtraColonnes.ToList())
+                var existingExtraCols = lig.DocumentLigneExtraColonnes.ToList();
+                var incomingExtraCols = dto.ExtraColonnes ?? new List<CreateDocumentExtraColonneDto>();
+
+                foreach (var ec in existingExtraCols)
                 {
-                    _unitOfWork.DocumentEnteteRepository.RemoveExtraColonne(ec);
+                    if (!incomingExtraCols.Any(i => i.CleColonne == ec.CleColonne))
+                    {
+                        _unitOfWork.DocumentEnteteRepository.RemoveExtraColonne(ec);
+                        lig.DocumentLigneExtraColonnes.Remove(ec);
+                    }
                 }
-                if (dto.ExtraColonnes != null)
+
+                foreach (var inc in incomingExtraCols)
                 {
-                    foreach (var ec in dto.ExtraColonnes)
+                    var existing = existingExtraCols.FirstOrDefault(e => e.CleColonne == inc.CleColonne);
+                    if (existing != null)
+                    {
+                        existing.ValeurColonne = inc.ValeurColonne;
+                        existing.OrdreAffiche = inc.OrdreAffiche;
+                    }
+                    else
                     {
                         lig.DocumentLigneExtraColonnes.Add(new DocumentLigneExtraColonne
                         {
                             Id = Guid.NewGuid(),
                             LigneId = lig.Id,
-                            CleColonne = ec.CleColonne,
-                            ValeurColonne = ec.ValeurColonne,
-                            OrdreAffiche = ec.OrdreAffiche
+                            CleColonne = inc.CleColonne,
+                            ValeurColonne = inc.ValeurColonne,
+                            OrdreAffiche = inc.OrdreAffiche
                         });
                     }
                 }

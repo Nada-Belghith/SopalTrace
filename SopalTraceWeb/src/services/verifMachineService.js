@@ -32,6 +32,10 @@ export const verifMachineService = {
     });
   },
 
+  creerNouvelleVersion(payload) {
+    return apiClient.post('/DocumentVerifMachine/nouvelle-version', payload);
+  },
+
   restaurerPlanVerif(payload) {
     return apiClient.post(`/DocumentVerifMachine/${payload.AncienId}/restaurer`, payload);
   },

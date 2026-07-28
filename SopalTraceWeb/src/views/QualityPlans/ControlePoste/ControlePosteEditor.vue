@@ -1,8 +1,9 @@
 <template>
   <div class="p-6">
     <Toast position="top-right" />
+    <ConfirmDialog />
     <VersioningDialog :visible="showVersioningDialog"
-                      mode="restore"
+                      :mode="versioningMode"
                       :is-loading="isRestoring"
                       @confirm="onVersioningConfirm"
                       @cancel="showVersioningDialog = false"
@@ -21,18 +22,19 @@
       @restaurer="onRestaurerClick"
     />
 
-    <ControlePosteForm :is-read-only="isReadOnly" />
+    <ControlePosteForm v-if="store.entete" :is-read-only="isReadOnly" @trigger-versioning="onTriggerVersioning" />
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useControlePosteStore } from '@/stores/controlePosteStore';
 import ControlePosteForm from '@/components/ControlePoste/ControlePosteForm.vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
+import ConfirmDialog from 'primevue/confirmdialog';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 
 const store = useControlePosteStore();
@@ -43,24 +45,61 @@ const toast = useToast();
 const isReadOnly = computed(() => route.query.view === 'true');
 const showVersioningDialog = ref(false);
 const isRestoring = ref(false);
+const versioningMode = ref('restore');
+
+onMounted(() => {
+  const planId = route.params.id;
+  if (!planId || planId === 'nouveau') {
+    store.resetState();
+  }
+});
 
 const onRestaurerClick = () => {
+  versioningMode.value = 'restore';
   showVersioningDialog.value = true;
 };
 
-const onVersioningConfirm = async (motif) => {
+const onTriggerVersioning = () => {
+  versioningMode.value = 'new-version';
+  showVersioningDialog.value = true;
+};
+
+const onVersioningConfirm = async (payload) => {
   isRestoring.value = true;
   showVersioningDialog.value = false;
   try {
-    const res = await store.restaurerPlan(motif);
-    if (res.success) {
-      toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle restauré avec succès.', life: 3000 });
-      if (res.planId) {
+    if (versioningMode.value === 'restore') {
+      const res = await store.restaurerPlan(payload); // payload est le motif
+      if (res.success) {
+        toast.add({ severity: 'success', summary: 'Succès', detail: 'Modèle restauré avec succès.', life: 3000 });
+        if (res.planId) {
+            router.replace('/dev/hub');
+        }
+      }
+    } else {
+      const { action, motif } = payload;
+      if (action === 'correction') {
+        const res = await store.sauvegarderPlan(true, true); // forceSave = true
+        if (res.success) {
+          toast.add({ severity: 'success', summary: 'Succès', detail: 'Correction enregistrée avec succès.', life: 3000 });
           router.replace('/dev/hub');
+        } else if (res.noChanges) {
+          toast.add({ severity: 'info', summary: 'Info', detail: 'Pas de modification.', life: 3000 });
+        } else {
+          toast.add({ severity: 'error', summary: 'Erreur', detail: res.message, life: 3000 });
+        }
+      } else {
+        const res = await store.creerNouvelleVersion(motif);
+        if (res.success) {
+          toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle version créée.', life: 3000 });
+          router.replace('/dev/hub');
+        } else {
+          toast.add({ severity: 'error', summary: 'Erreur', detail: res.message, life: 3000 });
+        }
       }
     }
   } catch {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de la restauration', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de l\'opération', life: 3000 });
   } finally {
     isRestoring.value = false;
   }

@@ -36,7 +36,8 @@ namespace SopalTrace.Application.Tests.Services
                 _mockUnitOfWork.Object,
                 _mockCurrentUserService.Object,
                 _mockLogger.Object,
-                _mockFormulaireStructureService.Object
+                _mockFormulaireStructureService.Object,
+                Array.Empty<IDocumentTypeStrategy>()
             );
         }
 

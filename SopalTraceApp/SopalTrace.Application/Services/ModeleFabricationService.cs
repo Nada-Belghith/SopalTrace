@@ -5,6 +5,7 @@ using SopalTrace.Domain.Entities;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using SopalTrace.Application.Helpers;
 using System.Collections.Generic;
 
 namespace SopalTrace.Application.Services;
@@ -33,7 +34,16 @@ public class ModeleFabricationService : IModeleFabricationService
         var modele = await _unitOfWork.ModeleFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
         if (modele == null) return null;
 
-        return ModeleFabricationMapper.ToDto(modele);
+        var dto = ModeleFabricationMapper.ToDto(modele);
+        if (modele.Formulaire != null && !string.IsNullOrWhiteSpace(modele.Formulaire.CodeReference))
+        {
+            var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(modele.FormulaireId.Value);
+            if (activeCols != null)
+            {
+                dto.ConfigurationColonnesJson = ColonneJsonMapper.Serialize(activeCols);
+            }
+        }
+        return dto;
     }
 
     public async Task<IReadOnlyList<ModeleResponseDto>> GetModelesByFiltersAsync(string? natureComposantCode = null, string? operationCode = null, string? familleProduitCode = null, string? statut = null)
@@ -87,7 +97,7 @@ public class ModeleFabricationService : IModeleFabricationService
         List<SopalTrace.Domain.Entities.RefFormulaireColonneDef>? activeCols = null;
         if (form != null)
         {
-            activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference))?.ToList();
+            activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id))?.ToList();
         }
 
         if (activeCols != null)
@@ -188,7 +198,7 @@ public class ModeleFabricationService : IModeleFabricationService
         List<SopalTrace.Domain.Entities.RefFormulaireColonneDef>? activeCols = null;
         if (form != null)
         {
-            activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference))?.ToList();
+            activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id))?.ToList();
         }
 
         if (request.Sections != null)

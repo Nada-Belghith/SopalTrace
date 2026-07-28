@@ -72,7 +72,8 @@ public class DocumentVerifMachineEnteteRepository : IDocumentVerifMachineEnteteR
 
     public Task UpdateAsync(DocumentVerifMachineEntete entity)
     {
-        _context.DocumentVerifMachineEntetes.Update(entity);
+        // Don't call _context.Update(entity) since it forces all child entities to Modified state, breaking in-place updates. 
+        // EF Core Change Tracker automatically detects changes for tracked entities.
         return Task.CompletedTask;
     }
 
@@ -80,5 +81,25 @@ public class DocumentVerifMachineEnteteRepository : IDocumentVerifMachineEnteteR
     {
         _context.DocumentVerifMachineEntetes.Remove(entity);
         return Task.CompletedTask;
+    }
+
+    public void RemoveFamille(DocumentVerifMachineFamille famille)
+    {
+        _context.DocumentVerifMachineFamilles.Remove(famille);
+    }
+
+    public void AddFamille(DocumentVerifMachineFamille famille)
+    {
+        _context.DocumentVerifMachineFamilles.Add(famille);
+    }
+
+    public void RemoveLigne(DocumentVerifMachineLigne ligne)
+    {
+        _context.DocumentVerifMachineLignes.Remove(ligne);
+    }
+
+    public void AddLigne(DocumentVerifMachineLigne ligne)
+    {
+        _context.DocumentVerifMachineLignes.Add(ligne);
     }
 }

@@ -142,6 +142,29 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     }
   };
 
+  const updatePlan = async () => {
+    if (!entete.value.id) return;
+    isLoading.value = true;
+    try {
+      const payload = {
+        nom: `PLAN_PF_${entete.value.familleProduitFiniCode}`,
+        designation: entete.value.familleProduitFiniLibelle,
+        typeDocumentCode: 'PLAN_PF',
+        familleProduitFiniCode: entete.value.familleProduitFiniCode,
+        remarques: entete.value.remarques || '',
+        legendeMoyens: entete.value.legendeMoyens || '',
+        versionInitiale: entete.value.versionInitiale,
+        refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
+        configurationColonnesJson: JSON.stringify(entete.value.configurationColonnes || []),
+        sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicites.value))
+      };
+      const response = await pfPlanService.updateDocument(entete.value.id, payload);
+      return response.data || response;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   const creerNouvelleVersion = async (motif) => {
     if (!entete.value.id) return;
     isLoading.value = true;
@@ -217,6 +240,6 @@ export const usePfPlanStore = defineStore('pfPlan', () => {
     typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle,
     periodicites, typesSection, instruments, postes, isDicosLoaded,
     entete, sections, isLoading, reglesEchantillonnage, formulairesReferences,
-    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, archiverPlan, creerNouvelleVersion, restaurerPlan, importerDepuisExcel
+    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, updatePlan, archiverPlan, creerNouvelleVersion, restaurerPlan, importerDepuisExcel
   };
 });

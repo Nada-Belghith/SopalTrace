@@ -131,7 +131,6 @@ CREATE TABLE dbo.PeriodiciteMachine (
     Actif          BIT          NOT NULL DEFAULT 1
 );
 GO
-GO
 
 CREATE TABLE dbo.Ref_RegleEchantillonnage (
     Id      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -425,14 +424,14 @@ GO
 
 CREATE TABLE dbo.Ref_Formulaire_ColonneDef (
     Id               UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    CodeReference    NVARCHAR(250) NOT NULL,
+    FormulaireId     UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Ref_Formulaire(Id),
     CleColonne       VARCHAR(60)  NOT NULL,
     LabelAffiche     VARCHAR(100) NOT NULL,
     TypeValeur       VARCHAR(50)  NOT NULL DEFAULT 'TEXT',
     InsertAfter      VARCHAR(60)  NULL,
     TargetTable      VARCHAR(50)  NULL,
     Actif            BIT          NOT NULL DEFAULT 1,
-    UNIQUE (CodeReference, CleColonne)
+    UNIQUE (FormulaireId, CleColonne)
 );
 GO
 
@@ -447,13 +446,13 @@ GO
 
 CREATE TABLE dbo.Ref_Formulaire_Equipe (
     Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    CodeReference   NVARCHAR(250) NOT NULL,
+    FormulaireId    UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Ref_Formulaire(Id),
     NomEquipe       VARCHAR(60)   NOT NULL,
     HeureDebut      INT           NOT NULL,
     HeureFin        INT           NOT NULL,
     OrdreAffiche    INT           NOT NULL DEFAULT 0,
     Actif           BIT           NOT NULL DEFAULT 1,
-    UNIQUE (CodeReference, NomEquipe)
+    UNIQUE (FormulaireId, NomEquipe)
 );
 GO
 
@@ -1027,6 +1026,43 @@ CREATE TABLE dbo.Exec_Prelevement_Intermediaire (
 );
 GO
 
+CREATE TABLE dbo.Exec_ControleLigne_Reponse (
+    Id                      UNIQUEIDENTIFIER    NOT NULL DEFAULT NEWID() PRIMARY KEY,
+    ExecControleOFId        UNIQUEIDENTIFIER    NOT NULL
+        REFERENCES dbo.Exec_ControleOF(Id) ON DELETE CASCADE,
+    DocumentLigneId         UNIQUEIDENTIFIER    NULL
+        REFERENCES dbo.Document_Ligne(Id),
+    Contexte                VARCHAR(20)         NOT NULL
+        CHECK (Contexte IN ('REGLAGE', 'LOT', '100PCT')),
+    NumeroReglage           VARCHAR(20)         NULL,
+    ResultatType            VARCHAR(20)         NOT NULL
+        CHECK (ResultatType IN ('CONFORME', 'NON_CONFORME', 'MESURE')),
+    ValeurMesuree            DECIMAL(10,3)       NULL,
+    DetailsNC                VARCHAR(500)        NULL,
+    ActionsCorrection        VARCHAR(500)        NULL,
+    OperateurId               UNIQUEIDENTIFIER    NOT NULL
+        REFERENCES dbo.UtilisateursApp(Id),
+    DateSaisie                DATETIME            NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT CK_LigneSource CHECK (
+        DocumentLigneId IS NOT NULL ),
+    CONSTRAINT CK_NumeroReglageObligatoire CHECK (
+        Contexte <> 'REGLAGE' OR NumeroReglage IS NOT NULL
+    ),
+    CONSTRAINT CK_ValeurMesureeObligatoire CHECK (
+        ResultatType <> 'MESURE' OR ValeurMesuree IS NOT NULL
+    )
+);
+GO
+
+-- Index pour retrouver rapidement toutes les lignes d'une session de réglage ou d'un lot
+CREATE INDEX IX_ControleLigne_Reglage
+    ON dbo.Exec_ControleLigne_Reponse (ExecControleOFId, Contexte, NumeroReglage);
+GO
+
+CREATE INDEX IX_ControleLigne_Lot
+    ON dbo.Exec_ControleLigne_Reponse (ExecControleOFId, Contexte, NumeroLot);
+GO
+
 
 -- ================================================================================
 -- PARTIE 16 : SYSTÈME D'ALERTES
@@ -1114,47 +1150,91 @@ CREATE INDEX IX_PlanFab_Statut               ON dbo.Plan_Fabrication_Entete(Stat
 CREATE INDEX IX_Machine_Operation            ON dbo.Machine(OperationCode);
 
 GO
-CREATE TABLE [dbo].[Exec_Echantillonnage] (
-    [Id] UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
-    [ExecControleDocumentStatutId] UNIQUEIDENTIFIER NOT NULL,
-    [TailleLot] INT NOT NULL,
-    [NbPostesB] INT NOT NULL,
-    [LettreCode] VARCHAR(10) NOT NULL,
-    [EffectifEchantillonA] INT NOT NULL,
-    [EffectifParPosteAb] INT NULL,
-    [CritereAcceptationAc] INT NOT NULL,
-    [CritereRejetRe] INT NOT NULL,
-    CONSTRAINT [PK_Exec_Echantillonnage] PRIMARY KEY ([Id]),
-    CONSTRAINT [FK_Exec_Echantillonnage_ExecControleDocumentStatut] FOREIGN KEY ([ExecControleDocumentStatutId]) REFERENCES [dbo].[Exec_ControleDocumentStatut] ([Id]) ON DELETE CASCADE
-
+CREATE TABLE dbo.Exec_Echantillonnage (
+    Id UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
+    ExecControleDocumentStatutId UNIQUEIDENTIFIER NOT NULL,
+    TailleLot INT NOT NULL,
+    NbPostesB INT NOT NULL,
+    LettreCode VARCHAR(10) NOT NULL,
+    EffectifEchantillonA INT NOT NULL,
+    EffectifParPosteAb INT NULL,
+    CritereAcceptationAc INT NOT NULL,
+    CritereRejetRe INT NOT NULL,
+    CONSTRAINT PK_Exec_Echantillonnage PRIMARY KEY (Id),
+    CONSTRAINT FK_Exec_Echantillonnage_ExecControleDocumentStatut FOREIGN KEY (ExecControleDocumentStatutId) REFERENCES dbo.Exec_ControleDocumentStatut (Id) ON DELETE CASCADE
 );
 GO
 
-CREATE TABLE [dbo].[Exec_Echantillonnage_Instrument] (
-    [ExecEchantillonnageId] UNIQUEIDENTIFIER NOT NULL,
-    [CodeInstrument] VARCHAR(40) NOT NULL,
-    CONSTRAINT [PK_Exec_Echantillonnage_Instrument] PRIMARY KEY ([ExecEchantillonnageId], [CodeInstrument]),
-    CONSTRAINT [FK_ExecEchantillonnageInstrument_ExecEchantillonnage] FOREIGN KEY ([ExecEchantillonnageId]) REFERENCES [dbo].[Exec_Echantillonnage] ([Id]) ON DELETE CASCADE,
-    CONSTRAINT [FK_ExecEchantillonnageInstrument_Instrument] FOREIGN KEY ([CodeInstrument]) REFERENCES [dbo].[Instrument] ([CodeInstrument]) ON DELETE CASCADE
+CREATE TABLE dbo.Exec_Echantillonnage_Instrument (
+    ExecEchantillonnageId UNIQUEIDENTIFIER NOT NULL,
+    CodeInstrument VARCHAR(40) NOT NULL,
+    CONSTRAINT PK_Exec_Echantillonnage_Instrument PRIMARY KEY (ExecEchantillonnageId, CodeInstrument),
+    CONSTRAINT FK_ExecEchantillonnageInstrument_ExecEchantillonnage FOREIGN KEY (ExecEchantillonnageId) REFERENCES dbo.Exec_Echantillonnage (Id) ON DELETE CASCADE,
+    CONSTRAINT FK_ExecEchantillonnageInstrument_Instrument FOREIGN KEY (CodeInstrument) REFERENCES dbo.Instrument (CodeInstrument) ON DELETE CASCADE
 );
 GO
 
-CREATE TABLE [dbo].[Exec_VerifMachine_Reponse] (
-    [Id] UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
-    [ExecControleDocumentStatutId] UNIQUEIDENTIFIER NOT NULL,
-    [DocumentVerifMachineEcheanceId] UNIQUEIDENTIFIER NOT NULL,
-    [DateExecution] DATETIME NOT NULL,
-    [MatriculeOperateur] VARCHAR(50) NOT NULL,
-    [PressionEntree] FLOAT NULL,
-    [FuiteAffichee] FLOAT NULL,
-    [Conforme] BIT NULL,
-    [Observation] VARCHAR(500) NULL,
-    CONSTRAINT [PK_ExecVerifMachineReponse] PRIMARY KEY ([Id]),
-    CONSTRAINT [FK_ExecVerifMachineReponse_Statut] FOREIGN KEY ([ExecControleDocumentStatutId]) REFERENCES [dbo].[Exec_ControleDocumentStatut] ([Id]),
-    CONSTRAINT [FK_ExecVerifMachineReponse_Echeance] FOREIGN KEY ([DocumentVerifMachineEcheanceId]) REFERENCES [dbo].[Document_VerifMachine_Echeance] ([Id])
+CREATE TABLE dbo.Exec_VerifMachine_Reponse (
+    Id UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
+    ExecControleDocumentStatutId UNIQUEIDENTIFIER NOT NULL,
+    DocumentVerifMachineEcheanceId UNIQUEIDENTIFIER NOT NULL,
+    DateExecution DATETIME NOT NULL,
+    MatriculeOperateur VARCHAR(50) NOT NULL,
+    PressionEntree FLOAT NULL,
+    FuiteAffichee FLOAT NULL,
+    Conforme BIT NULL,
+    Observation VARCHAR(500) NULL,
+    CONSTRAINT PK_ExecVerifMachineReponse PRIMARY KEY (Id),
+    CONSTRAINT FK_ExecVerifMachineReponse_Statut FOREIGN KEY (ExecControleDocumentStatutId) REFERENCES dbo.Exec_ControleDocumentStatut (Id),
+    CONSTRAINT FK_ExecVerifMachineReponse_Echeance FOREIGN KEY (DocumentVerifMachineEcheanceId) REFERENCES dbo.Document_VerifMachine_Echeance (Id)
 );
 GO
 
+
+
+
+-- Drop old tables if they exist
+IF OBJECT_ID('dbo.Exec_RcPoste_Heure', 'U') IS NOT NULL DROP TABLE dbo.Exec_RcPoste_Heure;
+IF OBJECT_ID('dbo.Exec_RcPoste_LigneBilan', 'U') IS NOT NULL DROP TABLE dbo.Exec_RcPoste_LigneBilan;
+IF OBJECT_ID('dbo.Exec_RcPoste_Entete', 'U') IS NOT NULL DROP TABLE dbo.Exec_RcPoste_Entete;
+
+-- Create new tables for Résultat Contrôle Poste
+CREATE TABLE dbo.Exec_RC_Poste_Heure (
+    Id UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
+    ExecControleDocumentStatutId UNIQUEIDENTIFIER NOT NULL,
+    DocLigneId UNIQUEIDENTIFIER NOT NULL,
+    DateExecution DATETIME NOT NULL,
+    MatriculeOp VARCHAR(50) NULL,
+    Equipe VARCHAR(50) NULL,
+    TrancheHoraire VARCHAR(20) NOT NULL,
+    NbNcParHeure FLOAT NOT NULL,
+    CONSTRAINT PK_ExecRcPosteHeure PRIMARY KEY CLUSTERED (Id ASC),
+    CONSTRAINT FK_ExecRcPosteHeure_Statut FOREIGN KEY (ExecControleDocumentStatutId) REFERENCES dbo.Exec_ControleDocumentStatut (Id) ON DELETE CASCADE,
+    CONSTRAINT FK_ExecRcPosteHeure_Ligne FOREIGN KEY (DocLigneId) REFERENCES dbo.Document_Ligne (Id) ON DELETE CASCADE
+);
+
+CREATE TABLE dbo.Exec_RC_Poste_Reponse (
+    Id UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
+    ExecControleDocumentStatutId UNIQUEIDENTIFIER NOT NULL,
+    TrancheHoraire VARCHAR(20) NOT NULL,
+    TotalNcHeure FLOAT NOT NULL,
+    TotalRealiseHeure FLOAT NOT NULL,
+    CONSTRAINT PK_ExecRcPosteReponse PRIMARY KEY CLUSTERED (Id ASC),
+    CONSTRAINT FK_ExecRcPosteReponse_Statut FOREIGN KEY (ExecControleDocumentStatutId) REFERENCES dbo.Exec_ControleDocumentStatut (Id) ON DELETE CASCADE
+);
+
+CREATE TABLE dbo.Exec_RC_Poste_Bilan (
+    Id UNIQUEIDENTIFIER DEFAULT (newid()) NOT NULL,
+    ExecControleDocumentStatutId UNIQUEIDENTIFIER NOT NULL,
+    TotalDefauts FLOAT NOT NULL,
+    TotalPiecesTestees FLOAT NOT NULL,
+    TauxNc FLOAT NOT NULL,
+    NbPiecesRebutees FLOAT NOT NULL,
+    NbPieceConforme FLOAT NOT NULL,
+    CONSTRAINT PK_ExecRcPosteBilan PRIMARY KEY CLUSTERED (Id ASC),
+    CONSTRAINT FK_ExecRcPosteBilan_Statut FOREIGN KEY (ExecControleDocumentStatutId) REFERENCES dbo.Exec_ControleDocumentStatut (Id) ON DELETE CASCADE
+);
+GO
 
 PRINT '✅ SopalTraceDB V4.0 FINAL créée avec succès !';
 PRINT '';
@@ -1165,5 +1245,4 @@ PRINT '  Ref_Caracteristique   → LibelleNormalise fourni par le backend C# (pa
 PRINT '  JSON supprimé         → ExtraColonne (EAV) + Libre1..5';
 PRINT '  Triggers              → ISO 9001 uniquement (interdit DELETE physique)';
 PRINT '  Logique métier        → 100% backend C#';
-
 GO

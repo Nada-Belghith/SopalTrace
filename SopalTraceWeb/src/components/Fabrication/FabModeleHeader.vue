@@ -27,11 +27,11 @@
 
       <!-- FAMILLE (Obligatoire) -->
       <div>
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Famille *</label>
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Famille<span v-if="!(isEditMode || isReadOnly)"> *</span></label>
         <select 
           v-model="store.entete.familleProduitCode" 
           :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'appearance-none cursor-not-allowed bg-slate-50 border-slate-200 !text-slate-900 opacity-100' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Sélectionner --</option>
           <option v-for="fam in famillesFiltrees" :key="fam.code" :value="fam.code">
             {{ fam.code }}
@@ -41,11 +41,11 @@
 
       <!-- OPÉRATION (Obligatoire) -->
       <div>
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Opération *</label>
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Opération<span v-if="!(isEditMode || isReadOnly)"> *</span></label>
         <select 
           v-model="store.entete.operationCode" 
           :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'appearance-none cursor-not-allowed bg-slate-50 border-slate-200 !text-slate-900 opacity-100' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Sélectionner --</option>
           <option v-for="op in operationsFiltrees" :key="op.code" :value="op.code">{{ op.code }} - {{ op.libelle }}</option>
         </select>
@@ -53,11 +53,11 @@
 
       <!-- ARTICLE (Obligatoire) -->
       <div>
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Article *</label>
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Article<span v-if="!(isEditMode || isReadOnly)"> *</span></label>
         <select 
           v-model="store.entete.natureComposantCode" 
           :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'appearance-none cursor-not-allowed bg-slate-50 border-slate-200 !text-slate-900 opacity-100' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
           <option value="">-- Sélectionner --</option>
           <option v-for="nat in composantsFiltres" :key="nat.code" :value="nat.code">{{ nat.libelle }}</option>
         </select>
@@ -69,7 +69,7 @@
         <select 
           v-model="store.entete.posteCode" 
           :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'appearance-none cursor-not-allowed bg-slate-50 border-slate-200 !text-slate-900 opacity-100' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Tous les postes --</option>
           <option v-for="p in postesDisponibles" :key="p.code" :value="p.code">
            {{ p.libelle }}
@@ -78,15 +78,15 @@
       </div>
 
       <!-- LIBELLÉ -->
-      <div>
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du Gabarit *</label>
+      <div class="md:col-span-2">
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du Gabarit<span v-if="!(isEditMode || isReadOnly)"> *</span></label>
         <input 
           v-model="store.entete.libelle" 
           @blur="onLibelleBlur"
           type="text" 
           placeholder="Ex: Modèle Standard Corps..." 
           :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-50 border-slate-200 !text-slate-900 opacity-100 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
     </div>

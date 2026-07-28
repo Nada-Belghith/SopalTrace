@@ -8,6 +8,7 @@ public class PlanManquantContexte
     public string? NumeroOf { get; set; }
     public string? MachineCode { get; set; }
     public string? DesignationArticle { get; set; }
+    public string? FamilleArticle { get; set; }
     public string? NomOperateur { get; set; }
     public string? EmailOperateur { get; set; }
     public string DescriptionProbleme { get; set; } = null!;

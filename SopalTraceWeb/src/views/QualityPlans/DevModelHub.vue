@@ -122,6 +122,9 @@
             <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
               {{ plan.libelle }}
             </h3>
+            <p v-if="plan.creeLe" class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="pi pi-calendar text-[9px]"></i> Créé le {{ new Date(plan.creeLe).toLocaleDateString('fr-FR') }} à {{ new Date(plan.creeLe).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+            </p>
           </div>
 
           <!-- Tags: Nature, Type, Opération -->
@@ -165,9 +168,7 @@
                <button v-if="!isReadOnlyGenericHub && (plan.statut === 'ACTIF' || plan.statut === 'BROUILLON')" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
                  <i class="pi pi-pencil"></i>
                </button>
-               <button v-if="!isReadOnlyGenericHub && plan.statut === 'ARCHIVE'" @click.stop="upgrader(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Mettre à jour vers le dernier PRC">
-                 <i class="pi pi-arrow-up"></i>
-               </button>
+
                <button v-if="!isReadOnlyGenericHub && plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Archiver">
                  <i class="pi pi-box"></i>
                </button>
@@ -310,6 +311,13 @@ const filteredPlans = computed(() => {
 
     return matchTab && matchOp && matchSearch && matchStatut;
   });
+
+  // Tri par date de création ou modification (du plus récent au plus ancien)
+  return filtered.sort((a, b) => {
+    const dateA = new Date(a.archiveLe || a.modifieLe || a.creeLe || 0).getTime();
+    const dateB = new Date(b.archiveLe || b.modifieLe || b.creeLe || 0).getTime();
+    return dateB - dateA;
+  });
 });
 
 const paginatedPlans = computed(() => {
@@ -380,14 +388,6 @@ const editer = (category, id) => {
   };
   if (routes[category]) router.push(routes[category]);
   else toast.add({ severity: 'warn', summary: 'Non disponible', detail: 'Édition non configurée pour cette catégorie.', life: 3000 });
-};
-
-const upgrader = (category, id) => {
-  const routes = {
-    'FAB': { path: `/dev/fab/editer/${id}`, query: { upgrade: 'true' } }
-  };
-  if (routes[category]) router.push(routes[category]);
-  else toast.add({ severity: 'warn', summary: 'Non disponible', detail: 'Mise à jour non configurée pour cette catégorie.', life: 3000 });
 };
 
 const consulter = (category, id) => {

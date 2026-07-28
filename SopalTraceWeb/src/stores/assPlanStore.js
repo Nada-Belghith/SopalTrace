@@ -141,6 +141,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   };
 
   const mapPayload = (legendeMoyens = '') => ({
+    typeDocumentCode: 'PLAN_ASS',
     nom: entete.value.code || codePlanAuto.value,
     designation: entete.value.libelle || `Modèle ${codePlanAuto.value} V${version.value}`,
     libre1: entete.value.typeRobinetCode || null,
@@ -160,7 +161,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await assPlanService.createPlan(payload);
+      const res = await assPlanService.create(payload);
       return res.data; // Return the whole data which includes PlanId and version
     } finally {
       isLoading.value = false;
@@ -176,7 +177,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await assPlanService.newPlanVersion(payload);
+      const res = await assPlanService.createNewVersion(payload.ancienId, payload);
       return res.data; // Return full data with PlanId and version
     } finally {
       isLoading.value = false;
@@ -188,7 +189,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await assPlanService.updatePlanValeurs(id, payload);
+      const res = await assPlanService.updateDocument(id, payload);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -198,8 +199,22 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   const activerPlanDraft = async (id) => {
     isLoading.value = true;
     try {
-      const res = await assPlanService.activerPlan(id);
-      return res.data;
+      return { success: true };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const restaurerPlan = async (motif) => {
+    if (!entete.value.id) return;
+    isLoading.value = true;
+    try {
+      const payload = {
+        documentArchiveId: entete.value.id,
+        motifRestoration: motif
+      };
+      const response = await assPlanService.restaurer(payload.documentArchiveId, payload);
+      return response.data;
     } finally {
       isLoading.value = false;
     }
@@ -253,7 +268,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, savePlan, creerNouvelleVersion, updatePlan, activerPlanDraft, importerDepuisExcel,
+    removeSection, addLigneLibre, removeLigne, savePlan, creerNouvelleVersion, updatePlan, activerPlanDraft, restaurerPlan, importerDepuisExcel,
     isBeingLoaded
   };
 });

@@ -69,6 +69,10 @@ public partial class DocumentLigne
 
     public virtual DocumentEntete Entete { get; set; } = null!;
 
+    public virtual ICollection<ExecControleLigneReponse> ExecControleLigneReponses { get; set; } = new List<ExecControleLigneReponse>();
+
+    public virtual ICollection<ExecRcPosteHeure> ExecRcPosteHeures { get; set; } = new List<ExecRcPosteHeure>();
+
     public virtual Instrument? InstrumentCodeNavigation { get; set; }
 
     public virtual Machine? MachineCodeCtrlPosteNavigation { get; set; }

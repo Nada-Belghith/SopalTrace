@@ -29,6 +29,7 @@ public interface IOperateurRepository
     
     // Nouveaux pour Assemblage
     Task<DocumentEntete?> GetPlanAssemblageActifAsync(string codeArticle);
+    Task<DocumentEntete?> GetPlanControlePosteAsync(string posteCode, string codeArticle);
     Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId);
     Task<ExecControleDocumentStatut?> GetDocumentStatutByIdAsync(Guid statutId);
     void AddExecControleDocumentStatut(ExecControleDocumentStatut statut);

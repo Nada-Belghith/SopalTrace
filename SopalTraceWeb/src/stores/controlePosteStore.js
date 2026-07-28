@@ -124,7 +124,8 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
   const fetchTousLesPlans = async () => {
     try {
       const res = await controlePosteService.getTousLesPlans();
-      plansExistants.value = res.data.data || [];
+      const data = res?.data;
+      plansExistants.value = Array.isArray(data) ? data : (data?.data || []);
     } catch (error) {
       console.error('Erreur chargement plans existants NC:', error);
     }
@@ -269,8 +270,8 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
     lignes.value = lignes.value.filter(l => l._uid !== uid);
   };
 
-  const sauvegarderPlan = async () => {
-    if (!aDesModifications()) {
+  const sauvegarderPlan = async (isCorrection = false, forceSave = false) => {
+    if (!forceSave && isCorrection && !aDesModifications()) {
       return { noChanges: true };
     }
 
@@ -296,17 +297,24 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
         const payload = buildPayload();
 
         if (entete.value.id) {
-          // Mode Edition -> Nouvelle version
-          // We pass the documentId as ancienId in the payload
-          payload.ancienId = entete.value.id;
-          const res = await controlePosteService.creerNouvelleVersion(payload);
-          // La réponse contient data: { id: ... } ou data: { id: { id: ... } } selon le wrapping
-          const newId = res.data?.id?.id || res.data?.id || res.data?.planId;
-          if (newId) {
-            entete.value.id = newId;
+          if (!isCorrection && entete.value.statut === 'ACTIF') {
+            // Mode Edition -> Nouvelle version
+            // We pass the documentId as ancienId in the payload
+            payload.ancienId = entete.value.id;
+            const res = await controlePosteService.creerNouvelleVersion(payload);
+            // La réponse contient data: { id: ... } ou data: { id: { id: ... } } selon le wrapping
+            const newId = res.data?.id?.id || res.data?.id || res.data?.planId;
+            if (newId) {
+              entete.value.id = newId;
+              prendreSnapshot();
+            }
+            return { success: true, planId: entete.value.id, message: "Nouvelle version créée avec succès" };
+          } else {
+            // Mode Edition -> Correction mineure ou update Brouillon
+            const res = await controlePosteService.mettreAJourControlePoste(entete.value.id, payload);
             prendreSnapshot();
+            return { success: true, planId: entete.value.id, message: "Plan mis à jour avec succès" };
           }
-          return { success: true, planId: entete.value.id, message: "Nouvelle version créée avec succès" };
         } else {
           // Mode Création
           const res = await controlePosteService.creerControlePoste(payload);
@@ -315,12 +323,19 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
             entete.value.id = newId;
             prendreSnapshot();
           }
-          return { success: true, planId: entete.value.id, message: "Plan créé avec succès" };
+          return { success: true, planId: entete.value.id, message: "Brouillon créé avec succès" };
         }
       }
+    } catch (error) {
+      const msg = error?.response?.data?.message || error?.message || 'Erreur lors de la sauvegarde du plan';
+      return { success: false, message: msg };
     } finally {
       isLoading.value = false;
     }
+  };
+
+  const creerNouvelleVersion = async (motif = '') => {
+    return await sauvegarderPlan(false, true);
   };
 
   const restaurerPlan = async (motif = "Restauration d'une ancienne version") => {
@@ -397,7 +412,7 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
       if (data.posteCode && !entete.value.posteCode) {
         entete.value.posteCode = data.posteCode;
       }
-      if (data.nomPlan) entete.value.nom = data.nomPlan;
+      if (data.nomPlan && !entete.value.nom) entete.value.nom = data.nomPlan;
       if (data.remarques) entete.value.remarques = data.remarques.trim();
 
       const nouvellesLignes = (data.lignes || []).map(mapperLigneDepuisExcel);
@@ -422,7 +437,7 @@ export const useControlePosteStore = defineStore('ControlePoste', () => {
     postes, machines, risquesDefauts, isDicosLoaded, formulairesReferences,
     entete, lignes, isLoading, planInitialise, plansExistants,
     fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, initialiserNouveauPlan, chargerControlePoste,
-    ajouterLigne, supprimerLigne, sauvegarderPlan, aDesModifications, restaurerPlan,
+    ajouterLigne, supprimerLigne, sauvegarderPlan, creerNouvelleVersion, aDesModifications, restaurerPlan,
     resetState, importerDepuisExcel
   };
 });

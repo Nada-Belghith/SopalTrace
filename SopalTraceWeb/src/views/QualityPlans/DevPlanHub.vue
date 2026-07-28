@@ -267,12 +267,9 @@ const filteredPlans = computed(() => {
 
     return matchTab && matchOp && matchSearch && matchStatut;
   }).sort((a, b) => {
-    const priorite = { 'ACTIF': 1, 'ARCHIVE': 2 };
-    const pA = priorite[a.statut] || 99;
-    const pB = priorite[b.statut] || 99;
-    
-    if (pA !== pB) return pA - pB;
-    return (a.codeArticleSage || '').localeCompare(b.codeArticleSage || '');
+    const dateA = new Date(a.archiveLe || a.modifieLe || a.creeLe || 0).getTime();
+    const dateB = new Date(b.archiveLe || b.modifieLe || b.creeLe || 0).getTime();
+    return dateB - dateA;
   });
 });
 

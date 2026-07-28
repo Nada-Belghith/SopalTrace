@@ -1,13 +1,5 @@
 <template>
   <div class="bg-slate-50 min-h-screen p-4 md:p-8 font-sans text-slate-800">
-    <ConfirmDialog />
-    <VersioningDialog :visible="showVersioningDialog"
-                      :mode="versioningMode"
-                      :is-loading="isLoading"
-                      @confirm="onVersioningConfirm"
-                      @cancel="showVersioningDialog = false"
-                      @update:visible="showVersioningDialog = $event" />
-
     <div class="max-w-[1600px] mx-auto">
       <PlanHeader 
         :id="modeleEditionId"
@@ -50,7 +42,7 @@
           </div>
 
           <div class="mb-4 mt-6 flex items-center justify-between">
-            <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de contrle</h3>
+            <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de controle</h3>
           </div>
 
           <template v-if="!hasValidStructure">
@@ -158,14 +150,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { useToast } from 'primevue/usetoast';
 
 import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
-import { useFabModeleVersioning } from '@/composables/useVersioning';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot } from '@/utils/modelMapper';
 import { prepareSectionsForBackend } from '@/utils/sectionUtils';
@@ -184,7 +175,6 @@ import FabModeleHeader from '@/components/Fabrication/FabModeleHeader.vue';
 import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
-import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import ConfirmDialog from 'primevue/confirmdialog';
 
@@ -214,10 +204,7 @@ const modeleEditionId = ref(null);
 const codeOriginal = ref('');
 const statut = ref('BROUILLON');
 const version = ref(0);
-const showVersioningDialog = ref(false);
 const showColumnModal = ref(false);
-const versioningMode = ref('FAB');
-const isAutoVersioning = ref(false);
 const isArchiveEditing = ref(route.query.draft === 'true');
 const isUpgradeMode = computed(() => route.query.upgrade === 'true');
 
@@ -229,7 +216,6 @@ const {
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
 const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-const { restaurerModele } = useFabModeleVersioning();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 const isForcedView = computed(() => route.query.view === 'true');
@@ -399,16 +385,16 @@ const chargerModelePourEdition = async (id) => {
     statut.value = data.statut;
     version.value = data.version;
     
-    store.entete.code = data.nom;
+    store.entete.code = data.code || data.nom;
     store.entete.operationCode = data.operationCode;
-    store.entete.natureComposantCode = data.natureArticleCode;
-    store.entete.typeRobinetCode = data.libre1;
-    store.entete.libelle = data.designation;
-    store.entete.notes = data.remarques || '';
+    store.entete.natureComposantCode = data.natureComposantCode || data.natureArticleCode;
+    store.entete.typeRobinetCode = data.typeRobinetCode || data.libre1 || '';
+    store.entete.libelle = data.libelle || data.designation;
+    store.entete.notes = data.notes || data.remarques || '';
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
-    store.entete.familleProduitCode = data.familleProduitFiniCode || '';
-    store.entete.refFormulaireCodeReference = data.refFormulaireCodeReference || data.codeReferenceFormulaire || 'PRC';
+    store.entete.familleProduitCode = data.familleProduitCode || data.familleProduitFiniCode || '';
+    store.entete.refFormulaireCodeReference = data.codeReferenceFormulaire || data.refFormulaireCodeReference || 'PRC';
     
     if (isArchiveEditing.value || isUpgradeMode.value) {
       store.syncConfigurationFromFormulaire();
@@ -539,7 +525,10 @@ const chargerModelePourEdition = async (id) => {
     router.push(returnUrl.value);
   } finally {
     store.isLoading = false;
-    store.isBeingLoaded = false;  // ✅ Réactive les watchers après le chargement
+    await nextTick();
+    setTimeout(() => {
+      store.isBeingLoaded = false;  // ✅ Réactive les watchers après le chargement asynchrone
+    }, 50);
   }
 };
 
@@ -585,7 +574,7 @@ const sauvegarderDirectement = async () => {
     store.sections = groupes.value;
     const resData = await store.saveModele(store.entete.legendeMoyens);
     
-    toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle (V${resData?.version ?? 0}) créé et activé !`, life: 3000 });
+    toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle créé et activé !`, life: 3000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
@@ -612,9 +601,9 @@ const sauvegarderV2 = async (motif) => {
     // On les recopie dans store.sections pour que mapPayload() les lise correctement lors de l'envoi.
     store.sections = groupes.value;
 
-    const resData = await store.creerNouvelleVersion(modeleEditionId.value, motif, store.entete.legendeMoyens);
+    const resData = await store.saveModele(store.entete.legendeMoyens);
 
-    toast.add({ severity: 'success', summary: `V${resData?.version ?? version.value + 1} Activée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
+    toast.add({ severity: 'success', summary: `Nouvelle version créée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
     const errorMsg = error.response?.data?.message || error.message;
@@ -633,23 +622,31 @@ const onEditorSubmitClick = () => {
 };
 
 const onEditorSubmit = async () => {
-  if (isUpgradeMode.value) {
-    versioningMode.value = 'new-version';
-    showVersioningDialog.value = true;
-  } else if (isArchived.value && !isArchiveEditing.value) {
+  if (isArchived.value && !isArchiveEditing.value) {
     isArchiveEditing.value = true;
     
+    // On met à niveau la structure vers le formulaire PRC actif
+    store.syncConfigurationFromFormulaire();
+
     // On retire 'view' pour sortir du mode consultation forcée
     const newQuery = { ...route.query, draft: 'true' };
     delete newQuery.view;
     
     router.replace({ query: newQuery });
-    toast.add({ severity: 'info', summary: 'Mode Édition Activé', detail: 'Modifiez la structure, puis cliquez sur "Enregistrer la Nouvelle Version" en bas.', life: 5000 });
-  } else if (isArchived.value || statut.value === 'ACTIF') {
-    versioningMode.value = 'new-version';
-    showVersioningDialog.value = true;
+    toast.add({ severity: 'info', summary: 'Mode Édition Activé', detail: 'Modifiez la structure (mise à niveau avec le PRC actif), puis cliquez sur "Enregistrer la Nouvelle Version".', life: 5000 });
+  } else if (isArchived.value || statut.value === 'ACTIF' || isUpgradeMode.value) {
+    if (!validerSaisieValeurs()) return;
+    if (!validerLegendeMoyens()) return;
+    
+    // Si on vient d'une ARCHIVE (lecture seule), on bypass aussi : l'utilisateur ne peut rien modifier,
+    // isDirty sera toujours false mais il faut quand même créer la nouvelle version.
+    if (!isArchived.value && !isDirty.value) {
+      toast.add({ severity: 'info', summary: 'Aucune modification', detail: 'Vous n\'avez effectué aucun changement sur la structure du modèle.', life: 4000 });
+      return;
+    }
+    
+    await sauvegarderV2('Modification automatique');
   } else {
-    // Cas inattendu (BROUILLON) - Normalement les Modèles n'ont pas de brouillon
     toast.add({ severity: 'error', summary: 'Erreur', detail: 'Les modèles ne gèrent pas de brouillons. Veuillez recréer le modèle.', life: 6000 });
   }
 };
@@ -657,8 +654,7 @@ const onEditorSubmit = async () => {
 const restaurerArchive = async (motif) => {
   store.isLoading = true;
   try {
-    const payloadRestore = { modeleArchiveId: modeleEditionId.value, restaurePar: 'ADMIN_QUALITE', motifRestoration: motif };
-    await restaurerModele(payloadRestore);
+    await store.restaurerModele(motif);
     toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
     setTimeout(() => router.push(returnUrl.value), 1500);
   } catch (error) {
@@ -666,29 +662,6 @@ const restaurerArchive = async (motif) => {
   } finally {
     store.isLoading = false;
   }
-};
-
-const onVersioningConfirm = async (motif) => {
-  showVersioningDialog.value = false;
-  
-  if (versioningMode.value === 'new-version') {
-    if (!validerSaisieValeurs()) return;
-    if (!validerLegendeMoyens()) return;
-    
-    // Si c'est un auto-versioning (venant d'une nouvelle création), on bypass le check isDirty
-    // Si on vient d'une ARCHIVE (lecture seule), on bypass aussi : l'utilisateur ne peut rien modifier,
-    // isDirty sera toujours false mais il faut quand même créer la nouvelle version.
-    if (!isAutoVersioning.value && !isArchived.value && !isDirty.value) {
-      toast.add({ severity: 'info', summary: 'Aucune modification', detail: 'Vous n\'avez effectué aucun changement sur la structure du modèle.', life: 4000 });
-      return;
-    }
-    
-    await sauvegarderV2(motif);
-  } else if (versioningMode.value === 'restore') {
-    await restaurerArchive(motif);
-  }
-  
-  isAutoVersioning.value = false; // Reset flag
 };
 
 const resetForNewModele = () => {

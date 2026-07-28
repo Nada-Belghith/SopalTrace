@@ -2,13 +2,6 @@
   <div class="bg-slate-50 min-h-screen p-4 md:p-8 font-sans text-slate-800">
     <ConfirmDialog />
 
-    <VersioningDialog :visible="showVersioningDialog"
-                      :mode="versioningMode"
-                      :is-loading="isVersioningSaving"
-                      @confirm="onVersioningConfirm"
-                      @cancel="showVersioningDialog = false"
-                      @update:visible="showVersioningDialog = $event" />
-
     <div class="max-w-[1600px] mx-auto">
       <div class="animate-in fade-in zoom-in-95 duration-500">
 
@@ -185,7 +178,7 @@
                              loading-label="Traitement..."
                              :icon="editorIcon"
                              :variant="editorVariant"
-                             :is-loading="isSaving && !isVersioningSaving && !showVersioningDialog"
+                             :is-loading="isSaving"
                              @submit="onEditorSubmit"
                              @cancel="onEditorCancel" />
             </template>
@@ -205,13 +198,11 @@
 
   import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
   import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
-  import { useFabPlanVersioning } from '@/composables/useVersioning';
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
   import { prepareSectionsForBackend } from '@/utils/sectionUtils';
   import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
 
-  import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
   import PlanReadView from '@/components/Shared/PlanReadView.vue';
   import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
@@ -231,7 +222,6 @@
   const toast = useToast();
   const confirm = useConfirm();
   const store = useFabModeleStore();
-  const { creerNouvelleVersionPlan, upgradePlan, restaurerPlan } = useFabPlanVersioning();
 
   const wizard = usePlanWizard();
   const isGeneratingPlan = ref(false);
@@ -252,7 +242,6 @@
     supprimerSection,
     mettreAJourSection,
     supprimerLigneASection
-    // mettreAJourLigne (inutilisé)
   } = useEditorSections();
   const {
     showLegendValidation,
@@ -419,10 +408,6 @@
     return true;
   });
 
-  const showVersioningDialog = ref(false);
-  const versioningMode = ref('new-version');
-  // Assure la cohérence des flags de chargement entre l'éditeur et la boîte de versioning
-
   const { isSaving, startAutoSave, stopAutoSave } = usePlanAutosave(async () => {
     if (plan.value?.statut === 'BROUILLON' || planCreationPayload.value) {
       await sauvegarderBrouillonSilencieux(false);
@@ -485,8 +470,6 @@
     isGeneratingPlan.value = false;
   };
 
-  // 🔥 SURVEILLANCE DES BROUILLONS EN AMONT
-  // Dès que le couple Article/Opération est saisi, on vérifie s'il y a un brouillon
   let debounceTimeout = null;
   watch([wizard.codeArticleSage, wizard.operationCode, wizard.posteCode], ([code, op, poste]) => {
     if (code && op && (!wizard.requiertPoste.value || poste)) {
@@ -508,7 +491,6 @@
               acceptClass: 'p-button-warning',
               rejectClass: 'p-button-danger p-button-outlined',
               accept: async () => {
-                // Récupérer le brouillon existant → ouvrir directement dans l'éditeur
                 planId.value = etat.brouillonId;
                 isFromWizard.value = false;
                 await chargerPlan(etat.brouillonId);
@@ -516,7 +498,6 @@
                 toast.add({ severity: 'info', summary: 'Brouillon récupéré', detail: 'Vous pouvez continuer la saisie et activer ce plan.', life: 4000 });
               },
               reject: async () => {
-                // Supprimer le brouillon et laisser l'utilisateur continuer le wizard
                 try {
                   await fabPlanService.deletePlan(etat.brouillonId);
                   toast.add({ severity: 'info', summary: 'Brouillon supprimé', detail: 'Vous pouvez maintenant choisir votre méthode de création.', life: 3000 });
@@ -536,7 +517,7 @@
 
   const onWizardGenerate = async () => {
     if (isGeneratingPlan.value) return;
-    isGeneratingPlan.value = true; // ⚠️ DÉCLENCHE LE BOUCLIER AUTOSAVE PENDANT L'EXÉCUTION
+    isGeneratingPlan.value = true; 
 
     try {
       const sourceType = wizard.sourceType.value;
@@ -546,12 +527,10 @@
       const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
       const nature = wizard.natureComposantCode.value;
 
-      // Unifié: on vérifie l'état peu importe qu'on clone ou utilise un modèle
       const resVal = await fabPlanService.verifierEtatPlan(codeArticle, famille, nature, modeleId, operationCode, wizard.posteCode.value);
       const etat = resVal.data;
 
       if (etat.hasBrouillon) {
-        // Un brouillon existe → demander à l'utilisateur ce qu'il veut faire
         isGeneratingPlan.value = false;
         confirm.require({
           message: `Un brouillon de plan existe déjà pour l'article ${codeArticle} / opération ${operationCode}. Que souhaitez-vous faire ?`,
@@ -572,7 +551,6 @@
             try {
               await fabPlanService.deletePlan(etat.brouillonId);
               toast.add({ severity: 'info', summary: 'Brouillon supprimé', detail: 'Vous pouvez maintenant générer un nouveau plan.', life: 3000 });
-              // Relancer la génération
               await executerGenerationWizard(modeleId, codeArticle);
             } catch (err) {
               console.error('Erreur suppression brouillon:', err);
@@ -598,7 +576,6 @@
         });
       } 
       else {
-        // Archivé ou rien => Création Libre
         await executerGenerationWizard(modeleId, codeArticle);
       }
     } catch (error) {
@@ -618,7 +595,6 @@
           return;
         }
 
-        // Clonage en MÉMOIRE
         const res = await fabPlanService.getPlanById(sourceId);
         const rawData = res?.data?.data || res?.data || res;
         
@@ -635,13 +611,11 @@
           posteCode: wizard.posteCode.value || data.posteCode
         };
 
-        // On charge les sections en mode "Clonage" (nettoyage des IDs)
         await chargerPlan(data);
         
         planId.value = 'nouveau';
         isFromWizard.value = true;
         
-        // Préparer le payload pour la future création lors du clic Enregistrer
         syncPlanFormulaireConfig(wizard.refFormulaireCodeReference?.value || 'PRC');
         planCreationPayload.value = {
             codeArticleSage: plan.value.codeArticleSage,
@@ -708,7 +682,6 @@
         planId.value = 'nouveau';
         toast.add({ severity: 'success', summary: 'Succès', detail: 'Plan vierge prêt à éditer.', life: 3000 });
       } else {
-        // Nouveau depuis Modèle
         if (!sourceId) {
           toast.add({ severity: 'warn', summary: 'Attention', detail: 'Veuillez sélectionner un modèle.', life: 4000 });
           isGeneratingPlan.value = false;
@@ -760,10 +733,8 @@
       clean = clean.replace(new RegExp(reglePattern, 'gi'), '').trim();
     }
 
-    // Double clean to remove any redundant/empty parentheses like "()" or "( )" that might have been left
     clean = clean.replace(/\(\s*\)/g, '').trim();
 
-    // Remove leading/trailing punctuation like dashes, slashes, parens (both open and close)
     clean = clean.replace(/^[\s\-_:/( )]+|[\s\-_:/( )]+$/g, '').trim();
     return clean;
   };
@@ -795,14 +766,12 @@
           const mappedSections = JSON.parse(JSON.stringify(store.sections));
           sections.value = mappedSections;
 
-          // Mise à jour du wizard pour que le header affiche les bonnes infos
           if (parsedData.codeArticleSage) wizard.codeArticleSage.value = parsedData.codeArticleSage;
           if (parsedData.designation) wizard.designationArticle.value = parsedData.designation;
           if (parsedData.operationCode) wizard.operationCode.value = parsedData.operationCode;
 
-          // Bascule dans l'éditeur comme brouillon en mémoire
           planCreationPayload.value = {
-            modeleSourceId: null, // Pas de modèle source pour l'import Excel
+            modeleSourceId: null,
             codeArticleSage: parsedData.codeArticleSage || (typeof wizard.codeArticleSage.value === 'object' ? wizard.codeArticleSage.value.codeArticle : wizard.codeArticleSage.value),
             designation: parsedData.designation || wizard.designationArticle.value,
             operationCode: parsedData.operationCode || wizard.operationCode.value,
@@ -829,7 +798,6 @@
           isFromWizard.value = true;
           planId.value = 'nouveau';
 
-          // Initialisation du statut pour l'UI
           plan.value = {
             statut: 'BROUILLON',
             nom: `Plan de contrôle en cours de fabrication ${parsedData.designation || wizard.designationArticle.value}${wizard.posteCode.value ? ' (' + wizard.posteCode.value + ')' : ''}`,
@@ -921,9 +889,8 @@
         typeVariable,
         freqHours,
         isNewFreq: false,
-        frequenceLibelle: sec.frequenceLibelle || '', // Indispensable pour la visualisation
+        frequenceLibelle: sec.frequenceLibelle || '',
         nom: nettoyerNomSection(sec.libelleSection, typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
-        // ⚠️ BOURCLIER ANTI-CRASH: Filtre les lignes nulles
         lignes: (sec.lignes || []).filter(lig => lig != null).map(lig => ({
           id: crypto.randomUUID(),
           isFromDb: false,
@@ -966,11 +933,38 @@
 
       if (!isClone) {
         plan.value = normaliserDonneesPlan(data);
+        if (plan.value.nom) {
+          const match = plan.value.nom.match(/^(.*?)(\.\w+)?$/);
+          if (match && match[2]) {
+            codeArticleSuffix.value = match[2].substring(1);
+          } else {
+            codeArticleSuffix.value = '';
+          }
+        }
         legendeMoyens.value = data.legendeMoyens || '';
         remarques.value = data.remarques || '';
         const codeRef = data.codeReferenceFormulaire || wizard.refFormulaireCodeReference?.value || 'PRC';
         if (wizard.refFormulaireCodeReference) wizard.refFormulaireCodeReference.value = codeRef;
-        syncPlanFormulaireConfig(codeRef, data);
+        if (data.statut !== 'ARCHIVE') {
+          syncPlanFormulaireConfig(codeRef, data);
+        } else {
+          let oldConfig = data.colonneDefs || [];
+          if ((!oldConfig || oldConfig.length === 0) && data.configurationColonnesJson) {
+            try { 
+              const parsed = JSON.parse(data.configurationColonnesJson); 
+              oldConfig = parsed.map(c => ({
+                key: c.cleColonne || c.key,
+                label: c.labelAffiche || c.label,
+                type: c.typeValeur || c.type || 'Texte',
+                insertAfter: c.insertAfter || 'code_instrument'
+              }));
+            } catch (e) {
+              console.error('Erreur parsing configurationColonnesJson:', e);
+            }
+          }
+          store.entete.configurationColonnes = oldConfig;
+          if (plan.value) plan.value.colonneDefs = oldConfig;
+        }
       } else if (data.codeReferenceFormulaire) {
         syncPlanFormulaireConfig(data.codeReferenceFormulaire);
       }
@@ -1019,10 +1013,8 @@
 
         let finalNom = sec.libelleSection || '';
 
-        // 2. Nettoyer le préfixe pour trouver la "Nature"
         let candidateNature = originalNom.replace(/caractéristiques à contrôler/gi, "").trim();
 
-        // 3. Chercher si cette nature existe dans le dictionnaire
         if (!typeSectionId && candidateNature) {
           const secLibLower = candidateNature.toLowerCase();
           const match = (store.typesSection || []).find(t => (t.libelle || '').toLowerCase() === secLibLower);
@@ -1030,7 +1022,6 @@
             typeSectionId = match.id;
             extractedNature = match.libelle;
           } else {
-            // Nature personnalisée (ex: test test)
             extractedNature = candidateNature;
           }
         } else if (typeSectionId) {
@@ -1038,7 +1029,6 @@
           if (match) extractedNature = match.libelle;
         }
 
-        // 4. Titre final (Source de vérité = libelleSection original)
         finalNom = finalNom || (extractedNature ? `Caractéristiques à contrôler ${extractedNature}` : "Section sans nom");
 
         const lignesTriees = [...(sec.lignes || [])]
@@ -1049,7 +1039,7 @@
           id: isClone ? crypto.randomUUID() : sec.id,
           isFromDb: !isClone,
           typeSectionId,
-          libelleSection: sec.libelleSection || finalNom, // On garde le libellé complet
+          libelleSection: sec.libelleSection || finalNom,
           modeFreq,
           periodiciteId,
           regleEchantillonnageId,
@@ -1097,7 +1087,6 @@
   const syncIdsFromDb = (dbPlanData) => {
     if (!dbPlanData) return;
 
-    // Synchroniser l'objet plan principal pour avoir les bonnes métadonnées (nom, version, etc.)
     plan.value = normaliserDonneesPlan(dbPlanData);
 
     if (!dbPlanData.sections) return;
@@ -1127,11 +1116,6 @@
     });
   };
 
-  // ⭐ FONCTION UTILITAIRE
-  // Nettoie / prépare les valeurs numériques avant envoi.
-  // Pour un brouillon (isDraft = true) on PRESERVE la `valeurNominale` même si les tolérances
-  // sont absentes (l'utilisateur peut être en train de saisir). Pour l'activation (isDraft = false)
-  // on neutralise la valeur si les tolérances sont incomplètes afin d'éviter des erreurs serveur.
   const sanitizeMesurements = (ligne, isDraft = false) => {
     const hasValeur = ligne.valeurNominale != null && ligne.valeurNominale !== '';
     const hasTolSup = ligne.toleranceSuperieure != null && ligne.toleranceSuperieure !== '';
@@ -1145,7 +1129,6 @@
       };
     }
 
-    // Si valeur nominale est présente MAIS tolérances manquent = neutraliser tout pour activation
     if (hasValeur && (!hasTolSup || !hasTolInf)) {
       return {
         valeurNominale: null,
@@ -1163,7 +1146,6 @@
 
   const construirePayloadService = (isDraft) => {
     return sections.value.map((originalSection, idx) => {
-      // 1. Calcul de la fréquence pour le libellé technique
       let finalFrequenceLibelle = '';
       if (originalSection.modeFreq === 'VARIABLE') {
         const is100 = originalSection.freqNum === 100 && originalSection.typeVariable === 'HEURE';
@@ -1181,7 +1163,6 @@
         finalFrequenceLibelle = matchingPeriod ? (matchingPeriod.libelle || matchingPeriod.Libelle || '') : '';
       }
 
-      // 2. Libellé de règle d'échantillonnage
       let regleEchLibelle = '';
       const regleEchId = originalSection.regleEchantillonnageId;
       if (regleEchId) {
@@ -1241,7 +1222,6 @@
   };
 
   const sauvegarderBrouillonSilencieux = async (afficherToast = false, force = false) => {
-    // 🛡️ BLOCAGE DE SÉCURITÉ : Ne pas sauvegarder si on est en train de charger, de générer ou si on quitte
     if (!force && (isLoadingData.value || isGeneratingPlan.value || isCanceling.value || isSaving.value || plan.value?.statut === 'ACTIF' || isArchived.value)) return;
 
     let currentPlanId = planId.value;
@@ -1251,7 +1231,6 @@
         if (versionInitiale.value !== null) {
           planCreationPayload.value.versionInitiale = versionInitiale.value;
         }
-        // Assure-toi qu'on envoie le code modifié (ex: avec .4)
         if (plan.value?.codeArticleSage) {
           planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
@@ -1288,8 +1267,12 @@
         sections: payload,
         colonneDefs: planConfigurationColonnes.value
       };
+      
+      let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
+      let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
+      let codeVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
 
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, false, finalNom, 'Admin', plan.value?.codeArticleSage);
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, false, codeVersionne, 'Admin', plan.value?.codeArticleSage, codeVersionne);
 
       if (afficherToast) {
         toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
@@ -1311,7 +1294,6 @@
           planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
         }
 
-        // 1. Préparer d'abord les périodicités (si certaines ont été saisies à la main)
         await prepareSectionsForBackend(
           sections.value,
           store.periodicites || [],
@@ -1323,7 +1305,6 @@
           }
         );
 
-        // 2. Assigner le statut définitif et les autres champs
         if (isActivating) {
           planCreationPayload.value.statut = 'ACTIF';
         }
@@ -1338,7 +1319,6 @@
         planCreationPayload.value.legendeMoyens = legendeMoyens.value;
         planCreationPayload.value.remarques = remarques.value;
 
-        // 3. Injecter les sections construites dans le payload AVANT de créer le plan
         const sectionsPayload = construirePayloadService(isActivating ? false : (plan.value?.statut === 'BROUILLON'));
         if (sectionsPayload && sectionsPayload.length > 0) {
           planCreationPayload.value.sections = sectionsPayload;
@@ -1351,7 +1331,6 @@
 
         planCreationPayload.value = null;
 
-        // Le plan est déjà créé et sauvegardé avec toutes ses données et le bon statut.
         if (isActivating) {
           toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan a été créé et activé directement.', life: 4000 });
         } else {
@@ -1360,14 +1339,13 @@
 
         isExitingEditor.value = true;
         router.push('/dev/hub-plans');
-        return; // FIN DE L'ACTION POUR UN NOUVEAU PLAN
+        return;
       } catch (err) {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de créer le plan', life: 6000 });
         throw err;
       }
     }
 
-    // SI LE PLAN EXISTE DÉJÀ (Mise à jour)
     await enregistrerValeurs(currentPlanId, true, isActivating);
   };
 
@@ -1392,7 +1370,10 @@
         colonneDefs: planConfigurationColonnes.value
       };
 
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, isActivating, finalNom, 'Admin', plan.value?.codeArticleSage);
+      let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
+      let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
+      let codeVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
+      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, isActivating, codeVersionne, 'Admin', plan.value?.codeArticleSage, codeVersionne);
 
       if (isActivating) {
         toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
@@ -1426,7 +1407,6 @@
 
       if (planCreationPayload.value) planCreationPayload.value.statut = 'BROUILLON';
       if (plan.value) plan.value.statut = 'BROUILLON';
-      // Forcer la sauvegarde manuelle (bypass le flag isSaving interne)
       await sauvegarderBrouillonSilencieux(true, true);
       isExitingEditor.value = true;
       router.push('/dev/hub-plans');
@@ -1458,7 +1438,6 @@
         return;
       }
 
-      // Vérification finale si un plan actif existe déjà avant d'activer celui-ci
       let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
       const codeArticle = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
       
@@ -1527,31 +1506,18 @@
         return;
       }
 
-      if (plan.value?.statut === 'ACTIF') {
-        versioningMode.value = 'new-version';
-        showVersioningDialog.value = true;
-        // Ne pas laisser le bouton principal en état "isSaving" pendant que la boîte de versioning est affichée
-        // L'utilisateur doit cliquer sur "Publier la Nouvelle Version" dans la boîte pour lancer l'opération.
-        isSaving.value = false;
-      } else {
-        await declencherSauvegarde();
-      }
+      await declencherSauvegarde();
     } catch (error) {
       console.error(error);
-    } finally {
-      // Si on affiche la boîte de versioning, on laisse le flag `isSaving` à true
-      // pour que le composant affiche l'état en cours jusqu'à confirmation.
-      if (!showVersioningDialog.value) {
-        isSaving.value = false;
-      }
+      isSaving.value = false;
     }
   };
 
   const mettreANiveauArchive = async () => {
     try {
-      const res = await upgradePlan(planId.value);
+      const res = await fabPlanService.upgradePlan(planId.value);
       const newId = res.data.planId;
-      toast.add({ severity: 'success', summary: 'Mise à niveau réussie', detail: 'Le plan a été mis à niveau et est maintenant en mode brouillon.', life: 4000 });
+      toast.add({ severity: 'success', summary: 'Mise à niveau réussie', detail: 'Le plan a été mis à niveau et est maintenant la version active.', life: 4000 });
       router.push(`/dev/fab/plans/editer/${newId}`);
       setTimeout(() => window.location.reload(), 100);
     } catch (error) {
@@ -1559,66 +1525,6 @@
       toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Impossible de mettre à niveau le plan.', life: 6000 });
     }
   };
-
-  const restaurerArchive = async (motif) => {
-    try {
-      await restaurerPlan({
-        planArchiveId: planId.value,
-        restaurePar: 'ADMIN',
-        motifRestoration: motif
-      });
-
-      toast.add({ severity: 'success', summary: 'Plan restauré', detail: 'Le plan a été réactivé avec succès.', life: 4000 });
-      isExitingEditor.value = true;
-      router.push('/dev/hub-plans');
-    } catch (error) {
-      console.error('Erreur restauration:', error);
-      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Une erreur est survenue lors de la restauration.', life: 4000 });
-    }
-  };
-
-  const onVersioningConfirm = async (motif) => {
-    isVersioningSaving.value = true;
-    showVersioningDialog.value = false;
-
-    try {
-      if (versioningMode.value === 'new-version') {
-        const newVersionPlan = await creerNouvelleVersionPlan({
-          ancienId: planId.value,
-          modifiePar: 'ADMIN',
-          motifModification: motif || 'Modification de la structure du plan',
-          nom: `${codeArticleBase.value}.${codeArticleSuffix.value}`,
-          codeArticleSage: `${codeArticleBase.value}.${codeArticleSuffix.value}`
-        });
-        const newPlanId = newVersionPlan.id || newVersionPlan.planId || newVersionPlan.data?.id || newVersionPlan.data?.planId;
-        const clonedPlanRes = await fabPlanService.getPlanById(newPlanId);
-        const dataPlan = clonedPlanRes?.data?.data || clonedPlanRes?.data || clonedPlanRes;
-        syncIdsFromDb(dataPlan);
-        await enregistrerValeurs(newPlanId, false, true);
-      } else if (versioningMode.value === 'restore') {
-        await restaurerArchive(motif);
-      }
-    } catch (error) {
-      console.error('Erreur versioning:', error);
-      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Une erreur est survenue lors de l\'opération de versioning.', life: 4000 });
-    } finally {
-      isVersioningSaving.value = false;
-      isSaving.value = false;
-      if (versioningMode.value === 'new-version') {
-        toast.add({ severity: 'success', summary: 'Nouvelle version publiée', detail: 'Le plan a été archivé et une nouvelle version ACTIF a été créée.', life: 5000 });
-        isExitingEditor.value = true;
-        router.push('/dev/hub-plans');
-      }
-    }
-  };
-
-  // Si l'utilisateur ferme la boîte de versioning sans confirmer, réinitialiser les flags
-  watch(showVersioningDialog, (visible) => {
-    if (!visible) {
-      isVersioningSaving.value = false;
-      isSaving.value = false;
-    }
-  });
 </script>
 
 <style scoped>

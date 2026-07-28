@@ -26,7 +26,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:selectedPoste', 'refresh', 'category-click'])
+const emit = defineEmits(['update:selectedPoste', 'refresh', 'category-click', 'cloturer-category'])
 
 const isCatTermine = (cat) => {
   if (cat.isTermine !== undefined) return cat.isTermine
@@ -35,12 +35,12 @@ const isCatTermine = (cat) => {
 }
 
 const getCategoryBorderColor = (cat) => {
-  if (cat.id === 'planAss' || cat.id === 'tracabilite') return 'bg-blue-400'
+  if (cat.id === 'tracabilite') return 'bg-blue-400'
   if (cat.docs.length === 0) return 'bg-gray-300'
   return isCatTermine(cat) ? 'bg-green-400' : 'bg-orange-400'
 }
 const getCategoryIconColor = (cat) => {
-  if (cat.id === 'planAss' || cat.id === 'tracabilite') return 'text-blue-500 bg-blue-50'
+  if (cat.id === 'tracabilite') return 'text-blue-500 bg-blue-50'
   if (cat.docs.length === 0) return 'text-gray-400 bg-gray-100'
   return isCatTermine(cat) ? 'text-green-500 bg-green-50' : 'text-orange-500 bg-orange-50'
 }
@@ -78,12 +78,21 @@ const getCategoryIconColor = (cat) => {
           :class="getCategoryBorderColor(cat).replace('bg-', 'border-').replace('400', '200') + ' hover:border-primary'"
         >
           <div class="absolute left-0 top-0 right-0 h-1" :class="getCategoryBorderColor(cat)"></div>
-          <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4" :class="getCategoryIconColor(cat)">
+          
+          <button v-if="cat.docs.length > 0 && !isCatTermine(cat) && cat.id !== 'tracabilite'"
+            @click.stop="emit('cloturer-category', cat)"
+            class="absolute top-3 right-3 text-emerald-600 bg-emerald-50 border border-emerald-200 hover:text-white hover:bg-emerald-500 p-2 rounded-full transition-all flex items-center justify-center z-10 shadow-sm"
+            v-tooltip.top="'Clôturer cette tâche'"
+          >
+            <i class="pi pi-check-circle text-xl"></i>
+          </button>
+
+          <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4 mt-2" :class="getCategoryIconColor(cat)">
             <i :class="cat.icon" class="text-3xl"></i>
           </div>
           <h3 class="font-bold text-gray-800 text-base leading-tight mb-3 flex-1 flex items-center">{{ cat.title }}</h3>
           <div class="mt-auto w-full">
-            <Tag v-if="cat.id === 'planAss' || cat.id === 'tracabilite'" value="Accès Permanent" severity="info" class="w-full" />
+            <Tag v-if="cat.id === 'tracabilite'" value="Accès Permanent" severity="info" class="w-full" />
             <Tag v-else-if="cat.docs.length > 0" :value="isCatTermine(cat) ? 'Terminé' : 'À Remplir'" :severity="isCatTermine(cat) ? 'success' : 'warning'" class="w-full" />
             <Tag v-else value="Non requis" severity="secondary" class="w-full" />
           </div>

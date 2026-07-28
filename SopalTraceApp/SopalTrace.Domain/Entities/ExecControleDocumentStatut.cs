@@ -31,6 +31,12 @@ public partial class ExecControleDocumentStatut
 
     public virtual ICollection<ExecEchantillonnage> ExecEchantillonnages { get; set; } = new List<ExecEchantillonnage>();
 
+    public virtual ICollection<ExecRcPosteBilan> ExecRcPosteBilans { get; set; } = new List<ExecRcPosteBilan>();
+
+    public virtual ICollection<ExecRcPosteHeure> ExecRcPosteHeures { get; set; } = new List<ExecRcPosteHeure>();
+
+    public virtual ICollection<ExecRcPosteReponse> ExecRcPosteReponses { get; set; } = new List<ExecRcPosteReponse>();
+
     public virtual ICollection<ExecVerifMachineReponse> ExecVerifMachineReponses { get; set; } = new List<ExecVerifMachineReponse>();
 
     public virtual PosteTravail? PosteCodeNavigation { get; set; }
