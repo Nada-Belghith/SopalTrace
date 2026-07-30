@@ -223,6 +223,6 @@ export function useModelLoader(store, ctx) {
 
   return {
     loadModelForEditing,
-    resetForNewModel
+    resetForNewModele
   };
 }

@@ -1,15 +1,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
-import { useOperateurStore } from '@/stores/execution/operateurStore';
-import { useRoute, useRouter } from 'vue-router';
-import { useToast } from 'primevue/usetoast';
+import { useRoute } from 'vue-router';
 
 const authStore = useAuthStore();
-const operateurStore = useOperateurStore();
 const route = useRoute();
-const router = useRouter();
-const toast = useToast();
 const isMobileMenuOpen = ref(false);
 
 onMounted(() => {

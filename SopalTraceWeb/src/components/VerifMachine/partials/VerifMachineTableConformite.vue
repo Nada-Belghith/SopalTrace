@@ -352,7 +352,6 @@ const {
   getCustomColumnsAfter,
   ensureColonnes,
   getLigneTotalRows,
-  onUpdateRisqueName,
   getFuiteValue,
   setFuiteValue
 } = useVerifMachineTable();
@@ -362,6 +361,7 @@ const getReponse = (echeanceId) => {
   let r = props.execReponses.find(x => x.documentVerifMachineEcheanceId === echeanceId);
   if (!r) {
     r = { documentVerifMachineEcheanceId: echeanceId, pressionEntree: null, fuiteAffichee: null, conforme: null, observation: '' };
+    // eslint-disable-next-line vue/no-mutating-props
     props.execReponses.push(r);
   }
   return r;

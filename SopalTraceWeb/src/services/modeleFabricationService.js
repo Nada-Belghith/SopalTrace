@@ -2,7 +2,7 @@ import apiClient from './apiClient'
 
 export const modeleFabricationService = {
   async getModelsByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null) {
-    let params = {};
+    let params;
     if (typeof typeRobinet === 'object' && typeRobinet !== null) {
       params = {
         natureComposantCode: typeRobinet.natureComposantCode,

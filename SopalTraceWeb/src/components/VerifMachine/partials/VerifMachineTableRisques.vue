@@ -352,6 +352,7 @@ const getReponse = (echeanceId) => {
   let r = props.execReponses.find(x => x.documentVerifMachineEcheanceId === echeanceId);
   if (!r) {
     r = { documentVerifMachineEcheanceId: echeanceId, pressionEntree: null, fuiteAffichee: null, conforme: null, observation: '' };
+    // eslint-disable-next-line vue/no-mutating-props
     props.execReponses.push(r);
   }
   return r;
@@ -375,7 +376,7 @@ const focusNextInput = (e) => {
   if (index > -1 && index < focusable.length - 1) {
     focusable[index + 1].focus();
     if (typeof focusable[index + 1].select === 'function') {
-      try { focusable[index + 1].select(); } catch (err) {}
+      try { focusable[index + 1].select(); } catch { /* ignore */ }
     }
   }
 };
