@@ -39,6 +39,7 @@ namespace SopalTrace.Application.Tests.Services
             );
         }
 
+        [Fact]
         public async Task MettreAJourDocumentVerifMachineAsync_DoitSupprimerAncienEtAjouterNouveau()
         {
             // Arrange
@@ -71,7 +72,7 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(1);
 
             // Act
-            await _service.MettreAJourDocumentVerifMachineAsync(planId, request);
+            await _service.UpdateDocumentAsync(planId, request);
 
             // Assert
             _mockUnitOfWork.Verify(u => u.DocumentVerifMachineEnteteRepository.DeleteAsync(existingDoc), Times.Once);
@@ -84,7 +85,8 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 
-        public async Task CreerDocumentVerifMachineAsync_DoitPrendreVersionDuFormulaire_SiExistant()
+        [Fact]
+        public async Task CreateDocumentAsync_DoitPrendreVersionDuFormulaire_SiExistant()
         {
             // Arrange
             var request = new CreateDocumentVerifMachineRequestDto
@@ -122,7 +124,7 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(1);
 
             // Act
-            var result = await _service.CreerDocumentVerifMachineAsync(request);
+            var result = await _service.CreateDocumentAsync(request);
 
             // Assert
             _mockUnitOfWork.Verify(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.Is<DocumentVerifMachineEntete>(d => 

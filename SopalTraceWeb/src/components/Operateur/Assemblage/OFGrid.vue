@@ -1,7 +1,7 @@
 <script setup>
 import { defineProps, defineEmits } from 'vue'
 
-const props = defineProps({
+defineProps({
   ofsStatut: {
     type: Array,
     required: true

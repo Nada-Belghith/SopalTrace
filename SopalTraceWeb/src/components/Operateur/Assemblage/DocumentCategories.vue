@@ -7,7 +7,7 @@ import Tooltip from 'primevue/tooltip'
 
 const vTooltip = Tooltip
 
-const props = defineProps({
+defineProps({
   tousLesPostesActifs: {
     type: Array,
     default: () => []

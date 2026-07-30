@@ -3,7 +3,7 @@ import { defineProps, defineEmits } from 'vue'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 
-const props = defineProps({
+defineProps({
   ofActif: {
     type: Object,
     default: null

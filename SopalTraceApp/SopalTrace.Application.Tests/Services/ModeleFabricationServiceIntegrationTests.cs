@@ -73,7 +73,7 @@ namespace SopalTrace.Application.Tests.Services
                 OperationCode = "OP1"
             };
 
-            Guid premierModeleId = await _modeleFabricationService.CreerModeleAsync(createReq);
+            Guid premierModeleId = await _modeleFabricationService.CreateModelAsync(createReq);
 
             var premierModeleEnBase = await _context.ModeleFabricationEntetes.FindAsync(premierModeleId);
             Assert.NotNull(premierModeleEnBase);
@@ -88,7 +88,7 @@ namespace SopalTrace.Application.Tests.Services
                 Code = codeArticle
             };
 
-            Guid deuxiemeModeleId = await _modeleFabricationService.CreerNouvelleVersionModeleAsync(newVersionReq);
+            Guid deuxiemeModeleId = await _modeleFabricationService.CreateNewVersionAsync(newVersionReq);
 
             // ==========================================
             // ASSERT (Vérification des résultats attendus)

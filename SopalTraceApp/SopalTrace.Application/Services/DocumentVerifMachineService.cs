@@ -36,12 +36,11 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         
         var docsExistants = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
         
-        int versionInitiale = 0;
         bool forceNouvelleVersion = docsExistants.Any(d => d.Statut == DocumentStatuts.Actif);
 
         // 1. Gérer le formulaire
         var (formulaireId, formVersion, formStatut) = await ResolveFormulaireAsync(
-            request.RefFormulaireCodeReference, request.ColonneDefs, versionInitiale: 0, 
+            request.RefFormulaireCodeReference, request.ColonneDefs, 
             isCorrectionMineure: false, forceNouvelleVersion: forceNouvelleVersion);
         
         // 2. Construire l'entité

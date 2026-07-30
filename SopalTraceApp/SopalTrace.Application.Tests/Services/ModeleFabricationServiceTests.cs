@@ -77,7 +77,7 @@ namespace SopalTrace.Application.Tests.Services
                 .Callback<ModeleFabricationEntete>(e => savedModele = e);
 
             // Act
-            var resultId = await _service.CreerModeleAsync(request);
+            var resultId = await _service.CreateModelAsync(request);
 
             // Assert
             _mockUnitOfWork.Verify(u => u.ModeleFabricationEnteteRepository.UpdateAsync(existingDoc), Times.Once); // Ancien modèle doit être mis à jour (ARCHIVE)
@@ -129,7 +129,7 @@ namespace SopalTrace.Application.Tests.Services
                 .Callback<ModeleFabricationEntete>(e => savedModele = e);
 
             // Act
-            var resultId = await _service.CreerModeleAsync(request);
+            var resultId = await _service.CreateModelAsync(request);
 
             // Assert
             _mockUnitOfWork.Verify(u => u.ModeleFabricationEnteteRepository.UpdateAsync(existingDoc), Times.Once);

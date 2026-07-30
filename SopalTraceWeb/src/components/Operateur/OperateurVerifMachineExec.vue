@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import apiClient from '@/services/apiClient'
 import { useAppToast } from '@/composables/useAppToast'
 import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
+
 import { useVerifMachineStore } from '@/stores/verifMachineStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useOperateurStore } from '@/stores/execution/operateurStore'

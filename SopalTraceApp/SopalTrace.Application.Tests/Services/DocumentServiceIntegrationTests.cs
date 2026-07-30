@@ -52,12 +52,13 @@ namespace SopalTrace.Application.Tests.Services
                 unitOfWork,
                 _currentUserServiceMock.Object,
                 _loggerMock.Object,
-                _formulaireStructureServiceMock.Object
+                _formulaireStructureServiceMock.Object,
+                Array.Empty<SopalTrace.Application.Interfaces.IDocumentTypeStrategy>()
             );
         }
 
         [Fact]
-        public async Task CreerDocumentAsync_DevraitEnregistrerSectionsLignesPeriodicite_EtPreserverOrdreAffiche()
+        public async Task CreateDocumentAsync_DevraitEnregistrerSectionsLignesPeriodicite_EtPreserverOrdreAffiche()
         {
             // Arrange
             var typeSectionId = Guid.NewGuid();
@@ -127,7 +128,7 @@ namespace SopalTrace.Application.Tests.Services
             };
 
             // Act
-            var docId = await _documentService.CreerDocumentAsync(request);
+            var docId = await _documentService.CreateDocumentAsync(request);
 
             // Assert
             var savedDoc = await _context.DocumentEntetes

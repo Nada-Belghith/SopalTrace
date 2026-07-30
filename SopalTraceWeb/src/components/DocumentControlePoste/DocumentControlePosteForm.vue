@@ -342,8 +342,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
-import Toast from 'primevue/toast';
-import ConfirmDialog from 'primevue/confirmdialog';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
@@ -355,11 +353,9 @@ const props = defineProps({
     isReadOnly: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['trigger-versioning']);
 
 const store = usedocumentControlePosteStore();
 const route = useRoute();
-const confirm = useConfirm();
 const toast = useToast();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 const router = useRouter();

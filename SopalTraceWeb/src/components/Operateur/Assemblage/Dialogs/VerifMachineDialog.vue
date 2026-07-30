@@ -34,9 +34,6 @@ const emit = defineEmits(['update:visible', 'ouvrir-document', 'init-document', 
 
 const selectedNewMachine = ref(null)
 
-const fermer = () => {
-  emit('update:visible', false)
-}
 
 const getDocs = (machineCode) => {
   const cat = props.documentCategories.find(c => c.id === 'verifMachine')
@@ -54,11 +51,6 @@ const hasUnfinishedDoc = (machineCode) => {
   return docs.some(d => !d.estTermine)
 }
 
-const isMachineFullyFinished = (machineCode) => {
-  const docs = getDocs(machineCode)
-  if (docs.length === 0) return false
-  return docs.every(d => d.estTermine)
-}
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''

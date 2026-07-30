@@ -81,7 +81,7 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(1);
 
             // Act
-            var result = await _documentService.CreerNouvelleVersionDocumentAsync(request);
+            var result = await _documentService.CreateNewVersionAsync(request);
 
             // Assert
             // 1. L'ancien document doit passer en ARCHIVE
@@ -127,7 +127,7 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(1); 
 
             // Act
-            await _documentService.CreerNouvelleVersionDocumentAsync(request);
+            await _documentService.CreateNewVersionAsync(request);
 
             // Assert
             // Ne doit pas modifier l'ancien document s'il n'est pas actif
