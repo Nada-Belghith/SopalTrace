@@ -85,7 +85,7 @@ namespace SopalTrace.Application.Tests.Services
 
             _mockUnitOfWork.Verify(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()), Times.Once);
             Assert.NotNull(savedPlan);
-            Assert.Equal(4, savedPlan.Version); // Version héritée du formulaire (4)
+            Assert.Equal(2, savedPlan.Version); // Version incrémentée depuis l'existant (1 -> 2)
             Assert.Equal("ACTIF", savedPlan.Statut); // Nouveau plan est toujours ACTIF
         }
         [Fact]

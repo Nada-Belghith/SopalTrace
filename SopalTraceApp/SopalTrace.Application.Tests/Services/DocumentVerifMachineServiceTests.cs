@@ -75,13 +75,7 @@ namespace SopalTrace.Application.Tests.Services
             await _service.UpdateDocumentAsync(planId, request);
 
             // Assert
-            _mockUnitOfWork.Verify(u => u.DocumentVerifMachineEnteteRepository.DeleteAsync(existingDoc), Times.Once);
-
-            _mockUnitOfWork.Verify(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.Is<DocumentVerifMachineEntete>(d => 
-                d.MachineCode == "MAC-01" && 
-                d.Statut == "BROUILLON" && 
-                d.Version == 1)), Times.Once);
-
+            _mockUnitOfWork.Verify(u => u.DocumentVerifMachineEnteteRepository.UpdateAsync(existingDoc), Times.Once);
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 

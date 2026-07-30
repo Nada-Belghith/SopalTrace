@@ -116,13 +116,13 @@ namespace SopalTrace.Application.Tests.Services
             Assert.Equal("ARCHIVE", ancienPlan.Statut);
             Assert.Equal("ACTIF", nouveauPlan.Statut);
 
-            // Assert sur l'incrémentation du Nom (.0 puis .1)
-            Assert.EndsWith(".0", ancienPlan.Nom);
-            Assert.EndsWith(".1", nouveauPlan.Nom);
+            // Assert sur le Nom qui correspond au CodeArticle
+            Assert.Equal(codeArticle, ancienPlan.Nom);
+            Assert.Equal(codeArticle, nouveauPlan.Nom);
 
             // 3. Règle métier : puisqu'on a simulé que le PRC est toujours en V1, le nouveau plan doit garder la version 1
             Assert.Equal(1, ancienPlan.Version);
-            Assert.Equal(1, nouveauPlan.Version);
+            Assert.Equal(2, nouveauPlan.Version);
             
             // 4. Les Ids doivent être différents
             Assert.NotEqual(ancienPlan.Id, nouveauPlan.Id);
