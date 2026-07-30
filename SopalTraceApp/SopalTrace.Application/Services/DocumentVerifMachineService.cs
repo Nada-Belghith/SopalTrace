@@ -47,7 +47,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         var entite = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
         entite.Statut = formStatut;
         entite.Version = formVersion;
-        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version.Value);
+        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
 
         // 3. Sauvegarder
         await _unitOfWork.DocumentVerifMachineEnteteRepository.AddAsync(entite);
@@ -75,7 +75,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         var entite = DocumentVerifMachineMapper.ToEntity(request.Donnees, user, formulaireId);
         entite.Statut = formStatut;
         entite.Version = formVersion;
-        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version.Value);
+        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
 
         // 3. Sauvegarder
         await _unitOfWork.DocumentVerifMachineEnteteRepository.AddAsync(entite);

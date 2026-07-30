@@ -101,7 +101,7 @@ namespace SopalTrace.Application.Mappers.Execution
                 HeureValidation = dto.HeureValidation,
                 Resultat = dto.Resultat,
                 Remarque = dto.Remarque,
-                MatriculeOperateur = dto.MatriculeOperateur
+                MatriculeOperateur = dto.MatriculeOperateur!
             };
         }
     }

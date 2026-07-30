@@ -47,7 +47,7 @@ public class ModeleFabricationService : IModeleFabricationService
         if (!string.IsNullOrWhiteSpace(dto.ConfigurationColonnesJson))
             return;
 
-        if (modele.Formulaire == null || string.IsNullOrWhiteSpace(modele.Formulaire.CodeReference))
+        if (modele.Formulaire == null || string.IsNullOrWhiteSpace(modele.Formulaire.CodeReference) || !modele.FormulaireId.HasValue)
             return;
 
         var activeCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(modele.FormulaireId.Value);

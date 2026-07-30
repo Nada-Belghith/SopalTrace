@@ -341,7 +341,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
 import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
+
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';

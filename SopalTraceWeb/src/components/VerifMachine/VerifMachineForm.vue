@@ -275,12 +275,10 @@
 import { ref, computed, onMounted, watch } from 'vue';
 
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
-import EditorActions from '@/components/Shared/EditorActions.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useConfirm } from 'primevue/useconfirm';
+import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
 import Toast from 'primevue/toast';
@@ -293,15 +291,15 @@ import VerifMachineTableConformite from './partials/VerifMachineTableConformite.
 import VerifMachineTableRisques from './partials/VerifMachineTableRisques.vue';
 import AddPieceModal from './partials/AddPieceModal.vue';
 
-const route = useRoute();
 const store = useVerifMachineStore();
-const confirm = useConfirm();
 const toast = useToast();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 
 const props = defineProps({
   isReadOnly: { type: Boolean, default: false }
 });
+
+const emit = defineEmits(['saved']);
 
 const router = useRouter();
 
@@ -473,7 +471,6 @@ const { handleExcelImport } = useExcelStructureImporter(store, toast);
 
 const { handleSaveDirect, handleSaveCorrection, handleSaveNewVersion } = useDocumentSaveManager({
   callbacks: {
-    validateForm: validatePlan,
     onSaveDirect: async () => {
         const result = await store.sauvegarderPlanVerif();
         if (result.error) throw new Error(result.error);

@@ -117,21 +117,14 @@ const fetchSessionData = async (targetStatutId) => {
         dateExecution: formatDate(rawDate)
       }
     }
-  } catch (err) {
+  } catch {
     toast.error('Erreur', 'Impossible de charger la session.')
   } finally {
     loading.value = false
   }
 }
 
-const onDateFilterChange = (event) => {
-  const newDateRaw = event.target.value
-  selectedFilterDate.value = newDateRaw
-  const matchingSessions = availableSessions.value.filter(s => s.dateExecution && s.dateExecution.split('T')[0] === newDateRaw)
-  if (matchingSessions.length > 0) {
-    changeSession(matchingSessions[0].statutId)
-  }
-}
+
 
 const checkConsultationMode = (statutId) => {
   const session = availableSessions.value.find(s => s.statutId === statutId)
@@ -149,18 +142,14 @@ onMounted(async () => {
     await store.loadDocumentById(planId)
     await fetchSessionData(currentStatutId.value)
     checkConsultationMode(currentStatutId.value)
-  } catch (err) {
+  } catch {
     toast.error('Erreur', 'Impossible de charger les données.')
   } finally {
     loading.value = false
   }
 })
 
-const changeSession = (statutIdToLoad) => {
-  if (statutIdToLoad === currentStatutId.value) return
-  fetchSessionData(statutIdToLoad)
-  checkConsultationMode(statutIdToLoad)
-}
+
 
 const selectCardSession = async (statutIdToLoad) => {
   await fetchSessionData(statutIdToLoad)
@@ -198,7 +187,7 @@ const save = async () => {
     
     // Retour automatique à la vue galerie (les cartes)
     switchToGalleryMode()
-  } catch (err) {
+  } catch {
     toast.error('Erreur', 'Impossible de sauvegarder.')
   }
 }
@@ -235,10 +224,6 @@ const handleBackArrow = () => {
   }
 }
 
-// Fonction pour avoir la date du jour formatée
-const getTodayDate = () => {
-  return new Date().toLocaleDateString('fr-FR');
-}
 </script>
 
 <template>
