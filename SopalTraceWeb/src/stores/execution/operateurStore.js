@@ -7,7 +7,7 @@ export const useOperateurStore = defineStore('operateur', {
     try {
       const stored = sessionStorage.getItem('activeOfContext');
       if (stored) savedContext = JSON.parse(stored);
-    } catch (e) { }
+    } catch (e) { /* ignore */ }
 
     return {
       ofs: [],
@@ -119,7 +119,7 @@ export const useOperateurStore = defineStore('operateur', {
       this.activeOfContext = context;
       try {
         sessionStorage.setItem('activeOfContext', JSON.stringify(context));
-      } catch (e) { }
+      } catch (e) { /* ignore */ }
     },
 
     clearActiveOfContext() {

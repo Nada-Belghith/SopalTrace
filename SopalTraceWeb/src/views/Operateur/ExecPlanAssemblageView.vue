@@ -91,7 +91,7 @@
       </div>
 
       <!-- Sections LOT_POSTE / AUTRE (au cas où il resterait des sections statiques) -->
-      <div v-for="(sec, index) in execution.sections.filter(s => s.typeSection !== 'REGLAGE' && s.typeSection !== 'REGLAGE_PROD' && s.typeSection !== 'ECHANTILLONNAGE')" :key="sec.id" class="mb-8 last:mb-0">
+      <div v-for="sec in execution.sections.filter(s => s.typeSection !== 'REGLAGE' && s.typeSection !== 'REGLAGE_PROD' && s.typeSection !== 'ECHANTILLONNAGE')" :key="sec.id" class="mb-8 last:mb-0">
         <div v-if="execution?.statut !== 'EN_PAUSE'">
           <h4 class="text-lg font-bold text-blue-600 mb-4 flex items-center">
             <i class="pi pi-check-circle mr-2"></i>
@@ -397,7 +397,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppToast } from '@/composables/useAppToast'
 import execAssemblageService from '@/services/execAssemblageService'
 import operateurService from '@/services/operateurService'
@@ -525,7 +525,6 @@ const loadData = async () => {
   }
 }
 
-let skipRouteGuard = false
 
 const navigateAway = () => {
   router.push({
@@ -581,9 +580,6 @@ const openReglagesModalDirect = () => {
   }
 }
 
-const getLignePlanById = (id) => {
-  return selectedSection.value?.lignesPlan?.find(l => l.id === id)
-}
 
 const setAllLignesResult = (res) => {
   if (saisieForm.value.lignesControle) {
@@ -732,18 +728,6 @@ const reprendreOf = async () => {
   }
 }
 
-const mettreEnReglageOf = async () => {
-  try {
-    await operateurService.mettreEnReglage(execControleOfId.value)
-    toast.success('Mode Réglage', 'Production en mode réglage. Procédez aux contrôles au démarrage.')
-    if (execution.value) execution.value.statut = 'REGLAGE'
-    await loadData()
-  } catch (error) {
-    console.error(error)
-    toast.error('Erreur', 'Impossible de mettre en réglage.')
-  }
-}
-
 const cloturerOf = async () => {
   const result = await Swal.fire({
     title: 'Clôturer l\'OF d\'assemblage ?',
@@ -781,33 +765,6 @@ const formatHeure = (dtStr) => {
   const date = new Date(dtStr)
   if (isNaN(date.getTime())) return '-'
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-const formatStatutNotif = (st) => {
-  if (st === 'FAIT') return 'Fait'
-  if (st === 'EN_RETARD') return 'En Retard !'
-  if (st === 'A_FAIRE') return 'À Faire'
-  if (st === 'EN_PAUSE') return 'En Pause'
-  if (st === 'EN_REGLAGE') return 'Attente Réglage'
-  return 'À Venir'
-}
-
-const getNotifIcon = (st) => {
-  if (st === 'FAIT') return 'pi pi-check-circle'
-  if (st === 'EN_RETARD') return 'pi pi-exclamation-circle'
-  if (st === 'A_FAIRE') return 'pi pi-clock'
-  if (st === 'EN_PAUSE') return 'pi pi-pause'
-  if (st === 'EN_REGLAGE') return 'pi pi-lock'
-  return 'pi pi-calendar'
-}
-
-const getRowClass = (res) => {
-  if (res.statutNotif === 'EN_RETARD' && !res.resultat) return 'row-retard'
-  if (res.statutNotif === 'A_FAIRE' && !res.resultat) return 'row-afaire'
-  if (res.statutNotif === 'EN_PAUSE' && !res.resultat) return 'row-pause'
-  if (res.statutNotif === 'EN_REGLAGE' && !res.resultat) return 'row-reglage'
-  if (res.resultat === 'NON_CONFORME') return 'row-nc'
-  return ''
 }
 
 const isLocallyUpcoming = (res) => {
