@@ -208,46 +208,6 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 
-        [Fact]
-        public async Task RestaurerPlanArchiveAsync_DoitClonerPlanEtLeRendreActif()
-        {
-            // Arrange
-            var archiveId = Guid.NewGuid();
-            var archivePlan = new PlanFabricationEntete
-            {
-                Id = archiveId, CodeArticleSageVersionne = "ART1", Version = 1, Statut = "ARCHIVE",
-                PlanFabricationSections = new List<PlanFabricationSection> { new PlanFabricationSection { LibelleSection = "Archive Sec", PlanFabricationLignes = new List<PlanFabricationLigne> { new PlanFabricationLigne { Instruction = "Archive L1" } } } }
-            };
-            
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByIdAsync(archiveId, true))
-                .ReturnsAsync(archivePlan);
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetLatestVersionAsync("ART1", It.IsAny<string>()))
-                .ReturnsAsync(2); // Simule qu'une version 2 existe déjà
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync(It.IsAny<string>()))
-                .ReturnsAsync(new List<PlanFabricationEntete> { archivePlan });
-
-            var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_002", "Desig", null, "EN_COURS_DE_FABRICATION", 3);
-            _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION"))
-                .ReturnsAsync(formStruct);
-            _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formStruct.Id))
-                .ReturnsAsync(new RefFormulaire { Id = formStruct.Id, CodeReference = "FRM_002", Version = 3 });
-                
-            PlanFabricationEntete? savedPlan = null;
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()))
-                .Callback<PlanFabricationEntete>(e => savedPlan = e);
-
-            var request = new RestaurerDocumentRequestDto { DocumentArchiveId = archiveId };
-
-            // Act
-            var newId = await _service.RestaurerPlanArchiveAsync(request);
-
-            // Assert
-            Assert.NotNull(savedPlan);
-            Assert.Equal(3, savedPlan.Version);
-            Assert.Equal("ACTIF", savedPlan.Statut);
-            Assert.Single(savedPlan.PlanFabricationSections);
-            _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
-        }
 
         [Fact]
         public async Task GetPlanByIdAsync_VerificationExistenceLignes()

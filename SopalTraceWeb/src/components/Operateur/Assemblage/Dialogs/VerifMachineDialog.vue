@@ -83,64 +83,58 @@ const formatDate = (dateStr) => {
           <div class="font-bold text-gray-800 text-lg uppercase">{{ machine.codeMachine }}</div>
           
           <div class="flex flex-wrap gap-2 justify-end">
-            <!-- Si la machine est entièrement terminée : afficher UNIQUEMENT le bouton "Tous les documents" -->
-            <template v-if="isMachineFullyFinished(machine.codeMachine)">
+            <!-- Boutons pour chaque document existant -->
+            <template v-for="doc in getDocs(machine.codeMachine)" :key="doc.id">
               <Button 
-                label="Tous les documents" 
-                icon="pi pi-th-large" 
-                severity="info" 
+                :label="(doc.estTermine ? 'Consulter' : 'Ouvrir') + ' (' + (doc.equipe || 'N/A') + ' - ' + formatDate(doc.dateExecution) + ')'" 
+                :icon="doc.estTermine ? 'pi pi-eye' : 'pi pi-pencil'" 
+                :severity="doc.estTermine ? 'secondary' : 'primary'" 
                 size="small" 
-                @click="emit('ouvrir-document', { ...getDocs(machine.codeMachine)[0], _openMode: 'all' })" 
-                v-tooltip.top="'Voir toutes les cartes des rapports de cette machine'"
+                @click="emit('ouvrir-document', doc)" 
               />
             </template>
 
-            <!-- Si la machine n'est pas encore entièrement terminée -->
-            <template v-else>
-              <template v-for="doc in getDocs(machine.codeMachine)" :key="doc.id">
-                <Button 
-                  :label="(doc.estTermine ? 'Consulter' : 'Ouvrir') + ' (' + (doc.equipe || 'N/A') + ' - ' + formatDate(doc.dateExecution) + ')'" 
-                  :icon="doc.estTermine ? 'pi pi-eye' : 'pi pi-pencil'" 
-                  :severity="doc.estTermine ? 'secondary' : 'primary'" 
-                  size="small" 
-                  @click="emit('ouvrir-document', doc)" 
-                />
-              </template>
-              <Button 
-                v-if="getDocs(machine.codeMachine).length > 0" 
-                label="Tous les documents" 
-                icon="pi pi-th-large" 
-                severity="info" 
-                size="small" 
-                @click="emit('ouvrir-document', { ...getDocs(machine.codeMachine)[0], _openMode: 'all' })" 
-                v-tooltip.top="'Voir toutes les cartes des rapports de cette machine'"
-              />
-              <Button 
-                v-if="hasUnfinishedDoc(machine.codeMachine)" 
-                label="Marquer comme Terminé" 
-                icon="pi pi-check-circle" 
-                severity="success" 
-                size="small" 
-                @click="emit('cloturer-machine', machine.codeMachine)" 
-                v-tooltip.top="'Valider et clôturer tous les documents de cette machine'"
-              />
-              <Button 
-                v-if="!hasDocForCurrentSession(machine.codeMachine)" 
-                label="Initialiser" 
-                icon="pi pi-play" 
-                severity="success" 
-                size="small" 
-                @click="emit('init-document', machine.codeMachine)" 
-              />
-              <Button 
-                v-if="!machine.isDefault && getDocs(machine.codeMachine).length === 0" 
-                icon="pi pi-trash" 
-                severity="danger" 
-                text rounded
-                @click="emit('remove-machine', machine.codeMachine)" 
-                v-tooltip.top="'Retirer cette machine'"
-              />
-            </template>
+            <!-- Bouton Tous les documents si au moins 1 document existe -->
+            <Button 
+              v-if="getDocs(machine.codeMachine).length > 0" 
+              label="Tous les documents" 
+              icon="pi pi-th-large" 
+              severity="info" 
+              size="small" 
+              @click="emit('ouvrir-document', { typeDocument: 'VERIF_MACHINE', machineCode: machine.codeMachine, ...(getDocs(machine.codeMachine)[0] || {}), _openMode: 'all' })" 
+              v-tooltip.top="'Voir toutes les cartes des rapports de cette machine'"
+            />
+
+            <!-- Bouton Clôturer la machine s'il reste au moins un doc non terminé -->
+            <Button 
+              v-if="hasUnfinishedDoc(machine.codeMachine)" 
+              label="Marquer comme Terminé" 
+              icon="pi pi-check-circle" 
+              severity="success" 
+              size="small" 
+              @click="emit('cloturer-machine', machine.codeMachine)" 
+              v-tooltip.top="'Valider et clôturer tous les documents de cette machine'"
+            />
+
+            <!-- Bouton Initialiser disponible dès qu'aucun document n'existe pour la session/équipe courante aujourd'hui -->
+            <Button 
+              v-if="!hasDocForCurrentSession(machine.codeMachine)" 
+              label="Initialiser" 
+              icon="pi pi-play" 
+              severity="success" 
+              size="small" 
+              @click="emit('init-document', machine.codeMachine)" 
+            />
+
+            <!-- Bouton supprimer si ajout manuel sans doc -->
+            <Button 
+              v-if="!machine.isDefault && getDocs(machine.codeMachine).length === 0" 
+              icon="pi pi-trash" 
+              severity="danger" 
+              text rounded
+              @click="emit('remove-machine', machine.codeMachine)" 
+              v-tooltip.top="'Retirer cette machine'"
+            />
           </div>
         </div>
         

@@ -192,7 +192,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
     // ✅ CHARGEMENT DYNAMIQUE des familles depuis Machine_FamilleCorps (API)
     try {
-      const response = await verifMachineService.getFamillesParMachine(machineCode);
+      const response = await verifMachineService.getFamiliesByMachine(machineCode);
       const dataArray = response.data?.data; // Car l'API renvoie { success, data: [] }
 
       if (dataArray && dataArray.length > 0) {
@@ -321,7 +321,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   const fetchDictionnaires = async (force = false) => {
     if (isDicosLoaded.value && !force) return;
     try {
-      const response = await verifMachineService.getDictionnaires();
+      const response = await verifMachineService.getDictionaries();
       const data = response.data.data || response.data;
       machines.value = data.machines || [];
       periodicites.value = data.periodicites || [];
@@ -348,17 +348,17 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
   const fetchTousLesPlans = async () => {
     try {
-      const response = await verifMachineService.getTousLesPlans();
+      const response = await verifMachineService.getAllDocuments();
       plansExistants.value = response.data.data || response.data || [];
     } catch (err) {
       console.error("Erreur chargement plans existants:", err);
     }
   };
 
-  const chargerPlanVerif = async (id) => {
+  const loadDocumentById = async (id) => {
     isLoading.value = true;
     try {
-      const response = await verifMachineService.getPlanVerif(id);
+      const response = await verifMachineService.getDocumentById(id);
       const data = response.data.data || response.data;
 
       entete.value = {
@@ -476,13 +476,13 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     try {
       const payload = buildPayload();
       if (entete.value.id) {
-        const response = await verifMachineService.mettreAJourPlanVerif(entete.value.id, payload);
+        const response = await verifMachineService.updateDocument(entete.value.id, payload);
         const newId = response.data.planId || response.data.id || entete.value.id;
         entete.value.id = newId;
         prendreSnapshot();
         return { id: newId, noChanges: false, version: response.data.version };
       } else {
-        const response = await verifMachineService.creerPlanVerif(payload);
+        const response = await verifMachineService.createDocument(payload);
         const newId = response.data.planId || response.data.id;
         entete.value.id = newId;
         prendreSnapshot();
@@ -494,7 +494,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     }
   };
 
-  const creerNouvelleVersion = async (motif) => {
+  const createNewVersion = async (motif) => {
     isLoading.value = true;
     try {
       const payload = {
@@ -503,7 +503,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         motifModification: motif,
         donnees: buildPayload()
       };
-      const response = await verifMachineService.creerNouvelleVersion(payload);
+      const response = await verifMachineService.createNewVersion(payload);
       const newId = response.data.planId || response.data.id;
       entete.value.id = newId;
       prendreSnapshot();
@@ -516,7 +516,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     }
   };
 
-  const restaurerPlanVerif = async (id, motif = "Restauration d'une ancienne version") => {
+  const restoreDocument = async (id, motif = "Restauration d'une ancienne version") => {
     isLoading.value = true;
     try {
       const payload = {
@@ -524,7 +524,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         ModifiePar: "ADMIN",
         MotifModification: motif
       };
-      const response = await verifMachineService.restaurerPlanVerif(payload);
+      const response = await verifMachineService.restoreDocument(payload);
       return response.data;
     } finally {
       isLoading.value = false;
@@ -694,7 +694,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,
     ajouterGroupPeriodicite, supprimerGroupPeriodicite, ajouterRowDetail, supprimerRowDetail,
     getPieceValue, setPieceValue,
-    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications, creerNouvelleVersion,
-    restaurerPlanVerif, importerDepuisExcel
+    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, loadDocumentById, sauvegarderPlanVerif, buildPayload, aDesModifications, createNewVersion,
+    restoreDocument, importerDepuisExcel
   };
 });

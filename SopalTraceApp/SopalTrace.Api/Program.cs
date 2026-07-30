@@ -116,6 +116,8 @@ builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncf
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfService, SopalTrace.Application.Services.ExecEncfService>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecPlanAssemblageRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecPlanAssemblageRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecPlanAssemblageService, SopalTrace.Application.Services.ExecPlanAssemblageService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.ITracabiliteRepository, SopalTrace.Infrastructure.Repositories.Execution.TracabiliteRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.ITracabiliteService, SopalTrace.Application.Services.TracabiliteService>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOperateurRepository, SopalTrace.Infrastructure.Repositories.Execution.OperateurRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOccurrenceRepository, SopalTrace.Infrastructure.Repositories.Execution.OccurrenceRepository>();
 builder.Services.AddScoped<IOperateurService, SopalTrace.Application.Services.OperateurService>();

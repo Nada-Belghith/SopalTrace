@@ -1,7 +1,7 @@
 /**
  * sectionUtils.js — Source unique de vérité pour la logique des sections
  *
- * Utilisé par : AssPlanEditor, FabPlanEditor, FabModeleEditor, pfPlanStore, assPlanStore
+ * Utilisé par : AssPlanEditor, FabPlanEditor, FabModeleEditor, documentProduitFiniStore, assPlanStore
  *
  * Fonctions exportées :
  *   1. mapLigneForBackend(ligne, lIdx)          → ligne locale → payload backend

@@ -33,7 +33,7 @@ public class ModeleFabricationController : ControllerBase
     {
         try
         {
-            var modeles = await _modeleService.GetModelesByFiltersAsync(natureComposantCode, operationCode, familleProduitCode, statut);
+            var modeles = await _modeleService.GetModelsByFiltersAsync(natureComposantCode, operationCode, familleProduitCode, statut);
             return Ok(modeles);
         }
         catch (Exception ex)
@@ -48,7 +48,7 @@ public class ModeleFabricationController : ControllerBase
     {
         try
         {
-            var modele = await _modeleService.GetModeleByIdAsync(id);
+            var modele = await _modeleService.GetModelByIdAsync(id);
             if (modele == null) return NotFound("Modèle non trouvé.");
             return Ok(modele);
         }
@@ -64,7 +64,7 @@ public class ModeleFabricationController : ControllerBase
     {
         try
         {
-            var id = await _modeleService.CreerModeleAsync(request);
+            var id = await _modeleService.CreateModelAsync(request);
             return Ok(new { id });
         }
         catch (Exception ex)
@@ -75,11 +75,11 @@ public class ModeleFabricationController : ControllerBase
     }
 
     [HttpPost("nouvelle-version")]
-    public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionModeleRequestDto request)
+    public async Task<IActionResult> CreateNewVersion([FromBody] NouvelleVersionModeleRequestDto request)
     {
         try
         {
-            var id = await _modeleService.CreerNouvelleVersionModeleAsync(request);
+            var id = await _modeleService.CreateNewVersionAsync(request);
             return Ok(new { id });
         }
         catch (Exception ex)
@@ -94,7 +94,7 @@ public class ModeleFabricationController : ControllerBase
     {
         try
         {
-            var success = await _modeleService.MettreAJourModeleAsync(id, request);
+            var success = await _modeleService.UpdateModelAsync(id, request);
             if (!success) return NotFound();
             return Ok(new { success = true });
         }
@@ -105,34 +105,4 @@ public class ModeleFabricationController : ControllerBase
         }
     }
 
-    [HttpPost("restaurer")]
-    public async Task<IActionResult> Restaurer([FromBody] RestaurerModeleRequestDto request)
-    {
-        try
-        {
-            var id = await _modeleService.RestaurerModeleArchiveAsync(request);
-            return Ok(new { id });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erreur lors de la restauration du modèle.");
-            return StatusCode(500, "Une erreur est survenue.");
-        }
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(Guid id)
-    {
-        try
-        {
-            var success = await _modeleService.SupprimerModeleAsync(id);
-            if (!success) return NotFound();
-            return Ok(new { success = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erreur lors de la suppression du modèle.");
-            return StatusCode(500, "Une erreur est survenue.");
-        }
-    }
 }

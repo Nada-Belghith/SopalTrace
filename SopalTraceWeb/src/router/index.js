@@ -124,36 +124,36 @@ const router = createRouter({
         {
           path: 'produit-fini/nouveau',
           name: 'dev-pf-create',
-          component: () => import('@/views/QualityPlans/ProduitFini/PfPlanEditor.vue'),
+          component: () => import('@/views/QualityPlans/DocumentProduitFini/DocumentProduitFiniEditor.vue'),
         },
         {
           path: 'produit-fini/editer/:id',
           name: 'dev-pf-edit',
-          component: () => import('@/views/QualityPlans/ProduitFini/PfPlanEditor.vue'),
+          component: () => import('@/views/QualityPlans/DocumentProduitFini/DocumentProduitFiniEditor.vue'),
         },
 
         // 5. ÉDITEUR VÉRIF MACHINE (BEE, MAS, SER...)
         {
           path: 'verif-machine/nouveau',
           name: 'dev-vm-create',
-          component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/VerifMachine/VerificationMachineEditor.vue'),
         },
         {
           path: 'verif-machine/editer/:id',
           name: 'dev-vm-edit',
-          component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/VerifMachine/VerificationMachineEditor.vue'),
         },
 
         // 6. RÉSULTAT DE CONTRÔLE (NC)
         {
           path: 'resultat-controle/nouveau',
           name: 'dev-rc-create',
-          component: () => import('@/views/QualityPlans/ControlePoste/ControlePosteEditor.vue'),
+          component: () => import('@/views/QualityPlans/DocumentControlePoste/DocumentControlePosteEditor.vue'),
         },
         {
           path: 'resultat-controle/editer/:id',
           name: 'dev-rc-edit',
-          component: () => import('@/views/QualityPlans/ControlePoste/ControlePosteEditor.vue'),
+          component: () => import('@/views/QualityPlans/DocumentControlePoste/DocumentControlePosteEditor.vue'),
         },
 
         // NOUVEAU: RÉSULTAT CONTRÔLE C.F.
@@ -172,12 +172,12 @@ const router = createRouter({
         {
           path: 'echantillonnage/nouveau',
           name: 'dev-ech-create',
-          component: () => import('@/views/QualityPlans/Echantillonnage/EchModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/Echantillonnage/DocumentEchantillonnageEditor.vue'),
         },
         {
           path: 'echantillonnage/editer/:id',
           name: 'dev-ech-edit',
-          component: () => import('@/views/QualityPlans/Echantillonnage/EchModeleEditor.vue'),
+          component: () => import('@/views/QualityPlans/Echantillonnage/DocumentEchantillonnageEditor.vue'),
         }
       ]
     },
@@ -213,9 +213,14 @@ const router = createRouter({
           component: () => import('@/views/Operateur/ExecPlanAssemblageView.vue')
         },
         {
+          path: 'tracabilite/:execControleOfId',
+          name: 'exec-tracabilite',
+          component: () => import('@/views/Operateur/OperateurTracabiliteView.vue')
+        },
+        {
           path: 'verif-machine/:id',
           name: 'operateur-vm-view',
-          component: () => import('@/views/QualityPlans/VerifMachine/VmModeleEditor.vue')
+          component: () => import('@/views/QualityPlans/VerifMachine/VerificationMachineEditor.vue')
         },
         {
           path: 'verif-machine-exec/:id',

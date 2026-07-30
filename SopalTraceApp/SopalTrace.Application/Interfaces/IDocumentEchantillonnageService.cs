@@ -1,4 +1,4 @@
-using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
+using SopalTrace.Application.DTOs.QualityPlans.Echantillonnage;
 using System;
 using System.Threading.Tasks;
 
@@ -6,11 +6,10 @@ namespace SopalTrace.Application.Interfaces;
 
 public interface IDocumentEchantillonnageService
 {
-    Task<PlanEchanResponseDto?> GetPlanActifAsync();
-    Task<PlanEchanResponseDto?> GetPlanByIdAsync(Guid id);
-    Task<Guid> CreatePlanAsync(CreatePlanEchanRequestDto request, string creePar);
-    Task UpdatePlanAsync(Guid id, UpdatePlanEchanRequestDto request);
-    Task ActiverPlanAsync(Guid id, string modifiePar);
-    Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionEchanRequestDto request);
-    Task<Guid> RestaurerPlanAsync(RestaurerEchanRequestDto request);
+    Task<DocumentEchantillonnageResponseDto?> GetActiveDocumentAsync();
+    Task<DocumentEchantillonnageResponseDto?> GetDocumentByIdAsync(Guid id);
+    Task<Guid> CreateDocumentAsync(CreateDocumentEchantillonnageRequestDto request, string creePar);
+    Task UpdateDocumentAsync(Guid id, UpdateDocumentEchantillonnageRequestDto request);
+    Task ActivateDocumentAsync(Guid id, string modifiePar);
+    Task<Guid> CreateNewVersionAsync(CreateNewVersionDocumentEchantillonnageRequestDto request);
 }

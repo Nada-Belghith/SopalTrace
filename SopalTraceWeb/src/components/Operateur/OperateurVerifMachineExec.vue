@@ -146,7 +146,7 @@ onMounted(async () => {
   loading.value = true
   try {
     await store.fetchDictionnaires()
-    await store.chargerPlanVerif(planId)
+    await store.loadDocumentById(planId)
     await fetchSessionData(currentStatutId.value)
     checkConsultationMode(currentStatutId.value)
   } catch (err) {

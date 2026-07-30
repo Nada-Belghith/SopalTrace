@@ -315,7 +315,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await fabModeleService.createModele(payload);
+      const res = await fabModeleService.createModel(payload);
       return res.data; // Return the whole data which includes modeleId and version
     } finally {
       isLoading.value = false;
@@ -331,7 +331,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await fabModeleService.newModeleVersion(payload);
+      const res = await fabModeleService.createNewVersion(payload);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -343,7 +343,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await fabModeleService.updateModeleValeurs(id, payload);
+      const res = await fabModeleService.updateModel(id, payload);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -370,7 +370,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         documentArchiveId: entete.value.id,
         motifRestoration: motif
       };
-      const response = await fabModeleService.restoreModele(payload);
+      const response = await fabModeleService.restoreModel(payload);
       return response.data;
     } finally {
       isLoading.value = false;

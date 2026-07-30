@@ -1,0 +1,680 @@
+<template>
+  <div class="space-y-6 max-w-[1200px] mx-auto animate-fade-in">
+      <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4 uppercase tracking-wide">
+              <i class="pi pi-map-marker text-emerald-500"></i> 1. Contexte du Poste
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+              <!-- CHOIX RÉFÉRENCE FORMULAIRE -->
+              <div v-if="!isReadOnly && (!store.entete.id || store.entete.isModeleTemplate)" class="col-span-full mb-4 bg-emerald-50/50 border border-emerald-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4">
+                <label class="block text-[11px] font-black text-emerald-800 uppercase tracking-widest shrink-0 flex items-center">
+                  <i class="pi pi-file-import mr-2 text-emerald-600 text-lg"></i> RÉF. FORMULAIRE *
+                </label>
+                  <div class="w-full md:w-1/2 flex items-center gap-2">
+                      <Dropdown v-model="refFormulaireSelected" :options="store.formulairesReferences" optionLabel="codeReference" optionValue="id" 
+                              placeholder="Sélectionner un formulaire générique" class="w-full" :disabled="store.entete.isModeleTemplate"
+                              :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
+                        <template #value="slotProps">
+                            <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">
+                                {{ store.formulairesReferences.find(r => r.id === slotProps.value)?.codeReference }} - {{ store.formulairesReferences.find(r => r.id === slotProps.value)?.designation }}
+                            </div>
+                            <span v-else class="text-sm">Sélectionner un formulaire générique</span>
+                        </template>
+                        <template #option="slotProps">
+                            <div class="text-sm">{{ slotProps.option.codeReference }} - {{ slotProps.option.designation }}</div>
+                        </template>
+                    </Dropdown>
+                </div>
+                <p class="text-xs text-emerald-600/80 font-medium italic">
+                  La sélection du formulaire remplira automatiquement le poste.
+                </p>
+              </div>
+
+              <!-- POSTE DE TRAVAIL -->
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Poste de travail concerné</label>
+                <Dropdown v-model="store.entete.posteCode" :options="store.postes" optionLabel="libelle" optionValue="code" 
+                          placeholder="Choisir un poste" class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id" @change="onSelectionChange"
+                          :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
+                    <template #value="slotProps">
+                        <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">
+                            Poste {{ slotProps.value }} - {{ store.postes.find(p => p.code === slotProps.value)?.libelle }}
+                        </div>
+                        <span v-else class="text-sm">Choisir un poste</span>
+                    </template>
+                    <template #option="slotProps">
+                        <div class="text-sm">Poste {{ slotProps.option.code }} - {{ slotProps.option.libelle }}</div>
+                    </template>
+                </Dropdown>
+              </div>
+
+              <!-- VERSION DE DEPART -->
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Version de départ</label>
+                <input type="number" v-model.number="store.entete.versionInitiale" :disabled="isReadOnly || !!store.entete.id" min="0" max="99"
+                  class="w-full border border-slate-200 rounded-lg py-2.5 px-4 text-sm focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-medium bg-white shadow-sm disabled:opacity-70" />
+                  <p class="text-[10px] text-slate-400 mt-1 italic">Définit la version initiale de ce formulaire.</p>
+              </div>
+              
+              <div v-if="!isReadOnly" class="col-span-full flex justify-end gap-3 mt-4">
+                  <button @click="$refs.fileInput.click()" 
+                          class="h-[38px] px-4 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm w-full md:w-auto justify-center">
+                    <i class="pi pi-file-excel"></i>
+                    Importer la structure Excel
+                  </button>
+                  <input type="file" ref="fileInput" @change="handleExcelImport" class="hidden" accept=".xlsx, .xls" />
+                  
+                  <button v-if="store.entete.posteCode"
+                          @click="showColumnModal = true"
+                        class="h-[38px] px-4 flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors shadow-sm w-full md:w-auto justify-center">
+                  <i class="pi pi-sliders-h"></i>
+                  Configurer Colonnes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <template v-if="store.planInitialise">
+          <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden border-l-4 border-l-emerald-500">
+              <div class="bg-slate-800 px-5 py-4 flex items-center relative min-h-[64px]">
+                  <div class="flex-1 text-center">
+                      <h2 class="text-white font-bold uppercase tracking-widest text-lg">
+                        Résultat de contrôle <span v-if="store.entete.posteCode">- Poste {{ store.entete.posteCode }}</span>
+                      </h2>
+                  </div>
+                  <div v-if="!isReadOnly" class="absolute right-5">
+                      <button @click="store.ajouterLigne" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/20">
+                          <i class="ri-add-line text-base"></i> Ajouter défaut
+                      </button>
+                  </div>
+              </div>
+              <div class="overflow-x-auto overflow-y-visible">
+                  <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-100 text-slate-700 text-[11px] font-bold border-b border-slate-300">
+                            <tr v-if="hasGroups">
+                                <th class="p-2 border-r border-slate-300 w-10 text-center" rowspan="2">N°</th>
+                                <th class="p-2 border-r border-b border-slate-300 text-center align-middle" :colspan="2 + customInlineCols.length">
+                                    <div class="text-[12px] font-black text-slate-800 tracking-wide uppercase">Test de Non-conformité</div>
+                                </th>
+                                <template v-for="(g, idx) in headerGroups" :key="'g'+idx">
+                                    <th v-if="g.name" :colspan="g.colspan" class="border-r border-b border-slate-300 text-center align-top relative p-2">
+                                        <div class="mb-2 text-[13px] font-black text-slate-800">{{ g.name }}</div>
+                                        <div v-if="g.name === 'Equipe 1' || g.name === 'Equipe 2'" class="flex items-center justify-center gap-4 mt-2 px-2 pb-1 text-[10px] normal-case font-semibold">
+                                            <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                                <label class="text-slate-500">Nom et prénom :</label>
+                                                <input type="text" v-model="store.entete[g.name === 'Equipe 1' ? 'equipe1Nom' : 'equipe2Nom']" :disabled="isReadOnly"
+                                                    class="border-b border-slate-300 bg-transparent px-1 py-0.5 outline-none focus:border-emerald-500 text-emerald-700 font-bold w-32" />
+                                            </div>
+                                            <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                                <label class="text-slate-500">Matricule :</label>
+                                                <input type="text" v-model="store.entete[g.name === 'Equipe 1' ? 'equipe1Matricule' : 'equipe2Matricule']" :disabled="isReadOnly"
+                                                    class="border-b border-slate-300 bg-transparent px-1 py-0.5 outline-none focus:border-emerald-500 text-emerald-700 font-bold w-20" />
+                                            </div>
+                                        </div>
+                                    </th>
+                                    <template v-else>
+                                        <th v-for="col in g.columns" :key="col.id" rowspan="2" class="p-2 border-r border-slate-300 text-center align-middle min-w-[75px] max-w-[90px] leading-snug">
+                                            {{ col.header }}
+                                        </th>
+                                    </template>
+                                </template>
+                                <th v-if="!isReadOnly" class="p-2 w-10 text-center" rowspan="2"></th>
+                            </tr>
+                            <tr v-if="hasGroups">
+                                <th class="p-2 border-r border-slate-300 min-w-[120px] text-center bg-slate-50/50">Machine<br/>Banc d'essai</th>
+                                <th class="p-2 border-r border-slate-300 min-w-[150px] text-center bg-slate-50/50">Désignation du défaut</th>
+                                <!-- Colonnes custom (pppp, etc.) dans la 2ème rangée d'en-tête -->
+                                <th v-for="cc in customInlineCols" :key="'ccinline'+cc.id" class="p-2 border-r border-slate-300 text-center text-[10px] min-w-[80px] bg-slate-50/50">
+                                    {{ cc.header }}
+                                </th>
+                                <template v-for="col in allColumns" :key="'sub'+col.id">
+                                    <th v-if="col.group" class="p-2 border-r border-slate-300 text-center text-[10px]">
+                                        {{ col.header }}
+                                    </th>
+                                </template>
+                            </tr>
+                            <tr v-else>
+                                <th class="p-2 border-r border-slate-300 w-10 text-center">N°</th>
+                                <th class="p-2 border-r border-slate-300 min-w-[120px]">Machine/ Banc d'essai</th>
+                                <th class="p-2 border-r border-slate-300 min-w-[150px]">Désignation du défaut</th>
+                                <th v-for="col in allColumns" :key="col.id" class="p-2 border-r border-slate-300 text-center min-w-[70px]">
+                                    {{ col.header }}
+                                </th>
+                                <th v-if="!isReadOnly" class="p-2 w-10 text-center"></th>
+                            </tr>
+                        </thead>
+                      <tbody class="bg-white">
+                          <tr v-for="(defaut, index) in store.lignes" :key="defaut._uid" 
+                              class="border-b border-slate-200 transition-colors"
+                              :class="isReadOnly ? 'hover:bg-slate-50' : 'hover:bg-emerald-50/40'">
+                              <td class="p-3 border-r text-center font-bold text-slate-500 bg-slate-50/50">{{ index + 1 }}</td>
+                              
+                              <!-- Sélection Machine -->
+                              <td class="p-2 border-r align-middle">
+                                  <div v-if="isReadOnly" class="px-3 py-2 text-xs font-bold text-slate-700">
+                                      {{ defaut.machineCode || 'N/A' }}
+                                  </div>
+                                  <div v-else>
+                                      <input type="text" v-model="defaut.machineCode"
+                                             class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                                             placeholder="Saisir la machine..." />
+                                  </div>
+                              </td>
+
+                              <!-- Sélection Défaut -->
+                              <td class="p-2 border-r align-middle">
+                                   <div v-if="isReadOnly" class="px-3 py-2 text-xs font-semibold text-slate-800 uppercase">
+                                       {{ store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || 'Aucun défaut sélectionné' }}
+                                   </div>
+                                  <input v-else 
+                                          :value="store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || ''"
+                                          @input="(e) => onDefautInput(defaut, e.target.value)"
+                                          class="w-full text-xs font-semibold text-slate-800 border border-slate-200 focus:border-emerald-500 rounded-lg py-2.5 px-3 outline-none bg-white shadow-sm transition-all uppercase focus:ring-4 focus:ring-emerald-500/10"
+                                          placeholder="Saisir la désignation du défaut...">
+                              </td>
+
+                                <!-- Colonnes dynamiques fusionnées -->
+                                <td v-if="index === 0" :colspan="totalColCount" :rowspan="store.lignes.length + 2" class="p-2 border-r align-middle text-center bg-slate-50/50">
+                                    <span class="text-xs font-bold text-slate-400 italic tracking-wider uppercase">À remplir lors de la production</span>
+                                </td>
+
+                              <!-- Actions -->
+                              <td v-if="!isReadOnly" class="p-2 align-middle text-center bg-slate-50/30">
+                                  <button @click="store.supprimerLigne(defaut._uid)" 
+                                          class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95"
+                                          title="Supprimer cette ligne">
+                                      <i class="pi pi-trash"></i>
+                                  </button>
+                              </td>
+                          </tr>
+                          
+                          <!-- Lignes de totaux (Aperçu) -->
+                          <tr v-if="store.lignes.length > 0" class="bg-slate-100 border-t-2 border-slate-200">
+                              <td colspan="3" class="p-4 font-bold text-slate-700 text-center border-r">Total Non conforme :</td>
+                              <td v-if="!isReadOnly" class="p-2 bg-slate-50/30"></td>
+                          </tr>
+                          <tr v-if="store.lignes.length > 0" class="bg-slate-100 border-t border-slate-200">
+                              <td colspan="3" class="p-4 font-bold text-slate-700 text-center border-r">Total réalisé :</td>
+                              <td v-if="!isReadOnly" class="p-2 bg-slate-50/30"></td>
+                          </tr>
+                      </tbody>
+                  </table>
+
+                  <!-- État vide -->
+                  <div v-if="store.lignes.length === 0" class="p-12 text-center bg-slate-50/50">
+                      <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 mb-3">
+                          <i class="pi pi-list text-slate-400"></i>
+                      </div>
+                      <p class="text-sm text-slate-500 font-medium italic">Aucun défaut configuré pour ce poste.</p>
+                      <button v-if="!isReadOnly" @click="store.ajouterLigne" class="mt-4 text-emerald-600 font-bold text-xs uppercase tracking-widest hover:underline">
+                          + Ajouter un premier défaut
+                      </button>
+                  </div>
+              </div>
+          </section>
+
+          <RemarquesLegendeBox
+              v-model:remarques="store.entete.remarques"
+              v-model:legendeMoyens="store.entete.legendeMoyens"
+              :is-read-only="isReadOnly"
+          />
+
+          <DocumentSaveManager 
+              :plan-id="store.entete.id"
+              :statut="store.entete.statut"
+              :is-loading="store.isLoading"
+              :is-read-only="isReadOnly"
+              @save-direct="handleSaveDirect"
+              @save-correction="handleSaveCorrection"
+              @save-new-version="handleSaveNewVersion"
+              @cancel="onCancel"
+          />
+      </template>
+
+      <!-- MODAL DE CONFIGURATION DES COLONNES -->
+      <ColumnConfigurator 
+        v-model:visible="showColumnModal"
+        v-model="store.entete.configurationColonnes.customCols"
+        :base-columns="baseColumnsMapped"
+        :show-target-table="false"
+      >
+        <template #extra-config>
+          <div class="bg-[#1e293b] text-slate-100 rounded-xl p-6 shadow-lg border border-slate-700 mb-6">
+            <h3 class="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <i class="pi pi-users"></i>
+              Configuration des Équipes et Horaires
+            </h3>
+            <div class="space-y-3">
+              <div v-for="(eq, idx) in store.entete.configurationColonnes.equipes" :key="idx" class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                <div class="flex-1">
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nom de l'équipe</label>
+                  <input type="text" v-model="eq.nom" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm outline-none focus:border-emerald-500" placeholder="Ex: Equipe 1" />
+                </div>
+                <div class="w-24">
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Heure début</label>
+                  <input type="number" v-model="eq.debut" min="0" max="23" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm outline-none focus:border-emerald-500" />
+                </div>
+                <div class="w-24">
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Heure fin</label>
+                  <input type="number" v-model="eq.fin" min="0" max="23" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm outline-none focus:border-emerald-500" />
+                </div>
+                <div class="pt-5">
+                  <button @click="store.entete.configurationColonnes.equipes.splice(idx, 1)" class="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors" title="Supprimer l'équipe">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button @click="store.entete.configurationColonnes.equipes.push({ nom: 'Nouvelle équipe', debut: 6, fin: 14 })" class="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors flex items-center gap-2">
+              <i class="pi pi-plus"></i> Ajouter une équipe
+            </button>
+          </div>
+        </template>
+        <template #preview="{ previewColumns }">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead class="bg-slate-100 text-slate-700 text-[11px] font-bold border-b border-slate-300">
+                <tr v-if="hasGroups">
+                    <th class="p-2 border-r border-b border-slate-300 text-center align-middle" colspan="2">
+                        <div class="text-[12px] font-black text-slate-800 tracking-wide uppercase">Test de Non-conformité</div>
+                    </th>
+                    <template v-for="(g, idx) in getPreviewGroups(previewColumns)" :key="'prevg'+idx">
+                        <th v-if="g.name" :colspan="g.colspan" class="border-r border-b border-slate-300 text-center align-top relative p-2">
+                            <div class="mb-2 text-[13px] font-black text-slate-800">{{ g.name }}</div>
+                            <div v-if="g.name === 'Equipe 1' || g.name === 'Equipe 2'" class="flex items-center justify-center gap-4 mt-2 px-2 pb-1 text-[10px] normal-case font-semibold">
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                    <label class="text-slate-500">Nom et prénom :</label>
+                                    <input type="text" disabled class="border-b border-slate-300 bg-transparent px-1 py-0.5 outline-none w-24" />
+                                </div>
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                    <label class="text-slate-500">Matricule :</label>
+                                    <input type="text" disabled class="border-b border-slate-300 bg-transparent px-1 py-0.5 outline-none w-16" />
+                                </div>
+                            </div>
+                        </th>
+                        <template v-else>
+                            <th v-for="col in g.columns" :key="col.key" rowspan="2" class="p-2 border-r border-slate-300 text-center align-middle min-w-[75px] max-w-[90px] leading-snug">
+                                <span :class="col.key.startsWith('custom_') ? 'text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded border border-amber-200 inline-block' : ''">
+                                    {{ col.label }} <span v-if="col.key.startsWith('custom_')">(Auto)</span>
+                                </span>
+                            </th>
+                        </template>
+                    </template>
+                </tr>
+                <tr v-if="hasGroups">
+                    <th class="p-2 border-r border-slate-300 min-w-[120px] text-center bg-slate-50/50">Machine<br/>Banc d'essai</th>
+                    <th class="p-2 border-r border-slate-300 min-w-[150px] text-center bg-slate-50/50">Désignation du défaut</th>
+                    <template v-for="col in previewColumns.filter(c => c.key !== 'col_machine' && c.key !== 'col_designation')" :key="'prevsub'+col.key">
+                        <th v-if="col.group" class="p-2 border-r border-slate-300 text-center text-[10px]">
+                            <span :class="col.key.startsWith('custom_') ? 'text-amber-600 font-medium bg-amber-50 px-1 py-0.5 rounded border border-amber-200 inline-block' : ''">
+                                {{ col.label }} <span v-if="col.key.startsWith('custom_')">(Auto)</span>
+                            </span>
+                        </th>
+                    </template>
+                </tr>
+            </thead>
+            <tbody class="bg-white">
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2 border-r border-b align-middle bg-white text-center">
+                        <div class="px-3 py-2 text-xs font-bold text-slate-700">Machine...</div>
+                    </td>
+                    <td class="p-2 border-r border-b align-middle bg-white text-center">
+                        <div class="px-3 py-2 text-xs font-semibold text-slate-800 uppercase">Désignation...</div>
+                    </td>
+                    <td :colspan="previewColumns.length - 2" class="p-2 border-r border-b align-middle text-center bg-slate-50/50">
+                        <span class="text-xs font-bold text-slate-400 italic tracking-wider uppercase">À remplir lors de la production</span>
+                    </td>
+                </tr>
+            </tbody>
+          </table>
+        </template>
+      </ColumnConfigurator>
+  </div>
+</template>
+
+<script setup>
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
+import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
+import Toast from 'primevue/toast';
+import ConfirmDialog from 'primevue/confirmdialog';
+import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
+import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
+import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
+import { parseDesignation } from '@/utils/designationParser';
+import Dropdown from 'primevue/dropdown';
+
+const props = defineProps({
+    isReadOnly: { type: Boolean, default: false }
+});
+
+const emit = defineEmits(['trigger-versioning']);
+
+const store = usedocumentControlePosteStore();
+const route = useRoute();
+const confirm = useConfirm();
+const toast = useToast();
+const { confirmArchivagePlanActif } = useActivePlanConfirmation();
+const router = useRouter();
+const fileInput = ref(null);
+const refFormulaireSelected = ref('');
+const showColumnModal = ref(false);
+
+const standardColumns = computed(() => {
+  const cols = [];
+  const equipes = store.entete.configurationColonnes?.equipes || [];
+  
+  equipes.forEach((eq, idx) => {
+    let cur = eq.debut;
+    let steps = eq.fin > eq.debut ? (eq.fin - eq.debut) : (24 - eq.debut + eq.fin);
+    for (let i = 0; i < steps; i++) {
+      let start = cur % 24;
+      let end = (cur + 1) % 24;
+      cols.push({
+        id: `col_${idx}_${start}_${end}`,
+        header: `${start}-${end}`,
+        type: 'TEXT',
+        group: eq.nom
+      });
+      cur++;
+    }
+  });
+  
+  cols.push({ id: 'col_tot_defauts', header: 'Total des défauts', type: 'TEXT' });
+  cols.push({ id: 'col_tot_pieces', header: 'Total des pièces testées', type: 'TEXT' });
+  cols.push({ id: 'col_taux_nc', header: 'Taux de NC', type: 'TEXT' });
+  cols.push({ id: 'col_nb_pieces_rebus', header: 'NB des pièces rebutées', type: 'TEXT' });
+  cols.push({ id: 'col_nb_pieces_conformes', header: 'NB des pièces conformes', type: 'TEXT' });
+  
+  return cols;
+});
+
+const baseColumnsMapped = computed(() => {
+  const base = [
+    { key: 'col_machine', label: "Machine Banc d'essai", type: 'TEXT', group: null },
+    { key: 'col_designation', label: "Désignation du défaut", type: 'TEXT', group: null }
+  ];
+  const std = standardColumns.value.map(c => ({
+    key: c.id,
+    label: c.header,
+    type: 'TEXT',
+    group: c.group
+  }));
+  return [...base, ...std];
+});
+
+const customColumns = computed(() => {
+  const standardIds = standardColumns.value.map(c => c.id);
+  const customCols = store.entete.configurationColonnes?.customCols || [];
+  return customCols.filter(c => {
+    const colId = c.id || c.key;
+    return !standardIds.includes(colId) && colId !== 'col_machine' && colId !== 'col_designation';
+  });
+});
+
+const allColumns = computed(() => {
+  let cols = [...standardColumns.value];
+  return cols;
+});
+
+// Colonnes custom (pppp, etc.) à afficher en ligne après Machine/Désignation
+const customInlineCols = computed(() => {
+  return customColumns.value.map(cc => ({
+    id: cc.id || cc.key,
+    header: cc.header || cc.label,
+    type: cc.type || 'TEXT',
+    group: null,
+    isCustom: true
+  }));
+});
+
+// Nombre total de colonnes dans le tbody (equipes + custom)
+const totalColCount = computed(() => allColumns.value.length + customInlineCols.value.length);
+
+const headerGroups = computed(() => {
+  const groups = [];
+  let currentGroup = null;
+  let currentGroupCols = [];
+  let colspan = 0;
+  
+  const cols = allColumns.value;
+  for (const col of cols) {
+    if (col.group === currentGroup) {
+      colspan++;
+      currentGroupCols.push(col);
+    } else {
+      if (colspan > 0) {
+        groups.push({ name: currentGroup, colspan, columns: currentGroupCols });
+      }
+      currentGroup = col.group;
+      currentGroupCols = [col];
+      colspan = 1;
+    }
+  }
+  if (colspan > 0) {
+    groups.push({ name: currentGroup, colspan, columns: currentGroupCols });
+  }
+  return groups;
+});
+
+const getPreviewGroups = (cols) => {
+  const groups = [];
+  let currentGroup = null;
+  let currentGroupCols = [];
+  let colspan = 0;
+  
+  const filteredCols = cols.filter(c => c.key !== 'col_machine' && c.key !== 'col_designation');
+  for (const col of filteredCols) {
+    if (col.group === currentGroup) {
+      colspan++;
+      currentGroupCols.push(col);
+    } else {
+      if (colspan > 0) {
+        groups.push({ name: currentGroup, colspan, columns: currentGroupCols });
+      }
+      currentGroup = col.group;
+      currentGroupCols = [col];
+      colspan = 1;
+    }
+  }
+  if (colspan > 0) {
+    groups.push({ name: currentGroup, colspan, columns: currentGroupCols });
+  }
+  return groups;
+};
+
+const hasGroups = computed(() => headerGroups.value.some(g => g.name));
+
+const onCancel = () => {
+    router.push('/dev/modeles');
+};
+
+onMounted(async () => {
+  if (!props.isReadOnly && !store.entete.id) {
+    store.fetchFormulairesReferences('RESULTAT_CONTROLE_POSTE');
+  }
+
+  await store.fetchDictionnaires();
+  await store.fetchTousLesPlans();
+  
+  if (route.params.id) {
+      await store.chargerdocumentControlePoste(route.params.id);
+  } else {
+      store.resetState();
+  }
+});
+
+// Pré-remplir le sélecteur Réf Formulaire si on est sur un modèle template
+watch(() => store.entete.isModeleTemplate, (newVal) => {
+  if (newVal && store.entete.formulaireId) {
+    refFormulaireSelected.value = store.entete.formulaireId;
+  }
+});
+
+// Lorsqu'on sélectionne une réf. formulaire depuis un template générique
+watch(refFormulaireSelected, (newRefId) => {
+  if (newRefId && !store.entete.isModeleTemplate) {
+    const selectedForm = store.formulairesReferences.find(f => f.id === newRefId);
+    if (!selectedForm) return;
+
+    const designation = selectedForm.designation || '';
+    const parsed = parseDesignation(designation, [], [], store.postes || []);
+
+    if (parsed.posteCode) {
+      store.entete.formulaireId = newRefId;
+      store.entete.formulaireCodeReference = selectedForm.codeReference || null;
+
+      // Parser la structure (équipes + colonnes) depuis le formulaire sélectionné
+      let configColonnes = null;
+      if (selectedForm.configurationStructureJson) {
+        try {
+          const structure = JSON.parse(selectedForm.configurationStructureJson);
+          const customCols = (structure.customCols && structure.customCols.length > 0)
+            ? structure.customCols.map(c => ({
+                key: c.key || c.cleColonne,
+                label: c.label || c.labelAffiche || c.titre,
+                type: c.type || c.typeValeur || 'Texte',
+                insertAfter: c.insertAfter || 'col_designation'
+              }))
+            : [];
+          const equipes = (structure.equipes && structure.equipes.length > 0)
+            ? structure.equipes.map(e => ({ nom: e.nom, debut: e.debut, fin: e.fin }))
+            : [{ nom: 'Equipe 1', debut: 6, fin: 14 }, { nom: 'Equipe 2', debut: 14, fin: 22 }];
+          configColonnes = { equipes, customCols };
+        } catch (e) {
+          console.error('Erreur parsing configurationStructureJson:', e);
+        }
+      }
+
+      // Initialiser le nouveau plan AVEC la structure chargée
+      store.initialiserNouveauPlan(
+        parsed.posteCode,
+        newRefId,
+        selectedForm.codeReference || null,
+        configColonnes
+      );
+    }
+  }
+});
+
+const onSelectionChange = () => {
+  if (store.entete.posteCode) {
+      store.initialiserNouveauPlan(
+        store.entete.posteCode,
+        store.entete.formulaireId,
+        store.entete.formulaireCodeReference
+      );
+  } else {
+      store.planInitialise = false;
+  }
+};
+
+const onDefautInput = (defaut, val) => {
+  defaut._libelleDefautBrut = val;
+  const found = store.risquesDefauts.find(r => r.libelle.trim().toLowerCase() === val.trim().toLowerCase());
+  if (found) {
+    defaut.risqueDefautId = found.id;
+  } else {
+    defaut.risqueDefautId = null;
+  }
+};
+
+const validatePlan = async () => {
+    // 1. Détection de changement
+    if (!store.aDesModifications()) {
+        toast.add({ severity: 'info', summary: 'Information', detail: 'Aucune modification à enregistrer.', life: 3000 });
+        return false;
+    }
+
+    // 2. Auto-résolution des IDs manquants avant sauvegarde
+    store.lignes.forEach(l => {
+        if (!l.risqueDefautId && l._libelleDefautBrut) {
+            const found = store.risquesDefauts.find(rd => 
+                rd.libelle.trim().toLowerCase() === l._libelleDefautBrut.trim().toLowerCase()
+            );
+            if (found) l.risqueDefautId = found.id;
+        }
+    });
+
+    // 3. Validation
+    const lignesValides = store.lignes.filter(l => l.machineCode || l.risqueDefautId || l._libelleDefautBrut);
+    
+    if (lignesValides.length === 0) {
+        toast.add({ severity: 'warn', summary: 'Attention', detail: 'Le plan ne contient aucune ligne valide.', life: 3000 });
+        return false;
+    }
+
+    const lignesIncompletes = lignesValides.filter(l => !l.machineCode || (!l.risqueDefautId && !l._libelleDefautBrut));
+    
+    if (lignesIncompletes.length > 0) {
+        toast.add({ 
+            severity: 'warn', 
+            summary: 'Attention', 
+            detail: 'Certaines lignes sont incomplètes (Machine ou Désignation manquante).', 
+            life: 3000 
+        });
+        return false;
+    }
+
+    // 4. Confirmation d'archivage si on crée un nouveau plan et qu'un actif existe
+    if (!store.entete.id) {
+        await store.fetchTousLesPlans();
+        const currentRef = store.entete.formulaireCodeReference;
+        const currentFormId = store.entete.formulaireId;
+        const targetPoste = String(store.entete.posteCode || '').toLowerCase();
+
+        const planActif = store.plansExistants.find(p => {
+            if (p.statut !== 'ACTIF') return false;
+            if (String(p.posteCode || '').toLowerCase() !== targetPoste) return false;
+
+            if (currentRef && p.formulaireCodeReference) {
+                return String(p.formulaireCodeReference).toLowerCase() === String(currentRef).toLowerCase();
+            }
+            if (currentFormId && p.formulaireId) {
+                return String(p.formulaireId).toLowerCase() === String(currentFormId).toLowerCase();
+            }
+            return !currentRef && !currentFormId && !p.formulaireId && !p.formulaireCodeReference;
+        });
+        
+        if (planActif) {
+            const isConfirmed = await confirmArchivagePlanActif({
+                typeDocument: 'fiche de contrôle',
+                identifiant: `ce poste (${store.entete.posteCode})`,
+                version: planActif.version
+            });
+            if (!isConfirmed) return false;
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+    }
+    return true;
+};
+
+import { useDocumentSaveManager } from '@/composables/useDocumentSaveManager';
+import { useExcelStructureImporter } from '@/composables/useExcelStructureImporter';
+
+const { handleExcelImport } = useExcelStructureImporter(store, toast);
+
+const { handleSaveDirect, handleSaveCorrection, handleSaveNewVersion } = useDocumentSaveManager({
+  callbacks: {
+    validateForm: validatePlan, // Note: validatePlan already contains the active plan check logic
+    onSaveDirect: () => store.sauvegarderPlan(),
+    onSaveCorrection: () => store.sauvegarderPlan(true, true),
+    onSaveNewVersion: (motif) => store.createNewVersion(motif)
+  },
+  toast,
+  router,
+  returnUrl: '/dev/hub'
+});
+
+</script>
+
+<style scoped>
+textarea { resize: none; overflow: hidden; }
+</style>

@@ -141,6 +141,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   };
 
   const mapPayload = (legendeMoyens = '') => ({
+    id: entete.value.id || undefined,
     typeDocumentCode: 'PLAN_ASS',
     nom: entete.value.code || codePlanAuto.value,
     designation: entete.value.libelle || `Modèle ${codePlanAuto.value} V${version.value}`,
@@ -161,8 +162,8 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await assPlanService.create(payload);
-      return res.data; // Return the whole data which includes PlanId and version
+      const res = await assPlanService.creerDocument(payload);
+      return res.data || res; 
     } finally {
       isLoading.value = false;
     }
@@ -177,8 +178,8 @@ export const useAssPlanStore = defineStore('assPlan', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await assPlanService.createNewVersion(payload.ancienId, payload);
-      return res.data; // Return full data with PlanId and version
+      const res = await assPlanService.creerNouvelleVersion(payload.ancienId, payload);
+      return res.data || res;
     } finally {
       isLoading.value = false;
     }
@@ -189,7 +190,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await assPlanService.updateDocument(id, payload);
+      const res = await assPlanService.corrigerDocument(id, payload);
       return res.data;
     } finally {
       isLoading.value = false;

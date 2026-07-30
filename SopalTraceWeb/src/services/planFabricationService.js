@@ -32,7 +32,7 @@ export const planFabricationService = {
   },
 
   async upgradePlan(id) {
-    const response = await apiClient.post(`/PlanFabrication/nouvelle-version`, { ancienId: id });
+    const response = await apiClient.post(`/PlanFabrication/${id}/upgrade`);
     return { data: { planId: response.data.id } }; // Formatting to match frontend expectations
   },
 

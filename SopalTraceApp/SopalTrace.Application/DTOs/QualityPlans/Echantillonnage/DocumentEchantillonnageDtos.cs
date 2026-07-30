@@ -1,0 +1,93 @@
+#nullable disable
+using System;
+using System.Collections.Generic;
+
+namespace SopalTrace.Application.DTOs.QualityPlans.Echantillonnage;
+
+// ==========================================
+// REQUÊTES (Création & Versioning)
+// ==========================================
+public record CreateDocumentEchantillonnageRequestDto
+{
+    public string NiveauControle { get; init; }
+    public string TypePlan { get; init; }
+    public string ModeControle { get; init; }
+    
+    // ✅ Seule la valeur directe est conservée (NqaId est définitivement supprimé)
+    public int? NqaId { get; init; }
+    public double? ValeurNqa { get; init; }
+    
+    public string CommentaireVersion { get; init; }
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
+    public int CritereAcceptationAc { get; init; }
+    public int CritereRejetRe { get; init; }
+    public string RefFormulaireCodeReference { get; init; }
+}
+
+
+public record CreateNewVersionDocumentEchantillonnageRequestDto
+{
+    public Guid AncienId { get; init; }
+    public string ModifiePar { get; init; }
+    public string MotifModification { get; init; }
+    
+    // ✅ Toutes les données (entête + règles) sont dans ce DTO
+    public UpdateDocumentEchantillonnageRequestDto Donnees { get; init; }
+}
+
+public record RestoreDocumentEchantillonnageRequestDto
+{
+    public Guid ArchiveId { get; init; }
+    public string ModifiePar { get; init; }
+    public string MotifRestauration { get; init; }
+}
+
+public record UpdateDocumentEchantillonnageRequestDto
+{
+    public string NiveauControle { get; init; }
+    public string TypePlan { get; init; }
+    public string ModeControle { get; init; }
+    
+    // ✅ Suppression de NqaId ici aussi
+    public int? NqaId { get; init; }
+    public double? ValeurNqa { get; init; }
+    
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
+    public int CritereAcceptationAc { get; init; }
+    public int CritereRejetRe { get; init; }
+
+    public string ModifiePar { get; init; }
+    public string RefFormulaireCodeReference { get; init; }
+}
+
+// ==========================================
+// RÉPONSES (Lecture GET)
+// ==========================================
+public record DocumentEchantillonnageResponseDto
+{
+    public Guid Id { get; init; }
+    public string NiveauControle { get; init; }
+    public string TypePlan { get; init; }
+    public string ModeControle { get; init; }
+    
+    // ✅ Suppression de NqaId ici aussi
+    public int NqaId { get; init; }
+    public double ValeurNqa { get; init; }
+    
+    public int Version { get; init; }
+    public string Statut { get; init; }
+    public string CreePar { get; init; }
+    public DateTime CreeLe { get; init; }
+    public string ModifiePar { get; init; }
+    public DateTime? ModifieLe { get; init; }
+    public string CommentaireVersion { get; init; }
+    public string Remarques { get; init; }
+    public string LegendeMoyens { get; init; }
+    public int CritereAcceptationAc { get; init; }
+    public int CritereRejetRe { get; init; }
+
+    public Guid FormulaireId { get; init; }
+    public string RefFormulaireCodeReference { get; init; }
+}

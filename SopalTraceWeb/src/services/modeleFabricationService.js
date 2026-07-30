@@ -1,18 +1,29 @@
 import apiClient from './apiClient'
 
 export const modeleFabricationService = {
-  async getModelesByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null) {
-    const params = { natureComposantCode, operationCode, familleProduitCode: typeRobinet, posteCode };
+  async getModelsByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null) {
+    let params = {};
+    if (typeof typeRobinet === 'object' && typeRobinet !== null) {
+      params = {
+        natureComposantCode: typeRobinet.natureComposantCode,
+        operationCode: typeRobinet.operationCode,
+        familleProduitCode: typeRobinet.familleProduitCode || typeRobinet.typeRobinet,
+        posteCode: typeRobinet.posteCode,
+        statut: typeRobinet.statut
+      };
+    } else {
+      params = { natureComposantCode, operationCode, familleProduitCode: typeRobinet, posteCode };
+    }
     const response = await apiClient.get('/ModeleFabrication', { params });
     return response.data;
   },
 
-  async getModeleById(id) {
+  async getModelById(id) {
     const response = await apiClient.get(`/ModeleFabrication/${id}`);
     return response.data;
   },
 
-  async createModele(payload) {
+  async createModel(payload) {
     const req = {
       code: payload.nom,
       libelle: payload.designation,
@@ -54,7 +65,7 @@ export const modeleFabricationService = {
     return { data: { modeleId: response.data.id, version: 1 } };
   },
 
-  async newModeleVersion(payload) {
+  async createNewVersion(payload) {
     const req = {
       ...payload
     };
@@ -62,12 +73,12 @@ export const modeleFabricationService = {
     return { data: { modeleId: response.data.id } };
   },
 
-  async upgradeModele(id) {
+  async upgradeModel(id) {
     const response = await apiClient.post(`/ModeleFabrication/nouvelle-version`, { ancienId: id });
     return { data: { modeleId: response.data.id } };
   },
 
-  async updateModeleValeurs(id, payload) {
+  async updateModel(id, payload) {
     const response = await apiClient.put(`/ModeleFabrication/${id}`, payload);
     return { data: { success: true } };
   },
@@ -76,12 +87,7 @@ export const modeleFabricationService = {
     return Promise.resolve({ data: { success: true } });
   },
 
-  async deleteModele(id) {
-    const response = await apiClient.delete(`/ModeleFabrication/${id}`);
-    return response.data;
-  },
-
-  async restoreModele(payload) {
+  async restoreModel(payload) {
     const req = {
       modeleArchiveId: payload.documentArchiveId || payload.DocumentArchiveId || payload.documentId,
       motifRestoration: payload.motifRestoration || 'Restoration',

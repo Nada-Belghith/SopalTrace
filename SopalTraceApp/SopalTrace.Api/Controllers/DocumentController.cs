@@ -2,14 +2,21 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.QualityPlans.Documents;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Domain.Constants;
 using System;
 using System.Threading.Tasks;
 
-using SopalTrace.Domain.Constants;
-
 namespace SopalTrace.Api.Controllers;
 
-[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.SuperviseurQualite)]
+/// <summary>
+/// Gestion des documents de types centralisés : CTRL_POSTE, RESULTAT_CF, PLAN_ASS, PLAN_PF.
+/// 
+/// Droits d'accès :
+/// - Lecture    : tous les utilisateurs authentifiés
+/// - Écriture   : SuperviseurQualite uniquement
+/// - Suppression: SuperviseurQualite uniquement
+/// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class DocumentController : ControllerBase
@@ -21,84 +28,81 @@ public class DocumentController : ControllerBase
         _documentService = documentService;
     }
 
+    // ── Lecture (tous les utilisateurs connectés) ─────────────────────────────
+
+    /// <summary>Récupère un document par son identifiant.</summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
         var document = await _documentService.GetDocumentByIdAsync(id);
         if (document != null) return Ok(document);
-
         return NotFound(new { message = "Document introuvable." });
     }
 
+    /// <summary>Recherche des documents par filtres (type, nature, poste, famille, statut…).</summary>
     [HttpGet]
     public async Task<IActionResult> GetByFilters(
-        [FromQuery] string typeDocumentCode,
-        [FromQuery] string? natureComposantCode = null, 
-        [FromQuery] string? operationCode = null, 
-        [FromQuery] string? posteCode = null, 
-        [FromQuery] string? familleProduitCode = null,
-        [FromQuery] string? statut = null)
+        [FromQuery] string  typeDocumentCode,
+        [FromQuery] string? natureComposantCode  = null,
+        [FromQuery] string? operationCode        = null,
+        [FromQuery] string? posteCode            = null,
+        [FromQuery] string? familleProduitCode   = null,
+        [FromQuery] string? statut               = null)
     {
         if (string.IsNullOrWhiteSpace(typeDocumentCode))
-        {
             return BadRequest(new { message = "Le paramètre typeDocumentCode est requis." });
-        }
 
         var documents = await _documentService.GetDocumentsByFiltersAsync(
-            typeDocumentCode, natureComposantCode, operationCode, posteCode, familleProduitCode, statut);
-            
+            typeDocumentCode, natureComposantCode, operationCode,
+            posteCode, familleProduitCode, statut);
+
         return Ok(documents);
     }
 
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
+    // ── Écriture (SuperviseurQualite uniquement) ──────────────────────────────
+
+    /// <summary>
+    /// Crée un nouveau document (V1, statut ACTIF).
+    /// Si un document ACTIF existe déjà pour ce contexte, il est archivé automatiquement.
+    /// </summary>
+    [Authorize(Roles = RolesApp.SuperviseurQualite)]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateDocumentRequestDto request)
     {
-        var docId = await _documentService.CreerDocumentAsync(request);
+        var docId = await _documentService.CreateDocumentAsync(request);
         return CreatedAtAction(nameof(GetById), new { id = docId }, new { id = docId });
     }
 
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
+    /// <summary>
+    /// Crée une nouvelle version du document (V+1, statut ACTIF).
+    /// L'ancien document est archivé automatiquement.
+    /// </summary>
+    [Authorize(Roles = RolesApp.SuperviseurQualite)]
     [HttpPost("{id:guid}/version")]
-    public async Task<IActionResult> CreateNewVersion(Guid id, [FromBody] NouvelleVersionDocumentRequestDto request)
+    public async Task<IActionResult> CreateNewVersion(
+        Guid id,
+        [FromBody] NouvelleVersionDocumentRequestDto request)
     {
         if (id != request.AncienId)
-            return BadRequest(new { message = "L'ID du document ne correspond pas." });
+            return BadRequest(new { message = "L'ID du document ne correspond pas à AncienId." });
 
-        var newDocId = await _documentService.CreerNouvelleVersionDocumentAsync(request);
+        var newDocId = await _documentService.CreateNewVersionAsync(request);
         return CreatedAtAction(nameof(GetById), new { id = newDocId }, new { id = newDocId });
     }
 
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
+    /// <summary>
+    /// Correction mineure : modifie le document en place.
+    /// Aucune incrémentation de version, aucun archivage.
+    /// </summary>
+    [Authorize(Roles = RolesApp.SuperviseurQualite)]
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> UpdateDocument(Guid id, [FromBody] UpdateDocumentRequestDto request)
+    public async Task<IActionResult> UpdateDocument(
+        Guid id,
+        [FromBody] UpdateDocumentRequestDto request)
     {
-        var success = await _documentService.MettreAJourDocumentAsync(id, request);
+        var success = await _documentService.UpdateDocumentAsync(id, request);
         if (!success)
-            return NotFound(new { message = "Document introuvable ou vous n'avez pas les droits." });
-
-        return NoContent();
-    }
-
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
-    [HttpPost("{id:guid}/restaurer")]
-    public async Task<IActionResult> Restaurer(Guid id, [FromBody] RestaurerDocumentRequestDto request)
-    {
-        if (id != request.DocumentArchiveId)
-            return BadRequest(new { message = "L'ID du document ne correspond pas." });
-
-        var newId = await _documentService.RestaurerDocumentArchiveAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = newId }, new { id = newId });
-    }
-
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
-    {
-        var success = await _documentService.SupprimerDocumentAsync(id);
-        if (!success)
-            return NotFound(new { message = "Document introuvable ou déjà supprimé." });
-            
+            return NotFound(new { message = "Document introuvable." });
         return NoContent();
     }
 }

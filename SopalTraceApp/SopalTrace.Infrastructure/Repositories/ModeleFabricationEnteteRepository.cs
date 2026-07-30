@@ -123,6 +123,7 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
             query = query.Where(m => m.Statut == statut);
 
         return await query
+            .Include(m => m.Formulaire)
             .Include(m => m.ModeleFabricationSections)
                 .ThenInclude(s => s.ModeleFabricationLignes)
                     .ThenInclude(l => l.ModeleFabricationLigneExtraColonnes)

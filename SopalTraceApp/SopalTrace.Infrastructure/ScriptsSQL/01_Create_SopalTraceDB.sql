@@ -1059,9 +1059,6 @@ CREATE INDEX IX_ControleLigne_Reglage
     ON dbo.Exec_ControleLigne_Reponse (ExecControleOFId, Contexte, NumeroReglage);
 GO
 
-CREATE INDEX IX_ControleLigne_Lot
-    ON dbo.Exec_ControleLigne_Reponse (ExecControleOFId, Contexte, NumeroLot);
-GO
 
 
 -- ================================================================================
@@ -1233,6 +1230,28 @@ CREATE TABLE dbo.Exec_RC_Poste_Bilan (
     NbPieceConforme FLOAT NOT NULL,
     CONSTRAINT PK_ExecRcPosteBilan PRIMARY KEY CLUSTERED (Id ASC),
     CONSTRAINT FK_ExecRcPosteBilan_Statut FOREIGN KEY (ExecControleDocumentStatutId) REFERENCES dbo.Exec_ControleDocumentStatut (Id) ON DELETE CASCADE
+);
+GO
+
+CREATE TABLE dbo.ExecRegistreTracabilite (
+    Id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    ExecControleOfId UNIQUEIDENTIFIER NOT NULL,
+    DateHeure DATETIME NOT NULL DEFAULT GETDATE(),
+    Version INT NOT NULL DEFAULT 1,
+    Corps VARCHAR(100) NULL,
+    Volant VARCHAR(100) NULL,
+    CONSTRAINT PK_ExecRegistreTracabilite PRIMARY KEY (Id),
+    CONSTRAINT FK_ExecRegistreTracabilite_ExecControleOf FOREIGN KEY (ExecControleOfId) REFERENCES dbo.Exec_ControleOf (Id) ON DELETE CASCADE
+);
+GO
+
+CREATE TABLE dbo.ExecRegistreTracabiliteComposant (
+    Id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    RegistreTracabiliteId UNIQUEIDENTIFIER NOT NULL,
+    DesignationComposant VARCHAR(200) NOT NULL,
+    LotSelectionne VARCHAR(100) NULL,
+    CONSTRAINT PK_ExecRegistreTracabiliteComposant PRIMARY KEY (Id),
+    CONSTRAINT FK_ExecRegistreTracabiliteComposant_ExecRegistreTracabilite FOREIGN KEY (RegistreTracabiliteId) REFERENCES dbo.ExecRegistreTracabilite (Id) ON DELETE CASCADE
 );
 GO
 

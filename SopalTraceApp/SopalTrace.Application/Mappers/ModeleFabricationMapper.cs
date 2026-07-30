@@ -147,4 +147,37 @@ public static class ModeleFabricationMapper
 
         return entite;
     }
+
+    public static List<SectionModeleEditDto> BuildSectionsFromExistingModel(ModeleFabricationEntete modele)
+    {
+        if (modele?.ModeleFabricationSections == null) return new List<SectionModeleEditDto>();
+
+        return modele.ModeleFabricationSections.Select(s => new SectionModeleEditDto
+        {
+            LibelleSection = s.LibelleSection,
+            OrdreAffiche = s.OrdreAffiche,
+            Lignes = s.ModeleFabricationLignes?.Select(l => new LigneModeleEditDto
+            {
+                OrdreAffiche = l.OrdreAffiche,
+                TypeCaracteristiqueId = l.TypeCaracteristiqueId,
+                LibelleAffiche = l.LibelleAffiche,
+                TypeControleId = l.TypeControleId,
+                MoyenControleId = l.MoyenControleId,
+                MoyenTexteLibre = string.IsNullOrWhiteSpace(l.MoyenTexteLibre) ? null : l.MoyenTexteLibre,
+                InstrumentCode = l.InstrumentCode,
+                PeriodiciteId = l.PeriodiciteId,
+                LimiteSpecTexte = l.LimiteSpecTexte,
+                EstCritique = l.EstCritique,
+                Instruction = l.Instruction,
+                Observations = l.Observations,
+                ImageBase64 = l.ImageBase64,
+                ExtraColonnes = l.ModeleFabricationLigneExtraColonnes?.Select(c => new CreateModeleExtraColonneDto
+                {
+                    CleColonne = c.CleColonne,
+                    ValeurColonne = c.ValeurColonne,
+                    OrdreAffiche = c.OrdreAffiche
+                }).ToList() ?? new List<CreateModeleExtraColonneDto>()
+            }).ToList() ?? new List<LigneModeleEditDto>()
+        }).ToList();
+    }
 }

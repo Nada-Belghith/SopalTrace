@@ -96,10 +96,10 @@ public class RefFormulaireService : IRefFormulaireService
 
             // === AUTO-ARCHIVAGE ===
             // Déléguer l'archivage aux services métier concernés
-            await _modeleFabricationService.ArchiverModelesByFormulaireAsync(oldForm.Id);
-            await _planFabricationService.ArchiverPlansByFormulaireAsync(oldForm.Id);
-            await _documentService.ArchiverDocumentsByFormulaireAsync(oldForm.Id);
-            await _documentVerifMachineService.ArchiverPlansByFormulaireAsync(oldForm.Id);
+            await _modeleFabricationService.ArchiveModelsByFormulaireAsync(oldForm.Id);
+            await _planFabricationService.ArchiveDocumentsByFormulaireAsync(oldForm.Id);
+            await _documentService.ArchiveDocumentsByFormulaireAsync(oldForm.Id);
+            await _documentVerifMachineService.ArchiveDocumentsByFormulaireAsync(oldForm.Id);
             
             return newForm.Id;
         });

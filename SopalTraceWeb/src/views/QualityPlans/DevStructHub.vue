@@ -114,7 +114,7 @@
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
               <i class="pi pi-box text-[9px]"></i> {{ (plan.category === 'RC' && plan.nature === 'POSTE') ? 'RÉSULTAT DE CONTRÔLE' : plan.nature }}
             </span>
-            <span v-if="plan.type && plan.type !== 'N/A'"
+            <span v-if="plan.type && plan.type !== 'N/A' && plan.type !== 'GEN'"
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded">
               <i class="pi pi-tag text-[9px]"></i> {{ plan.type }}
             </span>

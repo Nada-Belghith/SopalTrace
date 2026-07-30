@@ -43,6 +43,8 @@ public partial class ExecControleOf
 
     public virtual ICollection<ExecPrelevementIntermediaire> ExecPrelevementIntermediaires { get; set; } = new List<ExecPrelevementIntermediaire>();
 
+    public virtual ICollection<ExecRegistreTracabilite> ExecRegistreTracabilites { get; set; } = new List<ExecRegistreTracabilite>();
+
     public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual Machine? MachineCodePrevuNavigation { get; set; }

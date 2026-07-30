@@ -102,7 +102,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
-import { usePfPlanStore } from '@/stores/pfPlanStore';
+import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
 
 const props = defineProps({
   ligne: { type: Object, required: true },
@@ -114,7 +114,7 @@ const props = defineProps({
 const isReadOnly = computed(() => props.isReadOnly);
 const emit = defineEmits(['remove', 'update']);
 const fabStore = useFabModeleStore();
-const pfStore = usePfPlanStore();
+const pfStore = usedocumentProduitFiniStore();
 const store = props.operationCode === 'PF' ? pfStore : fabStore;
 
 const localLigne = ref({

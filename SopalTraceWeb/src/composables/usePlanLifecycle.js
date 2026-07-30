@@ -13,7 +13,7 @@ import { useToast } from 'primevue/usetoast';
  * - Coordonnée avec les composables spécialisés (usePlanAutoSave, etc.)
  * 
  * Props attendues:
- * - planService: Service API du plan (pfPlanService, fabPlanService, etc.)
+ * - planService: Service API du plan (documentService, fabPlanService, etc.)
  * - planId: ID du plan (null si nouveau)
  * - isForcedView: Mode consultation (lecture seule)
  * 

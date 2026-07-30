@@ -65,8 +65,8 @@ const showPlanManquantDialog = ref(false)
 const planManquantMachineCode = ref('')
 
 // Contrôle au Poste - Plan Manquant
-const showControlePosteManquantDialog = ref(false)
-const isSignalingControlePoste = ref(false)
+const showdocumentControlePosteManquantDialog = ref(false)
+const isSignalingdocumentControlePoste = ref(false)
 
 // Assemblage & Résultat en cours - Plan Manquant
 const showPlanAssManquantDialog = ref(false)
@@ -249,12 +249,15 @@ const documentCategories = computed(() => {
   const planAssDocs = posteDocs.filter(d => ['PLAN_ASS', 'PLAN_ASSEMBLAGE', 'PLAN_FAB', 'MODELE_FAB', 'RESULTAT_CF', 'RCCF'].includes(d.typeDocument))
   const isPlanAssTermine = planAssDocs.length > 0 && planAssDocs.every(d => d.estTermine)
 
+  const tracaDocs = posteDocs.filter(d => d.typeDocument === 'REGISTRE_TRACA')
+  const isTracaTermine = tracaDocs.length > 0 && tracaDocs.every(d => d.estTermine)
+
   return [
     { id: 'verifMachine',   title: 'Vérification Machine',     icon: 'pi pi-cog',        docs: vmDocs, isTermine: isVmTermine },
-    { id: 'controlePoste',  title: 'Résultat Contrôle Poste',  icon: 'pi pi-check-square', docs: cpDocs, isTermine: isCpTermine },
+    { id: 'documentControlePoste',  title: 'Résultat Contrôle Poste',  icon: 'pi pi-check-square', docs: cpDocs, isTermine: isCpTermine },
     { id: 'echantillonnage',title: 'Fiche Échantillonnage',    icon: 'pi pi-chart-pie',  docs: echDocs, isTermine: isEchTermine },
     { id: 'planAss',        title: 'Plan Assemblage + Résultat',icon: 'pi pi-sitemap',   docs: planAssDocs, isTermine: isPlanAssTermine },
-    { id: 'tracabilite',    title: 'Registre de Traçabilité',  icon: 'pi pi-history',    docs: [] }
+    { id: 'tracabilite',    title: 'Registre de Traçabilité',  icon: 'pi pi-history',    docs: tracaDocs, isTermine: isTracaTermine }
   ]
 })
 
@@ -268,7 +271,7 @@ const onCategoryClick = async (cat) => {
     }
   } else if (cat.id === 'verifMachine') {
     openVerifMachineDialog()
-  } else if (cat.id === 'controlePoste') {
+  } else if (cat.id === 'documentControlePoste') {
     if (operateurStore) {
       operateurStore.setActiveOfContext({
         ...ofActif.value,
@@ -291,7 +294,7 @@ const onCategoryClick = async (cat) => {
     } catch (err) {
       if (err.status === 404 || err.status === 400) {
         // Pas de plan → ouvrir le modal de signalement
-        showControlePosteManquantDialog.value = true
+        showdocumentControlePosteManquantDialog.value = true
       } else {
         // Navigation quand même (autre erreur)
         router.push({
@@ -333,30 +336,11 @@ const onCategoryClick = async (cat) => {
       showPlanAssManquantDialog.value = true
     }
   } else if (cat.id === 'tracabilite') {
-    showListDialog.value = true
-  } else {
-    if (cat.docs.length === 0) {
-      let typeDoc = ''
-      if (typeDoc && execOfIdActif.value) {
-        try {
-          const pCode = selectedPoste.value || ''
-          const equipe = sessionEquipe.value || ''
-          const res = await apiClient.post(`/Operateur/of/${execOfIdActif.value}/assemblage-documents/init/${typeDoc}?posteCode=${pCode}&equipe=${equipe}`)
-          if (res.data.initialized) {
-            await fetchDocumentsStatus()
-            const updatedCat = documentCategories.value.find(c => c.id === cat.id)
-            if (updatedCat && updatedCat.docs.length > 0) {
-              if (updatedCat.docs.length === 1) ouvrirDocument(updatedCat.docs[0])
-              else showListDialog.value = true
-              return
-            }
-          }
-        } catch (e) { console.error('Erreur init doc', e) }
-      }
-    }
-    if (cat.docs.length === 0) showListDialog.value = true
-    else if (cat.docs.length === 1) ouvrirDocument(cat.docs[0])
-    else showListDialog.value = true
+    router.push({
+      name: 'exec-tracabilite',
+      params: { execControleOfId: execOfIdActif.value },
+      query: { posteCode: selectedPoste.value }
+    })
   }
 }
 
@@ -386,7 +370,7 @@ const handleCloturerCategory = async (cat) => {
 
   if (result.isConfirmed) {
     try {
-      if (cat.id === 'controlePoste') {
+      if (cat.id === 'documentControlePoste') {
         await apiClient.post(`/ExecRcPoste/${execOfIdActif.value}/cloturer-tous?posteCode=${selectedPoste.value}`)
       } else if (cat.id === 'verifMachine') {
         await apiClient.post(`/Operateur/of/${execOfIdActif.value}/verif-machine/cloturer-tous?posteCode=${selectedPoste.value}`)
@@ -428,8 +412,20 @@ const ouvrirDocument = async (doc) => {
     }
     
     try {
-      const plans = await apiClient.get(`/DocumentVerifMachine?machineCode=${doc.machineCode}`).then(r => r.data)
-      const activePlan = plans && Array.isArray(plans) ? plans.find(p => p.statut === 'ACTIF' || p.statut === 'Actif') : null
+      const plans = await apiClient.get(`/DocumentVerifMachine?machineCode=${encodeURIComponent(doc.machineCode)}`).then(r => r.data)
+      let activePlan = plans && Array.isArray(plans) ? plans.find(p => p.statut?.toUpperCase() === 'ACTIF') : null
+      
+      if (!activePlan && plans && plans.length > 0) {
+        activePlan = plans[0]
+      }
+      
+      if (!activePlan) {
+        const allPlans = await apiClient.get('/DocumentVerifMachine').then(r => r.data)
+        if (allPlans && Array.isArray(allPlans)) {
+          activePlan = allPlans.find(p => p.statut?.toUpperCase() === 'ACTIF') || allPlans[0]
+        }
+      }
+
       if (activePlan) {
         if (!doc.id && execOfIdActif.value) {
           const res = await apiClient.post(`/Operateur/of/${execOfIdActif.value}/assemblage-documents/init/VERIF_MACHINE?posteCode=${selectedPoste.value || ''}&machineCode=${doc.machineCode}&equipe=${sessionEquipe.value || ''}`)
@@ -450,6 +446,7 @@ const ouvrirDocument = async (doc) => {
         toast.error('Erreur', `Aucun plan actif trouvé pour la machine ${doc.machineCode}.`)
       }
     } catch (e) {
+      console.error('Erreur ouverture document VM:', e)
       toast.error('Erreur', 'Impossible de récupérer le plan de vérification.')
     }
   } else if (doc.typeDocument === 'RESULTAT_CONTROLE_POSTE') {
@@ -467,6 +464,18 @@ const ouvrirDocument = async (doc) => {
         posteCode: doc.posteCode || selectedPoste.value,
         statutId: doc.id
       }
+    })
+  } else if (doc.typeDocument === 'ECHANTILLONNAGE') {
+    router.push({
+      name: 'exec-echantillonnage',
+      params: { execControleOfId: execOfIdActif.value },
+      query: { posteCode: doc.posteCode || selectedPoste.value }
+    })
+  } else if (['PLAN_ASS', 'PLAN_ASSEMBLAGE', 'PLAN_FAB', 'MODELE_FAB', 'RESULTAT_CF', 'RCCF'].includes(doc.typeDocument)) {
+    router.push({
+      name: 'exec-plan-assemblage',
+      params: { execControleOfId: execOfIdActif.value },
+      query: { posteCode: doc.posteCode || selectedPoste.value }
     })
   } else {
     toast.info('Ouvrir document', `${doc.typeDocument} - ${doc.libelleFormulaire || 'Sans nom'}`)
@@ -503,8 +512,8 @@ const signalerPlanManquant = async (docName) => {
   }
 }
 // ──────────────────────────── Contrôle au Poste - Plan Manquant ──────────────────────────────
-const signalerControlePosteManquant = async () => {
-  isSignalingControlePoste.value = true
+const signalerdocumentControlePosteManquant = async () => {
+  isSignalingdocumentControlePoste.value = true
   try {
     await apiClient.post('/Alertes/plan-manquant', {
       operationCode: 'ASS',
@@ -515,11 +524,11 @@ const signalerControlePosteManquant = async () => {
       descriptionProbleme: `Document Résultat Contrôle au Poste introuvable ou inactif pour le poste ${selectedPoste.value}`
     })
     toast.success('Signalé !', 'Une notification a été envoyée au superviseur.')
-    showControlePosteManquantDialog.value = false
+    showdocumentControlePosteManquantDialog.value = false
   } catch {
     toast.error('Erreur', "Impossible d'envoyer l'alerte.")
   } finally {
-    isSignalingControlePoste.value = false
+    isSignalingdocumentControlePoste.value = false
   }
 }
 
@@ -648,13 +657,10 @@ const initMachineDocument = async (machineCode) => {
       toast.success('Succès', 'Document initialisé avec succès.')
       
       const cat = documentCategories.value.find(c => c.id === 'verifMachine')
-      if (cat) {
-        // Find the newly created active document for this machine
-        const doc = cat.docs.find(d => d.machineCode === machineCode && !d.estTermine)
-        if (doc) {
-          ouvrirDocument(doc)
-        }
-      }
+      const doc = cat?.docs.find(d => d.machineCode === machineCode && !d.estTermine) 
+               || cat?.docs.find(d => d.machineCode === machineCode) 
+               || { typeDocument: 'VERIF_MACHINE', machineCode }
+      ouvrirDocument(doc)
     }
   } catch (e) {
     console.error('Erreur init machine doc', e)
@@ -708,44 +714,7 @@ const performLeave = () => {
 }
 
 const quitterSession = async () => {
-  if (ofActif.value && (ofActif.value.statut === 'EN_COURS' || !ofActif.value.statut)) {
-    const result = await Swal.fire({
-      title: 'Attention : OF toujours actif',
-      html: `Vous êtes sur le point de quitter la session alors que l'OF <b>${ofActif.value.numeroOf || ''}</b> est toujours <span style="color:#16a34a; font-weight:bold;">EN COURS</span>.<br><br>Que souhaitez-vous faire ?`,
-      icon: 'warning',
-      showCancelButton: true,
-      showDenyButton: true,
-      confirmButtonColor: '#eab308',
-      denyButtonColor: '#2563eb',
-      cancelButtonColor: '#dc2626',
-      confirmButtonText: '⏸️ Mettre en Pause et quitter',
-      denyButtonText: '▶️ Laisser tourner en arrière-plan',
-      cancelButtonText: '⏹️ Clôturer l\'opération',
-    })
-
-    if (result.isConfirmed) {
-      try {
-        await operateurService.mettreEnPause(execOfIdActif.value, 'Pause avant départ')
-        toast.success('Production en Pause', 'L\'OF a été mis en pause.')
-      } catch (err) {
-        console.error(err)
-      }
-      performLeave()
-    } else if (result.isDenied) {
-      toast.info('Information', 'L\'OF continue d\'exécuter en arrière-plan.')
-      performLeave()
-    } else if (result.dismiss === Swal.DismissReason.cancel) {
-      try {
-        await operateurService.cloturerOf(execOfIdActif.value)
-        toast.success('Succès', 'L\'OF a été clôturé.')
-      } catch (err) {
-        console.error(err)
-      }
-      performLeave()
-    }
-  } else {
-    performLeave()
-  }
+  performLeave()
 }
 
 const tousLesPostesActifs = computed(() => {
@@ -908,12 +877,7 @@ const cloturerOf = async () => {
     <!-- Dialog générique (liste vide / plan manquant) -->
     <Dialog v-model:visible="showListDialog" modal :header="selectedCategory?.title" :style="{ width: '50vw' }" :breakpoints="{ '960px': '75vw', '641px': '100vw' }">
       <div v-if="selectedCategory" class="pt-4">
-        <div v-if="selectedCategory.id === 'tracabilite'" class="bg-blue-50 p-8 rounded-xl text-center border border-blue-100">
-          <i :class="selectedCategory.icon" class="text-5xl text-blue-300 mb-4"></i>
-          <h4 class="text-xl font-bold text-blue-900 mb-2">Module en développement</h4>
-          <p class="text-blue-700">L'interface spécifique pour accéder au {{ selectedCategory.title.toLowerCase() }} n'a pas encore été raccordée.</p>
-        </div>
-        <div v-else>
+        <div>
           <div v-if="selectedCategory.docs.length === 0" class="text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 m-2">
             <i class="pi pi-info-circle text-5xl text-gray-400 mb-4" style="display:block"></i>
             <p class="text-gray-600 text-lg mb-2">Aucun document n'est paramétré pour <strong>{{ selectedCategory.title }}</strong>.</p>
@@ -1000,7 +964,7 @@ const cloturerOf = async () => {
     />
 
     <!-- Dialog Plan Manquant Contrôle au Poste -->
-    <Dialog v-model:visible="showControlePosteManquantDialog" modal header="Contrôle au Poste" :style="{ width: '480px' }" :closable="!isSignalingControlePoste">
+    <Dialog v-model:visible="showdocumentControlePosteManquantDialog" modal header="Contrôle au Poste" :style="{ width: '480px' }" :closable="!isSignalingdocumentControlePoste">
       <div class="text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 m-2">
         <i class="pi pi-info-circle text-5xl text-gray-400 mb-4" style="display:block"></i>
         <p class="text-gray-600 text-lg mb-2">Aucun plan de contrôle au poste n'est paramétré pour <strong>{{ selectedPoste }}</strong>.</p>
@@ -1010,8 +974,8 @@ const cloturerOf = async () => {
           icon="pi pi-exclamation-triangle" 
           severity="danger" 
           outlined 
-          :loading="isSignalingControlePoste"
-          @click="signalerControlePosteManquant" 
+          :loading="isSignalingdocumentControlePoste"
+          @click="signalerdocumentControlePosteManquant" 
         />
       </div>
     </Dialog>

@@ -104,7 +104,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useAssPlanStore } from '@/stores/assPlanStore';
-import { usePfPlanStore } from '@/stores/pfPlanStore';
+import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
 
 const props = defineProps({
   ligne: { type: Object, required: true },
@@ -116,7 +116,7 @@ const props = defineProps({
 const isReadOnly = computed(() => props.isReadOnly);
 const emit = defineEmits(['remove', 'update']);
 const assStore = useAssPlanStore();
-const pfStore = usePfPlanStore();
+const pfStore = usedocumentProduitFiniStore();
 const store = props.operationCode === 'PF' ? pfStore : assStore;
 
 const localLigne = ref({

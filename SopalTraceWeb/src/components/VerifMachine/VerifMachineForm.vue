@@ -40,17 +40,16 @@
       <!-- ============================================================ -->
       <!-- BARRE D'ACTIONS                                              -->
       <!-- ============================================================ -->
-      <div v-if="!props.isReadOnly" class="bg-slate-50 border-t border-slate-200 p-6 flex justify-end mt-6 rounded-b-xl">
-        <EditorActions 
-          :label="store.entete.id ? 'Enregistrer les Modifications' : 'Enregistrer le Plan'"
-          loading-label="Enregistrement..."
-          :icon="store.entete.id ? 'pi pi-save' : 'pi pi-check'"
-          variant="primary"
+      <DocumentSaveManager 
+          :plan-id="store.entete.id"
+          :statut="store.entete.statut"
           :is-loading="store.isLoading"
-          @submit="onSauvegarder"
+          :is-read-only="props.isReadOnly"
+          @save-direct="handleSaveDirect"
+          @save-correction="handleSaveCorrection"
+          @save-new-version="handleSaveNewVersion"
           @cancel="onCancel"
-        />
-      </div>
+      />
 
     </template>
   </div>
@@ -274,13 +273,16 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import EditorActions from '@/components/Shared/EditorActions.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
+import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import AutoComplete from 'primevue/autocomplete';
@@ -291,13 +293,16 @@ import VerifMachineTableConformite from './partials/VerifMachineTableConformite.
 import VerifMachineTableRisques from './partials/VerifMachineTableRisques.vue';
 import AddPieceModal from './partials/AddPieceModal.vue';
 
+const route = useRoute();
+const store = useVerifMachineStore();
+const confirm = useConfirm();
+const toast = useToast();
+const { confirmArchivagePlanActif } = useActivePlanConfirmation();
+
 const props = defineProps({
   isReadOnly: { type: Boolean, default: false }
 });
 
-const store = useVerifMachineStore();
-const confirm = useConfirm();
-const toast = useToast();
 const router = useRouter();
 
 const onNomBlur = () => {};
@@ -461,150 +466,55 @@ const openAddPieceModalFromEvent = (eventData) => {
   openAddPieceModal(eventData.type, eventData.row, eventData.familleCorpsId, eventData.role);
 };
 
-const handleExcelImport = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
+import { useDocumentSaveManager } from '@/composables/useDocumentSaveManager';
+import { useExcelStructureImporter } from '@/composables/useExcelStructureImporter';
 
-  event.target.value = '';
-  try {
-    const result = await store.importerDepuisExcel(file);
-    if (result.success) {
-      toast.add({ severity: 'success', summary: 'Import Réussi', detail: 'La structure du plan a été importée avec succès.', life: 3000 });
-      selectedMachineCode.value = store.entete.machineCode;
-    }
-  } catch (error) {
-    console.error("Erreur import Excel:", error);
-    toast.add({ severity: 'error', summary: 'Échec de l\'import', detail: error.response?.data?.message || 'Une erreur est survenue lors de la lecture du fichier.', life: 5000 });
-  }
-};
+const { handleExcelImport } = useExcelStructureImporter(store, toast);
 
-// --- Événements ---
-const onMachineChange = async (newMachineCode) => {
-  if (newMachineCode) {
-    const expectedCode = `FE-VM-${newMachineCode}`;
-    store.entete.refFormulaireCodeReference = expectedCode;
-    const matchingRef = store.formulairesReferences.find(r => r.codeReference === expectedCode);
-    if (matchingRef && refFormulaireSelected.value !== matchingRef.id) {
-      // Auto-sélectionne le formulaire actif (ce qui déclenchera le watch et initialisera le plan avec les colonnes)
-      refFormulaireSelected.value = matchingRef.id;
-    } else {
-      await store.initialiserPlan(newMachineCode);
-    }
-  } else {
-    store.resetPlan();
-    refFormulaireSelected.value = '';
-  }
-};
-
-
-
-const emit = defineEmits(['saved', 'trigger-versioning']);
-const onSauvegarder = async () => {
-  if (store.isLoading) return;
-  
-  toast.removeAllGroups();
-  // --- VALIDATION ---
-  if (!store.entete.machineCode) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Veuillez sélectionner une machine.', life: 3000 });
-    return;
-  }
-  if (!store.entete.nom || !store.entete.nom.trim()) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Le nom du plan est obligatoire.', life: 3000 });
-    return;
-  }
-
-  const validateLignes = (lignes, sectionName) => {
-    for (let i = 0; i < lignes.length; i++) {
-      const l = lignes[i];
-      const prefix = `${sectionName} (Ligne ${i + 1})`;
-      
-      if (!l.libelleRisque || !l.libelleRisque.trim()) {
-        toast.add({ severity: 'error', summary: 'Validation', detail: `${prefix} : Le libellé ${sectionName === 'Conformité' ? 'Test' : 'Risque'} est obligatoire.`, life: 4000 });
-        return false;
-      }
-      if (!l.libelleMethode || !l.libelleMethode.trim()) {
-        toast.add({ severity: 'error', summary: 'Validation', detail: `${prefix} : Le Moyen/Méthode est obligatoire.`, life: 4000 });
-        return false;
-      }
-
-      for (const group of l.groups) {
-        if (!group.periodiciteMachineId) {
-          toast.add({ severity: 'error', summary: 'Validation', detail: `${prefix} : La périodicité est obligatoire.`, life: 4000 });
-          return false;
+const { handleSaveDirect, handleSaveCorrection, handleSaveNewVersion } = useDocumentSaveManager({
+  callbacks: {
+    validateForm: validatePlan,
+    onSaveDirect: async () => {
+        const result = await store.sauvegarderPlanVerif();
+        if (result.error) throw new Error(result.error);
+        emit('saved', result);
+        return result;
+    },
+    onSaveCorrection: async () => {
+        const result = await store.sauvegarderPlanVerif();
+        if (result.error) throw new Error(result.error);
+        emit('saved', result);
+        return result;
+    },
+    onSaveNewVersion: async (motif) => {
+        const result = await store.createNewVersion(motif);
+        if (result.success) emit('saved', result);
+        else throw new Error(result.message);
+        return result;
+    },
+    preSaveHook: async () => {
+        if (!store.entete.id) {
+            await store.fetchTousLesPlans();
+            const planActif = (store.plansExistants || []).find(p => p.statut === 'ACTIF' && p.machineCode === selectedMachineCode.value);
+            
+            if (planActif) {
+                const isConfirmed = await confirmArchivagePlanActif({
+                typeDocument: 'plan de vérification',
+                identifiant: `la machine ${selectedMachineCode.value}`,
+                version: planActif.version
+                });
+                
+                if (!isConfirmed) return false;
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
         }
-        for (const row of group.rows) {
-          const skipMoyenValidation = sectionName === 'Risque' && !isMachineSansConformite.value;
-          if (store.entete.afficheMoyenDetectionRisques && !skipMoyenValidation && !row.refMoyenDetectionId) {
-            toast.add({ severity: 'error', summary: 'Validation', detail: `${prefix} : Le moyen de détection est obligatoire.`, life: 4000 });
-            return false;
-          }
-        }
-      }
+        return true;
     }
-    return true;
-  };
-
-  if (store.entete.afficheConformite && !isMachineSansConformite.value) {
-    if (!validateLignes(store.lignesConformite, 'Conformité')) return;
-  }
-  if (!validateLignes(store.lignesRisques, 'Risque')) return;
-
-  store.isLoading = true;
-  try {
-    if (!store.entete.id) {
-      await store.fetchTousLesPlans();
-      const planActif = (store.plansExistants || []).find(p => p.statut === 'ACTIF' && p.machineCode === selectedMachineCode.value);
-      
-      if (planActif) {
-        const isConfirmed = await new Promise((resolve) => {
-          confirm.require({
-            message: `Un plan actif existe déjà pour la machine ${selectedMachineCode.value} (Version ${planActif.version}).\n\nVoulez-vous archiver le plan actif existant et activer ce nouveau plan (Version ${planActif.version + 1}) ?`,
-            header: 'Plan Actif Existant',
-            icon: 'ri-error-warning-line text-amber-500',
-            acceptLabel: 'Oui, archiver',
-            rejectLabel: 'Annuler',
-            accept: () => resolve(true),
-            reject: () => resolve(false),
-            onHide: () => resolve(false)
-          });
-        });
-        
-        if (!isConfirmed) return;
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-    }
-
-    if (store.entete.id && store.entete.statut === 'ACTIF') {
-      emit('trigger-versioning');
-      return;
-    }
-
-    const result = await store.sauvegarderPlanVerif();
-    if (result.error) {
-       toast.add({ severity: 'warn', summary: 'Attention', detail: result.error, life: 3000 });
-       return;
-    }
-    emit('saved', result);
-  } catch (err) {
-    console.error('Erreur sauvegarde:', err);
-    toast.removeAllGroups();
-    
-    const backendData = err?.response?.data;
-    if (backendData?.details && Array.isArray(backendData.details) && backendData.details.length > 0) {
-      backendData.details.slice(0, 2).forEach(detail => {
-        toast.add({ severity: 'error', summary: 'Validation Serveur', detail, life: 5000 });
-      });
-      if (backendData.details.length > 2) {
-        toast.add({ severity: 'warn', summary: "Plus d'erreurs", detail: `Et ${backendData.details.length - 2} autres problèmes détectés...`, life: 5000 });
-      }
-    } else {
-      const msg = backendData?.message || 'Une erreur est survenue lors de la sauvegarde.';
-      toast.add({ severity: 'error', summary: 'Erreur Serveur', detail: msg, life: 5000 });
-    }
-  } finally {
-    store.isLoading = false;
-  }
-};
+  },
+  toast,
+  router: null,
+  returnUrl: null
+});
 
 onMounted(async () => {
   try {

@@ -106,7 +106,8 @@ public class FormulaireStructureService : IFormulaireStructureService
         string? configurationStructureJson,
         string? codeReference = null,
         int? versionInitiale = null,
-        bool isCorrectionMineure = false)
+        bool isCorrectionMineure = false,
+        bool forceNouvelleVersion = false)
     {
         // ── Chargement SANS tracking pour éviter les conflits EF Core ──
         var codeRefTrimmed = codeReference?.Trim();
@@ -126,7 +127,7 @@ public class FormulaireStructureService : IFormulaireStructureService
 
         if (formulaireActuel != null)
         {
-            bool forceArchive = versionInitiale.HasValue && versionInitiale.Value != formulaireActuel.Version;
+            bool forceArchive = forceNouvelleVersion || (versionInitiale.HasValue && versionInitiale.Value != formulaireActuel.Version);
 
             if (formulaireActuel.Statut?.Trim() == StatutsPlan.Brouillon && !forceArchive)
             {
@@ -206,6 +207,16 @@ public class FormulaireStructureService : IFormulaireStructureService
                     }
                 }
 
+                // Auto-archive the linked DocumentVerifMachine documents
+                var linkedVmDocs = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByFormulaireIdAsync(formulaireActuel.Id);
+                foreach(var doc in linkedVmDocs)
+                {
+                    if (doc.Statut != StatutsPlan.Archive)
+                    {
+                        doc.Statut = StatutsPlan.Archive;
+                        await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(doc);
+                    }
+                }
                 var maxVersion = await _formulaireRepository.GetMaxVersionByCodeReferenceAsync(formulaireActuel.CodeReference);
 
                 var newVersion = (versionInitiale.HasValue && versionInitiale.Value > maxVersion)
@@ -243,7 +254,7 @@ public class FormulaireStructureService : IFormulaireStructureService
                 Id = Guid.NewGuid(),
                 CodeReference = code,
                 Designation = $"Formulaire {code}",
-                Version = 0,
+                Version = versionInitiale ?? 0,
                 Statut = StatutsPlan.Brouillon,
                 CreeLe = DateTime.UtcNow,
                 Role = role

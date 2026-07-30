@@ -433,7 +433,7 @@
 
 
   const preparerNouveauBrouillon = async (modeleId, codeArticle) => {
-    const modRes = await fabModeleService.getModeleById(modeleId);
+    const modRes = await fabModeleService.getModelById(modeleId);
     const data = modRes?.data?.data || modRes?.data || modRes;
     plan.value = {
       statut: 'ACTIF',
@@ -1474,6 +1474,62 @@
     }
   };
 
+  const createNewVersionActive = async () => {
+    try {
+      if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
+        return;
+      }
+      if (!validerSaisieValeurs()) return;
+      if (!validerLegendeMoyens()) return;
+
+      await prepareSectionsForBackend(
+        sections.value,
+        store.periodicites || [],
+        async (payloadFreq) => {
+          const res = await fabPlanService.createPeriodicite(payloadFreq);
+          const resData = res?.data?.data || res?.data || res;
+          store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+          return res;
+        }
+      );
+
+      const payloadSections = construirePayloadService(false);
+      let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
+      let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
+      const codeVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
+      
+      const reqPayload = {
+        ancienId: planId.value,
+        typeDocumentCode: plan.value.typeDocumentCode || 'FAB',
+        nom: plan.value.nom,
+        designation: plan.value.designation,
+        natureArticleCode: plan.value.natureArticleCode,
+        familleProduitFiniCode: plan.value.familleProduitFiniCode,
+        operationCode: plan.value?.operationCode || wizard.operationCode.value,
+        posteCode: plan.value?.posteCode || wizard.posteCode.value,
+        legendeMoyens: legendeMoyens.value,
+        remarques: remarques.value,
+        libre1: plan.value.codeArticleSage,
+        configurationColonnesJson: JSON.stringify(planConfigurationColonnes.value),
+        refFormulaireCodeReference: plan.value.codeReferenceFormulaire,
+        sections: payloadSections,
+        codeArticleSageVersionne: codeVersionne,
+        statut: 'ACTIF'
+      };
+
+      const res = await fabPlanService.newPlanVersion(reqPayload);
+      
+      toast.add({ severity: 'success', summary: 'Nouvelle Version', detail: 'La nouvelle version a été créée et activée avec succès.', life: 4000 });
+      isExitingEditor.value = true;
+      router.push('/dev/hub-plans');
+    } catch (error) {
+      console.error('Erreur nouvelle version:', error);
+      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de créer la nouvelle version.', life: 6000 });
+      throw error;
+    }
+  };
+
   const onEditorSubmit = async () => {
     if (isSaving.value) return;
     isSaving.value = true;
@@ -1487,6 +1543,12 @@
 
       if (isArchived.value) {
         await mettreANiveauArchive();
+        isSaving.value = false;
+        return;
+      }
+
+      if (plan.value?.statut === 'ACTIF') {
+        await createNewVersionActive();
         isSaving.value = false;
         return;
       }

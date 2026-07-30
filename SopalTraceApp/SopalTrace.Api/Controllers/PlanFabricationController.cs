@@ -91,6 +91,21 @@ public class PlanFabricationController : ControllerBase
         }
     }
 
+    [HttpPost("{id}/upgrade")]
+    public async Task<IActionResult> UpgradePlanArchive(Guid id)
+    {
+        try
+        {
+            var newId = await _planService.MettreANiveauPlanArchiveAsync(id);
+            return Ok(new { id = newId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de la mise à niveau du plan archivé.");
+            return StatusCode(500, new { message = ex.Message, details = ex.ToString() });
+        }
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePlanFabricationRequestDto request)
     {

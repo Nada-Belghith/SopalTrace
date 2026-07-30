@@ -537,94 +537,9 @@ const navigateAway = () => {
   })
 }
 
-const goBack = async () => {
-  if (execution.value && (execution.value.statut === 'EN_COURS' || !execution.value.statut)) {
-    const result = await Swal.fire({
-      title: 'Attention : OF toujours actif',
-      html: `Vous êtes sur le point de quitter cette page alors que l'OF <b>${execution.value.numeroOf || ''}</b> est toujours <span style="color:#16a34a; font-weight:bold;">EN COURS</span>.<br><br>Que souhaitez-vous faire ?`,
-      icon: 'warning',
-      showCancelButton: true,
-      showDenyButton: true,
-      confirmButtonColor: '#eab308',
-      denyButtonColor: '#2563eb',
-      cancelButtonColor: '#dc2626',
-      confirmButtonText: '⏸️ Mettre en Pause et quitter',
-      denyButtonText: '▶️ Laisser tourner en arrière-plan',
-      cancelButtonText: '⏹️ Clôturer l\'opération',
-    })
-
-    if (result.isConfirmed) {
-      try {
-        await operateurService.mettreEnPause(execControleOfId.value, 'Pause avant départ')
-        toast.success('Production en Pause', 'L\'OF a été mis en pause.')
-      } catch (err) {
-        console.error(err)
-      }
-      skipRouteGuard = true
-      navigateAway()
-    } else if (result.isDenied) {
-      toast.info('Information', 'L\'OF continue d\'exécuter en arrière-plan.')
-      skipRouteGuard = true
-      navigateAway()
-    } else if (result.dismiss === Swal.DismissReason.cancel) {
-      try {
-        await operateurService.cloturerOf(execControleOfId.value)
-        toast.success('Succès', 'L\'OF a été clôturé.')
-      } catch (err) {
-        console.error(err)
-      }
-      skipRouteGuard = true
-      navigateAway()
-    }
-  } else {
-    skipRouteGuard = true
-    navigateAway()
-  }
+const goBack = () => {
+  navigateAway()
 }
-
-onBeforeRouteLeave(async (to, from, next) => {
-  if (skipRouteGuard || !execution.value || (execution.value.statut !== 'EN_COURS' && execution.value.statut)) {
-    next()
-    return
-  }
-
-  const result = await Swal.fire({
-    title: 'Attention : OF toujours actif',
-    html: `Vous êtes sur le point de quitter cette page alors que l'OF <b>${execution.value.numeroOf || ''}</b> est toujours <span style="color:#16a34a; font-weight:bold;">EN COURS</span>.<br><br>Que souhaitez-vous faire ?`,
-    icon: 'warning',
-    showCancelButton: true,
-    showDenyButton: true,
-    confirmButtonColor: '#eab308',
-    denyButtonColor: '#2563eb',
-    cancelButtonColor: '#dc2626',
-    confirmButtonText: '⏸️ Mettre en Pause et quitter',
-    denyButtonText: '▶️ Laisser tourner en arrière-plan',
-    cancelButtonText: '⏹️ Clôturer l\'opération',
-  })
-
-  if (result.isConfirmed) {
-    try {
-      await operateurService.mettreEnPause(execControleOfId.value, 'Pause avant départ')
-      toast.success('Production en Pause', 'L\'OF a été mis en pause.')
-    } catch (err) {
-      console.error(err)
-    }
-    next()
-  } else if (result.isDenied) {
-    toast.info('Information', 'L\'OF continue d\'exécuter en arrière-plan.')
-    next()
-  } else if (result.dismiss === Swal.DismissReason.cancel) {
-    try {
-      await operateurService.cloturerOf(execControleOfId.value)
-      toast.success('Succès', 'L\'OF a été clôturé.')
-    } catch (err) {
-      console.error(err)
-    }
-    next()
-  } else {
-    next(false)
-  }
-})
 
 const addPosteRow = () => {
   postesConfig.value.push({

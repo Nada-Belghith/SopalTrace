@@ -260,7 +260,7 @@ export function usePlanWizard() {
 
     isLoadingSources.value = true;
     try {
-      const response = await fabModeleService.getModelesByFilters(
+      const response = await fabModeleService.getModelsByFilters(
         familleCode.value || typeRobinetCode.value,
         natureComposantCode.value,
         operationCode.value,

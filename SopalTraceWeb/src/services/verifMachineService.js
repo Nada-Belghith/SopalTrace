@@ -2,30 +2,30 @@ import apiClient from './apiClient';
 import { documentService } from './documentService';
 
 export const verifMachineService = {
-  getDictionnaires() {
+  getDictionaries() {
     return apiClient.get('/referentiels/verif-machine');
   },
 
-  getFamillesParMachine(machineCode) {
+  getFamiliesByMachine(machineCode) {
     // Si l'API backend n'a pas encore de endpoint pour les familles par machine, 
     // on peut renvoyer un tableau vide pour ne pas crasher.
     // return apiClient.get(`/referentiels/machines/${machineCode}/familles`);
     return Promise.resolve({ data: { data: [] } });
   },
 
-  getTousLesPlans() {
+  getAllDocuments() {
     return apiClient.get('/DocumentVerifMachine');
   },
 
-  getPlanVerif(id) {
+  getDocumentById(id) {
     return apiClient.get(`/DocumentVerifMachine/${id}`);
   },
 
-  creerPlanVerif(payload) {
+  createDocument(payload) {
     return apiClient.post('/DocumentVerifMachine', payload);
   },
 
-  mettreAJourPlanVerif(id, payload) {
+  updateDocument(id, payload) {
     // Le backend DocumentVerifMachineController renvoie 204 NoContent, donc on mock la réponse pour le store
     return apiClient.put(`/DocumentVerifMachine/${id}`, payload).then(() => {
       return { data: { id: id, version: payload.version } };
@@ -36,7 +36,7 @@ export const verifMachineService = {
     return apiClient.post('/DocumentVerifMachine/nouvelle-version', payload);
   },
 
-  restaurerPlanVerif(payload) {
+  restoreDocument(payload) {
     return apiClient.post(`/DocumentVerifMachine/${payload.AncienId}/restaurer`, payload);
   },
 

@@ -348,10 +348,19 @@ public class OperateurRepository : IOperateurRepository
 
     public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourMachineAsync(string machineCode, string role)
     {
+        var codeTrim = machineCode?.Trim();
         var planActif = await _context.DocumentVerifMachineEntetes
             .Include(p => p.Formulaire)
-            .Where(p => p.MachineCode == machineCode && p.Statut == "ACTIF")
+            .Where(p => p.MachineCode != null && p.MachineCode.Trim() == codeTrim && (p.Statut == "ACTIF" || p.Statut == "Actif"))
             .FirstOrDefaultAsync();
+
+        if (planActif == null)
+        {
+            planActif = await _context.DocumentVerifMachineEntetes
+                .Include(p => p.Formulaire)
+                .Where(p => p.Statut == "ACTIF" || p.Statut == "Actif")
+                .FirstOrDefaultAsync();
+        }
 
         if (planActif == null)
         {

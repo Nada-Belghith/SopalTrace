@@ -33,7 +33,7 @@ services:
       - SA_PASSWORD=${DB_PASSWORD}
 
     ports:
-      - "1444:1433" 
+      - "14333:1433" 
     volumes:
       - sopal_db_data:/var/opt/mssql
     healthcheck:

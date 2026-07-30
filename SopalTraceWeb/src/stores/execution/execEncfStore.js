@@ -16,7 +16,7 @@ export const useExecEncfStore = defineStore('execEncf', {
         const response = await apiClient.get(`/api/exec/encf/${id}`);
         this.execData = response.data;
         if (this.execData.planSourceId) {
-          const planRes = await apiClient.get(`/planrccf/${this.execData.planSourceId}`);
+          const planRes = await apiClient.get(`/DocumentRccf/${this.execData.planSourceId}`);
           this.planSourceData = planRes.data;
         }
         this.ensureTranches(this.execData);
@@ -34,7 +34,7 @@ export const useExecEncfStore = defineStore('execEncf', {
         const response = await apiClient.get(`/api/exec/encf/by-of/${numeroOf}/poste/${posteCode}`);
         this.execData = response.data;
         if (this.execData.planSourceId) {
-          const planRes = await apiClient.get(`/planrccf/${this.execData.planSourceId}`);
+          const planRes = await apiClient.get(`/DocumentRccf/${this.execData.planSourceId}`);
           this.planSourceData = planRes.data;
         }
         this.ensureTranches(this.execData);

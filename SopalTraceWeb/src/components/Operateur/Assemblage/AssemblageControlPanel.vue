@@ -40,7 +40,7 @@ const getCat = (catId) => {
 const currentCategory = computed(() => {
   if (activeTab.value === 'echantillonnage') return getCat('echantillonnage')
   if (activeTab.value === 'vm') return getCat('verifMachine')
-  if (activeTab.value === 'rc') return getCat('controlePoste')
+  if (activeTab.value === 'rc') return getCat('documentControlePoste')
   return null
 })
 
@@ -124,7 +124,7 @@ const isCatTermine = (cat) => {
       >
         <i class="pi pi-check-square text-base"></i>
         <span>Résultat Contrôle Poste</span>
-        <span v-if="getCat('controlePoste')" class="w-2 h-2 rounded-full" :class="isCatTermine(getCat('controlePoste')) ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+        <span v-if="getCat('documentControlePoste')" class="w-2 h-2 rounded-full" :class="isCatTermine(getCat('documentControlePoste')) ? 'bg-emerald-500' : 'bg-amber-500'"></span>
       </button>
     </div>
 

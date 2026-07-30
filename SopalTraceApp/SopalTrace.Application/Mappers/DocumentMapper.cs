@@ -61,7 +61,7 @@ public static class DocumentMapper
                 TypeValeur = c.TypeValeur,
                 InsertAfter = c.InsertAfter
             }).ToList() ?? new List<DocumentColonneDefDto>(),
-            Sections = entite.DocumentSections?.Select(s => new DocumentSectionDto
+            Sections = entite.DocumentSections?.OrderBy(s => s.OrdreAffiche).Select(s => new DocumentSectionDto
             {
                 Id = s.Id,
                 EnteteId = s.EnteteId,
@@ -73,7 +73,7 @@ public static class DocumentMapper
                 Notes = s.Notes,
                 NormeReference = s.NormeReference,
                 NqaId = s.NqaId,
-                Lignes = s.DocumentLignes?.Select(l => new DocumentLigneDto
+                Lignes = s.DocumentLignes?.OrderBy(l => l.OrdreAffiche).Select(l => new DocumentLigneDto
                 {
                     Id = l.Id,
                     EnteteId = l.EnteteId,
@@ -103,7 +103,7 @@ public static class DocumentMapper
                     Libre3 = l.Libre3,
                     Libre4 = l.Libre4,
                     Libre5 = l.Libre5,
-                    ExtraColonnes = l.DocumentLigneExtraColonnes?.Select(ec => new DocumentExtraColonneDto
+                    ExtraColonnes = l.DocumentLigneExtraColonnes?.OrderBy(ec => ec.OrdreAffiche).Select(ec => new DocumentExtraColonneDto
                     {
                         Id = ec.Id,
                         CleColonne = ec.CleColonne,
@@ -123,7 +123,7 @@ public static class DocumentMapper
             TypeDocumentCode = dto.TypeDocumentCode,
             Nom = dto.Nom,
             Designation = dto.Designation,
-            Version = dto.VersionInitiale ?? 0,
+            Version = 0, // Set explicitly by the service
             Statut = "ACTIF", // Default
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? null : dto.OperationCode,
             FormulaireId = formulaireId ?? dto.FormulaireId,
@@ -217,5 +217,113 @@ public static class DocumentMapper
         }
 
         return entite;
+    }
+
+    public static void UpdateEntityScalaires(DocumentEntete doc, UpdateDocumentRequestDto request)
+    {
+        if (request.Nom != null) doc.Nom = request.Nom;
+        if (request.LegendeMoyens != null) doc.LegendeMoyens = request.LegendeMoyens;
+        if (request.Remarques != null) doc.Remarques = request.Remarques;
+        if (request.Libre1 != null) doc.Libre1 = request.Libre1;
+    }
+
+    public static DocumentSection CreateSection(CreateDocumentSectionDto dto, Guid entiteId)
+    {
+        return new DocumentSection
+        {
+            Id = Guid.NewGuid(),
+            EnteteId = entiteId,
+            OrdreAffiche = dto.OrdreAffiche,
+            LibelleSection = dto.LibelleSection,
+            TypeSectionId = dto.TypeSectionId,
+            PeriodiciteId = dto.PeriodiciteId,
+            RegleEchantillonnageId = dto.RegleEchantillonnageId,
+            Notes = dto.Notes,
+            NormeReference = dto.NormeReference,
+            NqaId = dto.NqaId
+        };
+    }
+
+    public static void UpdateSection(DocumentSection sec, CreateDocumentSectionDto dto)
+    {
+        sec.OrdreAffiche = dto.OrdreAffiche;
+        sec.LibelleSection = dto.LibelleSection;
+        sec.TypeSectionId = dto.TypeSectionId;
+        sec.PeriodiciteId = dto.PeriodiciteId;
+        sec.RegleEchantillonnageId = dto.RegleEchantillonnageId;
+        sec.Notes = dto.Notes;
+        sec.NormeReference = dto.NormeReference;
+        sec.NqaId = dto.NqaId;
+    }
+
+    public static DocumentLigne CreateLigne(CreateDocumentLigneDto dto, Guid entiteId, Guid sectionId)
+    {
+        return new DocumentLigne
+        {
+            Id = Guid.NewGuid(),
+            EnteteId = entiteId,
+            SectionId = sectionId,
+            OrdreAffiche = dto.OrdreAffiche,
+            CaracteristiqueId = dto.CaracteristiqueId,
+            LibelleAffiche = dto.LibelleAffiche,
+            TypeCaracteristiqueId = dto.TypeCaracteristiqueId,
+            TypeControleId = dto.TypeControleId,
+            MoyenControleId = dto.MoyenControleId,
+            MoyenTexteLibre = dto.MoyenTexteLibre,
+            InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode,
+            PeriodiciteId = dto.PeriodiciteId,
+            LimiteSpecTexte = dto.LimiteSpecTexte,
+            EstCritique = dto.EstCritique,
+            Instruction = dto.Instruction,
+            Observations = dto.Observations,
+            ImageBase64 = dto.ImageBase64,
+            MachineCode = string.IsNullOrWhiteSpace(dto.MachineCode) ? null : dto.MachineCode,
+            EstVerifPresence = dto.EstVerifPresence,
+            DefauthequeId = dto.DefauthequeId,
+            RefPlanProduit = string.IsNullOrWhiteSpace(dto.RefPlanProduit) ? null : dto.RefPlanProduit,
+            MachineCodeCtrlPoste = string.IsNullOrWhiteSpace(dto.MachineCodeCtrlPoste) ? null : dto.MachineCodeCtrlPoste,
+            RisqueDefautId = dto.RisqueDefautId,
+            Libre1 = dto.Libre1,
+            Libre2 = dto.Libre2,
+            Libre3 = dto.Libre3,
+            Libre4 = dto.Libre4,
+            Libre5 = dto.Libre5,
+            DocumentLigneExtraColonnes = dto.ExtraColonnes?.Select(ec => new DocumentLigneExtraColonne
+            {
+                Id = Guid.NewGuid(),
+                CleColonne = ec.CleColonne,
+                ValeurColonne = ec.ValeurColonne,
+                OrdreAffiche = ec.OrdreAffiche
+            }).ToList() ?? new List<DocumentLigneExtraColonne>()
+        };
+    }
+
+    public static void UpdateLigne(DocumentLigne lig, CreateDocumentLigneDto dto)
+    {
+        lig.OrdreAffiche = dto.OrdreAffiche;
+        lig.CaracteristiqueId = dto.CaracteristiqueId;
+        lig.LibelleAffiche = dto.LibelleAffiche;
+        lig.TypeCaracteristiqueId = dto.TypeCaracteristiqueId;
+        lig.TypeControleId = dto.TypeControleId;
+        lig.MoyenControleId = dto.MoyenControleId;
+        lig.MoyenTexteLibre = dto.MoyenTexteLibre;
+        lig.InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode;
+        lig.PeriodiciteId = dto.PeriodiciteId;
+        lig.LimiteSpecTexte = dto.LimiteSpecTexte;
+        lig.EstCritique = dto.EstCritique;
+        lig.Instruction = dto.Instruction;
+        lig.Observations = dto.Observations;
+        lig.ImageBase64 = dto.ImageBase64;
+        lig.MachineCode = string.IsNullOrWhiteSpace(dto.MachineCode) ? null : dto.MachineCode;
+        lig.EstVerifPresence = dto.EstVerifPresence;
+        lig.DefauthequeId = dto.DefauthequeId;
+        lig.RefPlanProduit = string.IsNullOrWhiteSpace(dto.RefPlanProduit) ? null : dto.RefPlanProduit;
+        lig.MachineCodeCtrlPoste = string.IsNullOrWhiteSpace(dto.MachineCodeCtrlPoste) ? null : dto.MachineCodeCtrlPoste;
+        lig.RisqueDefautId = dto.RisqueDefautId;
+        lig.Libre1 = dto.Libre1;
+        lig.Libre2 = dto.Libre2;
+        lig.Libre3 = dto.Libre3;
+        lig.Libre4 = dto.Libre4;
+        lig.Libre5 = dto.Libre5;
     }
 }

@@ -35,13 +35,11 @@ const isCatTermine = (cat) => {
 }
 
 const getCategoryBorderColor = (cat) => {
-  if (cat.id === 'tracabilite') return 'bg-blue-400'
-  if (cat.docs.length === 0) return 'bg-gray-300'
+  if (cat.docs.length === 0 && cat.id !== 'tracabilite') return 'bg-gray-300'
   return isCatTermine(cat) ? 'bg-green-400' : 'bg-orange-400'
 }
 const getCategoryIconColor = (cat) => {
-  if (cat.id === 'tracabilite') return 'text-blue-500 bg-blue-50'
-  if (cat.docs.length === 0) return 'text-gray-400 bg-gray-100'
+  if (cat.docs.length === 0 && cat.id !== 'tracabilite') return 'text-gray-400 bg-gray-100'
   return isCatTermine(cat) ? 'text-green-500 bg-green-50' : 'text-orange-500 bg-orange-50'
 }
 </script>
@@ -92,8 +90,7 @@ const getCategoryIconColor = (cat) => {
           </div>
           <h3 class="font-bold text-gray-800 text-base leading-tight mb-3 flex-1 flex items-center">{{ cat.title }}</h3>
           <div class="mt-auto w-full">
-            <Tag v-if="cat.id === 'tracabilite'" value="Accès Permanent" severity="info" class="w-full" />
-            <Tag v-else-if="cat.docs.length > 0" :value="isCatTermine(cat) ? 'Terminé' : 'À Remplir'" :severity="isCatTermine(cat) ? 'success' : 'warning'" class="w-full" />
+            <Tag v-if="cat.docs.length > 0 || cat.id === 'tracabilite'" :value="isCatTermine(cat) ? 'Terminé' : 'À Remplir'" :severity="isCatTermine(cat) ? 'success' : 'warning'" class="w-full" />
             <Tag v-else value="Non requis" severity="secondary" class="w-full" />
           </div>
         </div>

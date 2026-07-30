@@ -19,7 +19,7 @@
       :version="store.entete.version"
       :statut="store.entete.statut"
       :is-restoring="isRestoring"
-      @restaurer="onRestaurerClick"
+      :showRestaurerBtn="false"
     />
     
     <VerifMachineForm :isReadOnly="isReadOnly" @saved="onSaved" />
@@ -49,7 +49,7 @@ onMounted(async () => {
   const id = route.params.id;
   if (id && id !== 'nouveau') {
     try {
-      await store.chargerPlanVerif(id);
+      await store.loadDocumentById(id);
     } catch {
       toast.error('Impossible de charger le plan.');
     }
@@ -85,7 +85,7 @@ const onVersioningConfirm = async (motif) => {
   isRestoring.value = true;
   showVersioningDialog.value = false;
   try {
-    const res = await store.restaurerPlanVerif(store.entete.id, motif);
+    const res = await store.restoreDocument(store.entete.id, motif);
     if (res.success) {
       toast.success('Le plan a été restauré avec succès.', 'Restauré');
       setTimeout(() => {

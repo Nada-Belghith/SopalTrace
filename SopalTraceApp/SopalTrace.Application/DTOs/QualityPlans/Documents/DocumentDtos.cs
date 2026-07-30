@@ -149,7 +149,6 @@ public class CreateDocumentRequestDto
     public string TypeDocumentCode { get; set; } = string.Empty;
     public string Nom { get; set; } = string.Empty;
     public string? Designation { get; set; }
-    public int? VersionInitiale { get; set; }
     public string? OperationCode { get; set; }
     public Guid? FormulaireId { get; set; }
     public string? RefFormulaireCodeReference { get; set; }
@@ -235,17 +234,14 @@ public class CreateDocumentColonneDefDto
     public int OrdreAffiche { get; set; }
 }
 
+/// <summary>DTO pour la création d'une nouvelle version d'un document existant.</summary>
 public class NouvelleVersionDocumentRequestDto : CreateDocumentRequestDto
 {
+    /// <summary>Identifiant du document actif à archiver.</summary>
     public Guid AncienId { get; set; }
 }
 
-public class RestaurerDocumentRequestDto
-{
-    public Guid DocumentArchiveId { get; set; }
-    public string MotifRestoration { get; set; } = string.Empty;
-}
-
+/// <summary>DTO pour la correction mineure d'un document (pas de versioning).</summary>
 public class UpdateDocumentRequestDto
 {
     public string? Nom { get; set; }

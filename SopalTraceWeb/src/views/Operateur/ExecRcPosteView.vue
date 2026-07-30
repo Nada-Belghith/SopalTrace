@@ -435,7 +435,10 @@ const goBack = () => {
   } else {
     router.push({ 
       name: 'operateur-of-fini',
-      query: { execControleOfId: execControleOfId }
+      query: { 
+        execControleOfId: execControleOfId,
+        posteCode: posteCode.value
+      }
     })
   }
 }

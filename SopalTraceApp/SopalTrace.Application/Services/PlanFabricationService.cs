@@ -536,16 +536,27 @@ public class PlanFabricationService : IPlanFabricationService
         return true;
     }
 
-    public async Task<Guid> RestaurerPlanArchiveAsync(RestaurerDocumentRequestDto request)
+
+    public async Task<bool> SupprimerPlanAsync(Guid id)
     {
-        var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(request.DocumentArchiveId, includeRelations: true);
+        var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
+        if (plan == null) return false;
+
+        await _unitOfWork.PlanFabricationEnteteRepository.DeleteAsync(plan);
+        await _unitOfWork.CommitAsync();
+        return true;
+    }
+
+    public async Task<Guid> MettreANiveauPlanArchiveAsync(Guid archiveId)
+    {
+        var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(archiveId, includeRelations: true);
         if (plan == null) throw new Exception("Plan introuvable");
 
         var maxVersion = await _unitOfWork.PlanFabricationEnteteRepository.GetLatestVersionAsync(plan.CodeArticleSageVersionne, plan.OperationCode);
         
         var createReq = new CreatePlanFabricationRequestDto
         {
-            Nom = plan.CodeArticleSageVersionne,
+            Nom = plan.CodeArticleSageVersionne ?? string.Empty,
             Designation = plan.Designation,
             OperationCode = plan.OperationCode,
             VersionInitiale = maxVersion + 1,
@@ -583,17 +594,7 @@ public class PlanFabricationService : IPlanFabricationService
         return await CreerPlanAsync(createReq);
     }
 
-    public async Task<bool> SupprimerPlanAsync(Guid id)
-    {
-        var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
-        if (plan == null) return false;
-
-        await _unitOfWork.PlanFabricationEnteteRepository.DeleteAsync(plan);
-        await _unitOfWork.CommitAsync();
-        return true;
-    }
-
-    public async Task ArchiverPlansByFormulaireAsync(Guid formulaireId)
+    public async Task ArchiveDocumentsByFormulaireAsync(Guid formulaireId)
     {
         var plansFabrication = await _unitOfWork.PlanFabricationEnteteRepository.GetByFormulaireIdAsync(formulaireId);
         foreach (var plan in plansFabrication.Where(p => p.Statut == "ACTIF"))

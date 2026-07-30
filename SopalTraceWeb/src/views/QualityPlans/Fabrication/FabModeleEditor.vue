@@ -11,8 +11,8 @@
         :version="isArchiveEditing ? version + 1 : version"
         :statut="isArchiveEditing ? 'BROUILLON' : statut"
         :is-restoring="isLoading"
-        :show-restaurer-btn="!isArchiveEditing"
-        @restaurer="onEditorSubmit"
+        :show-restaurer-btn="!isArchiveEditing && !hasActiveVersion"
+        @restaurer="handleEditorSubmit"
       >
         <template #actions>
           <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 ml-4 hidden md:flex">
@@ -45,72 +45,63 @@
             <h3 class="text-[11px] font-black text-slate-500 uppercase tracking-widest">2. Structure des lignes de controle</h3>
           </div>
 
-          <template v-if="!hasValidStructure">
-            <div class="p-8 text-center bg-amber-50 rounded-lg border border-amber-200 mb-6 flex flex-col items-center justify-center">
-              <i class="pi pi-file-excel text-amber-500 text-4xl mb-3"></i>
-              <h4 class="text-sm font-bold text-amber-800 mb-1">Structure PRC non définie</h4>
-              <p class="text-sm text-amber-700 max-w-lg">Le formulaire sélectionné est à l'état de brouillon. Le Superviseur Qualité doit définir la structure du plan avant que vous puissiez créer des modèles ou des plans par article.</p>
-            </div>
-          </template>
+          <FabModelEmptyState 
+            :has-valid-structure="hasValidStructure"
+            :groupes-length="groupes.length"
+          />
           
-          <template v-else>
-            <template v-if="groupes.length === 0">
-            <div class="p-8 text-center text-slate-400 text-sm italic bg-slate-50 rounded-lg border border-slate-200 mb-6">
-              Cliquez sur "Créer une nouvelle section" pour commencer.
+          <template v-if="hasValidStructure">
+            <!-- Mode LECTURE -->
+            <div v-if="isReadOnly" class="p-4 md:p-6">
+              <PlanReadView
+                :sections="groupes"
+                :remarques="store.entete.notes"
+                :legende-moyens="store.entete.legendeMoyens"
+                :configuration-colonnes="store.effectiveConfigurationColonnes"
+                :types-section="store.typesSection || []"
+                :types-caracteristique="store.typesCaracteristique || []"
+                :types-controle="store.typesControle || []"
+                :moyens-controle="store.moyensControle || []"
+                :periodicites="store.periodicites || []"
+              />
             </div>
-          </template>
 
-          <!-- Mode LECTURE -->
-          <div v-if="isReadOnly" class="p-4 md:p-6">
-            <PlanReadView
-              :sections="groupes"
-              :remarques="store.entete.notes"
-              :legende-moyens="store.entete.legendeMoyens"
-              :configuration-colonnes="store.effectiveConfigurationColonnes"
-              :types-section="store.typesSection || []"
-              :types-caracteristique="store.typesCaracteristique || []"
-              :types-controle="store.typesControle || []"
-              :moyens-controle="store.moyensControle || []"
-              :periodicites="store.periodicites || []"
-            />
-          </div>
-
-          <!-- Mode EDITION -->
-          <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
-            <table class="w-full text-left border-collapse min-w-[1200px]">
-              <FabTableHeader :columns="modeleColumns" />
+            <!-- Mode EDITION -->
+            <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
+              <table class="w-full text-left border-collapse min-w-[1200px]">
+                <FabTableHeader :columns="modeleColumns" />
+                
+                <SharedSectionCard 
+                    v-for="(section, index) in groupes" 
+                    :key="section.id" 
+                    :groupe="section" 
+                    :index="index"
+                    :is-read-only="isReadOnly"
+                    :typesSection="store.typesSection"
+                    :periodicites="store.periodicites"
+                    :reglesEchantillonnage="store.reglesEchantillonnage"
+                    :operationCode="store.entete.operationCode"
+                    defaultTitle="Caractéristiques à contrôler"
+                    @remove="removeSection(section.id)"
+                    @update-groupe="(updatedSection) => updateSection(index, updatedSection)"
+                    @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
+                  >
+                  <FabLigneControl 
+                    v-for="ligne in section.lignes" 
+                    :key="ligne.id" 
+                    :ligne="ligne"
+                    :columns="modeleColumns"
+                    :is-read-only="isReadOnly"
+                    :operation-code="store.entete?.operationCode"
+                    @remove="(ligneId) => removeLineFromSection(index, ligneId)"
+                    @update="(updatedLigne) => updateLine(index, updatedLigne)"
+                  />
+                </SharedSectionCard>
+              </table>
+            </div>
               
-              <SharedSectionCard 
-                  v-for="(section, index) in groupes" 
-                  :key="section.id" 
-                  :groupe="section" 
-                  :index="index"
-                  :is-read-only="isReadOnly"
-                  :typesSection="store.typesSection"
-                  :periodicites="store.periodicites"
-                  :reglesEchantillonnage="store.reglesEchantillonnage"
-                  :operationCode="store.entete.operationCode"
-                  defaultTitle="Caractéristiques à contrôler"
-                  @remove="supprimerGroupe(section.id)"
-                  @update-groupe="(updatedSection) => mettreAJourGroupe(index, updatedSection)"
-                  @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
-                >
-                <FabLigneControl 
-                  v-for="ligne in section.lignes" 
-                  :key="ligne.id" 
-                  :ligne="ligne"
-                  :columns="modeleColumns"
-                  :is-read-only="isReadOnly"
-                  :operation-code="store.entete?.operationCode"
-                  @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
-                  @update="(updatedLigne) => mettreAJourLigne(index, updatedLigne)"
-                />
-              </SharedSectionCard>
-            </table>
-          </div>
-            
             <div class="mt-2" v-if="!isReadOnly">
-              <button @click="ajouterGroupe" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
+              <button @click="addSection" class="w-full p-4 bg-slate-50 text-center border border-dashed border-slate-300 hover:border-blue-400 rounded-lg hover:bg-blue-50 transition-colors text-slate-500 hover:text-blue-600 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
                 <i class="pi pi-plus-circle text-lg"></i> Créer une nouvelle section
               </button>
             </div>
@@ -134,38 +125,36 @@
             :icon="actionButtonIcon"
             :variant="actionButtonVariant"
             :is-loading="isLoading"
-            @submit="onEditorSubmitClick"
+            @submit="handleEditorSubmitClick"
             @cancel="() => $router.push(returnUrl)"
           />
         </div>
       </div>
     </div>
     
-    <!-- MODAL DE CONFIGURATION DES COLONNES -->
     <ColumnConfigurator 
       v-model:visible="showColumnModal"
       v-model="store.entete.configurationColonnes"
     />
+    <ConfirmDialog></ConfirmDialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { useToast } from 'primevue/usetoast';
 
-import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
-import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
+import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot } from '@/utils/modelMapper';
-import { prepareSectionsForBackend } from '@/utils/sectionUtils';
-import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
-import {
-  nettoyerNomSection,
-  normalizeTypeSectionId,
-  resolveSectionDisplayTitle
-} from '@/utils/sectionTitleUtils';
+import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
+import { useEditorSections } from '@/composables/useEditorSections';
+import { useEditorValidation } from '@/composables/useEditorValidation';
+
+import { useModelLoader } from '@/composables/useModelLoader';
+import { useModelSaver } from '@/composables/useModelSaver';
+import { useModelHeaderMeta } from '@/composables/useModelHeaderMeta';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import EditorActions from '@/components/Shared/EditorActions.vue';
@@ -176,15 +165,15 @@ import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
 import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
+import FabModelEmptyState from '@/components/Fabrication/FabModelEmptyState.vue';
 import ConfirmDialog from 'primevue/confirmdialog';
-
-import { useEditorSections } from '@/composables/useEditorSections';
-import { useEditorValidation } from '@/composables/useEditorValidation';
 
 const store = useFabModeleStore();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
+const { confirmArchivagePlanActif } = useActivePlanConfirmation();
+const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
 
 const returnUrl = computed(() => '/dev/fab/modeles');
 
@@ -193,20 +182,55 @@ const returnUrl = computed(() => '/dev/fab/modeles');
 // ============================================================================
 const { 
   sections: groupes, 
-  ajouterSection: ajouterGroupe, 
-  supprimerSection: supprimerGroupe, 
-  mettreAJourSection: mettreAJourGroupe, 
-  supprimerLigneASection, 
-  mettreAJourLigne 
+  ajouterSection: addSection, 
+  supprimerSection: removeSection, 
+  mettreAJourSection: updateSection, 
+  supprimerLigneASection: removeLineFromSection, 
+  mettreAJourLigne: updateLine 
 } = useEditorSections();
 
 const modeleEditionId = ref(null);
 const codeOriginal = ref('');
 const statut = ref('BROUILLON');
 const version = ref(0);
+const hasActiveVersion = ref(false);
 const showColumnModal = ref(false);
-const isArchiveEditing = ref(route.query.draft === 'true');
+
+const isArchiveEditing = ref(route.query.draft === 'true' || route.query.upgrade === 'true');
 const isUpgradeMode = computed(() => route.query.upgrade === 'true');
+const isForcedView = computed(() => route.query.view === 'true');
+const isArchived = computed(() => statut.value === 'ARCHIVE');
+const isEditMode = computed(() => !!modeleEditionId.value);
+const isReadOnly = computed(() => (isEditMode.value && isArchived.value && !isArchiveEditing.value && !isUpgradeMode.value) || isForcedView.value);
+
+const isLoading = computed(() => store.isLoading);
+
+// ============================================================================
+// REGROUPEMENT DE L'ÉTAT (Contexte pour les composables)
+// ============================================================================
+const context = {
+  modeleEditionId,
+  codeOriginal,
+  statut,
+  version,
+  hasActiveVersion,
+  isArchiveEditing,
+  isUpgradeMode,
+  isForcedView,
+  isArchived,
+  isEditMode,
+  isReadOnly,
+  isLoading,
+  groupes,
+  isDirty,
+  returnUrl,
+  initializeSnapshot,
+  route
+};
+
+const { loadModelForEditing, resetForNewModel } = useModelLoader(store, context);
+const { onEditorSubmit, onEditorSubmitClick } = useModelSaver(store, context);
+const { codeAffiche, headerTitle, headerSubtitle, actionButtonLabel, actionButtonIcon, actionButtonVariant } = useModelHeaderMeta(store, context);
 
 const { 
   showLegendValidation, 
@@ -215,15 +239,10 @@ const {
   validerSaisieValeurs 
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
-const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
-
-// 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
-const isForcedView = computed(() => route.query.view === 'true');
-
+// Watchers
 watch(
   [() => store.entete, () => groupes.value],
   ([newEntete, newGroupes]) => {
-    // Ne pas tracer la dirty checking si on est juste en mode vue
     if (!isForcedView.value) {
       const enteteClone = JSON.parse(JSON.stringify(newEntete));
       const groupesClone = JSON.parse(JSON.stringify(newGroupes));
@@ -233,15 +252,7 @@ watch(
   { deep: true }
 );
 
-// ============================================================================
-// COLONNES RÉUTILISABLES ET DYNAMIQUES
-// Délégation au store : store.tableColumns est un computed réactif qui lit
-// toujours la dernière version ACTIF du formulaire de référence (rôle
-// EN_COURS_DE_FABRICATION), indépendamment du codeReference ("PRC" ou autre).
-// ============================================================================
-
-// Structure valide si le store a chargé au moins un formulaire actif
-// pour le rôle EN_COURS_DE_FABRICATION (pas de dépendance au nom "PRC")
+// Variables métier diverses
 const hasValidStructure = computed(() => {
   const refs = store.formulairesReferences || [];
   if (refs.length === 0) return false;
@@ -250,110 +261,10 @@ const hasValidStructure = computed(() => {
     return s === 'ACTIF';
   });
 });
-
-// Colonnes réactives : toujours à jour avec la dernière version du formulaire
 const modeleColumns = computed(() => store.tableColumns);
 
-const isLoading = computed(() => store.isLoading);
-const isEditMode = computed(() => !!modeleEditionId.value);
-const isArchived = computed(() => statut.value === 'ARCHIVE');
-
-// 🔒 NOUVEAU : On verrouille tout si c'est une archive non éditée OU si on est en mode aperçu (view)
-const isReadOnly = computed(() => (isEditMode.value && isArchived.value && !isArchiveEditing.value && !isUpgradeMode.value) || isForcedView.value);
-
-
-const codeAffiche = computed(() => {
-  if (isEditMode.value && codeOriginal.value) {
-    // Si on est en simple lecture (Consultation), on affiche le code actuel
-    if (isReadOnly.value) return codeOriginal.value;
-    
-    // Si on est en train d'éditer pour une nouvelle version, on affiche ce que sera le prochain code
-    return `${codeOriginal.value.replace(/(?:[-\s]+V\d+)+$/i, '')}-V${version.value + 1}`;
-  }
-  return store.entete.code || store.codeModeleAuto;
-});
-
-const headerTitle = computed(() => {
-  const nature = store.entete.natureComposantCode;
-  const famille = store.entete.familleProduitCode;
-  const poste = store.entete.posteCode;
-
-  if (isForcedView.value) return 'Consultation du Plan Générique';
-
-  if (nature === 'PISTON') {
-    return "Plan en cours d'assemblage PISTON";
-  }
-
-  if (nature === 'PF') {
-    let title = "Plan en cours d'assemblage PF";
-    if (famille) {
-      title += ` - ${famille}`;
-    }
-    // Ajouter le poste si c'est avec soupape et qu'un poste est sélectionné
-    const famObject = store.famillesProduit?.find(f => f.code === famille);
-    const isSoupape = famObject?.libelle?.toLowerCase().includes('soupape');
-    if (isSoupape && poste) {
-      title += ` - Poste ${poste}`;
-    }
-    return title;
-  }
-
-  if (nature === 'CORPS' || nature === 'VOLANT') {
-    return `Plan en cours de fabrication ${nature}`;
-  }
-
-  if (isEditMode.value) {
-    if (isArchived.value && !isArchiveEditing.value) return 'Mise à jour d\'Archive';
-    if (isArchiveEditing.value) return 'Création : Nouvelle Version';
-    return `Édition du Plan Générique`;
-  }
-  return 'Création d\'un Plan Générique';
-});
-
-const headerSubtitle = computed(() => {
-  const nature = store.entete.natureComposantCode;
-
-  if (isForcedView.value) return 'Mode lecture seule (Aperçu de la structure).';
-
-  if (nature === 'PISTON') {
-    return 'Configuration générique pour les PISTONS (sans choix de famille).';
-  }
-
-  if (nature === 'PF') {
-    return 'Configurez le plan selon la famille de produit fini sélectionnée.';
-  }
-
-  if (isEditMode.value) {
-    if (isArchived.value && !isArchiveEditing.value) {
-      return 'Vous consultez une archive. Mettre à jour vous permettra de préparer une nouvelle version.';
-    }
-    if (isArchiveEditing.value) {
-      return 'Modifiez les valeurs. L\'ancienne version sera archivée automatiquement lors de la sauvegarde.';
-    }
-    return 'Modifiez la structure. L\'ancienne version sera archivée automatiquement.';
-  }
-  return 'Configurez la structure des plans du contrôle.';
-});
-
-const actionButtonLabel = computed(() => {
-  if (isLoading.value) return 'Enregistrement...';
-  if (isArchived.value && !isArchiveEditing.value) return 'Éditer et Mettre à jour ce Plan';
-  if (isArchived.value && isArchiveEditing.value) return 'Enregistrer la Nouvelle Version';
-  if (!isEditMode.value) return 'Créer et Activer le Modèle';
-  return 'Créer Nouvelle Version';
-});
-
-const actionButtonIcon = computed(() => {
-  if (isArchived.value) return 'pi pi-sync';
-  if (isEditMode.value) return 'pi pi-save';
-  return 'pi pi-check';
-});
-
-const actionButtonVariant = computed(() => {
-  if (isArchived.value) return 'warning';
-  if (isEditMode.value) return 'primary';
-  return 'primary';
-});
+const handleEditorSubmit = () => onEditorSubmit(toast, router, validerSaisieValeurs, validerLegendeMoyens);
+const handleEditorSubmitClick = () => onEditorSubmitClick(toast, router, confirmArchivagePlanActif, validerSaisieValeurs, validerLegendeMoyens);
 
 onMounted(async () => {
   try {
@@ -361,337 +272,13 @@ onMounted(async () => {
     await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
     
     if (route.params.id && route.params.id !== 'nouveau') {
-      await chargerModelePourEdition(route.params.id);
+      await loadModelForEditing(route.params.id, toast, router);
     } else {
-      resetForNewModele();
-      if (groupes.value.length === 0) ajouterGroupe();
+      resetForNewModel();
+      if (groupes.value.length === 0) addSection();
     }
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur réseau', detail: error.message, life: 5000 });
   }
 });
-
-const chargerModelePourEdition = async (id) => {
-  store.isLoading = true;
-  store.isBeingLoaded = true;  // ✅ Désactive les watchers en cascade le temps du chargement
-  try {
-    store.isLoading = true;
-    store.loadingMessage = "Chargement du modèle...";
-    const res = await fabModeleService.getModeleById(id);
-    const data = res?.data?.data || res?.data || res;
-    
-    modeleEditionId.value = data.id;
-    codeOriginal.value = data.nom;
-    statut.value = data.statut;
-    version.value = data.version;
-    
-    store.entete.code = data.code || data.nom;
-    store.entete.operationCode = data.operationCode;
-    store.entete.natureComposantCode = data.natureComposantCode || data.natureArticleCode;
-    store.entete.typeRobinetCode = data.typeRobinetCode || data.libre1 || '';
-    store.entete.libelle = data.libelle || data.designation;
-    store.entete.notes = data.notes || data.remarques || '';
-    store.entete.legendeMoyens = data.legendeMoyens || '';
-    store.entete.posteCode = data.posteCode || '';
-    store.entete.familleProduitCode = data.familleProduitCode || data.familleProduitFiniCode || '';
-    store.entete.refFormulaireCodeReference = data.codeReferenceFormulaire || data.refFormulaireCodeReference || 'PRC';
-    
-    if (isArchiveEditing.value || isUpgradeMode.value) {
-      store.syncConfigurationFromFormulaire();
-    } else {
-      let configParsed = null;
-      if (data.configurationColonnesJson) {
-        try {
-          configParsed = JSON.parse(data.configurationColonnesJson);
-        } catch(e) {
-          console.error('Erreur parsing configurationColonnesJson:', e);
-        }
-      }
-
-      if (configParsed && configParsed.length > 0) {
-        store.entete.configurationColonnes = configParsed.map(c => ({
-          key: c.cleColonne || c.key,
-          label: c.labelAffiche || c.label,
-          type: c.typeValeur || c.type || 'Texte',
-          insertAfter: c.insertAfter || 'code_instrument'
-        }));
-      } else {
-        store.syncConfigurationFromFormulaire();
-      }
-    }
-
-    const sectionsTriees = [...(data.sections || [])].sort((a, b) =>
-      (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
-    );
-
-    groupes.value = sectionsTriees.map(sec => {
-      let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
-      if (sec.periodiciteId) {
-        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
-        if (resolved) {
-          freqData = resolved;
-        }
-      }
-      if (freqData.modeFreq === 'SANS') {
-        const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-        if (texteParse) {
-          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
-        }
-      }
-      
-      if (sec.regleEchantillonnageId) {
-        freqData.modeFreq = 'FIXE';
-        freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
-      }
-
-      let typeSectionId = normalizeTypeSectionId(sec.typeSectionId || '', store.typesSection);
-      if (!typeSectionId && sec.libelleSection) {
-        const secLib = sec.libelleSection.trim().toLowerCase();
-        let bestMatch = null;
-        let maxLength = -1;
-
-        store.typesSection.forEach(t => {
-          const tLib = (t.libelle || t.nom || '').trim().toLowerCase();
-          if (!tLib || secLib === 'section sans nom') return;
-
-          if (secLib.includes(tLib)) {
-            if (tLib.length > maxLength) {
-              maxLength = tLib.length;
-              bestMatch = t;
-            }
-          }
-        });
-
-        if (bestMatch) {
-          typeSectionId = bestMatch.id;
-        }
-      }
-
-      const libelleSection = resolveSectionDisplayTitle(
-        { typeSectionId, libelleSection: sec.libelleSection, nom: sec.nom },
-        store.typesSection
-      );
-      const nom = nettoyerNomSection(
-        sec.libelleSection || libelleSection,
-        typeSectionId,
-        store.typesSection,
-        sec.frequenceLibelle || '',
-        sec.regleEchantillonnageLibelle || ''
-      );
-
-      const lignesTriees = [...(sec.lignes || [])].sort((a, b) =>
-        (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
-      );
-
-      return {
-        id: sec.id,
-        isFromDb: true,
-        typeSectionId,
-        nom,
-        ...freqData,
-        isNewFreq: false,
-        libelleSection,
-        lignes: lignesTriees.map(lig => ({ 
-          id: lig.id,
-          isFromDb: true,
-          typeCaracteristiqueId: lig.typeCaracteristiqueId,
-          libelleAffiche: lig.libelleAffiche || '',
-          typeControleId: lig.typeControleId,
-          moyenControleId: lig.moyenControleId,
-          instrumentCode: lig.instrumentCode,
-          instruction: lig.instruction || '',
-          estCritique: lig.estCritique,
-          unite: lig.unite || '',
-          limiteSpecTexte: lig.limiteSpecTexte || '',
-          observations: lig.observations || '',
-          moyenTexteLibre: lig.moyenTexteLibre || '',
-          imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.extraColonnes 
-            ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
-            : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {})
-        }))
-      };
-    });
-    
-    if (!isForcedView.value) {
-      setTimeout(() => {
-        initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
-      }, 100);
-    }
-
-  } catch (e) {
-    console.error(e);
-    toast.add({ severity: 'error', summary: 'Introuvable', detail: 'Modèle introuvable.', life: 5000 });
-    router.push(returnUrl.value);
-  } finally {
-    store.isLoading = false;
-    await nextTick();
-    setTimeout(() => {
-      store.isBeingLoaded = false;  // ✅ Réactive les watchers après le chargement asynchrone
-    }, 50);
-  }
-};
-
-
-
-const sauvegarderDirectement = async () => {
-  if (!validerSaisieValeurs()) return;
-  if (!validerLegendeMoyens()) return;
-
-  store.isLoading = true;
-  try {
-    // Vérifier si un modèle actif existe déjà pour ces critères (Nature, Opération, Poste)
-    const resExist = await fabModeleService.getModelesByFilters(
-      null,
-      store.entete.natureComposantCode,
-      store.entete.operationCode,
-      store.entete.posteCode,
-      store.entete.familleProduitCode  // ✅ filtre par famille pour éviter d'archiver BAC01 quand on crée BAC02
-    );
-
-    const activeModel = (resExist.data?.data || []).find(m => m.statut === 'ACTIF');
-
-    if (activeModel) {
-      // Un modèle actif existe déjà -> On propose d'archiver et créer une nouvelle version
-      modeleEditionId.value = activeModel.id;
-      version.value = activeModel.version;
-      versioningMode.value = 'new-version';
-      isAutoVersioning.value = true; // Flag pour bypasser isDirty car c'est un nouveau plan
-      showVersioningDialog.value = true;
-      store.isLoading = false;
-      return;
-    }
-
-    await prepareSectionsForBackend(
-      groupes.value,
-      store.periodicites,
-      async (payloadFreq) => {
-        const res = await fabPlanService.createPeriodicite(payloadFreq);
-        store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
-        return res;
-      }
-    );
-    store.sections = groupes.value;
-    const resData = await store.saveModele(store.entete.legendeMoyens);
-    
-    toast.add({ severity: 'success', summary: 'Succès', detail: `Modèle créé et activé !`, life: 3000 });
-    setTimeout(() => router.push(returnUrl.value), 1500);
-  } catch (error) {
-    const errorMsg = error.response?.data?.message || error.message;
-    toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 6000 });
-  } finally {
-    store.isLoading = false;
-  }
-};
-
-const sauvegarderV2 = async (motif) => {
-  store.isLoading = true;
-  try {
-    // 1. Résoudre/créer les périodicités variables et récupérer les sections enrichies
-    await prepareSectionsForBackend(
-      groupes.value,
-      store.periodicites,
-      async (payloadFreq) => {
-        const res = await fabPlanService.createPeriodicite(payloadFreq);
-        store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
-        return res;
-      }
-    );
-    // Après l'appel, groupes.value a été muté in-place avec les periodiciteId résolus.
-    // On les recopie dans store.sections pour que mapPayload() les lise correctement lors de l'envoi.
-    store.sections = groupes.value;
-
-    const resData = await store.saveModele(store.entete.legendeMoyens);
-
-    toast.add({ severity: 'success', summary: `Nouvelle version créée !`, detail: 'L\'ancienne version a été archivée.', life: 3000 });
-    setTimeout(() => router.push(returnUrl.value), 1500);
-  } catch (error) {
-    const errorMsg = error.response?.data?.message || error.message;
-    toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 6000 });
-  } finally {
-    store.isLoading = false;
-  }
-};
-
-const onEditorSubmitClick = () => {
-  if (!isEditMode.value) {
-    sauvegarderDirectement();
-  } else {
-    onEditorSubmit();
-  }
-};
-
-const onEditorSubmit = async () => {
-  if (isArchived.value && !isArchiveEditing.value) {
-    isArchiveEditing.value = true;
-    
-    // On met à niveau la structure vers le formulaire PRC actif
-    store.syncConfigurationFromFormulaire();
-
-    // On retire 'view' pour sortir du mode consultation forcée
-    const newQuery = { ...route.query, draft: 'true' };
-    delete newQuery.view;
-    
-    router.replace({ query: newQuery });
-    toast.add({ severity: 'info', summary: 'Mode Édition Activé', detail: 'Modifiez la structure (mise à niveau avec le PRC actif), puis cliquez sur "Enregistrer la Nouvelle Version".', life: 5000 });
-  } else if (isArchived.value || statut.value === 'ACTIF' || isUpgradeMode.value) {
-    if (!validerSaisieValeurs()) return;
-    if (!validerLegendeMoyens()) return;
-    
-    // Si on vient d'une ARCHIVE (lecture seule), on bypass aussi : l'utilisateur ne peut rien modifier,
-    // isDirty sera toujours false mais il faut quand même créer la nouvelle version.
-    if (!isArchived.value && !isDirty.value) {
-      toast.add({ severity: 'info', summary: 'Aucune modification', detail: 'Vous n\'avez effectué aucun changement sur la structure du modèle.', life: 4000 });
-      return;
-    }
-    
-    await sauvegarderV2('Modification automatique');
-  } else {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Les modèles ne gèrent pas de brouillons. Veuillez recréer le modèle.', life: 6000 });
-  }
-};
-
-const restaurerArchive = async (motif) => {
-  store.isLoading = true;
-  try {
-    await store.restaurerModele(motif);
-    toast.add({ severity: 'success', summary: 'Modèle Restauré !', detail: `L'archive a été réactivée en tant que nouvelle version.`, life: 4000 });
-    setTimeout(() => router.push(returnUrl.value), 1500);
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur de restauration', detail: error.message, life: 6000 });
-  } finally {
-    store.isLoading = false;
-  }
-};
-
-const resetForNewModele = () => {
-  modeleEditionId.value = null;
-  codeOriginal.value = '';
-  statut.value = 'BROUILLON';
-  version.value = 0;
-  const preservedRef = store.entete.refFormulaireCodeReference;
-  const preservedCols = store.entete.configurationColonnes;
-
-  store.entete = { 
-    ...store.entete,
-    operationCode: '', 
-    natureComposantCode: '', 
-    typeRobinetCode: '', 
-    libelle: '', 
-    notes: '', 
-    legendeMoyens: '', 
-    posteCode: '',
-    familleProduitCode: '',
-    refFormulaireCodeReference: preservedRef || '',
-    configurationColonnes: preservedCols || []
-  };
-  groupes.value = [];
-
-  store.applyFormulaireConfiguration();
-  
-  // Initialiser le snapshot pour un nouveau modèle (état vide)
-  setTimeout(() => {
-    initializeSnapshot(createModeleSnapshot(store.entete, groupes.value));
-  }, 100);
-};
 </script>

@@ -845,3 +845,26 @@ INSERT INTO dbo.Ref_ISO2859_Echantillonnage (CodeLettre, ValeurNQA, Quantite) VA
 ('Q', 0.4, 293),
 ('Q', 0.65, 348),
 ('Q', 1, 424);
+
+-- =================================================================================
+-- COMPOSANTS D'ASSEMBLAGE (ECROUS, VOLANTS, ETC.) POUR LE MAGASINIER
+-- =================================================================================
+INSERT INTO dbo.Article (CodeArticle, Designation, NatureArticleCode, Statut, TypeArticle) VALUES 
+('ECROU-001', 'Ecrous', 'PF', 'ACTIF', 'COMPOSANT'),
+('VOLANT-001', 'Volants', 'VOLANT', 'ACTIF', 'COMPOSANT'),
+('LIMITEUR-001', 'limiteur', 'LIM_DEBIT', 'ACTIF', 'COMPOSANT'),
+('PISTON-001', 'Piston', 'PISTON', 'ACTIF', 'COMPOSANT'),
+('GOUPILLE-001', 'Goupille', 'GOUPILLE', 'ACTIF', 'COMPOSANT'),
+('JOINT-ANTI-SERREUR', 'joint', 'JOINT', 'ACTIF', 'COMPOSANT');
+
+-- Ajout de scans magasinier pour OF2607ASS02 (qui a ete declare plus haut)
+DECLARE @PrepIdASS02_2 UNIQUEIDENTIFIER = (SELECT TOP 1 Id FROM dbo.Mag_PreparationOF WHERE NumeroOF = 'OF2607ASS02');
+INSERT INTO dbo.Mag_PreparationOF_Lot (Id, PreparationOFId, CodeArticle, NumeroLotScanne, Quantite, DateScan)
+VALUES 
+(NEWID(), @PrepIdASS02_2, 'ECROU-001', 'LOT-ECROUS-01', 500, GETDATE()),
+(NEWID(), @PrepIdASS02_2, 'LIMITEUR-001', 'LOT-LIMITEUR-01', 500, GETDATE()),
+(NEWID(), @PrepIdASS02_2, 'PISTON-001', 'LOT-PISTON-01', 500, GETDATE()),
+(NEWID(), @PrepIdASS02_2, 'GOUPILLE-001', 'LOT-GOUPILLE-01', 500, GETDATE()),
+(NEWID(), @PrepIdASS02_2, 'GOUPILLE-001', 'LOT-GOUPILLE-02', 500, GETDATE()),
+(NEWID(), @PrepIdASS02_2, 'JOINT-ANTI-SERREUR', 'LOT-JOINT-01', 500, GETDATE());
+

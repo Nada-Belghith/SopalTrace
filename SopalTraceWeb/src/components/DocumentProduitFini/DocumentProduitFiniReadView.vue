@@ -1,0 +1,28 @@
+<!-- Wrapper Produit Fini — utilise le composant partagé -->
+<template>
+  <PlanReadView
+    :sections="sections"
+    :remarques="remarques"
+    :legende-moyens="legendeMoyens"
+    :configuration-colonnes="store.entete?.configurationColonnes || []"
+    :types-section="store.typesSection || []"
+    :types-caracteristique="store.typesCaracteristique || []"
+    :types-controle="store.typesControle || []"
+    :moyens-controle="store.moyensControle || []"
+    :periodicites="store.periodicites || []"
+    :regles-echantillonnage="store.reglesEchantillonnage || []"
+  />
+</template>
+
+<script setup>
+import PlanReadView from '@/components/Shared/PlanReadView.vue';
+import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
+
+const store = usedocumentProduitFiniStore();
+
+defineProps({
+  sections:      { type: Array,  default: () => [] },
+  remarques:     { type: String, default: '' },
+  legendeMoyens: { type: String, default: '' },
+});
+</script>

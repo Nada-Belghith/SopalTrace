@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs;
-using SopalTrace.Application.DTOs.QualityPlans.PlansEchantillonnage;
+using SopalTrace.Application.DTOs.QualityPlans.Echantillonnage;
 using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
@@ -12,7 +12,7 @@ namespace SopalTrace.Api.Controllers;
 
 [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
 [ApiController]
-[Route("api/plans-echantillonnage")]
+[Route("api/documents-echantillonnage")]
 public class DocumentEchantillonnageController : ControllerBase
 {
     private readonly IDocumentEchantillonnageService _service;
@@ -23,63 +23,54 @@ public class DocumentEchantillonnageController : ControllerBase
     }
 
     [HttpGet("actif")]
-    public async Task<IActionResult> GetPlanActif()
+    public async Task<IActionResult> GetActiveDocument()
     {
-        var plan = await _service.GetPlanActifAsync();
-        return Ok(new { success = true, data = plan, message = plan == null ? "Aucun plan actif trouvé." : "Plan actif récupéré avec succès." });
+        var plan = await _service.GetActiveDocumentAsync();
+        return Ok(new { success = true, data = plan, message = plan == null ? "Aucun document actif trouvé." : "Document actif récupéré avec succès." });
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetPlanById(Guid id)
+    public async Task<IActionResult> GetDocumentById(Guid id)
     {
-        var plan = await _service.GetPlanByIdAsync(id);
-        if (plan == null) return NotFound(new { success = false, message = "Plan introuvable." });
-        return Ok(new { success = true, data = plan, message = "Plan récupéré avec succès." });
+        var plan = await _service.GetDocumentByIdAsync(id);
+        if (plan == null) return NotFound(new { success = false, message = "Document introuvable." });
+        return Ok(new { success = true, data = plan, message = "Document récupéré avec succès." });
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreatePlan([FromBody] CreatePlanEchanRequestDto request)
+    public async Task<IActionResult> CreateDocument([FromBody] CreateDocumentEchantillonnageRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
         var creePar = "Admin"; // TODO: Utiliser ICurrentUserService si disponible
-        var newId = await _service.CreatePlanAsync(request, creePar);
+        var newId = await _service.CreateDocumentAsync(request, creePar);
 
-        return Ok(new { success = true, data = newId, message = "Plan créé avec succès." });
+        return Ok(new { success = true, data = newId, message = "Document créé avec succès." });
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdatePlan(Guid id, [FromBody] UpdatePlanEchanRequestDto request)
+    public async Task<IActionResult> UpdateDocument(Guid id, [FromBody] UpdateDocumentEchantillonnageRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        await _service.UpdatePlanAsync(id, request);
-        return Ok(new { success = true, data = id, message = "Plan mis à jour avec succès." });
+        await _service.UpdateDocumentAsync(id, request);
+        return Ok(new { success = true, data = id, message = "Document mis à jour avec succès." });
     }
 
     [HttpPut("{id}/activer")]
-    public async Task<IActionResult> ActiverPlan(Guid id)
+    public async Task<IActionResult> ActivateDocument(Guid id)
     {
         var modifiePar = "Admin"; // TODO: Utiliser ICurrentUserService si disponible
-        await _service.ActiverPlanAsync(id, modifiePar);
-        return Ok(new { success = true, data = id, message = "Plan activé avec succès." });
+        await _service.ActivateDocumentAsync(id, modifiePar);
+        return Ok(new { success = true, data = id, message = "Document activé avec succès." });
     }
 
     [HttpPost("nouvelle-version")]
-    public async Task<IActionResult> CreerNouvelleVersion([FromBody] NouvelleVersionEchanRequestDto request)
+    public async Task<IActionResult> CreateNewVersion([FromBody] CreateNewVersionDocumentEchantillonnageRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        var newId = await _service.CreerNouvelleVersionAsync(request);
+        var newId = await _service.CreateNewVersionAsync(request);
         return Ok(new { success = true, data = newId, message = "Nouvelle version créée avec succès." });
-    }
-
-    [HttpPost("restaurer")]
-    public async Task<IActionResult> RestaurerPlan([FromBody] RestaurerEchanRequestDto request)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-
-        var newId = await _service.RestaurerPlanAsync(request);
-        return Ok(new { success = true, data = newId, message = "Plan restauré avec succès." });
     }
 }
