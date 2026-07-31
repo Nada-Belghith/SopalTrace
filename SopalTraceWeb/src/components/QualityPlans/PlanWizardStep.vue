@@ -396,17 +396,9 @@ watch(() => wizard.refFormulaireCodeReference?.value, (code) => {
   if (code) store.applyFormulaireConfiguration(code);
 });
 
-// Clicking the MODELE card triggers generation only when a modele is selected
+// Clicking the MODELE card simply selects it.
 const handleModeleCardClick = async () => {
-  // Only emit if:
-  // - a modele is selected
-  // - an operation is selected  
-  // - not already generating
-  const isGenerate = wizard.isGenerating?.value || wizard.isGeneratingPlan?.value;
-  if (!isGenerate && wizard.selectedSourceId?.value && wizard.operationCode?.value) {
-    await nextTick();
-    emit('load-model', { wizard });
-  }
+  wizard.sourceType.value = 'MODELE';
 };
 
 // Clicking the EXCEL card directly opens the file picker

@@ -39,11 +39,13 @@ export const documentService = {
   /**
    * Crée une nouvelle version (V+1, ACTIF).
    * L'ancien document (ancienId) est archivé côté serveur.
-   * @param {string} ancienId - ID du document actif à archiver
-   * @param {object} payload  - Doit contenir ancienId + tous les champs du nouveau document
+   * @param {string|object} ancienId - ID du document actif à archiver ou payload complet
+   * @param {object} [payload]  - Doit contenir ancienId + tous les champs du nouveau document
    */
   async createNewVersion(ancienId, payload) {
-    const response = await apiClient.post(`/Document/${ancienId}/version`, payload)
+    const targetId = (typeof ancienId === 'object' && ancienId !== null) ? (ancienId.ancienId || ancienId.id) : ancienId;
+    const body = (typeof ancienId === 'object' && ancienId !== null) ? ancienId : payload;
+    const response = await apiClient.post(`/Document/${targetId}/version`, body)
     return response.data
   },
 

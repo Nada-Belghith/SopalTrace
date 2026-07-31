@@ -77,9 +77,6 @@ const onSaved = (result) => {
   }, 1500);
 };
 
-const onRestaurerClick = () => {
-  showVersioningDialog.value = true;
-};
 
 const onVersioningConfirm = async (motif) => {
   isRestoring.value = true;

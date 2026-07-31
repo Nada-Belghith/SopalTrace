@@ -16,7 +16,6 @@ import { useAppToast } from '@/composables/useAppToast'
 
 // Nouveaux Composants
 import OFGrid from '@/components/Operateur/Assemblage/OFGrid.vue'
-import SessionHeader from '@/components/Operateur/Assemblage/SessionHeader.vue'
 import DocumentCategories from '@/components/Operateur/Assemblage/DocumentCategories.vue'
 import PostesSelectionDialog from '@/components/Operateur/Assemblage/Dialogs/PostesSelectionDialog.vue'
 import VerifMachineDialog from '@/components/Operateur/Assemblage/Dialogs/VerifMachineDialog.vue'
@@ -384,7 +383,7 @@ const handleCloturerCategory = async (cat) => {
       }
       toast.success('Succès', 'La catégorie a été clôturée.')
       await fetchDocumentsStatus()
-    } catch (e) {
+    } catch {
       toast.error('Erreur', 'Impossible de clôturer la catégorie.')
     }
   }
@@ -482,6 +481,7 @@ const ouvrirDocument = async (doc) => {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 const marquerTermineDoc = async (docId) => {
   try {
     await apiClient.put(`/Operateur/assemblage-documents/${docId}/terminer`)
@@ -505,7 +505,7 @@ const signalerPlanManquant = async (docName) => {
     await alertesService.signalerPlanManquant(data)
     toast.success('Signalement envoyé', 'Signalement envoyé au Superviseur avec succès !')
     showListDialog.value = false
-  } catch (error) {
+  } catch {
     toast.error('Erreur', 'Erreur lors de l\'envoi du signalement.')
   } finally {
     isSignalingPlan.value = false
@@ -565,7 +565,7 @@ const openEchantillonnageDialog = async () => {
     } else {
       showListDialog.value = true
     }
-  } catch (e) {
+  } catch {
     toast.error('Erreur', 'Erreur lors de la vérification du plan source.')
   } finally {
     isCheckingPlan.value = false
@@ -698,7 +698,7 @@ const cloturerDocumentsMachine = async (machineCode) => {
     await apiClient.put(`/Operateur/of/${execOfIdActif.value}/machine/${machineCode}/terminer-tout`)
     toast.success('Succès', `Tous les documents de la machine ${machineCode} ont été marqués comme Terminé.`)
     await fetchDocumentsStatus()
-  } catch (error) {
+  } catch {
     toast.error('Erreur', 'Impossible de clôturer les documents de la machine.')
   }
 }
@@ -723,6 +723,7 @@ const tousLesPostesActifs = computed(() => {
   return of?.postesExistants ?? []
 })
 
+// eslint-disable-next-line no-unused-vars
 const mettreEnPauseOf = async () => {
   const result = await Swal.fire({
     title: 'Mettre la production en Pause ?',
@@ -751,6 +752,7 @@ const mettreEnPauseOf = async () => {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 const reprendreOf = async () => {
   try {
     await operateurService.reprendreDepuisPause(execOfIdActif.value)
@@ -763,6 +765,7 @@ const reprendreOf = async () => {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 const mettreEnReglageOf = async () => {
   try {
     await operateurService.mettreEnReglage(execOfIdActif.value)
@@ -775,6 +778,7 @@ const mettreEnReglageOf = async () => {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 const cloturerOf = async () => {
   const result = await Swal.fire({
     title: 'Clôturer l\'OF d\'assemblage ?',

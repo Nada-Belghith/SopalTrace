@@ -191,7 +191,7 @@ export function useModelLoader(store, ctx) {
     }
   };
 
-  const resetForNewModele = () => {
+  const resetForNewModel = () => {
     ctx.modeleEditionId.value = null;
     ctx.codeOriginal.value = '';
     ctx.statut.value = 'BROUILLON';
@@ -223,6 +223,6 @@ export function useModelLoader(store, ctx) {
 
   return {
     loadModelForEditing,
-    resetForNewModele
+    resetForNewModel
   };
 }

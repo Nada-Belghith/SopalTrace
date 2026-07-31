@@ -133,13 +133,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
 
   const archiverPlan = async () => {
     if (!entete.value.id) return;
-    isLoading.value = true;
-    try {
-      await documentService.deleteDocument(entete.value.id);
-      entete.value.statut = 'ARCHIVE';
-    } finally {
-      isLoading.value = false;
-    }
+    entete.value.statut = 'ARCHIVE';
   };
 
   const updatePlan = async () => {
@@ -166,7 +160,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
     }
   };
 
-  const creerNouvelleVersion = async (motif) => {
+  const createNewVersion = async (motif) => {
     if (!entete.value.id) return;
     isLoading.value = true;
     try {
@@ -191,20 +185,10 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
       isLoading.value = false;
     }
   };
+  const creerNouvelleVersion = createNewVersion;
 
-  const restaurerPlan = async (motif) => {
-    if (!entete.value.id) return;
-    isLoading.value = true;
-    try {
-      const payload = {
-        documentArchiveId: entete.value.id,
-        motifRestoration: motif
-      };
-      const response = await documentService.restaurer(payload.documentArchiveId, payload);
-      return response.data?.planId || response.planId || response;
-    } finally {
-      isLoading.value = false;
-    }
+  const restaurerPlan = async () => {
+    throw new Error("La restauration n'est pas supportée pour les documents centralisés.");
   };
 
   const importerDepuisExcel = async (file) => {
@@ -241,6 +225,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
     typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle,
     periodicites, typesSection, instruments, postes, isDicosLoaded,
     entete, sections, isLoading, reglesEchantillonnage, formulairesReferences,
-    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, updatePlan, archiverPlan, creerNouvelleVersion, restaurerPlan, importerDepuisExcel
+    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, updatePlan, archiverPlan, createNewVersion, creerNouvelleVersion, restaurerPlan, importerDepuisExcel
   };
 });

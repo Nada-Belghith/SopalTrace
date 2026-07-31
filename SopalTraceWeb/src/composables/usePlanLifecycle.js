@@ -106,7 +106,7 @@ export function usePlanLifecycle(planService, planId, isForcedView = false) {
         showSuccessToast('Succès', 'Plan créé');
       } else {
         // Mettre à jour le brouillon
-        await planService.mettreAJourValeurs(plan.value.id, payload);
+        await planService.updatePlanValues(plan.value.id, payload);
         showSuccessToast('Succès', 'Plan mis à jour');
       }
 

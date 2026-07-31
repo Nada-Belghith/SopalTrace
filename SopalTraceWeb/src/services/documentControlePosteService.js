@@ -22,8 +22,6 @@ export const documentControlePosteService = {
     return documentService.createNewVersion(payload.ancienId || payload.documentId, payload).then(response => ({ data: response }));
   },
 
-  restore: (payload) => { throw new Error('Restauration non disponible pour les Plans de Contrôle Poste'); },
-
   importExcel: (file) => {
     const formData = new FormData();
     formData.append('file', file);

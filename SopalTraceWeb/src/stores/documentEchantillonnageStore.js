@@ -74,7 +74,9 @@ export const useDocumentEchantillonnageStore = defineStore('documentEchantillonn
         const res = await apiClient.get(`/documents-echantillonnage/${id}`);
         const data = res.data.data;
         this.entete = { ...data };
-        this.regles = data.regles.map(r => ({ ...r, _uid: genererUid() }));
+        
+        const rawRegles = data.regles || (data.donnees && data.donnees.regles) || [];
+        this.regles = rawRegles.map(r => ({ ...r, _uid: genererUid() }));
       } finally {
         this.isLoading = false;
       }

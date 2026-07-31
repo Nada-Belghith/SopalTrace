@@ -200,8 +200,7 @@
   import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
-  import { prepareSectionsForBackend } from '@/utils/sectionUtils';
-  import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
+
 
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
   import PlanReadView from '@/components/Shared/PlanReadView.vue';
@@ -217,10 +216,18 @@
   import { useEditorSections } from '@/composables/useEditorSections';
   import { useEditorValidation } from '@/composables/useEditorValidation';
   import { usePlanAutosave } from '@/composables/usePlanAutosave';
+  import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
+  
+  import { usePlanMapper } from '@/composables/usePlanMapper';
+  import { usePlanActions } from '@/composables/usePlanActions';
+  import { useDraftRecovery } from '@/composables/useDraftRecovery';
+
   const route = useRoute();
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
+  const { confirmArchivagePlanActif } = useActivePlanConfirmation();
+  const { interceptCreation } = useDraftRecovery(fabPlanService, confirm, toast, router, '/dev/fab/plans/editer');
   const store = useFabModeleStore();
 
   const wizard = usePlanWizard();
@@ -235,6 +242,12 @@
   const versionInitiale = ref(null);
   const isLoadingData = ref(false);
   const isVersioningSaving = ref(false);
+  
+  const isExitingEditor = ref(false);
+  const isCanceling = ref(false);
+  const planCreationPayload = ref(null);
+  const aEteCreePendantCetteSession = ref(false);
+  const codeArticleSuffix = ref('');
 
   const {
     sections,
@@ -243,12 +256,27 @@
     mettreAJourSection,
     supprimerLigneASection
   } = useEditorSections();
+
   const {
     showLegendValidation,
     hasCustomInstrumentsGlobal,
     validerLegendeMoyens,
-    validerSaisiePlan: validerSaisieValeurs
+    validerSaisieValeurs
   } = useEditorValidation(sections, legendeMoyens, toast);
+
+  const planMapper = usePlanMapper(store);
+  const editorState = {
+    toast, router, store, planId, plan, planCreationPayload, versionInitiale,
+    wizard, codeArticleSuffix, legendeMoyens, remarques,
+    sections, isExitingEditor, aEteCreePendantCetteSession,
+    isLoadingData, isGeneratingPlan, isCanceling,
+    validerLegendeMoyens, validerSaisieValeurs,
+    get isSaving() { return isSaving; },
+    get isArchived() { return isArchived; },
+    get planConfigurationColonnes() { return planConfigurationColonnes; }
+  };
+
+  const planActions = usePlanActions(editorState, { toast, router, store, usePlanMapper: planMapper, loadPlan });
 
   const isEditMode = computed(() => !!planId.value);
   const isArchived = computed(() => plan.value?.statut === 'ARCHIVE');
@@ -284,8 +312,6 @@
     }
     return base;
   });
-
-  const codeArticleSuffix = ref('');
 
   const planColumns = computed(() => store.tableColumns || []);
 
@@ -362,11 +388,6 @@
     return 'success';
   });
 
-  const isExitingEditor = ref(false);
-  const isCanceling = ref(false);
-  const planCreationPayload = ref(null);
-  const aEteCreePendantCetteSession = ref(false);
-
   const onEditorCancel = () => {
     if (plan.value?.statut !== 'BROUILLON') {
       isExitingEditor.value = true;
@@ -404,13 +425,13 @@
     if (isCanceling.value || isExitingEditor.value) {
       return true;
     }
-    await sauvegarderBrouillonSilencieux(true);
+    await planActions.sauvegarderBrouillonSilencieux(true);
     return true;
   });
 
   const { isSaving, startAutoSave, stopAutoSave } = usePlanAutosave(async () => {
     if (plan.value?.statut === 'BROUILLON' || planCreationPayload.value) {
-      await sauvegarderBrouillonSilencieux(false);
+      await planActions.sauvegarderBrouillonSilencieux(false);
     }
   }, 30000);
 
@@ -423,14 +444,13 @@
       wizard.refFormulaireCodeReference.value = 'PRC';
     }
     syncPlanFormulaireConfig();
-    if (planId.value && planId.value !== 'nouveau') await chargerPlan(planId.value);
+    if (planId.value && planId.value !== 'nouveau') await loadPlan(planId.value);
     startAutoSave();
   });
 
   onUnmounted(() => {
     stopAutoSave();
   });
-
 
   const preparerNouveauBrouillon = async (modeleId, codeArticle) => {
     const modRes = await fabModeleService.getModelById(modeleId);
@@ -464,124 +484,36 @@
       colonneDefs: store.effectiveConfigurationColonnes,
       codeReferenceFormulaire: wizard.refFormulaireCodeReference?.value || 'PRC'
     };
-    sections.value = mapModeleDataToSections(data);
+    sections.value = planMapper.mapModelDataToSections(data);
     isFromWizard.value = true;
     planId.value = "nouveau";
     isGeneratingPlan.value = false;
   };
 
-  let debounceTimeout = null;
-  watch([wizard.codeArticleSage, wizard.operationCode, wizard.posteCode], ([code, op, poste]) => {
-    if (code && op && (!wizard.requiertPoste.value || poste)) {
-      if (debounceTimeout) clearTimeout(debounceTimeout);
-      debounceTimeout = setTimeout(async () => {
-        try {
-          const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
-          const nature = wizard.natureComposantCode.value;
-          const res = await fabPlanService.verifierEtatPlan(code, famille, nature, null, op, poste);
-          const etat = res?.data || res;
 
-          if (etat.hasBrouillon) {
-            confirm.require({
-              message: `Un brouillon de plan existe déjà pour l'article ${code} / opération ${op}. Que souhaitez-vous faire ?`,
-              header: '📋 Brouillon Existant',
-              icon: 'pi pi-copy text-amber-500',
-              acceptLabel: '↩ Récupérer le brouillon',
-              rejectLabel: '🗑 Supprimer & Créer un nouveau',
-              acceptClass: 'p-button-warning',
-              rejectClass: 'p-button-danger p-button-outlined',
-              accept: async () => {
-                planId.value = etat.brouillonId;
-                isFromWizard.value = false;
-                await chargerPlan(etat.brouillonId);
-                router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
-                toast.add({ severity: 'info', summary: 'Brouillon récupéré', detail: 'Vous pouvez continuer la saisie et activer ce plan.', life: 4000 });
-              },
-              reject: async () => {
-                try {
-                  await fabPlanService.deletePlan(etat.brouillonId);
-                  toast.add({ severity: 'info', summary: 'Brouillon supprimé', detail: 'Vous pouvez maintenant choisir votre méthode de création.', life: 3000 });
-                } catch (err) {
-                  console.error('Erreur suppression brouillon:', err);
-                  toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer le brouillon.', life: 4000 });
-                }
-              }
-            });
-          }
-        } catch (err) {
-          console.error("Erreur check draft amont", err);
-        }
-      }, 600);
-    }
-  });
 
   const onWizardGenerate = async () => {
     if (isGeneratingPlan.value) return;
-    isGeneratingPlan.value = true; 
+    
+    const sourceType = wizard.sourceType.value;
+    const modeleId = sourceType === 'MODELE' ? wizard.selectedSourceId.value : null;
+    const codeArticle = wizard.codeArticleSage.value;
+    const operationCode = wizard.operationCode.value;
+    const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+    const nature = wizard.natureComposantCode.value;
+    const posteCode = wizard.posteCode.value;
 
-    try {
-      const sourceType = wizard.sourceType.value;
-      const modeleId = sourceType === 'MODELE' ? wizard.selectedSourceId.value : null;
-      const codeArticle = wizard.codeArticleSage.value;
-      const operationCode = wizard.operationCode.value;
-      const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
-      const nature = wizard.natureComposantCode.value;
-
-      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, famille, nature, modeleId, operationCode, wizard.posteCode.value);
-      const etat = resVal.data;
-
-      if (etat.hasBrouillon) {
-        isGeneratingPlan.value = false;
-        confirm.require({
-          message: `Un brouillon de plan existe déjà pour l'article ${codeArticle} / opération ${operationCode}. Que souhaitez-vous faire ?`,
-          header: '📋 Brouillon Existant',
-          icon: 'pi pi-copy text-amber-500',
-          acceptLabel: '↩ Récupérer le brouillon',
-          rejectLabel: '🗑 Supprimer & Créer un nouveau',
-          acceptClass: 'p-button-warning',
-          rejectClass: 'p-button-danger p-button-outlined',
-          accept: async () => {
-            planId.value = etat.brouillonId;
-            isFromWizard.value = false;
-            await chargerPlan(etat.brouillonId);
-            router.replace(`/dev/fab/plans/editer/${etat.brouillonId}`);
-            toast.add({ severity: 'info', summary: 'Brouillon récupéré', detail: 'Vous pouvez continuer la saisie et activer ce plan.', life: 4000 });
-          },
-          reject: async () => {
-            try {
-              await fabPlanService.deletePlan(etat.brouillonId);
-              toast.add({ severity: 'info', summary: 'Brouillon supprimé', detail: 'Vous pouvez maintenant générer un nouveau plan.', life: 3000 });
-              await executerGenerationWizard(modeleId, codeArticle);
-            } catch (err) {
-              console.error('Erreur suppression brouillon:', err);
-            }
-          }
-        });
-        return;
-      } 
-      else if (etat.hasActif) {
-        confirm.require({
-          message: `Un plan ACTIF (Version ${etat.actifVersion}) existe déjà pour cette opération. Voulez-vous créer un nouveau plan ? Si vous l'activez plus tard, le plan actuel sera automatiquement archivé.`,
-          header: 'Plan Actif Existant',
-          icon: 'pi pi-exclamation-triangle text-blue-500',
-          acceptLabel: 'Confirmer & Créer',
-          rejectLabel: 'Annuler',
-          acceptClass: 'p-button-primary',
-          accept: async () => {
-            await executerGenerationWizard(modeleId, codeArticle);
-          },
-          reject: () => {
-            isGeneratingPlan.value = false;
-          }
-        });
-      } 
-      else {
+    await interceptCreation(
+      codeArticle,
+      famille,
+      nature,
+      operationCode,
+      posteCode,
+      async () => {
+        isGeneratingPlan.value = true;
         await executerGenerationWizard(modeleId, codeArticle);
       }
-    } catch (error) {
-      console.error('Erreur génération:', error);
-      isGeneratingPlan.value = false;
-    }
+    );
   };
 
   const executerGenerationWizard = async (modeleId, codeArticle) => {
@@ -599,7 +531,7 @@
         const rawData = res?.data?.data || res?.data || res;
         
         if (!rawData) throw new Error("Plan source introuvable.");
-        const data = normaliserDonneesPlan(rawData);
+        const data = planMapper.normalizePlanData(rawData);
 
         plan.value = {
           statut: 'ACTIF',
@@ -611,7 +543,7 @@
           posteCode: wizard.posteCode.value || data.posteCode
         };
 
-        await chargerPlan(data);
+        await loadPlan(data);
         
         planId.value = 'nouveau';
         isFromWizard.value = true;
@@ -697,55 +629,22 @@
     }
   };
 
-  const normaliserDonneesPlan = (data) => {
-    if (!data) return data;
-    if (data.nom) {
-      data.codeArticleSageVersionne = data.nom;
-      const match = data.nom.match(/^(.*?)(\.\w+)?$/);
-      data.codeArticleSage = match ? match[1] : data.nom;
-    }
-    return data;
-  };
-
-  const nettoyerNomSection = (libelleSection, typeSectionId, freqLib = '', regleLib = '') => {
-    if (!libelleSection) return '';
-    const normalizeApostrophes = (s) => s.replace(/’/g, "'");
-    let clean = normalizeApostrophes(libelleSection).replace(/caractéristiques à contrôler/gi, '').trim();
-    
-    const escapeRegExp = (str) => str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-    
-    if (typeSectionId) {
-      const typeSec = (store.typesSection || []).find(t => t.id === typeSectionId);
-      if (typeSec && typeSec.libelle) {
-        clean = clean.replace(new RegExp(escapeRegExp(normalizeApostrophes(typeSec.libelle)), 'gi'), '').trim();
-      }
-    }
-    
-    if (freqLib) {
-      const freqNorm = normalizeApostrophes(freqLib);
-      const freqPattern = '\\(?\\s*' + escapeRegExp(freqNorm) + '\\s*\\)?';
-      clean = clean.replace(new RegExp(freqPattern, 'gi'), '').trim();
-    }
-    
-    if (regleLib) {
-      const regleNorm = normalizeApostrophes(regleLib);
-      const reglePattern = '\\(?\\s*' + escapeRegExp(regleNorm) + '\\s*\\)?';
-      clean = clean.replace(new RegExp(reglePattern, 'gi'), '').trim();
-    }
-
-    clean = clean.replace(/\(\s*\)/g, '').trim();
-
-    clean = clean.replace(/^[\s\-_:/( )]+|[\s\-_:/( )]+$/g, '').trim();
-    return clean;
-  };
-
   const onExcelSelected = async (event) => {
     const file = event.target?.files?.[0];
     if (!file) return;
 
     event.target.value = '';
-    const formData = new FormData();
-    formData.append('file', file);
+
+    const codeArticle = wizard.codeArticleSage.value;
+    const operationCode = wizard.operationCode.value;
+    const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
+    const nature = wizard.natureComposantCode.value;
+    const posteCode = wizard.posteCode.value;
+
+    const executeImport = async () => {
+      wizard.isGenerating.value = true;
+      const formData = new FormData();
+      formData.append('file', file);
     const configCols = store.effectiveConfigurationColonnes?.length
       ? store.effectiveConfigurationColonnes
       : (plan.value?.colonneDefs || []);
@@ -797,7 +696,6 @@
 
           isFromWizard.value = true;
           planId.value = 'nouveau';
-
           plan.value = {
             statut: 'BROUILLON',
             nom: `Plan de contrôle en cours de fabrication ${parsedData.designation || wizard.designationArticle.value}${wizard.posteCode.value ? ' (' + wizard.posteCode.value + ')' : ''}`,
@@ -817,108 +715,12 @@
     } finally {
       wizard.isGenerating.value = false;
     }
+    };
+
+    await interceptCreation(codeArticle, famille, nature, operationCode, posteCode, executeImport);
   };
 
-  const mapModeleDataToSections = (modeleModel) => {
-    return (modeleModel.sections || []).map(sec => {
-      let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
-      if (sec.periodiciteId) {
-        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
-        if (resolved) {
-          freqData = resolved;
-        }
-      }
-      const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-      if (freqData.modeFreq === 'SANS') {
-        if (texteParse) {
-          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
-        }
-      }
-
-      let modeFreq = freqData.modeFreq;
-      let regleEchantillonnageId = sec.regleEchantillonnageId || null;
-      let periodiciteId = sec.periodiciteId || freqData.periodiciteId;
-      let freqNum = sec.freqNum || freqData.freqNum;
-      let typeVariable = sec.typeVariable || freqData.typeVariable;
-      let freqHours = sec.freqHours || freqData.freqHours;
-
-      if (regleEchantillonnageId) {
-        modeFreq = 'FIXE';
-      } else if (periodiciteId) {
-        modeFreq = 'VARIABLE';
-      } else if (texteParse) {
-        const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === texteParse);
-        if (regMatch) {
-          modeFreq = 'FIXE';
-          regleEchantillonnageId = regMatch.id;
-        }
-      }
-
-      let typeSectionId = sec.typeSectionId || '';
-      if (!typeSectionId && sec.libelleSection) {
-        const secLib = sec.libelleSection.trim().toLowerCase();
-        let bestMatch = null;
-        let maxLength = -1;
-
-        store.typesSection.forEach(t => {
-          const tLib = (t.libelle || '').trim().toLowerCase();
-          if (!tLib || secLib === 'section sans nom') return;
-
-          if (secLib.includes(tLib)) {
-            if (tLib.length > maxLength) {
-              maxLength = tLib.length;
-              bestMatch = t;
-            }
-          }
-        });
-
-        if (bestMatch) {
-          typeSectionId = bestMatch.id;
-        }
-      }
-
-      return {
-        id: crypto.randomUUID(),
-        isFromDb: false,
-        modeleSectionId: sec.id,
-        typeSectionId,
-        modeFreq,
-        periodiciteId,
-        regleEchantillonnageId,
-        freqNum,
-        typeVariable,
-        freqHours,
-        isNewFreq: false,
-        frequenceLibelle: sec.frequenceLibelle || '',
-        nom: nettoyerNomSection(sec.libelleSection, typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
-        lignes: (sec.lignes || []).filter(lig => lig != null).map(lig => ({
-          id: crypto.randomUUID(),
-          isFromDb: false,
-          modeleLigneSourceId: lig.id,
-          typeCaracteristiqueId: lig.typeCaracteristiqueId,
-          typeControleId: lig.typeControleId,
-          moyenControleId: lig.moyenControleId,
-          instrumentCode: lig.instrumentCode,
-          moyenTexteLibre: lig.moyenTexteLibre || '',
-          valeurNominale: lig.valeurNominale ?? null,
-          toleranceSuperieure: lig.toleranceSuperieure ?? null,
-          toleranceInferieure: lig.toleranceInferieure ?? null,
-          unite: lig.unite || '',
-          limiteSpecTexte: lig.limiteSpecTexte || '',
-          instruction: lig.instruction || '',
-          observations: lig.observations || '',
-          estCritique: lig.estCritique,
-          libelleAffiche: lig.libelleAffiche,
-          imageBase64: lig.imageBase64 || null,
-          valeursColonnesSpecifiques: lig.extraColonnes 
-            ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
-            : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {}))
-        }))
-      };
-    });
-  };
-
-  const chargerPlan = async (idOrData) => {
+  async function loadPlan(idOrData) {
     isLoadingData.value = true;
     try {
       let data;
@@ -932,7 +734,7 @@
       }
 
       if (!isClone) {
-        plan.value = normaliserDonneesPlan(data);
+        plan.value = planMapper.normalizePlanData(data);
         if (plan.value.nom) {
           const match = plan.value.nom.match(/^(.*?)(\.\w+)?$/);
           if (match && match[2]) {
@@ -973,106 +775,7 @@
         (a.ordreAffiche || 0) - (b.ordreAffiche || 0)
       );
 
-      sections.value = sectionsTriees.map(sec => {
-        let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
-        if (sec.periodiciteId) {
-          const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
-          if (resolved) {
-            freqData = resolved;
-          }
-        }
-        const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
-        if (freqData.modeFreq === 'SANS') {
-          if (texteParse) {
-            freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
-          }
-        }
-
-        let modeFreq = freqData.modeFreq;
-        let regleEchantillonnageId = sec.regleEchantillonnageId || null;
-        let periodiciteId = sec.periodiciteId || freqData.periodiciteId;
-        let freqNum = sec.freqNum || freqData.freqNum;
-        let typeVariable = sec.typeVariable || freqData.typeVariable;
-        let freqHours = sec.freqHours || freqData.freqHours;
-
-        if (regleEchantillonnageId) {
-          modeFreq = 'FIXE';
-        } else if (periodiciteId) {
-          modeFreq = 'VARIABLE';
-        } else if (texteParse) {
-          const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === texteParse);
-          if (regMatch) {
-            modeFreq = 'FIXE';
-            regleEchantillonnageId = regMatch.id;
-          }
-        }
-
-        let typeSectionId = sec.typeSectionId || '';
-        let extractedNature = "";
-        let originalNom = (sec.nom || sec.libelleSection || '').trim();
-
-        let finalNom = sec.libelleSection || '';
-
-        let candidateNature = originalNom.replace(/caractéristiques à contrôler/gi, "").trim();
-
-        if (!typeSectionId && candidateNature) {
-          const secLibLower = candidateNature.toLowerCase();
-          const match = (store.typesSection || []).find(t => (t.libelle || '').toLowerCase() === secLibLower);
-          if (match) {
-            typeSectionId = match.id;
-            extractedNature = match.libelle;
-          } else {
-            extractedNature = candidateNature;
-          }
-        } else if (typeSectionId) {
-          const match = (store.typesSection || []).find(t => t.id === typeSectionId);
-          if (match) extractedNature = match.libelle;
-        }
-
-        finalNom = finalNom || (extractedNature ? `Caractéristiques à contrôler ${extractedNature}` : "Section sans nom");
-
-        const lignesTriees = [...(sec.lignes || [])]
-          .filter(lig => lig != null)
-          .sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
-
-        return {
-          id: isClone ? crypto.randomUUID() : sec.id,
-          isFromDb: !isClone,
-          typeSectionId,
-          libelleSection: sec.libelleSection || finalNom,
-          modeFreq,
-          periodiciteId,
-          regleEchantillonnageId,
-          freqNum,
-          typeVariable,
-          freqHours,
-          isNewFreq: false,
-          frequenceLibelle: sec.frequenceLibelle || '',
-          nom: nettoyerNomSection(finalNom, typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
-          lignes: lignesTriees.map(lig => ({
-            id: isClone ? crypto.randomUUID() : lig.id,
-            isFromDb: !isClone,
-            typeCaracteristiqueId: lig.typeCaracteristiqueId,
-            typeControleId: lig.typeControleId,
-            moyenControleId: lig.moyenControleId,
-            instrumentCode: lig.instrumentCode,
-            moyenTexteLibre: lig.moyenTexteLibre || '',
-            valeurNominale: lig.valeurNominale,
-            toleranceSuperieure: lig.toleranceSuperieure,
-            toleranceInferieure: lig.toleranceInferieure,
-            unite: lig.unite || '',
-            limiteSpecTexte: lig.limiteSpecTexte || '',
-            instruction: lig.instruction || '',
-            observations: lig.observations || '',
-            estCritique: lig.estCritique,
-            libelleAffiche: lig.libelleAffiche,
-            imageBase64: lig.imageBase64 || null,
-            valeursColonnesSpecifiques: lig.extraColonnes 
-              ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
-              : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : (lig.valeursColonnesSpecifiques || {}))
-          }))
-        };
-      });
+      sections.value = planMapper.mapModelDataToSections({ sections: sectionsTriees });
 
     } catch (err) {
       console.error(err);
@@ -1080,363 +783,40 @@
     } finally {
       isLoadingData.value = false;
     }
-  };
-
-  const normalizeId = (id) => (typeof id === 'string' && id.length <= 36 ? id : null);
-
-  const syncIdsFromDb = (dbPlanData) => {
-    if (!dbPlanData) return;
-
-    plan.value = normaliserDonneesPlan(dbPlanData);
-
-    if (!dbPlanData.sections) return;
-
-    sections.value.forEach((sec, sIdx) => {
-      const dbSec = dbPlanData.sections.find(ds => ds.ordreAffiche === (sIdx + 1));
-
-      if (dbSec) {
-        sec.id = dbSec.id;
-        sec.isFromDb = true;
-        sec.modeleSectionId = dbSec.modeleSectionId;
-
-        (sec.lignes || []).forEach((lig, lIdx) => {
-          const dbLig = (dbSec.lignes || []).find(dl => dl.ordreAffiche === (lIdx + 1));
-
-          if (dbLig) {
-            lig.id = dbLig.id;
-            lig.isFromDb = true;
-            lig.modeleLigneSourceId = dbLig.modeleLigneSourceId;
-          } else {
-            lig.isFromDb = false;
-          }
-        });
-      } else {
-        sec.isFromDb = false;
-      }
-    });
-  };
-
-  const sanitizeMesurements = (ligne, isDraft = false) => {
-    const hasValeur = ligne.valeurNominale != null && ligne.valeurNominale !== '';
-    const hasTolSup = ligne.toleranceSuperieure != null && ligne.toleranceSuperieure !== '';
-    const hasTolInf = ligne.toleranceInferieure != null && ligne.toleranceInferieure !== '';
-
-    if (isDraft) {
-      return {
-        valeurNominale: hasValeur ? ligne.valeurNominale : null,
-        toleranceSuperieure: hasTolSup ? ligne.toleranceSuperieure : null,
-        toleranceInferieure: hasTolInf ? ligne.toleranceInferieure : null
-      };
-    }
-
-    if (hasValeur && (!hasTolSup || !hasTolInf)) {
-      return {
-        valeurNominale: null,
-        toleranceSuperieure: null,
-        toleranceInferieure: null
-      };
-    }
-
-    return {
-      valeurNominale: hasValeur ? ligne.valeurNominale : null,
-      toleranceSuperieure: hasTolSup ? ligne.toleranceSuperieure : null,
-      toleranceInferieure: hasTolInf ? ligne.toleranceInferieure : null
-    };
-  };
-
-  const construirePayloadService = (isDraft) => {
-    return sections.value.map((originalSection, idx) => {
-      let finalFrequenceLibelle = '';
-      if (originalSection.modeFreq === 'VARIABLE') {
-        const is100 = originalSection.freqNum === 100 && originalSection.typeVariable === 'HEURE';
-        if (is100) {
-          const p100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
-          finalFrequenceLibelle = p100 ? p100.libelle : "100% des pièces/h";
-        } else {
-          finalFrequenceLibelle = originalSection.frequenceLibelle || '';
-        }
-      } else if (originalSection.periodiciteId) {
-        const matchingPeriod = (store.periodicites || []).find(p => {
-          const pId = p.id || p.Id;
-          return pId && typeof pId === 'string' && typeof originalSection.periodiciteId === 'string' && pId.toLowerCase() === originalSection.periodiciteId.toLowerCase();
-        });
-        finalFrequenceLibelle = matchingPeriod ? (matchingPeriod.libelle || matchingPeriod.Libelle || '') : '';
-      }
-
-      let regleEchLibelle = '';
-      const regleEchId = originalSection.regleEchantillonnageId;
-      if (regleEchId) {
-        regleEchLibelle = (store.reglesEchantillonnage || []).find(r => r.id === regleEchId)?.libelle || '';
-      }
-
-      const typeSectionId = originalSection.typeSectionId;
-
-      return {
-        id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
-        modeleSectionId: originalSection.modeleSectionId,
-        ordreAffiche: idx + 1,
-        typeSectionId: (typeSectionId && typeSectionId !== "") ? typeSectionId : null,
-        libelleSection: originalSection.nom || originalSection.libelleSection || 'SECTION SANS NOM',
-        notes: originalSection.notes || '',
-        frequenceLibelle: finalFrequenceLibelle,
-        regleEchantillonnageLibelle: regleEchLibelle,
-        periodiciteId: (originalSection.periodiciteId && originalSection.periodiciteId !== "") ? originalSection.periodiciteId : null,
-        regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
-        lignes: (originalSection.lignes || []).map((l, lIdx) => {
-          const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
-          const nomCaract = caractMatch?.libelle || '';
-          
-          const mesurements = sanitizeMesurements(l, isDraft);
-          const hasNumeric = mesurements.valeurNominale != null || mesurements.toleranceInferieure != null || mesurements.toleranceSuperieure != null;
-          
-          return {
-            id: l.isFromDb ? normalizeId(l.id) : null,
-            modeleLigneSourceId: l.modeleLigneSourceId,
-            ordreAffiche: lIdx + 1,
-            typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
-            typeControleId: (l.typeControleId && l.typeControleId !== "") ? l.typeControleId : null,
-            moyenControleId: (l.moyenControleId && l.moyenControleId !== "") ? l.moyenControleId : null,
-            moyenTexteLibre: l.moyenTexteLibre || '',
-            instrumentCode: l.instrumentCode || '',
-            valeurNominale: hasNumeric ? mesurements.valeurNominale : null,
-            toleranceSuperieure: hasNumeric ? mesurements.toleranceSuperieure : null,
-            toleranceInferieure: hasNumeric ? mesurements.toleranceInferieure : null,
-            unite: l.unite || '',
-            limiteSpecTexte: !hasNumeric && l.limiteSpecTexte ? String(l.limiteSpecTexte).trim() : '',
-            instruction: l.instruction || '',
-            observations: l.observations || '',
-            estCritique: l.estCritique || false,
-            libelleAffiche: (l.libelleAffiche || nomCaract).trim(),
-            imageBase64: l.imageBase64 || null,
-            extraColonnes: l.valeursColonnesSpecifiques && Object.keys(l.valeursColonnesSpecifiques).length > 0 
-              ? Object.entries(l.valeursColonnesSpecifiques).map(([key, val], idx) => ({
-                  cleColonne: key,
-                  valeurColonne: val,
-                  ordreAffiche: idx + 1
-                }))
-              : []
-          };
-        })
-      };
-    });
-  };
-
-  const sauvegarderBrouillonSilencieux = async (afficherToast = false, force = false) => {
-    if (!force && (isLoadingData.value || isGeneratingPlan.value || isCanceling.value || isSaving.value || plan.value?.statut === 'ACTIF' || isArchived.value)) return;
-
-    let currentPlanId = planId.value;
-
-    try {
-      if (currentPlanId === 'nouveau' && planCreationPayload.value) {
-        if (versionInitiale.value !== null) {
-          planCreationPayload.value.versionInitiale = versionInitiale.value;
-        }
-        if (plan.value?.codeArticleSage) {
-          planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
-        }
-        
-        const sectionsPayload = construirePayloadService(true);
-        if (sectionsPayload && sectionsPayload.length > 0) {
-          planCreationPayload.value.sections = sectionsPayload;
-        }
-
-        const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
-        const instData = instRes?.data?.data || instRes?.data || instRes;
-        currentPlanId = instData.planId || instData.id;
-        planId.value = currentPlanId;
-        aEteCreePendantCetteSession.value = true;
-        const newPlanRes = await fabPlanService.getPlanById(currentPlanId);
-        const dataPlan = newPlanRes?.data?.data || newPlanRes?.data || newPlanRes;
-        syncIdsFromDb(dataPlan);
-        planCreationPayload.value = null;
-      }
-
-      if (!currentPlanId || currentPlanId === 'nouveau') return;
-
-      await prepareSectionsForBackend(sections.value, store.periodicites, async (payload) => {
-        const res = await fabPlanService.createPeriodicite(payload);
-        const resData = res?.data?.data || res?.data || res;
-        store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payload });
-        return res;
-      });
-
-      const payload = construirePayloadService(true);
-      const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
-
-      const payloadData = {
-        sections: payload,
-        colonneDefs: planConfigurationColonnes.value
-      };
-      
-      let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
-      let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
-      let codeVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
-
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, false, codeVersionne, 'Admin', plan.value?.codeArticleSage, codeVersionne);
-
-      if (afficherToast) {
-        toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données sont sauvegardées.', life: 3000 });
-      }
-    } catch (error) {
-      console.error("L'auto-save a échoué.", error);
-    }
-  };
-
-  const declencherSauvegarde = async (isActivating = false) => {
-    let currentPlanId = planId.value;
-
-    if (currentPlanId === 'nouveau' && planCreationPayload.value) {
-      try {
-        if (versionInitiale.value !== null) {
-          planCreationPayload.value.versionInitiale = versionInitiale.value;
-        }
-        if (plan.value?.codeArticleSage) {
-          planCreationPayload.value.codeArticleSage = plan.value.codeArticleSage;
-        }
-
-        await prepareSectionsForBackend(
-          sections.value,
-          store.periodicites || [],
-          async (payloadFreq) => {
-            const res = await fabPlanService.createPeriodicite(payloadFreq);
-            const resData = res?.data?.data || res?.data || res;
-            store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
-            return res;
-          }
-        );
-
-        if (isActivating) {
-          planCreationPayload.value.statut = 'ACTIF';
-        }
-        
-        const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
-        planCreationPayload.value.nom = finalNom;
-        
-        let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
-        let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
-        planCreationPayload.value.codeArticleSageVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
-        
-        planCreationPayload.value.legendeMoyens = legendeMoyens.value;
-        planCreationPayload.value.remarques = remarques.value;
-
-        const sectionsPayload = construirePayloadService(isActivating ? false : (plan.value?.statut === 'BROUILLON'));
-        if (sectionsPayload && sectionsPayload.length > 0) {
-          planCreationPayload.value.sections = sectionsPayload;
-        }
-
-        const instRes = await fabPlanService.instantiatePlan(planCreationPayload.value);
-        const instData = instRes?.data?.data || instRes?.data || instRes;
-        currentPlanId = instData.planId || instData.id;
-        planId.value = currentPlanId;
-
-        planCreationPayload.value = null;
-
-        if (isActivating) {
-          toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan a été créé et activé directement.', life: 4000 });
-        } else {
-          toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Le brouillon a été créé avec succès.', life: 3000 });
-        }
-
-        isExitingEditor.value = true;
-        router.push('/dev/hub-plans');
-        return;
-      } catch (err) {
-        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de créer le plan', life: 6000 });
-        throw err;
-      }
-    }
-
-    await enregistrerValeurs(currentPlanId, true, isActivating);
-  };
-
-  const enregistrerValeurs = async (currentPlanId, redirectToHub = true, isActivating = false) => {
-    try {
-      await prepareSectionsForBackend(
-        sections.value,
-        store.periodicites || [],
-        async (payloadFreq) => {
-          const res = await fabPlanService.createPeriodicite(payloadFreq);
-          const resData = res?.data?.data || res?.data || res;
-          store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
-          return res;
-        }
-      );
-
-      const payload = construirePayloadService(isActivating ? false : (plan.value?.statut === 'BROUILLON'));
-      const finalNom = plan.value?.nom && !plan.value.nom.includes('Modèle') ? plan.value.nom : `Plan de contrôle en cours de fabrication ${plan.value?.designation || wizard.designationArticle.value}${plan.value?.posteCode || wizard.posteCode.value ? ' (' + (plan.value?.posteCode || wizard.posteCode.value) + ')' : ''}`;
-
-      const payloadData = {
-        sections: payload,
-        colonneDefs: planConfigurationColonnes.value
-      };
-
-      let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
-      let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
-      let codeVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
-      await fabPlanService.mettreAJourValeurs(currentPlanId, payloadData, legendeMoyens.value, remarques.value, isActivating, codeVersionne, 'Admin', plan.value?.codeArticleSage, codeVersionne);
-
-      if (isActivating) {
-        toast.add({ severity: 'success', summary: 'Plan Activé', detail: 'Le plan est maintenant en production.', life: 4000 });
-      } else {
-        toast.add({ severity: 'info', summary: 'Données sauvegardées', detail: 'Vos modifications ont été enregistrées.', life: 3000 });
-      }
-
-      if (redirectToHub) {
-        isExitingEditor.value = true;
-        router.push('/dev/hub-plans');
-      } else {
-        await chargerPlan(currentPlanId);
-      }
-    } catch (error) {
-      console.error('Erreur sauvegarde:', error);
-      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Une erreur est survenue lors de la sauvegarde.', life: 4000 });
-      throw error;
-    }
-  };
+  }
 
   const onSaveDraft = async () => {
     if (isSaving.value) return;
-    isSaving.value = true;
 
     try {
       if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
-        isSaving.value = false;
         return;
       }
 
       if (planCreationPayload.value) planCreationPayload.value.statut = 'BROUILLON';
       if (plan.value) plan.value.statut = 'BROUILLON';
-      await sauvegarderBrouillonSilencieux(true, true);
+      
+      await planActions.sauvegarderBrouillonSilencieux(true, true);
       isExitingEditor.value = true;
       router.push('/dev/hub-plans');
     } catch (error) {
       console.error(error);
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible d\'enregistrer le brouillon.', life: 4000 });
-    } finally {
-      isSaving.value = false;
     }
   };
 
   const onActivatePlan = async () => {
     if (isSaving.value) return;
-    isSaving.value = true;
 
     try {
       if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
-        isSaving.value = false;
         return;
       }
       
-      if (!validerSaisieValeurs()) {
-        isSaving.value = false;
-        return;
-      }
-      if (!validerLegendeMoyens()) {
-        isSaving.value = false;
-        return;
-      }
+      if (!validerSaisieValeurs()) return;
+      if (!validerLegendeMoyens()) return;
 
       let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
       const codeArticle = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
@@ -1446,145 +826,57 @@
       const famille = wizard.familleCode.value || wizard.typeRobinetCode.value;
       const nature = wizard.natureComposantCode.value;
       
-      const resVal = await fabPlanService.verifierEtatPlan(codeArticle, famille, nature, null, opCode, pCode);
+      const resVal = await fabPlanService.verifyPlanState(codeArticle, famille, nature, null, opCode, pCode);
       const etat = resVal.data;
 
-      if (etat.existeActif && (!plan.value?.id || etat.actifId !== plan.value.id)) {
-        confirm.require({
-          message: `Attention : Un plan ACTIF existe déjà pour cet article. L'activation de ce nouveau plan archivera automatiquement l'ancien. Voulez-vous continuer ?`,
-          header: 'Confirmation d\'Activation',
-          icon: 'pi pi-exclamation-triangle text-amber-500',
-          acceptLabel: 'Oui, Archiver & Activer',
-          rejectLabel: 'Annuler',
-          acceptClass: 'p-button-success',
-          accept: async () => {
-            await declencherSauvegarde(true);
-          },
-          reject: () => {
-            isSaving.value = false;
-          }
+      if (etat.hasActif && (!plan.value?.id || etat.actifId !== plan.value.id)) {
+        const confirmed = await confirmArchivagePlanActif({
+          typeDocument: 'plan de fabrication',
+          identifiant: codeArticle
         });
+        
+        if (confirmed) {
+          await planActions.declencherSauvegarde(true);
+        }
       } else {
-        await declencherSauvegarde(true);
+        await planActions.declencherSauvegarde(true);
       }
     } catch (error) {
       console.error('Erreur dans onActivatePlan:', error);
       toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible d\'activer le plan.', life: 5000 });
-      isSaving.value = false;
-    }
-  };
-
-  const createNewVersionActive = async () => {
-    try {
-      if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
-        toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
-        return;
-      }
-      if (!validerSaisieValeurs()) return;
-      if (!validerLegendeMoyens()) return;
-
-      await prepareSectionsForBackend(
-        sections.value,
-        store.periodicites || [],
-        async (payloadFreq) => {
-          const res = await fabPlanService.createPeriodicite(payloadFreq);
-          const resData = res?.data?.data || res?.data || res;
-          store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
-          return res;
-        }
-      );
-
-      const payloadSections = construirePayloadService(false);
-      let rawCode = plan.value?.codeArticleSage || wizard.codeArticleSage.value;
-      let baseCode = typeof rawCode === 'object' && rawCode !== null ? rawCode.codeArticle : rawCode;
-      const codeVersionne = codeArticleSuffix.value ? `${baseCode}.${codeArticleSuffix.value}` : plan.value?.codeArticleSageVersionne || baseCode;
-      
-      const reqPayload = {
-        ancienId: planId.value,
-        typeDocumentCode: plan.value.typeDocumentCode || 'FAB',
-        nom: plan.value.nom,
-        designation: plan.value.designation,
-        natureArticleCode: plan.value.natureArticleCode,
-        familleProduitFiniCode: plan.value.familleProduitFiniCode,
-        operationCode: plan.value?.operationCode || wizard.operationCode.value,
-        posteCode: plan.value?.posteCode || wizard.posteCode.value,
-        legendeMoyens: legendeMoyens.value,
-        remarques: remarques.value,
-        libre1: plan.value.codeArticleSage,
-        configurationColonnesJson: JSON.stringify(planConfigurationColonnes.value),
-        refFormulaireCodeReference: plan.value.codeReferenceFormulaire,
-        sections: payloadSections,
-        codeArticleSageVersionne: codeVersionne,
-        statut: 'ACTIF'
-      };
-
-      const res = await fabPlanService.newPlanVersion(reqPayload);
-      
-      toast.add({ severity: 'success', summary: 'Nouvelle Version', detail: 'La nouvelle version a été créée et activée avec succès.', life: 4000 });
-      isExitingEditor.value = true;
-      router.push('/dev/hub-plans');
-    } catch (error) {
-      console.error('Erreur nouvelle version:', error);
-      toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de créer la nouvelle version.', life: 6000 });
-      throw error;
     }
   };
 
   const onEditorSubmit = async () => {
     if (isSaving.value) return;
-    isSaving.value = true;
 
     try {
       if (!isEditMode.value && planId.value !== 'nouveau') {
         await onWizardGenerate();
-        isSaving.value = false;
         return;
       }
 
       if (isArchived.value) {
-        await mettreANiveauArchive();
-        isSaving.value = false;
+        await planActions.mettreANiveauArchive();
         return;
       }
 
       if (plan.value?.statut === 'ACTIF') {
-        await createNewVersionActive();
-        isSaving.value = false;
+        await planActions.createNewVersionActive();
         return;
       }
 
       if (!codeArticleSuffix.value || codeArticleSuffix.value.trim() === '' || codeArticleSuffix.value === '.') {
         toast.add({ severity: 'error', summary: 'Erreur', detail: 'La version du Code Article (ex: .X) est obligatoire.', life: 4000 });
-        isSaving.value = false;
         return;
       }
 
-      if (!validerSaisieValeurs()) {
-        isSaving.value = false;
-        return;
-      }
-      if (!validerLegendeMoyens()) {
-        isSaving.value = false;
-        return;
-      }
+      if (!validerSaisieValeurs()) return;
+      if (!validerLegendeMoyens()) return;
 
-      await declencherSauvegarde();
+      await planActions.declencherSauvegarde();
     } catch (error) {
       console.error(error);
-      isSaving.value = false;
-    }
-  };
-
-  const mettreANiveauArchive = async () => {
-    try {
-      const res = await fabPlanService.upgradePlan(planId.value);
-      const newId = res.data.planId;
-      toast.add({ severity: 'success', summary: 'Mise à niveau réussie', detail: 'Le plan a été mis à niveau et est maintenant la version active.', life: 4000 });
-      router.push(`/dev/fab/plans/editer/${newId}`);
-      setTimeout(() => window.location.reload(), 100);
-    } catch (error) {
-      console.error('Erreur mise à niveau:', error);
-      toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Impossible de mettre à niveau le plan.', life: 6000 });
     }
   };
 </script>

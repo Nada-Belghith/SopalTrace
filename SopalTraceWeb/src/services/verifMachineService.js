@@ -32,13 +32,10 @@ export const verifMachineService = {
     });
   },
 
-  creerNouvelleVersion(payload) {
+  createNewVersion(payload) {
     return apiClient.post('/DocumentVerifMachine/nouvelle-version', payload);
   },
 
-  restoreDocument(payload) {
-    return apiClient.post(`/DocumentVerifMachine/${payload.AncienId}/restaurer`, payload);
-  },
 
   importExcel(file, configColonnesJson) {
     const formData = new FormData();

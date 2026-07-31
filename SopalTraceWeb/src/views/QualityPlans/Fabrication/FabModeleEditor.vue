@@ -268,14 +268,16 @@ const handleEditorSubmitClick = () => onEditorSubmitClick(toast, router, confirm
 
 onMounted(async () => {
   try {
+    if (!route.params.id || route.params.id === 'nouveau') {
+      resetForNewModel();
+      if (groupes.value.length === 0) addSection();
+    }
+
     await store.fetchDictionnaires();
     await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
     
     if (route.params.id && route.params.id !== 'nouveau') {
       await loadModelForEditing(route.params.id, toast, router);
-    } else {
-      resetForNewModel();
-      if (groupes.value.length === 0) addSection();
     }
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur réseau', detail: error.message, life: 5000 });

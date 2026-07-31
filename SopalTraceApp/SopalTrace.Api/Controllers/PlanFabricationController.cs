@@ -66,13 +66,13 @@ public class PlanFabricationController : ControllerBase
     {
         try
         {
-            var id = await _planService.CreerPlanAsync(request);
+            var id = await _planService.CreatePlanAsync(request);
             return Ok(new { id });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erreur lors de la création du plan.");
-            return StatusCode(500, "Une erreur est survenue lors de la création.");
+            return StatusCode(500, new { message = "Erreur interne du serveur SopalTrace.", details = ex.ToString() });
         }
     }
 
@@ -81,7 +81,7 @@ public class PlanFabricationController : ControllerBase
     {
         try
         {
-            var id = await _planService.CreerNouvelleVersionPlanAsync(request);
+            var id = await _planService.CreateNewVersionAsync(request);
             return Ok(new { id });
         }
         catch (Exception ex)
@@ -96,7 +96,7 @@ public class PlanFabricationController : ControllerBase
     {
         try
         {
-            var newId = await _planService.MettreANiveauPlanArchiveAsync(id);
+            var newId = await _planService.UpgradeArchivedPlanAsync(id);
             return Ok(new { id = newId });
         }
         catch (Exception ex)
@@ -111,7 +111,7 @@ public class PlanFabricationController : ControllerBase
     {
         try
         {
-            var success = await _planService.MettreAJourPlanAsync(id, request);
+            var success = await _planService.UpdatePlanAsync(id, request);
             if (!success) return NotFound();
             return Ok(new { success = true });
         }
@@ -129,7 +129,7 @@ public class PlanFabricationController : ControllerBase
     {
         try
         {
-            var success = await _planService.SupprimerPlanAsync(id);
+            var success = await _planService.DeletePlanAsync(id);
             if (!success) return NotFound();
             return Ok(new { success = true });
         }

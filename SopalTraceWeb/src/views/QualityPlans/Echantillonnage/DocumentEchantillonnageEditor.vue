@@ -193,6 +193,7 @@ import { useDocumentEchantillonnageStore } from '@/stores/documentEchantillonnag
 
 import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';
 import { useDocumentSaveManager } from '@/composables/useDocumentSaveManager';
+import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
 
 const route = useRoute();
 const router = useRouter();
@@ -200,9 +201,13 @@ const toast = useToast();
 const confirm = useConfirm();
 const store = useDocumentEchantillonnageStore();
 
+const { confirmArchivagePlanActif } = useActivePlanConfirmation();
+
 const isSaving = ref(false);
+const isVersioningSaving = ref(false);
 
 const { isReadOnly, isArchived, isEditMode } = useDocumentHeaderMeta(route, store);
+
 
 const headerTitle = computed(() => {
   if (isArchived.value) return "Archive Plan d'Échantillonnage";
@@ -260,6 +265,63 @@ onMounted(async () => {
     store.regles = [];
     store.addRule();
   }
+});
+
+const { handleSaveDirect, handleSaveCorrection, handleSaveNewVersion } = useDocumentSaveManager({
+  callbacks: {
+    validateForm: async () => {
+      return true; // Ajouter une validation spécifique si nécessaire
+    },
+    preSaveHook: async () => {
+      if (!store.entete.id) { // Création d'un nouveau plan
+        const planActif = store.plansExistants && store.plansExistants.length > 0 ? store.plansExistants[0] : null;
+        if (planActif) {
+          const isConfirmed = await confirmArchivagePlanActif({
+            typeDocument: "plan d'échantillonnage",
+            identifiant: "standard",
+            version: planActif.version || 1
+          });
+          if (!isConfirmed) return false;
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      return true;
+    },
+    onSaveDirect: async () => {
+      isSaving.value = true;
+      try {
+        if (!store.entete.id) {
+          await store.createDocument();
+        } else {
+          await store.updateDocument();
+        }
+        return { success: true };
+      } finally {
+        isSaving.value = false;
+      }
+    },
+    onSaveCorrection: async () => {
+      isSaving.value = true;
+      try {
+        await store.updateDocument();
+        return { success: true };
+      } finally {
+        isSaving.value = false;
+      }
+    },
+    onSaveNewVersion: async (motif) => {
+      isSaving.value = true;
+      try {
+        await store.createNewVersion(motif);
+        return { success: true };
+      } finally {
+        isSaving.value = false;
+      }
+    }
+  },
+  toast,
+  router,
+  returnUrl: '/dev/hub'
 });
 
 const onCloseEditor = () => {

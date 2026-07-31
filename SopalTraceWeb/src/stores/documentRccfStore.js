@@ -112,6 +112,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
         const payload = {
           TypeDocumentCode: 'RESULTAT_CF',
           PosteCode: this.entete.posteCode,
+          FormulaireId: this.entete.formulaireId,
           RefFormulaireCodeReference: this.entete.formulaireCodeReference,
           Nom: this.entete.nom,
           Remarques: this.entete.remarques || this.entete.notes,
@@ -138,7 +139,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
             // Document est actif, la modification crée une nouvelle version brouillon
             payload.ancienId = this.entete.id;
             response = await documentService.createNewVersion(payload);
-            let newId = response.data.id;
+            let newId = response.id || response.data?.id;
             this.entete.id = newId;
             await this.chargerPlan(newId);
             return { success: true, planId: newId };
@@ -150,7 +151,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
           }
         } else {
           response = await documentService.createDocument(payload);
-          let newId = response.data.id;
+          let newId = response.id || response.data?.id;
           this.entete.id = newId; // Set local ID immediately
           await this.chargerPlan(newId); // Re-fetch from backend to get generated section and line IDs
           return { success: true, planId: newId };
@@ -189,16 +190,18 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
       }
     },
 
-    async creerNouvelleVersion() {
+    async createNewVersion(motif) {
       try {
         const payload = {
           TypeDocumentCode: 'RESULTAT_CF',
           ancienId: this.entete.id,
           PosteCode: this.entete.posteCode,
+          FormulaireId: this.entete.formulaireId,
           RefFormulaireCodeReference: this.entete.formulaireCodeReference,
           Nom: this.entete.nom,
           Remarques: this.entete.remarques,
           LegendeMoyens: this.entete.legendeMoyens,
+          MotifModification: motif,
           ConfigurationColonnesJson: typeof this.entete.configurationJson === 'object' ? JSON.stringify(this.entete.configurationJson) : this.entete.configurationJson,
           Sections: this.sections.map((s, idx) => ({
             OrdreAffiche: s.ordreAffiche || (idx + 1),
@@ -213,7 +216,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
           }))
         };
         const res = await documentService.createNewVersion(payload);
-        return { success: true, newPlanId: res.data.id };
+        return { success: true, newPlanId: res.id || res.data?.id };
       } catch (error) {
         return { success: false, message: error.response?.data?.message || 'Erreur' };
       }

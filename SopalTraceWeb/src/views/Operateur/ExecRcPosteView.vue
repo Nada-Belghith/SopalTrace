@@ -6,7 +6,6 @@ import { useAppToast } from '@/composables/useAppToast'
 import { useAuthStore } from '@/stores/authStore'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
 import Button from 'primevue/button'
-import InputNumber from 'primevue/inputnumber'
 import Dialog from 'primevue/dialog'
 
 const router = useRouter()
@@ -63,7 +62,7 @@ const activeTranches = computed(() => {
 })
 
 const isCurrentTranche = (tranche) => {
-  const [start, end] = tranche.split('-').map(Number)
+  const [start] = tranche.split('-').map(Number)
   return currentHour.value === start
 }
 
@@ -85,13 +84,6 @@ const availableDates = computed(() => {
   return Array.from(map.entries()).map(([raw, formatted]) => ({ raw, formatted }))
 })
 
-const availableEquipes = computed(() => {
-  const equipes = new Set()
-  availableSessions.value.forEach(s => {
-    if (s.equipe) equipes.add(s.equipe)
-  })
-  return Array.from(equipes).sort()
-})
 
 const filteredSessions = computed(() => {
   return availableSessions.value.filter(s => {
@@ -135,10 +127,6 @@ const handleCreateNewDocument = async () => {
   }
 }
 
-const changeSession = async (statutId) => {
-  currentStatutId.value = statutId
-  await loadSession(statutId)
-}
 
 const docHeader = computed(() => {
   return {
@@ -277,7 +265,7 @@ const loadSession = async (statutId) => {
   try {
     const res = await apiClient.get(`/ExecRcPoste/statut/${statutId}`)
     processResponse(res)
-  } catch (err) {
+  } catch {
     toast.error('Erreur', 'Impossible de charger cette session.')
   } finally {
     loading.value = false
@@ -407,7 +395,7 @@ const handleValider = async () => {
     await apiClient.put(`/ExecRcPoste/${currentStatutId.value}`, payload)
     toast.success('Succès', 'Les données ont été enregistrées.')
     switchToGalleryMode()
-  } catch (err) {
+  } catch {
     toast.error('Erreur', 'Impossible de sauvegarder.')
   } finally {
     saving.value = false
@@ -422,7 +410,7 @@ const marquerTermine = async () => {
     isDocumentTermine.value = true
     toast.success('Succès', 'Le document a été clôturé.')
     switchToGalleryMode()
-  } catch (err) {
+  } catch {
     toast.error('Erreur', 'Impossible de clôturer le document.')
   } finally {
     saving.value = false

@@ -515,21 +515,9 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       isLoading.value = false;
     }
   };
+  const creerNouvelleVersion = createNewVersion;
 
-  const restoreDocument = async (id, motif = "Restauration d'une ancienne version") => {
-    isLoading.value = true;
-    try {
-      const payload = {
-        AncienId: id,
-        ModifiePar: "ADMIN",
-        MotifModification: motif
-      };
-      const response = await verifMachineService.restoreDocument(payload);
-      return response.data;
-    } finally {
-      isLoading.value = false;
-    }
-  };
+
 
   const importerDepuisExcel = async (file) => {
     isLoading.value = true;
@@ -694,7 +682,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,
     ajouterGroupPeriodicite, supprimerGroupPeriodicite, ajouterRowDetail, supprimerRowDetail,
     getPieceValue, setPieceValue,
-    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, loadDocumentById, sauvegarderPlanVerif, buildPayload, aDesModifications, createNewVersion,
-    restoreDocument, importerDepuisExcel
+    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, loadDocumentById, sauvegarderPlanVerif, buildPayload, aDesModifications, createNewVersion, creerNouvelleVersion,
+    importerDepuisExcel
   };
 });

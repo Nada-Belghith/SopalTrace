@@ -335,9 +335,10 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
     }
   };
 
-  const creerNouvelleVersion = async (motif = '') => {
+  const createNewVersion = async (motif = '') => {
     return await sauvegarderPlan(false, true);
   };
+  const creerNouvelleVersion = createNewVersion;
 
   const restaurerPlan = async (motif = "Restauration d'une ancienne version") => {
     isLoading.value = true;
@@ -438,7 +439,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
     postes, machines, risquesDefauts, isDicosLoaded, formulairesReferences,
     entete, lignes, isLoading, planInitialise, plansExistants,
     fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, initialiserNouveauPlan, chargerdocumentControlePoste,
-    ajouterLigne, supprimerLigne, sauvegarderPlan, creerNouvelleVersion, aDesModifications, restaurerPlan,
+    ajouterLigne, supprimerLigne, sauvegarderPlan, createNewVersion, creerNouvelleVersion, aDesModifications, restaurerPlan,
     resetState, importerDepuisExcel
   };
 });

@@ -45,7 +45,7 @@ export const planFabricationService = {
     return response.data;
   },
 
-  async mettreAJourValeurs(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage, codeArticleSageVersionne) {
+  async updatePlanValues(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage, codeArticleSageVersionne) {
     const payload = {
       nom: nomPlan,
       codeArticleSageVersionne: codeArticleSageVersionne,
@@ -61,8 +61,8 @@ export const planFabricationService = {
     }
   },
 
-  async verifierEtatPlan(articleCode, familleCode, natureCode, modeleId, operationCode = null, posteCode = null) {
-    const plans = await this.getPlansByFilters(familleCode, natureCode, operationCode, posteCode, articleCode);
+  async verifyPlanState(articleCode, familleCode, natureCode, modeleId, operationCode = null, posteCode = null) {
+    const plans = await this.getPlansByFilters(familleCode, natureCode, operationCode, posteCode, null);
 
     // Le backend stocke le nom avec un suffixe numérique ex: "C-25B0A01.1"
     // alors que l'articleCode du wizard est "C-25B0A01"
@@ -84,7 +84,7 @@ export const planFabricationService = {
     const actif = plans.find(p => p.statut === 'ACTIF' && matches(p));
     const brouillon = plans.find(p => p.statut === 'BROUILLON' && matches(p));
 
-    console.log('[verifierEtatPlan] article:', articleCode, '| plans:', plans.length, '| brouillon:', brouillon?.id || null, '| actif:', actif?.id || null);
+    console.log('[verifyPlanState] article:', articleCode, '| plans:', plans.length, '| brouillon:', brouillon?.id || null, '| actif:', actif?.id || null);
 
     return {
       data: {

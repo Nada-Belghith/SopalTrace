@@ -22,8 +22,6 @@ export const documentRccfService = {
     return documentService.createNewVersion(payload.ancienId || payload.documentId, payload).then(response => ({ data: response }));
   },
 
-  restore: (payload) => Promise.reject(new Error("La restauration n'est pas supportée pour ce type de document.")),
-
   importExcel: (file) => {
     const formData = new FormData();
     formData.append('file', file);

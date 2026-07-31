@@ -335,13 +335,16 @@ const onFileSelected = async (event) => {
 
 onMounted(async () => {
   try {
+    if (!route.params.id || route.params.id === 'nouveau') {
+      resetForNewPlan();
+      if (groupes.value.length === 0) ajouterGroupe();
+    }
+
     await store.fetchDictionnaires();
     await store.fetchFormulairesReferences('EN_COURS_DE_ASSEMBLAGE');
+    
     if (route.params.id && route.params.id !== 'nouveau') {
       await chargerModelePourEdition(route.params.id);
-    } else {
-      resetForNewModele();
-      if (groupes.value.length === 0) ajouterGroupe();
     }
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erreur réseau', detail: error.message, life: 5000 });
@@ -367,9 +370,10 @@ const chargerModelePourEdition = async (id) => {
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitFiniCode || '';
     
-    groupes.value = (data.sections || []).map(sec => ({
+    const sortedSections = [...(data.sections || [])].sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
+    groupes.value = sortedSections.map(sec => ({
       ...sec,
-      lignes: sec.lignes || []
+      lignes: [...(sec.lignes || [])].sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0))
     }));
     
     if (!isForcedView.value) {
@@ -483,7 +487,7 @@ const activerPlanCourant = async () => {
   }
 };
 
-const resetForNewModele = () => {
+const resetForNewPlan = () => {
   modeleEditionId.value = null;
   codeOriginal.value = '';
   version.value = 0;

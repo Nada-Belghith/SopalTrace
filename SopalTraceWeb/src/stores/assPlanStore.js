@@ -162,14 +162,14 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await assPlanService.creerDocument(payload);
+      const res = await assPlanService.createDocument(payload);
       return res.data || res; 
     } finally {
       isLoading.value = false;
     }
   };
 
-  const creerNouvelleVersion = async (id, motif, legendeMoyens = '') => {
+  const createNewVersion = async (id, motif, legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = {
@@ -178,19 +178,20 @@ export const useAssPlanStore = defineStore('assPlan', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await assPlanService.creerNouvelleVersion(payload.ancienId, payload);
+      const res = await assPlanService.createNewVersion(payload.ancienId, payload);
       return res.data || res;
     } finally {
       isLoading.value = false;
     }
   };
+  const creerNouvelleVersion = createNewVersion;
 
   const updatePlan = async (id, legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await assPlanService.corrigerDocument(id, payload);
+      const res = await assPlanService.updateDocument(id, payload);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -206,19 +207,8 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     }
   };
 
-  const restaurerPlan = async (motif) => {
-    if (!entete.value.id) return;
-    isLoading.value = true;
-    try {
-      const payload = {
-        documentArchiveId: entete.value.id,
-        motifRestoration: motif
-      };
-      const response = await assPlanService.restaurer(payload.documentArchiveId, payload);
-      return response.data;
-    } finally {
-      isLoading.value = false;
-    }
+  const restaurerPlan = async () => {
+    throw new Error("La restauration n'est pas supportée pour les documents centralisés.");
   };
 
   const importerDepuisExcel = async (file) => {
@@ -269,7 +259,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, savePlan, creerNouvelleVersion, updatePlan, activerPlanDraft, restaurerPlan, importerDepuisExcel,
+    removeSection, addLigneLibre, removeLigne, savePlan, createNewVersion, creerNouvelleVersion, updatePlan, activerPlanDraft, restaurerPlan, importerDepuisExcel,
     isBeingLoaded
   };
 });

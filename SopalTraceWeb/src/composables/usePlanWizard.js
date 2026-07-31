@@ -58,7 +58,7 @@ export function usePlanWizard() {
   const posteCode = ref('');   // Poste de travail BDD (ex : PAS71, PAS72, PAS78)
   const familleCode = ref(''); // Famille d'article (uniquement pour PF)
 
-  const sourceType = ref('MODELE');
+  const sourceType = ref(null);
   const selectedSourceId = ref(null);
   const refFormulaireCodeReference = ref('PRC');
   const isGenerating = ref(false);
@@ -465,7 +465,7 @@ export function usePlanWizard() {
     familleCode.value = '';
     isArticleValid.value = false;
     isGenerique.value = 0;
-    sourceType.value = 'MODELE';
+    sourceType.value = null;
     selectedSourceId.value = null;
     refFormulaireCodeReference.value = 'PRC';
     availableModeles.value = [];
