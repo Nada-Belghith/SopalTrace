@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -16,6 +16,10 @@ public partial class ExecControleDocumentStatut
     public string? MachineCode { get; set; }
 
     public Guid? DocId { get; set; }
+
+    public bool EstDemarrageTermine { get; set; }
+
+    public bool EstPauseTermine { get; set; }
 
     public bool EstTermine { get; set; }
 

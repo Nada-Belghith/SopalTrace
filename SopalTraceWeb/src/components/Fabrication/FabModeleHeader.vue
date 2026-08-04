@@ -98,6 +98,7 @@
 <script setup>
 import { computed, watch, ref } from 'vue';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 const store = useFabModeleStore();
@@ -112,7 +113,8 @@ const props = defineProps({
   }
 });
 
-const formulairesReferences = computed(() => store.formulairesReferences || []);
+const refStore = useReferentielStore();
+const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || []);
 const refFormulaireSelected = ref('');
 const isAutoFilling = ref(false);
 
@@ -145,7 +147,7 @@ const isAutoFilling = ref(false);
   const designation = refObj.designation || '';
   isAutoFilling.value = true;
 
-  const parsed = parseDesignation(designation, store.famillesProduit || [], [], store.postes || []);
+  const parsed = parseDesignation(designation, refStore.famillesProduit || [], [], refStore.postes || []);
 
   if (parsed.familleCode !== '') store.entete.familleProduitCode = parsed.familleCode;
   else store.entete.familleProduitCode = '';
@@ -172,7 +174,7 @@ const onLibelleBlur = () => {
   if (!lib) return;
   
   isAutoFilling.value = true;
-  const parsed = parseDesignation(lib, store.famillesProduit || [], [], store.postes || []);
+  const parsed = parseDesignation(lib, refStore.famillesProduit || [], [], refStore.postes || []);
   
   if (parsed.familleCode) store.entete.familleProduitCode = parsed.familleCode;
   if (parsed.natureComposantCode) store.entete.natureComposantCode = parsed.natureComposantCode;
@@ -203,7 +205,7 @@ const afficherPoste = computed(() => {
 // =========================================================================
 
 const composantsFiltres = computed(() => {
-  let toutesLesNatures = store.naturesComposant || [];
+  let toutesLesNatures = refStore.naturesComposant || [];
     
   toutesLesNatures = toutesLesNatures.filter(n => {
     const code = (n.code || '').trim().toUpperCase();
@@ -211,7 +213,7 @@ const composantsFiltres = computed(() => {
   });
 
   const selectedOp = (store.entete.operationCode || '').trim().toUpperCase();
-  const gammes = store.gammesOperatoires || [];
+  const gammes = refStore.gammesOperatoires || [];
 
   if (!selectedOp || !gammes.length) return toutesLesNatures;
 
@@ -224,13 +226,13 @@ const composantsFiltres = computed(() => {
 });
 
 const famillesFiltrees = computed(() => {
-  return store.famillesProduit || [];
+  return refStore.famillesProduit || [];
 });
 
 const operationsFiltrees = computed(() => {
-  const toutesLesOperations = store.operations || [];
+  const toutesLesOperations = refStore.operations || [];
   const selectedNature = (store.entete.natureComposantCode || '').trim().toUpperCase();
-  const gammes = store.gammesOperatoires || [];
+  const gammes = refStore.gammesOperatoires || [];
 
   if (!gammes.length) return toutesLesOperations;
 
@@ -253,14 +255,15 @@ const operationsFiltrees = computed(() => {
   return toutesLesOperations.filter(op => toutesOpsDansGammes.includes((op.code || '').trim().toUpperCase()));
 });
 
-const postesDisponibles = computed(() =>
-  (store.postes || [])
+const postesDisponibles = computed(() => {
+  const tousLesPostes = refStore.postes || [];
+  return tousLesPostes
     .map(p => ({
       code: p.code || p.Code || p.codePoste || p.CodePoste,
       libelle: p.libelle || p.Libelle || p.designation || p.Designation
     }))
     .filter(p => p.code)
-);
+});
 
 // =========================================================================
 // WATCHERS POUR CASCADE DE RÉINITIALISATION

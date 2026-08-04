@@ -71,45 +71,38 @@
               :remarques="store.entete.notes"
               :legende-moyens="store.entete.legendeMoyens"
               :configuration-colonnes="store.entete.configurationColonnes"
-              :types-section="store.typesSection || []"
-              :types-caracteristique="store.typesCaracteristique || []"
-              :types-controle="store.typesControle || []"
-              :moyens-controle="store.moyensControle || []"
-              :periodicites="store.periodicites || []"
+              :types-section="refStore.typesSection || []"
+              :types-caracteristique="refStore.typesCaracteristique || []"
+              :types-controle="refStore.typesControle || []"
+              :moyens-controle="refStore.moyensControle || []"
+              :periodicites="refStore.periodicites || []"
             />
           </div>
 
           <!-- Mode EDITION -->
           <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
             <table class="w-full text-left border-collapse min-w-[1200px]">
-              <AssTableHeader :columns="modeleColumns" />
+              <BaseTableHeader :columns="modeleColumns" />
               
-              <SharedSectionCard 
+              <PlanSection 
                 v-for="(section, index) in groupes" 
                 :key="section.id" 
-                :groupe="section" 
+                :section="section" 
                 :index="index"
+                :columns="modeleColumns"
                 :is-read-only="isReadOnly"
-                :typesSection="store.typesSection"
-                :periodicites="store.periodicites"
-                :reglesEchantillonnage="store.reglesEchantillonnage"
-                :operationCode="store.entete.operationCode"
+                :types-section="refStore.typesSection"
+                :periodicites="refStore.periodicites"
+                :regles-echantillonnage="refStore.reglesEchantillonnage"
+                :types-controle="refStore.typesControle"
+                :moyens-controle="refStore.moyensControle"
+                :instruments="refStore.instruments"
+                :operation-code="store.entete?.operationCode"
                 defaultTitle="Caractéristiques à contrôler"
                 @remove="supprimerGroupe(section.id)"
-                @update-groupe="(updatedGroupe) => mettreAJourGroupe(index, updatedGroupe)"
+                @update-section="(updatedGroupe) => mettreAJourGroupe(index, updatedGroupe)"
                 @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
-              >
-                <AssLigneControl 
-                  v-for="ligne in section.lignes" 
-                  :key="ligne.id" 
-                  :ligne="ligne"
-                  :columns="modeleColumns"
-                  :is-read-only="isReadOnly"
-                  :operation-code="store.entete?.operationCode"
-                  @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
-                  @update="(updatedLigne) => mettreAJourLigne(index, updatedLigne)"
-                />
-              </SharedSectionCard>
+              />
             </table>
           </div>
           
@@ -175,9 +168,10 @@ import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import assPlanHeader from '@/components/Assemblage/assPlanHeader.vue';
-import AssTableHeader from '@/components/Assemblage/AssTableHeader.vue';
-import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
-import AssLigneControl from '@/components/Assemblage/AssLigneControl.vue'; 
+import BaseTableHeader from '@/components/Shared/BaseTableHeader.vue';
+import PlanSection from '@/components/Shared/PlanSection.vue';
+import PlanSectionHeader from '@/components/Shared/PlanSectionHeader.vue';
+import { useReferentielStore } from '@/stores/referentielStore';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 
 import { useEditorSections } from '@/composables/useEditorSections';
@@ -185,6 +179,7 @@ import { useEditorValidation } from '@/composables/useEditorValidation';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 
 const store = useAssPlanStore();
+const refStore = useReferentielStore();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
@@ -197,13 +192,15 @@ const isSaving = ref(false);
 // ÉTAT LOCAL (Métier)
 // ============================================================================
 const { 
-  sections: groupes, 
+  sections, 
   ajouterSection: ajouterGroupe, 
   supprimerSection: supprimerGroupe, 
   mettreAJourSection: mettreAJourGroupe, 
   supprimerLigneASection, 
   mettreAJourLigne 
 } = useEditorSections();
+
+const groupes = sections;
 
 const modeleEditionId = ref(null);
 const codeOriginal = ref('');
@@ -335,14 +332,16 @@ const onFileSelected = async (event) => {
 
 onMounted(async () => {
   try {
+    if (!refStore.isDicosFabricationLoaded) {
+      await refStore.fetchDictionnaires('fabrication');
+    }
+    if (!refStore.formulairesReferencesByRole['EN_COURS_DE_ASSEMBLAGE']?.length) {
+      await refStore.fetchFormulairesReferences('EN_COURS_DE_ASSEMBLAGE');
+    }
     if (!route.params.id || route.params.id === 'nouveau') {
       resetForNewPlan();
       if (groupes.value.length === 0) ajouterGroupe();
     }
-
-    await store.fetchDictionnaires();
-    await store.fetchFormulairesReferences('EN_COURS_DE_ASSEMBLAGE');
-    
     if (route.params.id && route.params.id !== 'nouveau') {
       await chargerModelePourEdition(route.params.id);
     }
@@ -389,10 +388,10 @@ const chargerModelePourEdition = async (id) => {
 const preparerDonneesEtFrequences = async () => {
   await prepareSectionsForBackend(
     groupes.value,
-    store.periodicites,
+    refStore.periodicites,
     async (payloadFreq) => {
       const res = await fabPlanService.createPeriodicite(payloadFreq);
-      store.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
+      refStore.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
       return res;
     }
   );

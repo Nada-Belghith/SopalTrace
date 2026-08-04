@@ -53,7 +53,15 @@ public class ExceptionMiddleware
         // Sinon, c'est une erreur classique (AuthException, DomainException, etc.)
         else
         {
-            var result = JsonSerializer.Serialize(new { error = exception.Message });
+            // Construire la chaîne complète d'exceptions pour le débogage
+            var messages = new List<string>();
+            var current = exception;
+            while (current != null)
+            {
+                messages.Add(current.Message);
+                current = current.InnerException;
+            }
+            var result = JsonSerializer.Serialize(new { error = exception.Message, innerError = exception.InnerException?.Message, fullChain = messages });
             return context.Response.WriteAsync(result);
         }
     }

@@ -67,8 +67,10 @@ namespace SopalTrace.Application.Services
                 TypeDocument = "ECHANTILLONNAGE",
                 PosteCode = request.PosteCode,
                 DocId = plan.Id,
-                EstTermine = false,
+                EstDemarrageTermine = true,
+                EstTermine = true,
                 DateExecution = DateTime.Now,
+                DateTermine = DateTime.Now,
                 Equipe = request.Equipe,
                 MachineCode = request.MachineCode,
                 MatriculeOperateur = request.MatriculeOperateur
@@ -214,6 +216,9 @@ namespace SopalTrace.Application.Services
             {
                 statut.PosteCode = request.PosteCode;
                 statut.MachineCode = request.CodeMachine;
+                statut.EstDemarrageTermine = true;
+                statut.EstTermine = true;
+                statut.DateTermine ??= DateTime.Now;
                 if (request.DateEchantillonnage.HasValue)
                 {
                     statut.DateExecution = request.DateEchantillonnage.Value;

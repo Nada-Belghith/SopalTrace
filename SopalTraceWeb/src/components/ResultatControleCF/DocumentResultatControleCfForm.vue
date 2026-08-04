@@ -18,7 +18,7 @@
           </div>
           <div class="flex items-center gap-3">
             <Dropdown v-model="store.entete.formulaireId" 
-                      :options="referentielStore.formulaires || []" 
+                      :options="(referentielStore.formulairesReferencesByRole['RESULTAT_CONTROLE_CF'] || [])" 
                       optionLabel="designation"
                       optionValue="id"
                       @change="onFormulaireChange"
@@ -35,7 +35,7 @@
             <label class="text-xs font-black text-teal-800 uppercase tracking-widest">Poste de Travail</label>
           </div>
           <Dropdown v-model="store.entete.posteCode" 
-                    :options="referentielStore.postesTravail || []" 
+                    :options="referentielStore.postes || referentielStore.postesTravail || []" 
                     optionLabel="libelle"
                     optionValue="code"
                     placeholder="-- Sélectionnez un poste (optionnel) --"
@@ -100,23 +100,20 @@
                 </tr>
               </thead>
               <tbody>
-                <tr class="bg-[#f1f5f9] border-t-4 border-slate-300 border-b">
-                  <td colspan="3" class="p-3 px-4 relative pointer-events-auto">
-                    <div class="flex flex-col gap-3 w-full">
-                      <div class="flex items-center gap-3">
-                        <span class="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-1.5 rounded border border-blue-100 uppercase tracking-widest shrink-0 shadow-sm">
-                          SEC {{ index + 1 }}
-                        </span>
-                        <input type="text" v-model="sec.libelleAffiche" :disabled="isReadOnly"
-                               class="w-96 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm transition-all disabled:bg-slate-100 disabled:text-slate-500"
-                               placeholder="Nom de la section..." />
-                      </div>
-                      <div class="w-full border text-[11px] font-black tracking-widest rounded px-3 py-2 flex items-center shadow-inner transition-colors bg-white border-slate-200 text-slate-700 mt-2">
-                          <span class="text-blue-500 mr-2 uppercase">Aperçu :</span> {{ sec.libelleAffiche || '—' }}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
+                <PlanSectionHeader 
+                  :section="sec"
+                  :index="index"
+                  :colspan="3"
+                  label="SEC"
+                  defaultTitle=""
+                  :types-section="referentielStore.typesSection"
+                  :periodicites="referentielStore.periodicites"
+                  :regles-echantillonnage="referentielStore.reglesEchantillonnage"
+                  :isReadOnly="isReadOnly"
+                  hideAddLigne
+                  hideRemove
+                  @update:section="(newVal) => Object.assign(sec, newVal)"
+                />
                 <tr class="bg-white border-t border-slate-100">
                   <td colspan="3" class="p-8 text-center">
                     <div class="inline-flex items-center gap-2 px-6 py-4 rounded-xl bg-slate-50 border border-dashed border-slate-300 text-slate-400 text-sm font-black uppercase tracking-widest italic shadow-sm">
@@ -148,23 +145,20 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr class="bg-[#f1f5f9] border-t-4 border-slate-300 border-b">
-                    <td colspan="6" class="p-3 px-4 relative pointer-events-auto">
-                      <div class="flex flex-col gap-3 w-full">
-                        <div class="flex items-center gap-3">
-                          <span class="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-1.5 rounded border border-blue-100 uppercase tracking-widest shrink-0 shadow-sm">
-                            SEC {{ index + 1 }}
-                          </span>
-                          <input type="text" v-model="sec.libelleAffiche" :disabled="isReadOnly"
-                                 class="w-96 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm transition-all disabled:bg-slate-100 disabled:text-slate-500"
-                                 placeholder="Nom de la section..." />
-                        </div>
-                        <div class="w-full border text-[11px] font-black tracking-widest rounded px-3 py-2 flex items-center shadow-inner transition-colors bg-white border-slate-200 text-slate-700 mt-2">
-                            <span class="text-blue-500 mr-2 uppercase">Aperçu :</span> {{ sec.libelleAffiche || '—' }}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
+                  <PlanSectionHeader 
+                    :section="sec"
+                    :index="index"
+                    :colspan="6"
+                    label="SEC"
+                    defaultTitle=""
+                    :types-section="referentielStore.typesSection"
+                    :periodicites="referentielStore.periodicites"
+                    :regles-echantillonnage="referentielStore.reglesEchantillonnage"
+                    :isReadOnly="isReadOnly"
+                    hideAddLigne
+                    hideRemove
+                    @update:section="(newVal) => Object.assign(sec, newVal)"
+                  />
                   <tr class="bg-white border-t border-slate-100">
                     <td colspan="6" class="p-8 text-center">
                       <div class="inline-flex items-center gap-2 px-6 py-4 rounded-xl bg-slate-50 border border-dashed border-slate-300 text-slate-400 text-sm font-black uppercase tracking-widest italic shadow-sm">
@@ -178,8 +172,8 @@
             </div>
           </div>
 
-          <!-- REGLAGE / CUSTOM / LOT_POSTE -->
-          <div v-if="sec.sectionType === 'REGLAGE' || sec.sectionType === 'CUSTOM' || sec.sectionType === 'LOT_POSTE'" class="border border-slate-200 rounded-lg shadow-sm mb-6 bg-white overflow-hidden">
+          <!-- SECTIONS AVEC LIGNES DE CARACTÉRISTIQUES (REGLAGE, CUSTOM, LOT_POSTE, LOT_OF, etc.) -->
+          <div v-if="sec.sectionType !== 'APPROBATION' && sec.sectionType !== 'TRANCHES'" class="border border-slate-200 rounded-lg shadow-sm mb-6 bg-white overflow-hidden">
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse min-w-[1200px]">
                 <thead class="bg-[#0f1923] text-white">
@@ -199,32 +193,26 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr class="bg-[#f1f5f9] border-t-4 border-slate-300 border-b">
-                    <td :colspan="6 + modeleColumns.filter(c => c.isCustom).length" class="p-3 px-4 relative pointer-events-auto">
-                      <div class="flex items-center justify-between">
-                        <div class="flex flex-col gap-3 w-full pr-12">
-                          <div class="flex items-center gap-3">
-                            <span class="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-1.5 rounded border border-blue-100 uppercase tracking-widest shrink-0 shadow-sm">
-                              SEC {{ index + 1 }}
-                            </span>
-                            <input type="text" v-model="sec.libelleAffiche" :disabled="isReadOnly"
-                                   class="w-96 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm transition-all disabled:bg-slate-100 disabled:text-slate-500"
-                                   placeholder="Nom de la section..." />
-                          </div>
-                          <div class="w-full border text-[11px] font-black tracking-widest rounded px-3 py-2 flex items-center shadow-inner transition-colors bg-white border-slate-200 text-slate-700 mt-2">
-                              <span class="text-blue-500 mr-2 uppercase">Aperçu :</span> {{ sec.libelleAffiche || '—' }}
-                          </div>
-                        </div>
-                        <button v-if="!isReadOnly && sec.sectionType !== 'REGLAGE'" @click="removeSection(sec)" class="text-slate-400 hover:text-red-500 transition-colors shrink-0 ml-4">
-                          <i class="pi pi-times-circle text-base"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  <PlanSectionHeader 
+                    :section="sec"
+                    :index="index"
+                    :colspan="6 + modeleColumns.filter(c => c.isCustom).length"
+                    label="SEC"
+                    defaultTitle="Caractéristiques à contrôler"
+                    :types-section="referentielStore.typesSection"
+                    :periodicites="referentielStore.periodicites"
+                    :regles-echantillonnage="referentielStore.reglesEchantillonnage"
+                    :isReadOnly="isReadOnly"
+                    :hideRemove="sec.sectionType === 'REGLAGE'"
+                    @add-ligne="sec.lignes = sec.lignes || []; sec.lignes.push({ caracteristique: '' })"
+                    @update:section="(newVal) => Object.assign(sec, newVal)"
+                    @remove="removeSection(sec)"
+                  />
                   <tr v-for="(ligne, lIdx) in sec.lignes" :key="lIdx" class="border-b border-slate-100 last:border-none hover:bg-slate-50/50">
                     <td class="p-1 border-r border-slate-100 align-middle">
                       <div class="flex items-center gap-2 group/ligne">
                         <input v-if="!isReadOnly" type="text" v-model="ligne.caracteristique" 
+                               @input="ligne.libelleAffiche = ligne.caracteristique"
                                class="w-full bg-transparent border border-transparent rounded px-2 py-1.5 text-xs text-slate-800 font-semibold outline-none hover:bg-slate-200/50 focus:border-blue-400 focus:bg-white transition-colors"
                                placeholder="Saisissez la caractéristique..." />
                         <span v-else class="px-2 py-1.5 text-xs text-slate-800 font-semibold">{{ ligne.caracteristique || '-' }}</span>
@@ -305,9 +293,11 @@ import { useReferentielStore } from '@/stores/referentielStore';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import Dropdown from 'primevue/dropdown';
+import { useFabModeleStore } from '@/stores/fabModeleStore';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
+import PlanSectionHeader from '@/components/Shared/PlanSectionHeader.vue';
 
 defineProps({
   isReadOnly: { type: Boolean, default: false }
@@ -315,6 +305,7 @@ defineProps({
 
 const store = usedocumentRccfStore();
 const referentielStore = useReferentielStore();
+const fabModeleStore = useFabModeleStore();
 const toast = useToast();
 const confirm = useConfirm();
 const router = useRouter();
@@ -352,29 +343,25 @@ const modeleColumns = computed(() => {
 
 const onFormulaireChange = (event) => {
   const selectedId = event.value || event;
-  const val = referentielStore.formulaires?.find(f => f.id === selectedId);
+  const val = (referentielStore.formulairesReferencesByRole['RESULTAT_CONTROLE_CF'] || []).find(f => f.id === selectedId);
 
   if (val && store.entete) {
     store.entete.nom = val.designation;
     store.entete.formulaireCodeReference = val.codeReference;
 
-    // --- AUTO-AFFECTATION DU POSTE DE TRAVAIL ---
-    // Si la désignation contient "PAS78", "PAS71", on cherche le poste correspondant.
-    // Sinon (formulaires génériques comme Usi/Esp/Trn ou Assemblage), on vide le poste.
-    if (referentielStore.postesTravail && referentielStore.postesTravail.length > 0) {
+    const postesList = referentielStore.postes || referentielStore.postesTravail || [];
+    if (postesList.length > 0) {
       const designationUpper = val.designation.toUpperCase();
-      const match = designationUpper.match(/(PAS\s*\d+)/); // Ex: "PAS78" ou "PAS 78"
+      const match = designationUpper.match(/(PAS\s*\d+)/);
       if (match) {
-        const posteCodeExtracted = match[1].replace(/\s+/g, ''); // Enlève les espaces: "PAS78"
-        const foundPoste = referentielStore.postesTravail.find(p => p.code.toUpperCase() === posteCodeExtracted);
+        const posteCodeExtracted = match[1].replace(/\s+/g, '');
+        const foundPoste = postesList.find(p => (p.code || '').toUpperCase() === posteCodeExtracted);
         if (foundPoste) {
           store.entete.posteCode = foundPoste.code;
         } else {
-          // Code PAS trouvé dans la désignation mais pas dans la liste des postes → vider
           store.entete.posteCode = null;
         }
       } else {
-        // Formulaire générique (Usi/Esp/Trn, Assemblage...) → pas de poste associé
         store.entete.posteCode = null;
       }
     }
@@ -402,15 +389,15 @@ const onFormulaireChange = (event) => {
     // Always reinitialize sections when the form explicitly changes via the dropdown
     if (val.designation.includes('Assemblage') || val.designation.includes('ASS')) {
       store.sections = [
-        { id: null, sectionType: 'REGLAGE', libelleAffiche: 'Caractéristiques à contrôler aux réglages (une série de 04 pièces)', ordreAffiche: 1, lignes: [] },
-        { id: null, sectionType: 'TRANCHES', libelleAffiche: 'Caractéristiques à contrôler par échantillonnage en cours de production (Selon FE0591 : échantillon /poste...)', ordreAffiche: 2, lignes: [] },
-        { id: null, sectionType: 'LOT_POSTE', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE (la première et la dernière pièce pour chaque poste)', ordreAffiche: 3, lignes: [] }
+        { id: null, sectionType: 'REGLAGE', nom: 'Caractéristiques à contrôler aux réglages (une série de 04 pièces)', libelleAffiche: 'Caractéristiques à contrôler aux réglages (une série de 04 pièces)', ordreAffiche: 1, lignes: [] },
+        { id: null, sectionType: 'TRANCHES', nom: 'Caractéristiques à contrôler par échantillonnage en cours de production (Selon FE0591 : échantillon /poste...)', libelleAffiche: 'Caractéristiques à contrôler par échantillonnage en cours de production (Selon FE0591 : échantillon /poste...)', ordreAffiche: 2, lignes: [] },
+        { id: null, sectionType: 'LOT_POSTE', nom: 'Caractéristiques à contrôler au niveau du POSTE (la première et la dernière pièce pour chaque poste)', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE (la première et la dernière pièce pour chaque poste)', ordreAffiche: 3, lignes: [] }
       ];
     } else {
       store.sections = [
-        { id: null, sectionType: 'APPROBATION', libelleAffiche: 'Approbation des pièces types', ordreAffiche: 1, lignes: [] },
-        { id: null, sectionType: 'TRANCHES', libelleAffiche: 'Contrôle en cours de fabrication', ordreAffiche: 2, lignes: [] },
-        { id: null, sectionType: 'LOT_POSTE', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE', ordreAffiche: 3, lignes: [] }
+        { id: null, sectionType: 'APPROBATION', nom: 'Approbation des pièces types', libelleAffiche: 'Approbation des pièces types', ordreAffiche: 1, lignes: [] },
+        { id: null, sectionType: 'TRANCHES', nom: 'Contrôle en cours de fabrication', libelleAffiche: 'Contrôle en cours de fabrication', ordreAffiche: 2, lignes: [] },
+        { id: null, sectionType: 'LOT_POSTE', nom: 'Caractéristiques à contrôler au niveau du POSTE', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE', ordreAffiche: 3, lignes: [] }
       ];
     }
   }
@@ -421,9 +408,13 @@ const onFormulaireChange = (event) => {
 
 
 onMounted(async () => {
+  if (!referentielStore.isDicosFabricationLoaded) {
+    await referentielStore.fetchDictionnaires('fabrication');
+  }
   await Promise.all([
-    referentielStore.fetchFormulaires(),
-    referentielStore.fetchPostesTravail(),
+    referentielStore.formulairesReferencesByRole['RESULTAT_CONTROLE_CF']?.length
+      ? Promise.resolve()
+      : referentielStore.fetchFormulairesReferences('RESULTAT_CONTROLE_CF'),
     store.loadAllPlans()
   ]);
 
@@ -434,15 +425,15 @@ onMounted(async () => {
   if (!store.sections || store.sections.length === 0) {
     if (store.entete && store.entete.nom && (store.entete.nom.includes('Assemblage') || store.entete.nom.includes('ASS'))) {
       store.sections = [
-        { id: null, sectionType: 'REGLAGE', libelleAffiche: 'Caractéristiques à contrôler aux réglages (une série de 04 pièces)', ordreAffiche: 1, lignes: [] },
-        { id: null, sectionType: 'TRANCHES', libelleAffiche: 'Caractéristiques à contrôler par échantillonnage en cours de production', ordreAffiche: 2, lignes: [] },
-        { id: null, sectionType: 'LOT_POSTE', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE (la première et la dernière pièce pour chaque poste)', ordreAffiche: 3, lignes: [] }
+        { id: null, sectionType: 'REGLAGE', nom: 'Caractéristiques à contrôler aux réglages (une série de 04 pièces)', libelleAffiche: 'Caractéristiques à contrôler aux réglages (une série de 04 pièces)', ordreAffiche: 1, lignes: [] },
+        { id: null, sectionType: 'TRANCHES', nom: 'Caractéristiques à contrôler par échantillonnage en cours de production', libelleAffiche: 'Caractéristiques à contrôler par échantillonnage en cours de production', ordreAffiche: 2, lignes: [] },
+        { id: null, sectionType: 'LOT_POSTE', nom: 'Caractéristiques à contrôler au niveau du POSTE (la première et la dernière pièce pour chaque poste)', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE (la première et la dernière pièce pour chaque poste)', ordreAffiche: 3, lignes: [] }
       ];
     } else {
       store.sections = [
-        { id: null, sectionType: 'APPROBATION', libelleAffiche: 'Approbation des pièces types', ordreAffiche: 1, lignes: [] },
-        { id: null, sectionType: 'TRANCHES', libelleAffiche: 'Contrôle en cours de fabrication', ordreAffiche: 2, lignes: [] },
-        { id: null, sectionType: 'LOT_POSTE', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE', ordreAffiche: 3, lignes: [] }
+        { id: null, sectionType: 'APPROBATION', nom: 'Approbation des pièces types', libelleAffiche: 'Approbation des pièces types', ordreAffiche: 1, lignes: [] },
+        { id: null, sectionType: 'TRANCHES', nom: 'Contrôle en cours de fabrication', libelleAffiche: 'Contrôle en cours de fabrication', ordreAffiche: 2, lignes: [] },
+        { id: null, sectionType: 'LOT_POSTE', nom: 'Caractéristiques à contrôler au niveau du POSTE', libelleAffiche: 'Caractéristiques à contrôler au niveau du POSTE', ordreAffiche: 3, lignes: [] }
       ];
     }
   }

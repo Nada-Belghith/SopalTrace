@@ -23,6 +23,7 @@
 import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import DocumentControlePosteForm from '@/components/DocumentControlePoste/DocumentControlePosteForm.vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import { useToast } from 'primevue/usetoast';
@@ -31,13 +32,20 @@ import ConfirmDialog from 'primevue/confirmdialog';
 import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';
 
 const store = usedocumentControlePosteStore();
+const refStore = useReferentielStore();
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 
 const { isReadOnly } = useDocumentHeaderMeta(route, store);
 
-onMounted(() => {
+onMounted(async () => {
+  if (!refStore.isDicosControlePosteLoaded) {
+    await refStore.fetchDictionnaires('controle-poste');
+  }
+  if (!refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE']?.length) {
+    await refStore.fetchFormulairesReferences('RESULTAT_CONTROLE_POSTE');
+  }
   const planId = route.params.id;
   if (!planId || planId === 'nouveau') {
     store.resetState();

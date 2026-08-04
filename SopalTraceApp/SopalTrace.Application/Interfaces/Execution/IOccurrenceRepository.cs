@@ -12,6 +12,8 @@ public interface IOccurrenceRepository
     /// <summary>Sections ECHANTILLONNAGE du plan d'assemblage (DocumentSection) pour un OF de type ASS.</summary>
     Task<List<DocumentSection>> GetDocumentSectionsEchantillonnageAsync(Guid execControleOfId);
     Task<List<DocumentSection>> GetDocumentSectionsActivesAsync(Guid execControleOfId);
+    /// <summary>Retourne l'effectif d'échantillonnage par heure (p/h) depuis ExecEchantillonnage pour un OF ASS.</summary>
+    Task<int?> GetEffectifEchantillonnageAsync(Guid execControleOfId);
     /// <summary>Lignes d'une DocumentSection (plan d'assemblage).</summary>
     Task<List<DocumentLigne>> GetDocumentLignesForSectionAsync(Guid sectionId);
     Task<List<ExecPrelevementIntermediaire>> GetIntermediairesActifsAsync(Guid execControleOfId);

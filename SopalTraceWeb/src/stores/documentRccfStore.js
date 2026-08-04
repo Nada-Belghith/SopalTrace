@@ -2,6 +2,8 @@ import { defineStore } from 'pinia';
 import { documentRccfService } from '@/services/documentRccfService';
 import { documentService } from '@/services/documentService';
 import api from '@/services/apiClient';
+import { mapSectionForBackend, hydrateSectionFromBackend, mapImportedSection } from '@/utils/sectionUtils';
+import { useReferentielStore } from './referentielStore';
 
 export const usedocumentRccfStore = defineStore('DocumentRccf', {
   state: () => ({
@@ -79,21 +81,23 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
           configurationJson: data.configurationJson
         };
 
+        const refStore = useReferentielStore();
+
         // Restore sections from Document generic structure
         if (data.sections && data.sections.length > 0) {
-          this.sections = data.sections.map(s => ({
-            id: s.id,
-            sectionType: s.notes || s.libelleSection,
-            libelleAffiche: s.libelleSection,
-            ordreAffiche: s.ordreAffiche,
-            lignes: (s.lignes || []).map(l => ({
-              id: l.id,
-              caracteristique: l.libelleAffiche,
-              limiteSpecTexte: l.limiteSpecTexte,
-              observations: l.observations,
-              ordreAffiche: l.ordreAffiche
-            })).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0))
-          })).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
+          this.sections = data.sections.map(s => {
+            const hydrated = hydrateSectionFromBackend(s, refStore.periodicites, refStore.reglesEchantillonnage);
+            return {
+              ...hydrated,
+              sectionType: s.notes || hydrated.sectionType || s.libelleSection,
+              libelleAffiche: s.libelleSection,
+              lignes: (s.lignes || []).map(l => ({
+                ...l,
+                caracteristique: l.libelleAffiche || l.caracteristique,
+                libelleAffiche: l.libelleAffiche || l.caracteristique
+              })).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0))
+            };
+          }).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
         } else {
           this.sections = [];
         }
@@ -108,6 +112,15 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
     async savePlan(isCorrection = false) {
       this.isLoading = true;
       try {
+        const refStore = useReferentielStore();
+        const payloadSections = this.sections.map((s, idx) => {
+          const mapped = mapSectionForBackend(s, idx, refStore.periodicites);
+          return {
+            ...mapped,
+            Notes: s.sectionType || s.notes || mapped.notes
+          };
+        });
+
         // Build document payload
         const payload = {
           TypeDocumentCode: 'RESULTAT_CF',
@@ -118,19 +131,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
           Remarques: this.entete.remarques || this.entete.notes,
           LegendeMoyens: this.entete.legendeMoyens,
           ConfigurationColonnesJson: typeof this.entete.configurationJson === 'object' ? JSON.stringify(this.entete.configurationJson) : this.entete.configurationJson,
-          Sections: this.sections.map((s, idx) => ({
-            Id: s.id,
-            OrdreAffiche: s.ordreAffiche || (idx + 1),
-            LibelleSection: s.libelleAffiche || s.sectionType,
-            Notes: s.sectionType,
-            Lignes: (s.lignes || []).map((l, lIdx) => ({
-              Id: l.id,
-              OrdreAffiche: l.ordreAffiche || (lIdx + 1),
-              LibelleAffiche: l.caracteristique,
-              LimiteSpecTexte: l.limiteSpecTexte,
-              Observations: l.observations
-            }))
-          }))
+          Sections: payloadSections
         };
 
         let response;
@@ -192,6 +193,15 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
 
     async createNewVersion(motif) {
       try {
+        const refStore = useReferentielStore();
+        const payloadSections = this.sections.map((s, idx) => {
+          const mapped = mapSectionForBackend(s, idx, refStore.periodicites);
+          return {
+            ...mapped,
+            Notes: s.sectionType || s.notes || mapped.notes
+          };
+        });
+
         const payload = {
           TypeDocumentCode: 'RESULTAT_CF',
           ancienId: this.entete.id,
@@ -203,17 +213,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
           LegendeMoyens: this.entete.legendeMoyens,
           MotifModification: motif,
           ConfigurationColonnesJson: typeof this.entete.configurationJson === 'object' ? JSON.stringify(this.entete.configurationJson) : this.entete.configurationJson,
-          Sections: this.sections.map((s, idx) => ({
-            OrdreAffiche: s.ordreAffiche || (idx + 1),
-            LibelleSection: s.libelleAffiche || s.sectionType,
-            Notes: s.sectionType,
-            Lignes: (s.lignes || []).map((l, lIdx) => ({
-              OrdreAffiche: l.ordreAffiche || (lIdx + 1),
-              LibelleAffiche: l.caracteristique,
-              LimiteSpecTexte: l.limiteSpecTexte,
-              Observations: l.observations
-            }))
-          }))
+          Sections: payloadSections
         };
         const res = await documentService.createNewVersion(payload);
         return { success: true, newPlanId: res.id || res.data?.id };
@@ -241,17 +241,28 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
 
         // Merge imported lines into existing sections
         if (importedSections && importedSections.length > 0) {
+          const refStore = useReferentielStore();
           importedSections.forEach(importedSec => {
-            const existSection = this.sections.find(s => s.sectionType === importedSec.sectionType);
+            const mapped = mapImportedSection(importedSec, refStore.reglesEchantillonnage);
+            const existSection = this.sections.find(s => s.sectionType === importedSec.sectionType || s.sectionType === importedSec.notes);
             if (existSection) {
-              existSection.lignes = importedSec.lignes || [];
+              Object.assign(existSection, {
+                typeSectionId: mapped.typeSectionId || existSection.typeSectionId,
+                periodiciteId: mapped.periodiciteId || existSection.periodiciteId,
+                regleEchantillonnageId: mapped.regleEchantillonnageId || existSection.regleEchantillonnageId,
+                modeFreq: mapped.modeFreq || existSection.modeFreq,
+                freqNum: mapped.freqNum || existSection.freqNum,
+                typeVariable: mapped.typeVariable || existSection.typeVariable,
+                freqHours: mapped.freqHours || existSection.freqHours,
+                frequenceLibelle: mapped.frequenceLibelle || existSection.frequenceLibelle,
+                lignes: importedSec.lignes || []
+              });
               if (importedSec.libelleAffiche) {
                 existSection.libelleAffiche = importedSec.libelleAffiche;
               }
             } else {
-              // Fallback if section somehow wasn't predefined
               importedSec.ordreAffiche = this.sections.length + 1;
-              this.sections.push(importedSec);
+              this.sections.push({ ...mapped, sectionType: importedSec.sectionType || importedSec.notes });
             }
           });
         }

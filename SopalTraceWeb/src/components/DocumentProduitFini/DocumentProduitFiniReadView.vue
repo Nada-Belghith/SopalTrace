@@ -5,20 +5,22 @@
     :remarques="remarques"
     :legende-moyens="legendeMoyens"
     :configuration-colonnes="store.entete?.configurationColonnes || []"
-    :types-section="store.typesSection || []"
-    :types-caracteristique="store.typesCaracteristique || []"
-    :types-controle="store.typesControle || []"
-    :moyens-controle="store.moyensControle || []"
-    :periodicites="store.periodicites || []"
-    :regles-echantillonnage="store.reglesEchantillonnage || []"
+    :types-section="refStore.typesSection || []"
+    :types-caracteristique="refStore.typesCaracteristique || []"
+    :types-controle="refStore.typesControle || []"
+    :moyens-controle="refStore.moyensControle || []"
+    :periodicites="refStore.periodicites || []"
+    :regles-echantillonnage="refStore.reglesEchantillonnage || []"
   />
 </template>
 
 <script setup>
 import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 
 const store = usedocumentProduitFiniStore();
+const refStore = useReferentielStore();
 
 defineProps({
   sections:      { type: Array,  default: () => [] },

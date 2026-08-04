@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import apiClient from '@/services/apiClient';
 import { genererUid } from '@/utils/uuidUtils';
+import { useReferentielStore } from './referentielStore';
 
 export const useDocumentEchantillonnageStore = defineStore('documentEchantillonnage', {
   state: () => ({
@@ -20,11 +21,8 @@ export const useDocumentEchantillonnageStore = defineStore('documentEchantillonn
     },
     regles: [],
 
-    // Dicos
-    nqaList: [],
-    formulaires: [],
+    // Dicos are in useReferentielStore
     isLoading: false,
-    isDicosLoaded: false,
     plansExistants: []
   }),
 
@@ -33,28 +31,6 @@ export const useDocumentEchantillonnageStore = defineStore('documentEchantillonn
   },
 
   actions: {
-    async fetchDictionnaires() {
-      try {
-        const res = await apiClient.get('/referentiels/plans-nc'); // Reusing some shared dicos or specialized
-        // Wait, sampling might need its own referentials if different
-        // For now let's assume we need NQA and Formulaires
-        const nqaRes = await apiClient.get('/referentiels/fabrication');
-        this.nqaList = (nqaRes.data.data.nqa || []).map(n => ({
-          ...n,
-          valeurNqa: Number(n.code || n.libelle)
-        }));
-        this.formulaires = nqaRes.data.data.formulaires || [];
-        this.isDicosLoaded = true;
-
-        // Ensure an NQA is selected by default if available
-        if (this.nqaList.length > 0 && !this.entete.nqaId) {
-          this.entete.nqaId = this.nqaList[0].id;
-        }
-      } catch (error) {
-        console.error("Erreur dicos echantillonnage:", error);
-      }
-    },
-
     async fetchPlansExistants() {
       try {
         const res = await apiClient.get('/documents-echantillonnage/actif');

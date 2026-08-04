@@ -15,6 +15,7 @@ public interface IModeleFabricationEnteteRepository
 
     void RemoveSection(ModeleFabricationSection section);
     void RemoveLigne(ModeleFabricationLigne ligne);
+    void RemoveExtraColonne(ModeleFabricationLigneExtraColonne extraColonne);
 
     Task<IEnumerable<ModeleFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId);
 

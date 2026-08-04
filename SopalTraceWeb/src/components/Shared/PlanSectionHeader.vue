@@ -23,8 +23,8 @@
 
           <select v-model="localSection.modeFreq" @change="handleModeFreqChange" :disabled="isReadOnly" class="bg-slate-100 border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-600 outline-none cursor-pointer disabled:text-slate-500 disabled:cursor-not-allowed">
             <option value="SANS">Sans fréquence</option>
-            <option value="VARIABLE">➕ Fréquence des pièces</option>
-            <option value="FIXE">➕ Règle d'Échantillonnage</option>
+            <option value="VARIABLE">➕ Périodicité</option>
+            <option value="FIXE">➕ Règle d'échantillonnage</option>
           </select>
 
           <!-- SI VARIABLE -->
@@ -88,10 +88,10 @@
 
       <!-- BOUTONS DE DROITE -->
       <div class="flex items-center gap-4 absolute right-4 top-1/2 -translate-y-1/2">
-        <button v-if="!isReadOnly" @click="$emit('add-ligne')" class="text-blue-600 text-[11px] font-black uppercase tracking-widest hover:text-blue-800 flex items-center gap-1 transition-colors">
+        <button v-if="!isReadOnly && !hideAddLigne" @click="$emit('add-ligne')" class="text-blue-600 text-[11px] font-black uppercase tracking-widest hover:text-blue-800 flex items-center gap-1 transition-colors">
           <i class="pi pi-plus"></i> Ajouter ligne
         </button>
-        <button v-if="!isReadOnly" @click="$emit('remove')" class="text-slate-400 hover:text-red-600 transition-colors ml-2" title="Supprimer la section">
+        <button v-if="!isReadOnly && !hideRemove" @click="$emit('remove')" class="text-slate-400 hover:text-red-600 transition-colors ml-2" title="Supprimer la section">
           <i class="pi pi-times-circle text-base"></i>
         </button>
       </div>
@@ -100,8 +100,16 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted, nextTick } from 'vue';
+import { ref, watch, computed, onMounted } from 'vue';
 import { findTypeSection, normalizeTypeSectionId } from '@/utils/sectionTitleUtils';
+
+function stableStringify(obj) {
+  if (obj === undefined) return undefined;
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return '[' + obj.map(stableStringify).join(',') + ']';
+  const keys = Object.keys(obj).sort();
+  return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}';
+}
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -109,6 +117,8 @@ const props = defineProps({
   colspan: { type: Number, default: 8 },
   label: { type: String, default: 'SEC' },
   defaultTitle: { type: String, default: 'Caractéristiques à contrôler' },
+  hideAddLigne: { type: Boolean, default: false },
+  hideRemove: { type: Boolean, default: false },
   isReadOnly: { type: Boolean, default: false },
   typesSection: { type: Array, default: () => [] },
   periodicites: { type: Array, default: () => [] },
@@ -122,9 +132,8 @@ const isSyncingFromParent = ref(false);
 
 watch(() => props.section, (newSection) => {
   if (!newSection) return;
-  // Only sync from parent if a different section is loaded (id changed)
-  // This prevents the parent from overwriting the user's local edits
-  if (newSection.id !== localSection.value?.id) {
+  // Only sync from parent if the section data actually changed
+  if (stableStringify(newSection) !== stableStringify(localSection.value)) {
     isSyncingFromParent.value = true;
     localSection.value = JSON.parse(JSON.stringify(newSection));
 
@@ -147,6 +156,16 @@ watch(() => props.section, (newSection) => {
 onMounted(() => {
   verifierVariables(false);
 });
+
+watch(() => props.typesSection, (newTypes) => {
+  if (newTypes?.length && localSection.value.typeSectionId) {
+    localSection.value.typeSectionId = normalizeTypeSectionId(
+      localSection.value.typeSectionId,
+      newTypes
+    );
+    verifierVariables(false);
+  }
+}, { deep: true });
 
 watch(localSection, (newVal) => {
   if (isSyncingFromParent.value) return;
@@ -254,11 +273,14 @@ const frequenceCalculee = computed(() => {
 });
 
 const regleCalculee = computed(() => {
-  if (localSection.value.regleEchantillonnageId) {
-    const regle = (props.reglesEchantillonnage || []).find(r => (r.id || r.Id) === localSection.value.regleEchantillonnageId);
-    if (regle) return regle.libelle || regle.Libelle;
+  if (localSection.value.modeFreq === 'FIXE') {
+    if (localSection.value.regleEchantillonnageId) {
+      const regle = (props.reglesEchantillonnage || []).find(r => (r.id || r.Id) === localSection.value.regleEchantillonnageId);
+      if (regle) return regle.libelle || regle.Libelle;
+    }
+    return localSection.value.regleEchantillonnageLibelle || "";
   }
-  return localSection.value.regleEchantillonnageLibelle || "";
+  return "";
 });
 
 const libelleSectionComplet = computed(() => {
@@ -303,22 +325,27 @@ const verifierVariables = (isUserAction = true) => {
   // If called from an event (like @change or @input), isUserAction is the Event object, which is truthy
   if (isUserAction) {
     localSection.value.isFromDb = false;
-    // Si l'utilisateur modifie manuellement les variables, on doit s'assurer que periodiciteId est vidé
-    // sinon le backend risque de conserver l'ancienne périodicité de la base de données.
+    // Si l'utilisateur modifie manuellement les variables, on nettoie les champs de l'autre mode
     if (localSection.value.modeFreq === 'VARIABLE') {
         localSection.value.periodiciteId = null;
         localSection.value.regleEchantillonnageId = null;
+        localSection.value.regleEchantillonnageLibelle = null;
+    } else if (localSection.value.modeFreq === 'FIXE') {
+        localSection.value.periodiciteId = null;
+        localSection.value.frequenceLibelle = null;
+    } else if (localSection.value.modeFreq === 'SANS') {
+        localSection.value.periodiciteId = null;
+        localSection.value.regleEchantillonnageId = null;
+        localSection.value.regleEchantillonnageLibelle = null;
+        localSection.value.frequenceLibelle = null;
     }
   }
 
   if (localSection.value.isFromDb) return;
 
-  // Use nextTick to ensure v-model changes are committed before reading computed values
-  nextTick(() => {
-    localSection.value.libelleSection = libelleSectionComplet.value;
-    localSection.value.frequenceLibelle = frequenceCalculee.value;
-    localSection.value.regleEchantillonnageLibelle = regleCalculee.value;
-  });
+  localSection.value.libelleSection = libelleSectionComplet.value;
+  localSection.value.frequenceLibelle = frequenceCalculee.value;
+  localSection.value.regleEchantillonnageLibelle = regleCalculee.value;
 };
 
 const handleModeFreqChange = () => {
@@ -326,9 +353,16 @@ const handleModeFreqChange = () => {
     if (!localSection.value.freqNum) localSection.value.freqNum = 1;
     if (!localSection.value.typeVariable) localSection.value.typeVariable = 'HEURE';
     if (!localSection.value.freqHours) localSection.value.freqHours = 1;
+    localSection.value.regleEchantillonnageId = null;
+    localSection.value.regleEchantillonnageLibelle = null;
+  } else if (localSection.value.modeFreq === 'FIXE') {
+    localSection.value.periodiciteId = null;
+    localSection.value.frequenceLibelle = null;
   } else if (localSection.value.modeFreq === 'SANS') {
     localSection.value.regleEchantillonnageId = null;
+    localSection.value.regleEchantillonnageLibelle = null;
     localSection.value.periodiciteId = null;
+    localSection.value.frequenceLibelle = null;
   }
   verifierVariables();
 };
@@ -336,13 +370,19 @@ const handleModeFreqChange = () => {
 watch(() => localSection.value.typeSectionId, (newId) => {
   if (newId === 'custom') {
     localSection.value.typeSectionId = null;
+    localSection.value.sectionType = 'CUSTOM';
     return;
   }
   const typeSec = findTypeSection(props.typesSection, newId);
   const typeSecLibelle = typeSec ? (typeSec.libelle || typeSec.Libelle || '') : '';
+  const typeSecCode = typeSec ? (typeSec.code || typeSec.Code || typeSecLibelle) : '';
   
-  // Clear the old stored libelleSection so it doesn't get concatenated with the new one
+  // Clear stored nom & libelleSection so aperçu updates to the new section type title
+  localSection.value.nom = '';
   localSection.value.libelleSection = '';
+  if (typeSecCode) {
+    localSection.value.sectionType = typeSecCode;
+  }
   
   if (typeSecLibelle.toUpperCase().includes('100%')) {
     localSection.value.modeFreq = 'VARIABLE';

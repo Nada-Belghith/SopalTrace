@@ -19,34 +19,7 @@
           <p class="text-gray-500 m-0 mt-1 text-sm">Statut: <span class="font-semibold text-green-600">{{ execution?.statut || 'EN_COURS' }}</span></p>
         </div>
         
-        <div class="flex items-center gap-2 flex-wrap">
-          <button v-if="execution?.statut === 'EN_PAUSE' || execution?.statut === 'REGLAGE'" @click="reprendreOf" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-play"></i> Reprendre la production
-          </button>
-          
-          <button @click="openReglagesModalDirect" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-cog"></i> Mettre Aux Réglages
-          </button>
-
-          <button @click="showConfigDialog = true" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-clock"></i> Horaires & Postes
-          </button>
-
-          <button v-if="execution?.statut === 'EN_COURS' || !execution?.statut" @click="mettreEnPauseOf" class="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-pause"></i> Pause
-          </button>
-
-          <button @click="cloturerOf" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-stop"></i> Clôturer l'opération
-          </button>
-
-          <button v-if="execution?.statut !== 'CLOTURE' && execution?.statut !== 'TERMINE'" @click="cloturerDoc" :disabled="isCloturing" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-check-circle"></i> Clôturer le Document
-          </button>
-          <span v-else class="px-3 py-1.5 bg-emerald-100 text-emerald-800 font-bold rounded-lg text-sm border border-emerald-300 flex items-center gap-1.5">
-            <i class="pi pi-check-circle text-emerald-600"></i> Document Complété
-          </span>
-        </div>
+        <div></div>
       </div>
     </div>
 
@@ -66,6 +39,49 @@
       </div>
     </div>
 
+    <!-- Alerte : Documents dédiés au poste manquants ─ bloque le contrôle -->
+    <div v-else-if="execution && execution.hasDocumentsManquants" class="rounded-xl border-2 border-red-300 bg-red-50 p-6 shadow-sm">
+      <div class="flex items-start gap-4">
+        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+          <i class="pi pi-exclamation-triangle text-red-600 text-2xl"></i>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-lg font-bold text-red-800 mb-1">Documents qualité manquants pour ce poste</h3>
+          <p class="text-red-700 text-sm mb-4">
+            Le contrôle du Plan d'Assemblage ne peut pas démarrer car les documents dédiés à ce poste n'ont pas encore été créés dans le back-office Qualité.
+            Veuillez contacter votre responsable qualité pour qu'il crée les documents suivants :
+          </p>
+          <ul class="space-y-2">
+            <li
+              v-for="(doc, idx) in execution.documentsManquants"
+              :key="idx"
+              class="flex items-center gap-2 text-sm font-semibold text-red-900 bg-red-100 rounded-lg px-4 py-2 border border-red-200"
+            >
+              <i class="pi pi-file-edit text-red-500"></i>
+              {{ doc }}
+            </li>
+          </ul>
+          <div class="mt-5 flex gap-3 flex-wrap">
+            <button @click="loadData" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-sm transition text-sm flex items-center gap-1.5 border-0 cursor-pointer">
+              <i class="pi pi-refresh"></i> Vérifier à nouveau
+            </button>
+            <button
+              v-if="!docSignale"
+              @click="signalerDocsManquants"
+              :disabled="isSignaling"
+              class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg shadow-sm transition text-sm flex items-center gap-1.5 border-0 cursor-pointer disabled:opacity-60"
+            >
+              <i :class="isSignaling ? 'pi pi-spin pi-spinner' : 'pi pi-bell'"></i>
+              {{ isSignaling ? 'Envoi en cours...' : 'Signaler au Superviseur' }}
+            </button>
+            <span v-else class="px-4 py-2 bg-green-100 text-green-800 font-semibold rounded-lg text-sm border border-green-300 flex items-center gap-1.5">
+              <i class="pi pi-check-circle text-green-600"></i> Signalement envoyé au superviseur
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Liste des sections COMME IMAGE 2 -->
     <div v-else-if="execution && execution.sections" class="bg-white border rounded-lg p-6 shadow-sm relative">
       <!-- En-tête de la carte COMME IMAGE 2 -->
@@ -77,10 +93,10 @@
       </div>
       
       <!-- Section Contrôles en cours de production : géré en temps réel par AlerteControle -->
-      <div v-if="execution?.sections?.some(s => s.typeSection === 'ECHANTILLONNAGE' || s.typeSection === 'REGLAGE_PROD')" class="mb-8">
+      <div v-if="isDemarrageDone" class="mb-8">
         <h4 class="text-lg font-bold text-blue-600 mb-4 flex items-center">
-          <i class="pi pi-check-circle mr-2"></i>
-          Contrôles en cours de production
+          <i class="pi pi-clock mr-2 text-xl"></i>
+          Contrôles en cours de production (Saisie des Tranches & Occurrences)
         </h4>
         <AlerteControle
           :execControleOfId="String(execControleOfId)"
@@ -90,8 +106,8 @@
         />
       </div>
 
-      <!-- Sections LOT_POSTE / AUTRE (au cas où il resterait des sections statiques) -->
-      <div v-for="sec in execution.sections.filter(s => s.typeSection !== 'REGLAGE' && s.typeSection !== 'REGLAGE_PROD' && s.typeSection !== 'ECHANTILLONNAGE')" :key="sec.id" class="mb-8 last:mb-0">
+      <!-- Sections LOT_POSTE / AUTRE -->
+      <div v-for="sec in visibleSections" :key="sec.id" class="mb-8 last:mb-0">
         <div v-if="execution?.statut !== 'EN_PAUSE'">
           <h4 class="text-lg font-bold text-blue-600 mb-4 flex items-center">
             <i class="pi pi-check-circle mr-2"></i>
@@ -104,7 +120,7 @@
                 <div class="flex items-center space-x-3">
                   <span class="text-base">Tranche : {{ trancheGroup.trancheLabel }}</span>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2" v-if="trancheGroup.resultats.some(res => res.statutNotif !== 'A_VENIR' && !isLocallyUpcoming(res))">
                   <button @click="declarerTrancheReglage(trancheGroup)" class="text-xs bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-1.5 rounded hover:bg-yellow-100 transition-colors flex items-center shadow-xs font-semibold cursor-pointer">
                     ⚙️ Déclarer comme Réglage
                   </button>
@@ -154,6 +170,21 @@
             <i class="pi pi-check-circle text-4xl text-green-600 mb-3 block"></i>
             <span class="font-bold text-lg block">Toutes les occurrences de contrôle pour cette section ont été effectuées !</span>
             <span class="text-sm text-green-700 mt-1 block">La section est à jour et complète.</span>
+          </div>
+          <div v-else-if="(!sec.resultats || sec.resultats.length === 0) && (sec.lignesPlan?.length > 0 || sec.lignesResultat?.length > 0)" class="p-5 rounded-xl border bg-white shadow-sm hover:shadow-md transition-all text-center col-span-full md:col-span-1 md:max-w-md mx-auto">
+            <div class="font-bold flex items-center justify-center mb-3">
+               <span class="text-blue-600 bg-blue-100 px-2.5 py-1 rounded text-xs border border-blue-200 font-bold uppercase tracking-wider">⏳ CONTRÔLE À EXÉCUTER</span>
+            </div>
+            <div class="text-gray-800 font-bold text-lg leading-snug">{{ sec.libelle }}</div>
+            <div class="text-sm font-medium text-gray-500 mt-2 flex items-center justify-center gap-1.5 mb-5">
+              <i class="pi pi-list text-gray-400"></i> {{ (sec.lignesPlan?.length || 0) + (sec.lignesResultat?.length || 0) }} caractéristique(s)
+            </div>
+            <button 
+              @click="openSaisirDialog({ id: 'init-' + sec.id, frequence: sec.libelle }, sec)" 
+              class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0"
+            >
+              <i class="pi pi-check-square"></i> Exécuter le contrôle
+            </button>
           </div>
           <div v-else-if="!sec.resultats || sec.resultats.length === 0" class="col-span-full text-center py-6 text-gray-500 text-sm">
             Aucune occurrence ou tranche horaire initialisée pour cette section.
@@ -306,8 +337,8 @@
                     {{ lp.caracteristique }}
                   </td>
                   <td class="px-3 py-3 text-gray-600 font-mono bg-gray-50 font-medium">{{ lp.limiteSpecTexte || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-600 text-xs uppercase">{{ lp.typeControle || 'ATTRIBUT' }}</td>
-                  <td class="px-3 py-3 text-gray-600 text-xs">{{ lp.moyenControle || 'Manuel' }}</td>
+                  <td class="px-3 py-3 text-gray-600 text-xs uppercase">{{ lp.typeControle || '-' }}</td>
+                  <td class="px-3 py-3 text-gray-600 text-xs">{{ lp.moyenControle || '-' }}</td>
                   <td class="px-3 py-3 text-gray-600 text-xs font-mono">{{ lp.instrument || '-' }}</td>
                   <td class="px-3 py-3 text-gray-600 text-xs">{{ lp.observations || '-' }}</td>
                 </tr>
@@ -404,6 +435,7 @@ import operateurService from '@/services/operateurService'
 import AlerteControle from '@/components/Operateur/AlerteControle.vue'
 import { useAuthStore } from '@/stores/authStore'
 import Swal from 'sweetalert2'
+import apiClient from '@/services/apiClient'
 
 const authStore = useAuthStore()
 
@@ -428,6 +460,7 @@ const toast = useAppToast()
 
 const execControleOfId = ref(props.execControleOfId || route.params.execControleOfId)
 const posteCode = ref(props.selectedPoste || route.query.posteCode || 'Poste 1')
+const isDemarrageDone = ref(route.query.isDemarrageDone === 'true')
 
 watch(() => props.execControleOfId, (newId) => {
   if (newId && newId !== execControleOfId.value) {
@@ -446,6 +479,44 @@ watch(() => props.selectedPoste, (newPoste) => {
 const execution = ref(null)
 const isLoading = ref(true)
 const errorMessage = ref('')
+const isSignaling = ref(false)
+const docSignale = ref(false)
+
+const signalerDocsManquants = async () => {
+  if (!execution.value?.documentsManquants?.length) return
+  isSignaling.value = true
+  try {
+    await apiClient.post('/Alertes/plan-manquant', {
+      operationCode: 'ASS',
+      posteCode: posteCode.value,
+      numeroOf: execution.value.numeroOf,
+      articleCode: execution.value.codeArticle,
+      designationArticle: execution.value.designationArticle,
+      nomOperateur: authStore.user?.nom || authStore.user?.matricule || 'Opérateur Inconnu',
+      descriptionProbleme: `Documents qualité manquants pour le poste ${posteCode.value} : ${execution.value.documentsManquants.join(' | ')}`
+    })
+    docSignale.value = true
+    toast.success('Signalement envoyé', 'Le superviseur a été notifié des documents manquants pour ce poste.')
+  } catch {
+    toast.error('Erreur', "Impossible d'envoyer le signalement.")
+  } finally {
+    isSignaling.value = false
+  }
+}
+
+const visibleSections = computed(() => {
+  if (!execution.value || !execution.value.sections) return [];
+  return execution.value.sections.filter(sec => {
+    if (sec.typeSection === 'REGLAGE' || sec.typeSection === 'REGLAGE_PROD' || sec.typeSection === 'ECHANTILLONNAGE') {
+      return false;
+    }
+    
+    // Les sections LOT_POSTE et LOT_OF sont affichées par défaut,
+    // l'état "FAIT" ou "A_FAIRE" gérera leur statut visuel.
+    
+    return true;
+  });
+})
 
 // Config Horaires
 const showConfigDialog = ref(false)
@@ -517,6 +588,53 @@ const loadData = async () => {
         heureFin: p.heureFin
       }))
     }
+
+    // Auto-déduire isDemarrageDone depuis les données si pas encore défini par le query param
+    // isDemarrageDone = true dès que les sections de démarrage sont toutes terminées
+    if (!isDemarrageDone.value && execution.value?.sections) {
+      const demarrageTermine = execution.value.sections
+        .filter(s => s.typeSection === 'DEMARRAGE' || s.typeSection === 'REGLAGE')
+        .every(s => s.estDemarrageTermine || s.estTermine)
+      if (demarrageTermine || execution.value.sections.length === 0) {
+        isDemarrageDone.value = true
+      }
+    }
+    // Si le query param dit isDemarrageDone=true, toujours l'honorer
+    if (route.query.isDemarrageDone === 'true') {
+      isDemarrageDone.value = true
+    }
+
+    // Auto-ouverture de la 1ère occurrence 100% pièces si demandé
+    if (route.query.autoOpen100pct === 'true' && execution.value?.sections) {
+      const sec100 = execution.value.sections.find(s =>
+        s.libelle && (s.libelle.toLowerCase().includes('100%') || s.libelle.toLowerCase().includes('cent pour cent'))
+      )
+      if (sec100 && sec100.resultats && sec100.resultats.length > 0) {
+        const pendingRes = sec100.resultats.find(r => !r.resultat || r.resultat === 'EN_ATTENTE' || r.resultat === 'EN_RETARD')
+        if (pendingRes) {
+          openSaisirDialog(pendingRes, sec100)
+        }
+      }
+    }
+    // Auto-ouverture de la 1ère occurrence en retard si demandé (échantillonnage horaire)
+    else if (route.query.autoOpen1stPending === 'true' && execution.value?.sections) {
+      let opened = false;
+      for (const sec of execution.value.sections) {
+        if (sec.resultats && sec.resultats.length > 0) {
+          const pendingRes = sec.resultats.find(r => !r.resultat || r.resultat === 'EN_ATTENTE' || r.resultat === 'EN_RETARD')
+          if (pendingRes) {
+            openSaisirDialog(pendingRes, sec)
+            opened = true;
+            break
+          }
+        }
+      }
+      if (opened) {
+        const query = { ...route.query };
+        delete query.autoOpen1stPending;
+        router.replace({ query });
+      }
+    }
   } catch (err) {
     console.error('Erreur chargement plan assemblage:', err)
     errorMessage.value = err.response?.data?.message || err.message || 'Erreur inconnue'
@@ -524,7 +642,6 @@ const loadData = async () => {
     isLoading.value = false
   }
 }
-
 
 const navigateAway = () => {
   router.push({
@@ -611,7 +728,11 @@ const openSaisirDialog = (res, sec) => {
   selectedSection.value = sec
   activePieceIndex.value = 0
 
-  const sourceLignes = (sec.lignesResultat && sec.lignesResultat.length > 0) ? sec.lignesResultat : (sec.lignesPlan || [])
+  const isLotPoste = sec.typeSection === 'LOT_POSTE'
+  const isLotSection = isLotPoste || sec.typeSection === 'LOT_OF'
+  const sourceLignes = (isLotPoste && sec.lignesPlan && sec.lignesPlan.length > 0)
+    ? sec.lignesPlan
+    : (sec.lignesResultat || [])
 
   const lignesCtrl = sourceLignes.map(l => ({
     ligneId: l.id,
@@ -625,12 +746,13 @@ const openSaisirDialog = (res, sec) => {
   }))
 
   saisieForm.value = {
-    trancheId: res.id,
-    resultat: res.resultat || 'C',
-    nonConformite: res.nonConformite || '',
-    actionCorrective: res.actionCorrective || '',
-    approbation: authStore.user?.matricule || res.approbation || '',
-    remarques: res.remarques || '',
+    trancheId: res?.id || '00000000-0000-0000-0000-000000000000',
+    contexte: isLotSection ? 'LOT' : null,
+    resultat: res?.resultat || 'C',
+    nonConformite: res?.nonConformite || '',
+    actionCorrective: res?.actionCorrective || '',
+    approbation: authStore.user?.matricule || res?.approbation || '',
+    remarques: res?.remarques || '',
     lignesControle: lignesCtrl
   }
   showSaisieDialog.value = true
@@ -665,6 +787,8 @@ const submitResultat = async () => {
     toast.success('Résultat enregistré avec succès')
     showSaisieDialog.value = false
     await loadData()
+    // Retour automatique à l'exécution d'assemblage
+    navigateAway()
   } catch (err) {
     console.error('Erreur saisie résultat:', err)
     toast.error(err.response?.data?.message || 'Erreur lors de l\'enregistrement')

@@ -141,7 +141,7 @@ apiClient.interceptors.response.use(
           break;
         case 401:
           // Géré par le retry au-dessus, on n'arrive ici que si le refresh échoue
-          apiError.message = "Session expirée ou code invalide.";
+          apiError.message = data.error || data.message || "Session expirée ou code invalide.";
           logger.warn("Non autorisé (401).");
           break;
         case 403:

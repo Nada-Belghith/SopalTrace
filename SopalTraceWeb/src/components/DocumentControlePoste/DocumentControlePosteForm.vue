@@ -14,12 +14,12 @@
                   <i class="pi pi-file-import mr-2 text-emerald-600 text-lg"></i> RÉF. FORMULAIRE *
                 </label>
                   <div class="w-full md:w-1/2 flex items-center gap-2">
-                      <Dropdown v-model="refFormulaireSelected" :options="store.formulairesReferences" optionLabel="codeReference" optionValue="id" 
+                      <Dropdown v-model="refFormulaireSelected" :options="(refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || [])" optionLabel="codeReference" optionValue="id" 
                               placeholder="Sélectionner un formulaire générique" class="w-full" :disabled="store.entete.isModeleTemplate"
                               :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                         <template #value="slotProps">
                             <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">
-                                {{ store.formulairesReferences.find(r => r.id === slotProps.value)?.codeReference }} - {{ store.formulairesReferences.find(r => r.id === slotProps.value)?.designation }}
+                                {{ (refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || []).find(r => r.id === slotProps.value)?.codeReference }} - {{ (refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || []).find(r => r.id === slotProps.value)?.designation }}
                             </div>
                             <span v-else class="text-sm">Sélectionner un formulaire générique</span>
                         </template>
@@ -36,12 +36,12 @@
               <!-- POSTE DE TRAVAIL -->
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Poste de travail concerné</label>
-                <Dropdown v-model="store.entete.posteCode" :options="store.postes" optionLabel="libelle" optionValue="code" 
+                <Dropdown v-model="store.entete.posteCode" :options="refStore.postesTravail" optionLabel="libelle" optionValue="code" 
                           placeholder="Choisir un poste" class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id" @change="onSelectionChange"
                           :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                     <template #value="slotProps">
                         <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">
-                            Poste {{ slotProps.value }} - {{ store.postes.find(p => p.code === slotProps.value)?.libelle }}
+                            Poste {{ slotProps.value }} - {{ (refStore.postesTravail || []).find(p => p.code === slotProps.value)?.libelle }}
                         </div>
                         <span v-else class="text-sm">Choisir un poste</span>
                     </template>
@@ -169,10 +169,10 @@
                               <!-- Sélection Défaut -->
                               <td class="p-2 border-r align-middle">
                                    <div v-if="isReadOnly" class="px-3 py-2 text-xs font-semibold text-slate-800 uppercase">
-                                       {{ store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || 'Aucun défaut sélectionné' }}
+                                       {{ (refStore.risquesDefauts || []).find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || 'Aucun défaut sélectionné' }}
                                    </div>
                                   <input v-else 
-                                          :value="store.risquesDefauts.find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || ''"
+                                          :value="(refStore.risquesDefauts || []).find(r => r.id === defaut.risqueDefautId)?.libelle || defaut._libelleDefautBrut || ''"
                                           @input="(e) => onDefautInput(defaut, e.target.value)"
                                           class="w-full text-xs font-semibold text-slate-800 border border-slate-200 focus:border-emerald-500 rounded-lg py-2.5 px-3 outline-none bg-white shadow-sm transition-all uppercase focus:ring-4 focus:ring-emerald-500/10"
                                           placeholder="Saisir la désignation du défaut...">
@@ -340,6 +340,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { useToast } from 'primevue/usetoast';
 
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
@@ -348,17 +349,19 @@ import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
 import { parseDesignation } from '@/utils/designationParser';
 import Dropdown from 'primevue/dropdown';
+import AutoComplete from 'primevue/autocomplete';
+import InputText from 'primevue/inputtext';
 
 const props = defineProps({
     isReadOnly: { type: Boolean, default: false }
 });
 
-
 const store = usedocumentControlePosteStore();
+const refStore = useReferentielStore();
 const route = useRoute();
+const router = useRouter();
 const toast = useToast();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
-const router = useRouter();
 const fileInput = ref(null);
 const refFormulaireSelected = ref('');
 const showColumnModal = ref(false);
@@ -397,6 +400,14 @@ const baseColumnsMapped = computed(() => {
     { key: 'col_machine', label: "Machine Banc d'essai", type: 'TEXT', group: null },
     { key: 'col_designation', label: "Désignation du défaut", type: 'TEXT', group: null }
   ];
+  const postesOptions = computed(() => refStore.postesTravail.map(p => ({
+    value: p.code || p.Code || p.codePoste || p.CodePoste,
+    label: p.libelle || p.Libelle || p.designation || p.Designation
+  })));
+  const machinesOptions = computed(() => refStore.machines || []);
+  const defautsOptions = computed(() => refStore.risquesDefauts || []);
+  const isDicosLoaded = computed(() => refStore.isDicosControlePosteLoaded);
+  const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || []);
   const std = standardColumns.value.map(c => ({
     key: c.id,
     label: c.header,
@@ -493,11 +504,15 @@ const onCancel = () => {
 };
 
 onMounted(async () => {
+  if (!refStore.isDicosControlePosteLoaded) {
+    await refStore.fetchDictionnaires('controle-poste');
+  }
   if (!props.isReadOnly && !store.entete.id) {
-    store.fetchFormulairesReferences('RESULTAT_CONTROLE_POSTE');
+    if (!refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE']?.length) {
+      await refStore.fetchFormulairesReferences('RESULTAT_CONTROLE_POSTE');
+    }
   }
 
-  await store.fetchDictionnaires();
   await store.fetchTousLesPlans();
   
   if (route.params.id) {
@@ -517,11 +532,11 @@ watch(() => store.entete.isModeleTemplate, (newVal) => {
 // Lorsqu'on sélectionne une réf. formulaire depuis un template générique
 watch(refFormulaireSelected, (newRefId) => {
   if (newRefId && !store.entete.isModeleTemplate) {
-    const selectedForm = store.formulairesReferences.find(f => f.id === newRefId);
+    const selectedForm = (refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || []).find(f => f.id === newRefId);
     if (!selectedForm) return;
 
     const designation = selectedForm.designation || '';
-    const parsed = parseDesignation(designation, [], [], store.postes || []);
+    const parsed = parseDesignation(designation, [], [], refStore.postesTravail || []);
 
     if (parsed.posteCode) {
       store.entete.formulaireId = newRefId;

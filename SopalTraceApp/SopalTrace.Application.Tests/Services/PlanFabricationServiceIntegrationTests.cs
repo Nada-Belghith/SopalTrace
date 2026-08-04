@@ -83,7 +83,7 @@ namespace SopalTrace.Application.Tests.Services
             };
 
             // Création du premier plan
-            Guid premierPlanId = await _planFabricationService.CreerPlanAsync(createReq);
+            Guid premierPlanId = await _planFabricationService.CreatePlanAsync(createReq);
 
             // Vérification intermédiaire
             var premierPlanEnBase = await _context.PlanFabricationEntetes.FindAsync(premierPlanId);
@@ -99,7 +99,7 @@ namespace SopalTrace.Application.Tests.Services
                 Nom = codeArticle,
                 OperationCode = "OP1"
             };
-            var deuxiemePlanId = await _planFabricationService.CreerNouvelleVersionPlanAsync(newVersionReq);
+            var deuxiemePlanId = await _planFabricationService.CreateNewVersionAsync(newVersionReq);
 
             // ==========================================
             // ASSERT (Vérification des résultats attendus)

@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { verifMachineService } from '@/services/verifMachineService';
 import { referentielsService } from '@/services/referentielsService';
+import { useReferentielStore } from './referentielStore';
 import { genererUid } from '@/utils/uuidUtils';
 
 /**
@@ -10,16 +11,17 @@ import { genererUid } from '@/utils/uuidUtils';
  */
 export const useVerifMachineStore = defineStore('verifMachine', () => {
 
-  // --- DICTIONNAIRES (chargés depuis le backend) ---
-  const machines = ref([]);
-  const periodicites = ref([]);
-  const periodicitesMachine = ref([]);
-  const famillesCorps = ref([]);
-  const moyensDetection = ref([]);
-  const piecesReference = ref([]);
-  const fuitesEtalon = ref([]);
-  const formulairesReferences = ref([]);
-  const isDicosLoaded = ref(false);
+  const refStore = useReferentielStore();
+
+  // --- DICTIONNAIRES ALIASES depuis useReferentielStore ---
+  const isDicosLoaded = computed(() => refStore.isDicosVerifMachineLoaded);
+  const periodicitesMachine = computed(() => refStore.periodicitesMachine);
+  const moyensDetection = computed(() => refStore.moyensDetection);
+  const piecesReference = computed(() => refStore.piecesReference);
+  const fuitesEtalon = computed(() => refStore.fuitesEtalon);
+  const periodicites = computed(() => refStore.periodicites);
+  const machines = computed(() => refStore.machines);
+  const famillesCorps = computed(() => refStore.famillesCorps);
 
   // --- ÉTAT DU PLAN ---
   const entete = ref({
@@ -48,6 +50,10 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   // --- DÉTECTION DE CHANGEMENTS ---
   const snapshotOriginal = ref(null);
   const plansExistants = ref([]);
+
+  const fetchDictionnaires = async () => {
+    await refStore.fetchDictionnaires('verif-machine', true);
+  };
 
   const prendreSnapshot = () => {
     snapshotOriginal.value = JSON.stringify(buildPayload());
@@ -179,7 +185,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
     const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
       code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
-    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47');
+    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || code.includes('MAS22');
 
     if (isSansConformiteAuto) {
       entete.value.afficheConformite = false;
@@ -231,11 +237,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     if (!refFamilleCorpsId) return;
 
     // On cherche d'abord dans les familles de corps
-    let itemRef = famillesCorps.value.find(f => f.id === refFamilleCorpsId);
+    let itemRef = refStore.famillesCorps.find(f => f.id === refFamilleCorpsId);
 
     // Si non trouvé, on cherche dans les pièces de référence (PRC/PRNC)
     if (!itemRef) {
-      const pieceRef = piecesReference.value.find(p => p.id === refFamilleCorpsId);
+      const pieceRef = refStore.piecesReference.find(p => p.id === refFamilleCorpsId);
       if (pieceRef) {
         itemRef = {
           id: pieceRef.id,
@@ -263,7 +269,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const ajouterLigneConformite = () => lignesConformite.value.push(creerLigneVide());
-  const ajouterLigneRisque = () => lignesRisques.value.push(creerLigneVide());
+  const ajouterLigneRisque = (isEtalon = false) => {
+    const l = creerLigneVide();
+    if (isEtalon) l.isEtalon = true;
+    lignesRisques.value.push(l);
+  };
 
   const supprimerLigne = (uid, type) => {
     if (type === 'CONFORMITE') {
@@ -318,33 +328,6 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   // --- ACTIONS: API ---
-  const fetchDictionnaires = async (force = false) => {
-    if (isDicosLoaded.value && !force) return;
-    try {
-      const response = await verifMachineService.getDictionaries();
-      const data = response.data.data || response.data;
-      machines.value = data.machines || [];
-      periodicites.value = data.periodicites || [];
-      periodicitesMachine.value = data.periodicitesMachine || [];
-      famillesCorps.value = data.famillesCorps || [];
-      moyensDetection.value = data.moyensDetection || [];
-      piecesReference.value = data.piecesReferences || [];
-      fuitesEtalon.value = data.fuitesEtalon || [];
-      isDicosLoaded.value = true;
-    } catch (apiError) {
-      console.error("Erreur réseau (Dictionnaires VM):", apiError);
-      throw apiError;
-    }
-  };
-
-  const fetchFormulairesReferences = async (role) => {
-    try {
-      const response = await referentielsService.getFormulairesListByRole(role);
-      formulairesReferences.value = response.data?.data || [];
-    } catch (e) {
-      console.error("Erreur fetch formulaires:", e);
-    }
-  };
 
   const fetchTousLesPlans = async () => {
     try {
@@ -381,13 +364,13 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         .slice()
         .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
         .map(f => {
-          const dicoFam = famillesCorps.value.find(fc => fc.id === f.refFamilleCorpsId);
+          const dicoFam = refStore.famillesCorps.find(fc => fc.id === f.refFamilleCorpsId);
           let libelle = 'Inconnue';
 
           if (dicoFam) {
             libelle = dicoFam.libelle;
           } else {
-            const pieceRef = piecesReference.value.find(pr => pr.id === f.refFamilleCorpsId);
+            const pieceRef = refStore.piecesReference.find(pr => pr.id === f.refFamilleCorpsId);
             if (pieceRef) {
               libelle = pieceRef.code + (pieceRef.designation ? ` - ${pieceRef.designation}` : '');
             }
@@ -452,11 +435,24 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         });
       });
 
+    const extraCols = ligne.extraColonnes || ligne.ExtraColonnes || [];
+    const hasEtalonCols = extraCols.some(col => {
+      const key = col.cleColonne || col.CleColonne || '';
+      return key === 'fuite_etalon' || key === 'pression_entree' || key === 'dp_affichee';
+    });
+    const hasEtalonPieces = (ligne.echeances || ligne.Echeances || []).some(ech =>
+      (ech.matricePieces || ech.MatricePieces || ech.piecesRef || []).some(mp => {
+        const role = mp.roleVerif || mp.RoleVerif || '';
+        return role === 'FEC' || role === 'FENC';
+      })
+    );
+
     return {
       _uid: genererUid(),
+      isEtalon: hasEtalonCols || hasEtalonPieces,
       libelleRisque: ligne.libelleRisque || ligne.LibelleRisque || '',
       libelleMethode: ligne.libelleMethode || ligne.LibelleMethode || '',
-      valeursColonnesSpecifiques: (ligne.extraColonnes || ligne.ExtraColonnes || [])
+      valeursColonnesSpecifiques: extraCols
         .slice()
         .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
         .reduce((acc, col) => {
@@ -530,7 +526,9 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       const data = response.data.data;
 
       // ✅ REFRESH DICTIONARIES (Backend might have created new families/pieces)
-      await fetchDictionnaires(true);
+      if (!refStore.isDicosVerifMachineLoaded) {
+        await refStore.fetchDictionnaires('verif-machine', true);
+      }
 
       const targetMachineCode = data.machineCode || entete.value.machineCode;
 
@@ -552,7 +550,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         data.familles.forEach(fStr => {
           const normFStr = normalizeStr(fStr);
           // On cherche dans les dicos fraîchement mis à jour
-          const famRef = famillesCorps.value.find(fc =>
+          const famRef = refStore.famillesCorps.find(fc =>
             normalizeStr(fc.libelle) === normFStr ||
             normalizeStr(fc.code) === normFStr ||
             fStr.includes(`(${fc.libelle})`)
@@ -562,7 +560,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
             ajouterFamille(famRef.id);
           } else {
             // C'est peut-être une pièce de référence directe
-            const pRef = piecesReference.value.find(pr =>
+            const pRef = refStore.piecesReference.find(pr =>
               normalizeStr(pr.code) === normFStr
             );
             if (pRef) ajouterFamille(pRef.id);
@@ -588,16 +586,16 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
             // 🟢 NOUVEAU : Mapper chaque Row (moyen) sous la périodicité
             rows: (ech.rows || []).map(rowItem => ({
               _uid: genererUid(),
-              refMoyenDetectionId: moyensDetection.value.find(m =>
+              refMoyenDetectionId: refStore.moyensDetection.find(m =>
                 m.libelle?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase() ||
                 m.code?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase()
               )?.id || '',
               matricePieces: (() => {
                 const pieces = (rowItem.matricePieces || []).map(mp => {
-                  const pieceRef = piecesReference.value.find(p =>
+                  const pieceRef = refStore.piecesReference.find(p =>
                     (mp.pieceRefId && p.id === mp.pieceRefId) ||
                     (mp.pieceRefCode && p.code?.trim().toUpperCase() === mp.pieceRefCode?.trim().toUpperCase())
-                  ) || fuitesEtalon.value.find(p =>
+                  ) || refStore.fuitesEtalon.find(p =>
                     (mp.pieceRefId && p.id === mp.pieceRefId) ||
                     (mp.pieceRefCode && p.code?.trim().toUpperCase() === mp.pieceRefCode?.trim().toUpperCase())
                   );
@@ -615,8 +613,8 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
                       return normFLib === normMpFam || normFCode === normMpFam || normMpFam.includes(normFLib) || (normFCode && normMpFam.includes(normFCode));
                     });
 
-                    if (!importedFam && famillesCorps.value) {
-                      const globalFam = famillesCorps.value.find(fc => {
+                    if (!importedFam && refStore.famillesCorps) {
+                      const globalFam = refStore.famillesCorps.find(fc => {
                         const normLib = (fc.libelle || '').replace(/\s+/g, '').toUpperCase();
                         const normCode = (fc.code || '').replace(/\s+/g, '').toUpperCase();
                         return normLib === normMpFam || normCode === normMpFam || normMpFam.includes(normLib) || (normCode && normMpFam.includes(normCode)) || rawFamCode.includes(`(${fc.libelle})`);
@@ -669,11 +667,14 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   return {
-    machines,
-    periodicites,
+    isDicosLoaded,
     periodicitesMachine,
+    moyensDetection,
+    piecesReference,
+    fuitesEtalon,
+    periodicites,
+    machines,
     famillesCorps,
-    moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded, formulairesReferences,
     entete, familles, lignesConformite, lignesRisques,
     isLoading, planInitialise, plansExistants,
     genererUid, creerGroupVide, creerLigneVide,
@@ -682,7 +683,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,
     ajouterGroupPeriodicite, supprimerGroupPeriodicite, ajouterRowDetail, supprimerRowDetail,
     getPieceValue, setPieceValue,
-    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, loadDocumentById, sauvegarderPlanVerif, buildPayload, aDesModifications, createNewVersion, creerNouvelleVersion,
-    importerDepuisExcel
+    fetchTousLesPlans, loadDocumentById, sauvegarderPlanVerif, buildPayload, aDesModifications, createNewVersion, creerNouvelleVersion,
+    importerDepuisExcel, fetchDictionnaires
   };
 });

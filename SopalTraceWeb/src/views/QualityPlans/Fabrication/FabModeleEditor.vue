@@ -58,45 +58,38 @@
                 :remarques="store.entete.notes"
                 :legende-moyens="store.entete.legendeMoyens"
                 :configuration-colonnes="store.effectiveConfigurationColonnes"
-                :types-section="store.typesSection || []"
-                :types-caracteristique="store.typesCaracteristique || []"
-                :types-controle="store.typesControle || []"
-                :moyens-controle="store.moyensControle || []"
-                :periodicites="store.periodicites || []"
+                :types-section="refStore.typesSection || []"
+                :types-caracteristique="refStore.typesCaracteristique || []"
+                :types-controle="refStore.typesControle || []"
+                :moyens-controle="refStore.moyensControle || []"
+                :periodicites="refStore.periodicites || []"
               />
             </div>
 
             <!-- Mode EDITION -->
             <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
               <table class="w-full text-left border-collapse min-w-[1200px]">
-                <FabTableHeader :columns="modeleColumns" />
+                <BaseTableHeader :columns="modeleColumns" />
                 
-                <SharedSectionCard 
+                <PlanSection 
                     v-for="(section, index) in groupes" 
                     :key="section.id" 
-                    :groupe="section" 
+                    :section="section" 
                     :index="index"
-                    :is-read-only="isReadOnly"
-                    :typesSection="store.typesSection"
-                    :periodicites="store.periodicites"
-                    :reglesEchantillonnage="store.reglesEchantillonnage"
-                    :operationCode="store.entete.operationCode"
-                    defaultTitle="Caractéristiques à contrôler"
-                    @remove="removeSection(section.id)"
-                    @update-groupe="(updatedSection) => updateSection(index, updatedSection)"
-                    @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
-                  >
-                  <FabLigneControl 
-                    v-for="ligne in section.lignes" 
-                    :key="ligne.id" 
-                    :ligne="ligne"
                     :columns="modeleColumns"
                     :is-read-only="isReadOnly"
-                    :operation-code="store.entete?.operationCode"
-                    @remove="(ligneId) => removeLineFromSection(index, ligneId)"
-                    @update="(updatedLigne) => updateLine(index, updatedLigne)"
+                    :types-section="refStore.typesSection"
+                    :periodicites="refStore.periodicites"
+                    :regles-echantillonnage="refStore.reglesEchantillonnage"
+                    :types-controle="refStore.typesControle"
+                    :moyens-controle="refStore.moyensControle"
+                    :instruments="refStore.instruments"
+                    :operation-code="store.entete.operationCode"
+                    defaultTitle="Caractéristiques à contrôler"
+                    @remove="removeSection"
+                    @update-section="(updatedSection) => updateSection(index, updatedSection)"
+                    @section-type-required="() => toast.add({ severity: 'warn', summary: 'Type de section requis', detail: 'Veuillez définir la nature de la section avant d\'ajouter une ligne.', life: 4000 })"
                   />
-                </SharedSectionCard>
               </table>
             </div>
               
@@ -146,6 +139,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 
 import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { useDirtyChecking } from '@/composables/useDirtyChecking';
 import { createModeleSnapshot } from '@/utils/modelMapper';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
@@ -161,14 +155,14 @@ import EditorActions from '@/components/Shared/EditorActions.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import FabModeleHeader from '@/components/Fabrication/FabModeleHeader.vue';
-import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
-import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
-import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue'; 
-import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
+import BaseTableHeader from '@/components/Shared/BaseTableHeader.vue';
+import PlanSection from '@/components/Shared/PlanSection.vue';
 import FabModelEmptyState from '@/components/Fabrication/FabModelEmptyState.vue';
+import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 const store = useFabModeleStore();
+const refStore = useReferentielStore();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
@@ -181,13 +175,15 @@ const returnUrl = computed(() => '/dev/fab/modeles');
 // ÉTAT LOCAL (Métier)
 // ============================================================================
 const { 
-  sections: groupes, 
+  sections, 
   ajouterSection: addSection, 
   supprimerSection: removeSection, 
   mettreAJourSection: updateSection, 
   supprimerLigneASection: removeLineFromSection, 
   mettreAJourLigne: updateLine 
 } = useEditorSections();
+
+const groupes = sections;
 
 const modeleEditionId = ref(null);
 const codeOriginal = ref('');
@@ -253,14 +249,9 @@ watch(
 );
 
 // Variables métier diverses
-const hasValidStructure = computed(() => {
-  const refs = store.formulairesReferences || [];
-  if (refs.length === 0) return false;
-  return refs.some(r => {
-    const s = String(r.statut || r.Statut || '').trim().toUpperCase();
-    return s === 'ACTIF';
-  });
-});
+// hasValidStructure = true dès que les dictionnaires sont chargés
+// (peu importe le statut du formulaire PRC)
+const hasValidStructure = computed(() => refStore.isDicosFabricationLoaded);
 const modeleColumns = computed(() => store.tableColumns);
 
 const handleEditorSubmit = () => onEditorSubmit(toast, router, validerSaisieValeurs, validerLegendeMoyens);
@@ -268,13 +259,18 @@ const handleEditorSubmitClick = () => onEditorSubmitClick(toast, router, confirm
 
 onMounted(async () => {
   try {
+    // Charger les dictionnaires EN PREMIER (avant tout le reste, car resetForNewModel en dépend)
+    if (!refStore.isDicosFabricationLoaded) {
+      await refStore.fetchDictionnaires('fabrication');
+    }
+    if (!refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION']?.length) {
+      await refStore.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
+    }
+
     if (!route.params.id || route.params.id === 'nouveau') {
       resetForNewModel();
       if (groupes.value.length === 0) addSection();
     }
-
-    await store.fetchDictionnaires();
-    await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
     
     if (route.params.id && route.params.id !== 'nouveau') {
       await loadModelForEditing(route.params.id, toast, router);
@@ -283,4 +279,5 @@ onMounted(async () => {
     toast.add({ severity: 'error', summary: 'Erreur réseau', detail: error.message, life: 5000 });
   }
 });
+
 </script>

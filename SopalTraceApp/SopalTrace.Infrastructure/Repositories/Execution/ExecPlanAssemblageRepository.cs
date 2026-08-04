@@ -26,13 +26,35 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .FirstOrDefaultAsync(e => e.Id == id);
         }
 
+        public async Task<int> GetPreviousExecOfsCountAsync(string numeroOf, DateTime? beforeDate = null)
+        {
+            var query = _context.ExecControleOfs.Where(e => e.NumeroOf == numeroOf);
+            if (beforeDate.HasValue)
+            {
+                query = query.Where(e => e.DateDebut < beforeDate.Value);
+            }
+            return await query.CountAsync();
+        }
+
+        public async Task<int> GetPreviousEquipeExecCountAsync(string numeroOf, string equipe, DateTime? beforeDate = null)
+        {
+            var query = _context.ExecControleDocumentStatuts
+                .Include(s => s.ExecControleOf)
+                .Where(s => s.ExecControleOf.NumeroOf == numeroOf && s.Equipe == equipe);
+            if (beforeDate.HasValue)
+            {
+                query = query.Where(s => s.ExecControleOf.DateDebut < beforeDate.Value);
+            }
+            return await query.CountAsync();
+        }
+
         public async Task<DocumentEntete?> GetPlanAssemblageActifAsync(string codeArticle)
         {
             var (planAss, docRes) = await GetDocumentsAssemblageEtResultatAsync(codeArticle);
             return planAss ?? docRes;
         }
 
-        public async Task<(DocumentEntete? planAss, DocumentEntete? docResultat)> GetDocumentsAssemblageEtResultatAsync(string codeArticle)
+        public async Task<(DocumentEntete? PlanAss, DocumentEntete? DocRes)> GetDocumentsAssemblageEtResultatAsync(string codeArticle, string? posteCode = null)
         {
             var pf = await _context.ProduitFinis.FirstOrDefaultAsync(p => p.CodeArticle == codeArticle);
             var familleCode = pf?.FamilleProduitFiniCode;
@@ -59,18 +81,37 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
 
             // 1. Plan d'assemblage (PLAN_ASS, PLAN_ASSEMBLAGE, PLAN_FAB)
             var plansAss = plans.Where(p => p.TypeDocumentCode == "PLAN_ASS" || p.TypeDocumentCode == "PLAN_ASSEMBLAGE" || p.TypeDocumentCode == "PLAN_FAB" || p.TypeDocumentCode == "MODELE_FAB").ToList();
-            DocumentEntete? planAss = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
-            if (planAss == null && isSoupape)
+            DocumentEntete? planAss = null;
+            
+            if (!string.IsNullOrEmpty(posteCode))
             {
-                planAss = plansAss.FirstOrDefault(p => (p.Nom != null && (p.Nom.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Nom.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                       (p.Designation != null && (p.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                       (p.Formulaire != null && p.Formulaire.CodeReference != null && (p.Formulaire.CodeReference.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.CodeReference.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                       (p.Formulaire != null && p.Formulaire.Designation != null && (p.Formulaire.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                       (p.FamilleProduitFiniCode != null && (p.FamilleProduitFiniCode.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.FamilleProduitFiniCode.Contains("PAS", StringComparison.OrdinalIgnoreCase))));
+                // Recherche STRICTE par poste : on cherche un doc qui contient explicitement le code poste.
+                // Si aucun doc spécifique au poste n'existe (ex: PAS72 sans PLAN_ASS), on retourne null.
+                planAss = plansAss
+                    .Where(p => p.Statut == "ACTIF")
+                    .FirstOrDefault(p =>
+                        (p.Nom != null && p.Nom.Contains(posteCode, StringComparison.OrdinalIgnoreCase)) ||
+                        (p.Designation != null && p.Designation.Contains(posteCode, StringComparison.OrdinalIgnoreCase)) ||
+                        (p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains(posteCode, StringComparison.OrdinalIgnoreCase)));
+                // Si posteCode fourni mais aucun doc trouvé → null (pas de fallback vers un autre poste)
             }
-            if (planAss == null && !string.IsNullOrEmpty(familleCode)) planAss = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == familleCode);
-            if (planAss == null) planAss = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == "GEN" || string.IsNullOrEmpty(p.FamilleProduitFiniCode));
-            if (planAss == null) planAss = plansAss.FirstOrDefault();
+            else
+            {
+                // Pas de poste spécifié → comportement générique
+                planAss = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
+                if (planAss == null && isSoupape)
+                {
+                    planAss = plansAss.FirstOrDefault(p =>
+                        (p.Nom != null && (p.Nom.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Nom.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                        (p.Designation != null && (p.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                        (p.Formulaire != null && p.Formulaire.CodeReference != null && (p.Formulaire.CodeReference.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.CodeReference.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                        (p.Formulaire != null && p.Formulaire.Designation != null && (p.Formulaire.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                        (p.FamilleProduitFiniCode != null && (p.FamilleProduitFiniCode.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.FamilleProduitFiniCode.Contains("PAS", StringComparison.OrdinalIgnoreCase))));
+                }
+                if (planAss == null && !string.IsNullOrEmpty(familleCode)) planAss = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == familleCode);
+                if (planAss == null) planAss = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == "GEN" || string.IsNullOrEmpty(p.FamilleProduitFiniCode));
+                if (planAss == null) planAss = plansAss.FirstOrDefault();
+            }
 
             // 2. Document Résultat en cours d'assemblage (RESULTAT_CF, RCCF, CTRL_POSTE, RESULTAT_CONTROLE_POSTE, ou PLAN_ASS s'il contient des contrôles)
             var plansRes = plans.Where(p => p.TypeDocumentCode == "RESULTAT_CF" || p.TypeDocumentCode == "RCCF" || p.TypeDocumentCode == "CTRL_POSTE" || p.TypeDocumentCode == "RESULTAT_CONTROLE_POSTE").ToList();
@@ -79,23 +120,40 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 plansRes = plans.Where(p => p.TypeDocumentCode == "PLAN_ASS" || p.TypeDocumentCode == "PLAN_ASSEMBLAGE").ToList();
             }
             DocumentEntete? docResultat = null;
-            if (isSoupape)
+
+            if (!string.IsNullOrEmpty(posteCode))
             {
-                // Pour soupape, chercher en priorité les documents spécifiquement marqués soupape / article (selon Image 2)
-                docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
-                if (docResultat == null)
-                {
-                    docResultat = plansRes.FirstOrDefault(p => (p.Nom != null && (p.Nom.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Nom.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                               (p.Designation != null && (p.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                               (p.Formulaire != null && p.Formulaire.CodeReference != null && (p.Formulaire.CodeReference.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.CodeReference.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                               (p.Formulaire != null && p.Formulaire.Designation != null && (p.Formulaire.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                               (p.FamilleProduitFiniCode != null && (p.FamilleProduitFiniCode.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.FamilleProduitFiniCode.Contains("PAS", StringComparison.OrdinalIgnoreCase))));
-                }
+                // Recherche STRICTE par poste : on cherche un doc qui contient explicitement le code poste.
+                // Si aucun doc spécifique au poste n'existe, on retourne null (pas de fallback).
+                docResultat = plansRes
+                    .Where(p => p.Statut == "ACTIF")
+                    .FirstOrDefault(p =>
+                        (p.Nom != null && p.Nom.Contains(posteCode, StringComparison.OrdinalIgnoreCase)) ||
+                        (p.Designation != null && p.Designation.Contains(posteCode, StringComparison.OrdinalIgnoreCase)) ||
+                        (p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains(posteCode, StringComparison.OrdinalIgnoreCase)));
+                // Si posteCode fourni mais aucun doc trouvé → null (pas de fallback vers un autre poste)
             }
-            if (docResultat == null) docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
-            if (docResultat == null && !string.IsNullOrEmpty(familleCode)) docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == familleCode);
-            if (docResultat == null) docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == "GEN" || string.IsNullOrEmpty(p.FamilleProduitFiniCode));
-            if (docResultat == null) docResultat = plansRes.FirstOrDefault();
+            else
+            {
+                // Pas de poste spécifié → comportement générique
+                if (isSoupape)
+                {
+                    docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
+                    if (docResultat == null)
+                    {
+                        docResultat = plansRes.FirstOrDefault(p =>
+                            (p.Nom != null && (p.Nom.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Nom.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                            (p.Designation != null && (p.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                            (p.Formulaire != null && p.Formulaire.CodeReference != null && (p.Formulaire.CodeReference.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.CodeReference.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                            (p.Formulaire != null && p.Formulaire.Designation != null && (p.Formulaire.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
+                            (p.FamilleProduitFiniCode != null && (p.FamilleProduitFiniCode.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.FamilleProduitFiniCode.Contains("PAS", StringComparison.OrdinalIgnoreCase))));
+                    }
+                }
+                if (docResultat == null) docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
+                if (docResultat == null && !string.IsNullOrEmpty(familleCode)) docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == familleCode);
+                if (docResultat == null) docResultat = plansRes.FirstOrDefault(p => p.FamilleProduitFiniCode == "GEN" || string.IsNullOrEmpty(p.FamilleProduitFiniCode));
+                if (docResultat == null) docResultat = plansRes.FirstOrDefault();
+            }
 
             return (planAss, docResultat);
         }
@@ -149,18 +207,28 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             _context.ExecControleTranches.RemoveRange(tranches);
         }
 
-        public async Task<ExecControleDocumentStatut?> GetStatutPlanAssAsync(Guid execControleOfId)
+        public async Task<ExecControleDocumentStatut?> GetStatutPlanAssAsync(Guid execControleOfId, string? posteCode = null)
         {
-            return await _context.ExecControleDocumentStatuts
-                .FirstOrDefaultAsync(s => s.ExecControleOfId == execControleOfId && 
-                                         (s.TypeDocument == "PLAN_ASS" || s.TypeDocument == "PLAN_ASSEMBLAGE"));
+            var query = _context.ExecControleDocumentStatuts
+                .Where(s => s.ExecControleOfId == execControleOfId && 
+                           (s.TypeDocument == "PLAN_ASS" || s.TypeDocument == "PLAN_ASSEMBLAGE"));
+            
+            if (!string.IsNullOrEmpty(posteCode))
+                query = query.Where(s => s.PosteCode == posteCode);
+                
+            return await query.FirstOrDefaultAsync();
         }
 
-        public async Task<ExecControleDocumentStatut?> GetStatutResultatCfAsync(Guid execControleOfId, Guid docId)
+        public async Task<ExecControleDocumentStatut?> GetStatutResultatCfAsync(Guid execControleOfId, Guid docId, string? posteCode = null)
         {
-            return await _context.ExecControleDocumentStatuts
-                .FirstOrDefaultAsync(s => s.ExecControleOfId == execControleOfId && 
-                                         (s.DocId == docId || s.TypeDocument == "RESULTAT_CF" || s.TypeDocument == "RCCF" || s.TypeDocument == "CTRL_POSTE"));
+            var query = _context.ExecControleDocumentStatuts
+                .Where(s => s.ExecControleOfId == execControleOfId && 
+                           (s.DocId == docId || s.TypeDocument == "RESULTAT_CF" || s.TypeDocument == "RCCF" || s.TypeDocument == "CTRL_POSTE"));
+                           
+            if (!string.IsNullOrEmpty(posteCode))
+                query = query.Where(s => s.PosteCode == posteCode);
+                
+            return await query.FirstOrDefaultAsync();
         }
 
         public async Task<List<ExecControleDocumentStatut>> GetStatutsAssemblageAsync(Guid execControleOfId)

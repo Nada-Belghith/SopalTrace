@@ -31,10 +31,6 @@ namespace SopalTrace.Application.Utilities
 
             foreach (var sectionToRemove in sectionsToRemove)
             {
-                foreach (var lineToRemove in getLines(sectionToRemove).ToList())
-                {
-                    deleteLine(lineToRemove);
-                }
                 deleteSection(sectionToRemove);
                 existingSections.Remove(sectionToRemove);
             }

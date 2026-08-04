@@ -146,16 +146,36 @@ public class PlanFabricationService : IPlanFabricationService
             plan.FormulaireId = formulaireId;
         }
 
-        await ClearExistingSectionsAsync(plan);
-
         if (request.Sections != null)
         {
-            await AddSectionsAndLinesAsync(plan, request.Sections, formulaireId);
-            
-            foreach (var section in plan.PlanFabricationSections)
+            foreach (var s in request.Sections)
             {
-                _unitOfWork.PlanFabricationEnteteRepository.AddSection(section);
+                if (!s.PeriodiciteId.HasValue && !string.IsNullOrEmpty(s.LibelleSection))
+                {
+                    s.PeriodiciteId = await _frequencyParserService.ResolveOrCreatePeriodiciteFromTextAsync(s.LibelleSection);
+                }
             }
+
+            SopalTrace.Application.Utilities.SectionUpdateHelper.UpdateSections(
+                plan.PlanFabricationSections,
+                request.Sections,
+                sec => _unitOfWork.PlanFabricationEnteteRepository.RemoveSection(sec),
+                lig => _unitOfWork.PlanFabricationEnteteRepository.RemoveLigne(lig),
+                dto => dto.Id,
+                dto => dto.Id,
+                sec => sec.Id,
+                lig => lig.Id,
+                dto => PlanFabricationMapper.CreateSection(dto, plan.Id),
+                (sec, dto) => PlanFabricationMapper.UpdateSection(sec, dto),
+                sec => sec.PlanFabricationLignes,
+                dto => dto.Lignes,
+                (dto, sec) => PlanFabricationMapper.CreateLigne(dto, plan.Id, sec.Id),
+                (lig, dto) => 
+                {
+                    PlanFabricationMapper.UpdateLigne(lig, dto);
+                    PlanFabricationMapper.MergerExtraColonnes(lig, dto.ExtraColonnes ?? new(), _unitOfWork);
+                }
+            );
         }
 
         await _unitOfWork.CommitAsync();
@@ -304,35 +324,6 @@ public class PlanFabricationService : IPlanFabricationService
         }
     }
 
-    private async Task ClearExistingSectionsAsync(PlanFabricationEntete plan)
-    {
-        if (plan.PlanFabricationSections != null && plan.PlanFabricationSections.Any())
-        {
-            foreach (var section in plan.PlanFabricationSections.ToList())
-            {
-                if (section.PlanFabricationLignes != null)
-                {
-                    foreach (var ligne in section.PlanFabricationLignes.ToList())
-                    {
-                        if (ligne.PlanFabricationLigneExtraColonnes != null)
-                        {
-                            foreach (var ext in ligne.PlanFabricationLigneExtraColonnes.ToList())
-                            {
-                                _unitOfWork.PlanFabricationEnteteRepository.RemoveExtraColonne(ext);
-                            }
-                            ligne.PlanFabricationLigneExtraColonnes.Clear();
-                        }
-                        _unitOfWork.PlanFabricationEnteteRepository.RemoveLigne(ligne);
-                    }
-                    section.PlanFabricationLignes.Clear();
-                }
-                _unitOfWork.PlanFabricationEnteteRepository.RemoveSection(section);
-            }
-
-            plan.PlanFabricationSections.Clear();
-            await _unitOfWork.FlushDeletesAsync();
-        }
-    }
 
     private async Task ResolveMissingPlanAlertsAsync(string codeArticleSageVersionne, string user, string? currentUserEmail)
     {

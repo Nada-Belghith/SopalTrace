@@ -102,14 +102,12 @@ const isModeActive = (mode) => {
             <p><span class="font-bold text-gray-700">Code article :</span> {{ echantillonnagePlan.codeArticle || '-' }}</p>
             <p class="mt-3"><span class="font-bold text-gray-700">Atelier :</span> {{ echantillonnagePlan.atelier || '-' }}</p>
             <p class="mt-3 flex items-center gap-2">
-              <span class="font-bold text-gray-700 whitespace-nowrap">Poste / Machine :</span> 
+              <span class="font-bold text-gray-700 whitespace-nowrap">Poste :</span> 
               <template v-if="!echantillonnagePlan?.estTermine">
-                <InputText v-model="echantillonnagePlan.posteCode" placeholder="Poste" class="w-20" />
-                <span class="text-gray-400">/</span>
-                <InputText v-model="echantillonnagePlan.codeMachine" placeholder="Machine" class="w-20" />
+                <InputText v-model="echantillonnagePlan.posteCode" placeholder="Poste" class="w-24" />
               </template>
               <template v-else>
-                <span class="text-gray-800 font-medium">{{ echantillonnagePlan.posteCode || '-' }} <template v-if="echantillonnagePlan.codeMachine">/ {{ echantillonnagePlan.codeMachine }}</template></span>
+                <span class="text-gray-800 font-medium">{{ echantillonnagePlan.posteCode || '-' }}</span>
               </template>
             </p>
           </div>
@@ -247,7 +245,7 @@ const isModeActive = (mode) => {
       </div>
 
       <div class="flex justify-end mt-6">
-        <Button v-if="!echantillonnagePlan?.estTermine" label="Valider" icon="pi pi-check" class="p-button-success" @click="valider" />
+        <Button label="Valider et Enregistrer" icon="pi pi-check" class="p-button-success" @click="valider" />
       </div>
     </div>
   </div>

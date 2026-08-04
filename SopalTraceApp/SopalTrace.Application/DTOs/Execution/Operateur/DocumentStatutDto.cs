@@ -11,6 +11,8 @@ public class DocumentStatutDto
     public string? LibelleFormulaire { get; set; }
     public string? MachineCode { get; set; }
     public string? MachineLibelle { get; set; }
+    public bool EstDemarrageTermine { get; set; }
+    public bool EstPauseTermine { get; set; }
     public bool EstTermine { get; set; }
     public DateTime? DateTermine { get; set; }
     public string? Equipe { get; set; }

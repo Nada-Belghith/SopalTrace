@@ -180,4 +180,118 @@ public static class ModeleFabricationMapper
             }).ToList() ?? new List<LigneModeleEditDto>()
         }).ToList();
     }
+
+    public static ModeleFabricationSection CreateSection(SectionModeleEditDto dto, Guid modeleId)
+    {
+        return new ModeleFabricationSection
+        {
+            Id = Guid.NewGuid(),
+            ModeleEnteteId = modeleId,
+            LibelleSection = dto.LibelleSection ?? "",
+            OrdreAffiche = dto.OrdreAffiche,
+            TypeSectionId = dto.TypeSectionId,
+            PeriodiciteId = dto.PeriodiciteId,
+            RegleEchantillonnageId = dto.RegleEchantillonnageId,
+            ModeleFabricationLignes = new List<ModeleFabricationLigne>()
+        };
+    }
+
+    public static void UpdateSection(ModeleFabricationSection sec, SectionModeleEditDto dto)
+    {
+        sec.OrdreAffiche = dto.OrdreAffiche;
+        sec.LibelleSection = dto.LibelleSection ?? "";
+        sec.TypeSectionId = dto.TypeSectionId;
+        sec.PeriodiciteId = dto.PeriodiciteId;
+        sec.RegleEchantillonnageId = dto.RegleEchantillonnageId;
+    }
+
+    public static ModeleFabricationLigne CreateLigne(LigneModeleEditDto dto, Guid modeleId, Guid sectionId)
+    {
+        var modeleLigne = new ModeleFabricationLigne
+        {
+            Id = Guid.NewGuid(),
+            SectionId = sectionId,
+            OrdreAffiche = dto.OrdreAffiche,
+            LibelleAffiche = dto.LibelleAffiche,
+            TypeCaracteristiqueId = dto.TypeCaracteristiqueId,
+            TypeControleId = dto.TypeControleId,
+            MoyenControleId = dto.MoyenControleId,
+            MoyenTexteLibre = string.IsNullOrWhiteSpace(dto.MoyenTexteLibre) ? null : dto.MoyenTexteLibre,
+            InstrumentCode = dto.InstrumentCode,
+            PeriodiciteId = dto.PeriodiciteId,
+            LimiteSpecTexte = dto.LimiteSpecTexte,
+            EstCritique = dto.EstCritique,
+            Instruction = dto.Instruction,
+            Observations = dto.Observations,
+            ImageBase64 = dto.ImageBase64,
+            ModeleFabricationLigneExtraColonnes = new List<ModeleFabricationLigneExtraColonne>()
+        };
+
+        if (dto.ExtraColonnes != null)
+        {
+            foreach (var ec in dto.ExtraColonnes)
+            {
+                modeleLigne.ModeleFabricationLigneExtraColonnes.Add(new ModeleFabricationLigneExtraColonne
+                {
+                    Id = Guid.NewGuid(),
+                    LigneId = modeleLigne.Id,
+                    CleColonne = ec.CleColonne,
+                    ValeurColonne = ec.ValeurColonne,
+                    OrdreAffiche = ec.OrdreAffiche
+                });
+            }
+        }
+
+        return modeleLigne;
+    }
+
+    public static void UpdateLigne(ModeleFabricationLigne lig, LigneModeleEditDto dto)
+    {
+        lig.OrdreAffiche = dto.OrdreAffiche;
+        lig.LibelleAffiche = dto.LibelleAffiche;
+        lig.TypeCaracteristiqueId = dto.TypeCaracteristiqueId;
+        lig.TypeControleId = dto.TypeControleId;
+        lig.MoyenControleId = dto.MoyenControleId;
+        lig.MoyenTexteLibre = string.IsNullOrWhiteSpace(dto.MoyenTexteLibre) ? null : dto.MoyenTexteLibre;
+        lig.InstrumentCode = dto.InstrumentCode;
+        lig.PeriodiciteId = dto.PeriodiciteId;
+        lig.LimiteSpecTexte = dto.LimiteSpecTexte;
+        lig.EstCritique = dto.EstCritique;
+        lig.Instruction = dto.Instruction;
+        lig.Observations = dto.Observations;
+        lig.ImageBase64 = dto.ImageBase64;
+    }
+
+    public static void MergerExtraColonnes(ModeleFabricationLigne lig, List<CreateModeleExtraColonneDto> incoming, SopalTrace.Application.Interfaces.IUnitOfWork unitOfWork)
+    {
+        var existing = lig.ModeleFabricationLigneExtraColonnes.ToList();
+
+        foreach (var ec in existing.Where(e => !incoming.Any(i => i.CleColonne == e.CleColonne)))
+        {
+            unitOfWork.ModeleFabricationEnteteRepository.RemoveExtraColonne(ec);
+            lig.ModeleFabricationLigneExtraColonnes.Remove(ec);
+        }
+
+        foreach (var inc in incoming)
+        {
+            var found = existing.FirstOrDefault(e => e.CleColonne == inc.CleColonne);
+            if (found != null)
+            {
+                found.ValeurColonne = inc.ValeurColonne;
+                found.OrdreAffiche = inc.OrdreAffiche;
+            }
+            else
+            {
+                lig.ModeleFabricationLigneExtraColonnes.Add(new ModeleFabricationLigneExtraColonne
+                {
+                    Id = Guid.NewGuid(),
+                    LigneId = lig.Id,
+                    Ligne = lig,
+                    CleColonne = inc.CleColonne,
+                    ValeurColonne = inc.ValeurColonne,
+                    OrdreAffiche = inc.OrdreAffiche
+                });
+            }
+        }
+    }
 }

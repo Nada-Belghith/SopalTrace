@@ -27,7 +27,7 @@ export function mapLigneForBackend(ligne, lIdx) {
     id: (ligne.id && String(ligne.id).trim() !== '') ? ligne.id : null,
     ordreAffiche: lIdx + 1,
     typeCaracteristiqueId: ligne.typeCaracteristiqueId || null,
-    libelleAffiche: ligne.libelleAffiche || null,
+    libelleAffiche: ligne.libelleAffiche || ligne.caracteristique || null,
     typeControleId: ligne.typeControleId || null,
     moyenControleId: ligne.moyenControleId || null,
     instrumentCode: ligne.instrumentCode || null,

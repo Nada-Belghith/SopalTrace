@@ -10,7 +10,7 @@
           v-model="refFormulaireSelected" 
           class="w-full md:w-1/2 rounded-lg px-4 py-2 text-sm font-bold shadow-sm focus:ring-2 focus:ring-blue-400 outline-none transition-shadow bg-white border border-blue-200 text-blue-900 cursor-pointer">
           <option value="">-- Choisir un formulaire générique --</option>
-          <option v-for="ref in store.formulairesReferences" :key="ref.id" :value="ref.id">
+          <option v-for="ref in (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || [])" :key="ref.id" :value="ref.id">
             {{ ref.codeReference }} - {{ ref.designation }}
           </option>
         </select>
@@ -32,7 +32,7 @@
         <select v-else v-model="store.entete.familleProduitFiniCode" 
                 class="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all cursor-pointer">
           <option value="">-- Sélectionner la famille --</option>
-          <option v-for="fam in (store.famillesProduit || [])" :key="fam.code" :value="fam.code">{{ fam.code }}</option>
+          <option v-for="fam in (refStore.famillesProduit || [])" :key="fam.code" :value="fam.code">{{ fam.code }}</option>
         </select>
       </div>
 
@@ -50,14 +50,16 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue';
 import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 const store = usedocumentProduitFiniStore();
+const refStore = useReferentielStore();
 const refFormulaireSelected = ref('');
 
 const hasExistingVersion = computed(() => {
   if (!refFormulaireSelected.value) return false;
-  const refObj = store.formulairesReferences.find(r => r.id === refFormulaireSelected.value);
+  const refObj = (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || []).find(r => r.id === refFormulaireSelected.value);
   if (!refObj) return false;
   
   const hasVersion = refObj.version > 0 || refObj.Version > 0;
@@ -79,17 +81,17 @@ const props = defineProps({
 
 onMounted(() => {
   if (!props.isReadOnly && !props.isEditMode) {
-    store.fetchFormulairesReferences('PRODUIT_FINI');
+    refStore.fetchFormulairesReferences('PRODUIT_FINI');
   }
 });
 
 watch(refFormulaireSelected, (newRefId) => {
   if (!newRefId) return;
-  const refObj = store.formulairesReferences.find(r => r.id === newRefId);
+  const refObj = (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || []).find(r => r.id === newRefId);
   if (!refObj) return;
 
   const designation = refObj.designation || '';
-  const parsed = parseDesignation(designation, store.famillesProduit || []);
+  const parsed = parseDesignation(designation, refStore.famillesProduit || []);
   
   if (parsed.familleCode) {
     store.entete.familleProduitFiniCode = parsed.familleCode;

@@ -34,12 +34,14 @@ import Toast from 'primevue/toast';
 import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import VerifMachineForm from '@/components/VerifMachine/VerifMachineForm.vue';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';
 
 const router = useRouter();
 const route = useRoute();
 const toast = useAppToast();
 const store = useVerifMachineStore();
+const refStore = useReferentielStore();
 
 const { isReadOnly } = useDocumentHeaderMeta(route, store);
 const showVersioningDialog = ref(false);
@@ -47,6 +49,12 @@ const versioningMode = ref('new-version');
 const isRestoring = ref(false);
 
 onMounted(async () => {
+  if (!refStore.isDicosVerifMachineLoaded) {
+    await refStore.fetchDictionnaires('verif-machine');
+  }
+  if (!refStore.formulairesReferencesByRole['VERIF_MACHINE']?.length) {
+    await refStore.fetchFormulairesReferences('VERIF_MACHINE');
+  }
   const id = route.params.id;
   if (id && id !== 'nouveau') {
     try {

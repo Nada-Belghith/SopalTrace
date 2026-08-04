@@ -14,6 +14,21 @@ namespace SopalTrace.Application.DTOs.Execution
         public DateTime DateDebut { get; set; }
         public int EffectifEchantillonParHeure { get; set; } = 4;
         
+        public bool IsFirstExecutionOf { get; set; } = false;
+        public bool IsFirstExecutionEquipe { get; set; } = false;
+
+        /// <summary>
+        /// Vrai si l'un des documents dédiés au poste (Plan ASS ou Résultat CF) est introuvable.
+        /// Dans ce cas, le contrôle ne peut pas démarrer.
+        /// </summary>
+        public bool HasDocumentsManquants { get; set; } = false;
+
+        /// <summary>
+        /// Liste des documents manquants pour ce poste, pour affichage dans l'alerte.
+        /// Ex: ["Plan d'Assemblage (PLAN_ASS)", "Résultat Contrôle CF (RESULTAT_CF)"]
+        /// </summary>
+        public List<string> DocumentsManquants { get; set; } = new List<string>();
+        
         public List<PosteHoraireDto> PostesConfigures { get; set; } = new List<PosteHoraireDto>();
         public List<ExecPlanAssemblageSectionDto> Sections { get; set; } = new List<ExecPlanAssemblageSectionDto>();
     }
@@ -77,6 +92,7 @@ namespace SopalTrace.Application.DTOs.Execution
     public class SaveResultatAssRequest
     {
         public Guid TrancheId { get; set; }
+        public string? Contexte { get; set; }
         public string? Resultat { get; set; }
         public string? NonConformite { get; set; }
         public string? ActionCorrective { get; set; }

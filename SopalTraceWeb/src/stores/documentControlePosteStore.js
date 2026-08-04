@@ -411,11 +411,23 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
       const res = await documentControlePosteService.importExcel(file);
       const data = res.data;
 
+      // Check if backend API returned business errors
+      if (data && (data.succes === false || data.success === false)) {
+        return {
+          success: false,
+          message: (data.erreurs && data.erreurs.length) ? data.erreurs.join(', ') : 'Le fichier Excel est invalide ou vide.'
+        };
+      }
+
       if (data.posteCode && !entete.value.posteCode) {
         entete.value.posteCode = data.posteCode;
       }
       if (data.nomPlan && !entete.value.nom) entete.value.nom = data.nomPlan;
-      if (data.remarques) entete.value.remarques = data.remarques.trim();
+      
+      // Ensure data.remarques is a string before calling trim
+      if (data.remarques) {
+        entete.value.remarques = String(data.remarques).trim();
+      }
 
       const nouvellesLignes = (data.lignes || []).map(mapperLigneDepuisExcel);
 
@@ -430,6 +442,9 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
         total: nouvellesLignes.length,
         nbNonResolus
       };
+    } catch (error) {
+      console.error('Erreur import Excel:', error);
+      throw error;
     } finally {
       isLoading.value = false;
     }

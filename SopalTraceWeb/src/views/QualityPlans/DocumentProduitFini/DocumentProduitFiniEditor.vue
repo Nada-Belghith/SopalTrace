@@ -88,33 +88,26 @@
             <!-- Mode EDITION : ancienne vue cartes -->
             <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
               <table class="w-full text-left border-collapse min-w-[1200px]">
-                <FabTableHeader :columns="modeleColumns" />
-                <SharedSectionCard 
+                <BaseTableHeader :columns="modeleColumns" />
+                <PlanSection 
                   v-for="(section, index) in sections" 
                   :key="section.id" 
-                  :groupe="section" 
+                  :section="section" 
                   :index="index"
+                  :columns="modeleColumns"
                   :is-read-only="isReadOnly"
-                  :typesSection="store.typesSection"
-                  :periodicites="store.periodicites"
-                  :reglesEchantillonnage="store.reglesEchantillonnage"
-                  operationCode="PF"
+                  :types-section="refStore.typesSection"
+                  :periodicites="refStore.periodicites"
+                  :regles-echantillonnage="refStore.reglesEchantillonnage"
+                  :types-controle="refStore.typesControle"
+                  :moyens-controle="refStore.moyensControle"
+                  :instruments="refStore.instruments"
+                  operation-code="PF"
                   defaultTitle="Contrôle Produit Fini"
                   @remove="supprimerSection(section.id)"
-                  @update-groupe="(updatedSection) => mettreAJourSection(index, updatedSection)"
+                  @update-section="(updatedSection) => mettreAJourSection(index, updatedSection)"
                   @section-type-required="() => toast.warn('Veuillez définir la nature de la section.', 'Nature requise')"
-                >
-                  <FabLigneControl 
-                    v-for="ligne in section.lignes" 
-                    :key="ligne.id" 
-                    :ligne="ligne"
-                    :columns="modeleColumns"
-                    :is-read-only="isReadOnly"
-                    :operation-code="'PF'"
-                    @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
-                    @update="(updatedLigne) => mettreAJourLigne(index, updatedLigne)"
-                  />
-                </SharedSectionCard>
+                />
               </table>
             </div>
 
@@ -169,16 +162,16 @@ import { useConfirm } from 'primevue/useconfirm';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { documentService as documentService } from '@/services/documentService';
 import { useEditorSections } from '@/composables/useEditorSections';
 import { useEditorValidation } from '@/composables/useEditorValidation';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import DocumentProduitFiniHeader from '@/components/DocumentProduitFini/DocumentProduitFiniHeader.vue';
-import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
 import DocumentProduitFiniReadView from '@/components/DocumentProduitFini/DocumentProduitFiniReadView.vue';
-import FabLigneControl from '@/components/Fabrication/FabLigneControl.vue';
-import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
+import PlanSection from '@/components/Shared/PlanSection.vue';
+import BaseTableHeader from '@/components/Shared/BaseTableHeader.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
@@ -189,6 +182,8 @@ const route = useRoute();
 const router = useRouter();
 const toast = useAppToast();
 const store = usedocumentProduitFiniStore();
+const refStore = useReferentielStore();
+const confirm = useConfirm();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
@@ -304,8 +299,8 @@ const headerSubtitle = computed(() => {
 });
 
 onMounted(async () => {
-  if (!store.isDicosLoaded) {
-    await store.fetchDictionnaires();
+  if (!refStore.isDicosFabricationLoaded) {
+    await refStore.fetchDictionnaires('fabrication');
   }
 
   if (planId.value) {

@@ -76,6 +76,12 @@ public class OccurrenceRepository : IOccurrenceRepository
 
     private static bool IsEchantillonnageSection(DocumentSection s)
     {
+        string lib = (s.LibelleSection ?? "").ToLower();
+        if (lib.Contains("échantillonnage") || lib.Contains("echantillonnage") || lib.Contains("en cours de production") || lib.Contains("p/h") || lib.Contains("100%"))
+        {
+            return true;
+        }
+
         bool isTimeBased = false;
         if (s.Periodicite != null)
         {
@@ -89,7 +95,7 @@ public class OccurrenceRepository : IOccurrenceRepository
         if (s.RegleEchantillonnage != null)
         {
             string regleLib = (s.RegleEchantillonnage.Libelle ?? "").ToLower();
-            if (regleLib.Contains("p/h") || regleLib.Contains("heure"))
+            if (regleLib.Contains("p/h") || regleLib.Contains("heure") || regleLib.Contains("échantillonnage"))
             {
                 isTimeBased = true;
             }
@@ -211,9 +217,9 @@ public class OccurrenceRepository : IOccurrenceRepository
             string per = fabSec.Periodicite?.Code?.ToUpper() ?? "";
             
             if (type == "REGLAGE" || type == "REGLAGE_PROD") return "REGLAGE";
-            if (per.Contains("100PCT")) return "100PCT";
-            if (type == "LOT" || per == "SERIE_1P" || per == "SERIE_4P") return "LOT";
-            return "NORMAL";
+            if (per.Contains("100PCT") || type == "100PCT") return "100PCT";
+            if (type == "LOT" || type == "LOT_POSTE" || type == "LOT_OF" || type == "ECHANTILLONNAGE" || per == "SERIE_1P" || per == "SERIE_4P") return "LOT";
+            return "LOT"; // Fallback conforme à la contrainte CHECK (REGLAGE, LOT, 100PCT)
         }
         
         var assSec = await _context.DocumentSections
@@ -225,14 +231,23 @@ public class OccurrenceRepository : IOccurrenceRepository
         {
             string type = assSec.TypeSection?.Code?.ToUpper() ?? "";
             string per = assSec.Periodicite?.Code?.ToUpper() ?? "";
+            string libelle = assSec.LibelleSection?.ToUpper() ?? "";
             
             if (type == "REGLAGE" || type == "REGLAGE_PROD") return "REGLAGE";
-            if (per.Contains("100PCT")) return "100PCT";
-            if (type == "LOT" || per == "SERIE_1P" || per == "SERIE_4P") return "LOT";
-            return "NORMAL";
+            if (per.Contains("100PCT") || type == "100PCT" || libelle.Contains("100%")) return "100PCT";
+            if (type == "LOT" || type == "LOT_POSTE" || type == "LOT_OF" || type == "ECHANTILLONNAGE" || per == "SERIE_1P" || per == "SERIE_4P") return "LOT";
+            return "LOT"; // Fallback conforme à la contrainte CHECK (REGLAGE, LOT, 100PCT)
         }
         
-        return "NORMAL";
+        return "LOT"; // Fallback global
+    }
+
+    public async Task<int?> GetEffectifEchantillonnageAsync(Guid execControleOfId)
+    {
+        return await _context.ExecEchantillonnages
+            .Where(e => e.ExecControleDocumentStatut.ExecControleOfId == execControleOfId)
+            .Select(e => e.EffectifParPosteAb)
+            .FirstOrDefaultAsync();
     }
 
     public async Task SaveChangesAsync()

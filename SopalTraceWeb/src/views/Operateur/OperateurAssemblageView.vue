@@ -17,6 +17,7 @@ import { useAppToast } from '@/composables/useAppToast'
 // Nouveaux Composants
 import OFGrid from '@/components/Operateur/Assemblage/OFGrid.vue'
 import DocumentCategories from '@/components/Operateur/Assemblage/DocumentCategories.vue'
+import AssistantDemarrage from '@/components/Operateur/Assemblage/AssistantDemarrage.vue'
 import PostesSelectionDialog from '@/components/Operateur/Assemblage/Dialogs/PostesSelectionDialog.vue'
 import VerifMachineDialog from '@/components/Operateur/Assemblage/Dialogs/VerifMachineDialog.vue'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
@@ -102,11 +103,11 @@ onMounted(async () => {
   }
 })
 
-watch(() => route.query.execControleOfId, async (newExecId) => {
-  if (newExecId) {
-    execOfIdActif.value = newExecId
+watch([() => route.query.execControleOfId, () => route.query.posteCode, () => route.fullPath], async () => {
+  if (route.query.execControleOfId) {
+    execOfIdActif.value = route.query.execControleOfId
     const of = ofsStatut.value.find(o => 
-      o.execControleOfId && o.execControleOfId.toString().toLowerCase() === newExecId.toString().toLowerCase()
+      o.execControleOfId && o.execControleOfId.toString().toLowerCase() === route.query.execControleOfId.toString().toLowerCase()
     )
     if (of) ofActif.value = of
     if (route.query.posteCode) selectedPoste.value = route.query.posteCode
@@ -211,13 +212,23 @@ const confirmerPostes = async ({ postes: postesSelectionnes, equipe }) => {
   }
 }
 
-// ──────────────────────────── Documents ──────────────────────────────
+const alertesActives = ref([])
+
 const fetchDocumentsStatus = async () => {
   if (!execOfIdActif.value) return
   isLoadingDocs.value = true
   try {
     const response = await apiClient.get(`/Operateur/of/${execOfIdActif.value}/assemblage-documents`)
     documents.value = response.data
+    
+    try {
+      const responseAlertes = await apiClient.get(`/Operateur/of/${execOfIdActif.value}/alertes-actives`)
+      alertesActives.value = responseAlertes.data || []
+    } catch (e) {
+      console.warn('Erreur chargement alertes-actives', e)
+      alertesActives.value = []
+    }
+
     await loadMachinesForPoste()
   } catch (error) {
     console.error('Erreur chargement documents:', error)
@@ -232,12 +243,24 @@ const documentCategories = computed(() => {
   const posteDocs = documents.value.filter(d => d.posteCode === selectedPoste.value)
   const vmDocs = posteDocs.filter(d => d.typeDocument === 'VERIF_MACHINE')
 
-  // Verif Machine est Terminé ssi on a forcé la clôture OU CHAQUE machine configurée du poste a des docs et que TOUS ses docs sont terminés
+  // Verif Machine : Démarrage vs Clôture Finale
   const isVmForceTermine = posteDocs.some(d => d.typeDocument === 'CLOTURE_VM_POSTE')
-  const isVmTermine = isVmForceTermine || (machinesPoste.value.length > 0 && machinesPoste.value.every(m => {
-    const mDocs = vmDocs.filter(d => d.machineCode === m.codeMachine)
-    return mDocs.length > 0 && mDocs.every(d => d.estTermine)
-  }))
+  const isVmDemarrageTermine = isVmForceTermine || (
+    isLoadingDocs.value ? false : (
+      machinesPoste.value.length > 0 && machinesPoste.value.every(m => {
+        const mDocs = vmDocs.filter(d => d.machineCode === m.codeMachine)
+        return mDocs.length > 0 && mDocs.every(d => d.estDemarrageTermine || d.estTermine)
+      })
+    )
+  )
+  const isVmFinalTermine = isVmForceTermine || (
+    isLoadingDocs.value ? false : (
+      machinesPoste.value.length > 0 && machinesPoste.value.every(m => {
+        const mDocs = vmDocs.filter(d => d.machineCode === m.codeMachine)
+        return mDocs.length > 0 && mDocs.every(d => d.estTermine)
+      })
+    )
+  )
 
   const cpDocs = posteDocs.filter(d => d.typeDocument === 'RESULTAT_CONTROLE_POSTE')
   const isCpTermine = posteDocs.some(d => d.typeDocument === 'CLOTURE_RC_POSTE')
@@ -246,21 +269,43 @@ const documentCategories = computed(() => {
   const isEchTermine = echDocs.length > 0 && echDocs.every(d => d.estTermine)
 
   const planAssDocs = posteDocs.filter(d => ['PLAN_ASS', 'PLAN_ASSEMBLAGE', 'PLAN_FAB', 'MODELE_FAB', 'RESULTAT_CF', 'RCCF'].includes(d.typeDocument))
-  const isPlanAssTermine = planAssDocs.length > 0 && planAssDocs.every(d => d.estTermine)
+  const isPlanAssDemarrageTermine = planAssDocs.length > 0 && planAssDocs.some(d => d.estDemarrageTermine || d.estTermine || d.repondu)
+  const isPlanAssFinalTermine = planAssDocs.length > 0 && planAssDocs.every(d => d.estTermine)
 
   const tracaDocs = posteDocs.filter(d => d.typeDocument === 'REGISTRE_TRACA')
   const isTracaTermine = tracaDocs.length > 0 && tracaDocs.every(d => d.estTermine)
 
   return [
-    { id: 'verifMachine',   title: 'Vérification Machine',     icon: 'pi pi-cog',        docs: vmDocs, isTermine: isVmTermine },
-    { id: 'documentControlePoste',  title: 'Résultat Contrôle Poste',  icon: 'pi pi-check-square', docs: cpDocs, isTermine: isCpTermine },
-    { id: 'echantillonnage',title: 'Fiche Échantillonnage',    icon: 'pi pi-chart-pie',  docs: echDocs, isTermine: isEchTermine },
-    { id: 'planAss',        title: 'Plan Assemblage + Résultat',icon: 'pi pi-sitemap',   docs: planAssDocs, isTermine: isPlanAssTermine },
-    { id: 'tracabilite',    title: 'Registre de Traçabilité',  icon: 'pi pi-history',    docs: tracaDocs, isTermine: isTracaTermine }
+    { id: 'verifMachine',   title: 'Vérification Machine',     icon: 'pi pi-cog',        docs: vmDocs, isDemarrageTermine: isVmDemarrageTermine, isTermine: isVmFinalTermine },
+    { id: 'documentControlePoste',  title: 'Résultat Contrôle Poste',  icon: 'pi pi-check-square', docs: cpDocs, isDemarrageTermine: isCpTermine, isTermine: isCpTermine },
+    { id: 'echantillonnage',title: 'Fiche Échantillonnage',    icon: 'pi pi-chart-pie',  docs: echDocs, isDemarrageTermine: isEchTermine, isTermine: isEchTermine },
+    { id: 'planAss',        title: 'Plan Assemblage + Résultat',icon: 'pi pi-sitemap',   docs: planAssDocs, isDemarrageTermine: isPlanAssDemarrageTermine, isTermine: isPlanAssFinalTermine },
+    { id: 'tracabilite',    title: 'Registre de Traçabilité',  icon: 'pi pi-history',    docs: tracaDocs, isDemarrageTermine: isTracaTermine, isTermine: isTracaTermine }
   ]
 })
 
-const onCategoryClick = async (cat) => {
+const onCategoryClick = async (cat, isFromAssistant = false, opts = {}) => {
+  // Blocage : Vérifier si Fiche Échantillonnage est terminée
+  if (cat.id !== 'echantillonnage' && cat.id !== 'tracabilite') {
+    const echCat = documentCategories.value.find(c => c.id === 'echantillonnage')
+    if (echCat && !echCat.isTermine) {
+      toast.warn('Action bloquée', 'Veuillez d\'abord remplir la Fiche d\'Échantillonnage.')
+      return
+    }
+  }
+
+  // Blocage : Vérifier si VM et PlanAss sont terminés au démarrage avant d'ouvrir le reste (ex: documentControlePoste)
+  if (cat.id === 'documentControlePoste') {
+    const vmCat = documentCategories.value.find(c => c.id === 'verifMachine')
+    const planAssCat = documentCategories.value.find(c => c.id === 'planAss')
+    const isVmOk = vmCat ? (vmCat.isDemarrageTermine || vmCat.isTermine) : true
+    const isPlanAssOk = planAssCat ? (planAssCat.isDemarrageTermine || planAssCat.isTermine) : true
+    if (!isVmOk || !isPlanAssOk) {
+      toast.warn('Action bloquée', 'Veuillez terminer les Vérifications de Démarrage (Vérif. Machine et Plan d\'Assemblage) d\'abord.')
+      return
+    }
+  }
+
   selectedCategory.value = cat
   if (cat.id === 'echantillonnage') {
     if (cat.docs.length > 0) {
@@ -269,7 +314,7 @@ const onCategoryClick = async (cat) => {
       openEchantillonnageDialog()
     }
   } else if (cat.id === 'verifMachine') {
-    openVerifMachineDialog()
+    openVerifMachineDialog(isFromAssistant)
   } else if (cat.id === 'documentControlePoste') {
     if (operateurStore) {
       operateurStore.setActiveOfContext({
@@ -324,10 +369,19 @@ const onCategoryClick = async (cat) => {
         showPlanAssManquantDialog.value = true
         return
       }
+      const vmCatNav = documentCategories.value.find(c => c.id === 'verifMachine')
+      const planAssCatNav = documentCategories.value.find(c => c.id === 'planAss')
+      const isDemarrageDoneNav = (vmCatNav ? (vmCatNav.isDemarrageTermine || vmCatNav.isTermine) : true) &&
+                                 (planAssCatNav ? (planAssCatNav.isDemarrageTermine || planAssCatNav.isTermine) : true)
       router.push({
         name: 'exec-plan-assemblage',
         params: { execControleOfId: execOfIdActif.value },
-        query: { posteCode: selectedPoste.value }
+        query: {
+          posteCode: selectedPoste.value,
+          isDemarrageDone: isDemarrageDoneNav ? 'true' : 'false',
+          autoOpen1stPending: isFromAssistant ? 'true' : 'false',
+          autoOpen100pct: opts.section100pct ? 'true' : 'false'
+        }
       })
     } catch (err) {
       docAssManquantDesc.value = `Plan d'assemblage ou Résultat en cours introuvable pour ${selectedPoste.value}`
@@ -396,6 +450,17 @@ const marquerTermine = async (docId) => {
   } catch (error) { console.error('Erreur maj document:', error) }
 }
 
+const rouvrirDocument = async (docId) => {
+  try {
+    await apiClient.put(`/Operateur/assemblage-documents/${docId}/rouvrir`)
+    toast.success('Succès', 'Document réouvert avec succès.')
+    await fetchDocumentsStatus()
+  } catch (error) {
+    console.error('Erreur réouverture document:', error)
+    toast.error('Erreur', 'Impossible de réouvrir le document.')
+  }
+}
+
 const ouvrirDocument = async (doc) => {
   if (showVerifMachineDialog.value) showVerifMachineDialog.value = false
   if (showListDialog.value) showListDialog.value = false
@@ -431,6 +496,7 @@ const ouvrirDocument = async (doc) => {
           if (res.data.id) doc.id = res.data.id
         }
         
+        const perioFilter = doc.targetPeriodicite || targetPeriodiciteDialog.value || (isDemarrageModeDialog.value ? 'demarrage' : '')
         router.push({ 
           name: 'operateur-vm-exec', 
           params: { id: activePlan.id }, 
@@ -438,7 +504,8 @@ const ouvrirDocument = async (doc) => {
             statutId: doc.id, 
             mode: doc._openMode || 'details',
             execControleOfId: execOfIdActif.value,
-            posteCode: selectedPoste.value
+            posteCode: selectedPoste.value,
+            periodicite: perioFilter || undefined
           } 
         })
       } else {
@@ -474,7 +541,10 @@ const ouvrirDocument = async (doc) => {
     router.push({
       name: 'exec-plan-assemblage',
       params: { execControleOfId: execOfIdActif.value },
-      query: { posteCode: doc.posteCode || selectedPoste.value }
+      query: { 
+        posteCode: doc.posteCode || selectedPoste.value,
+        isDemarrageDone: doc.estTermine ? 'true' : 'false'
+      }
     })
   } else {
     toast.info('Ouvrir document', `${doc.typeDocument} - ${doc.libelleFormulaire || 'Sans nom'}`)
@@ -600,7 +670,7 @@ const loadMachinesForPoste = async () => {
     const resAll = await apiClient.get('/Operateur/machines')
     allMachines.value = resAll.data
 
-    const res = await apiClient.get(`/Operateur/postes/${selectedPoste.value}/machines`)
+    const res = await apiClient.get(`/Operateur/poste/${selectedPoste.value}/machines`)
     const defaultMachines = res.data.map(m => ({ ...m, isDefault: true }))
 
     const machineList = [...defaultMachines]
@@ -642,8 +712,13 @@ const removeMachineFromPoste = (machineCode) => {
   machinesPoste.value = machinesPoste.value.filter(m => m.codeMachine !== machineCode)
 }
 
-const openVerifMachineDialog = async () => {
+const isDemarrageModeDialog = ref(false)
+const targetPeriodiciteDialog = ref('')
+
+const openVerifMachineDialog = async (isDemarrage = false, targetPeriodicite = '') => {
   await loadMachinesForPoste()
+  isDemarrageModeDialog.value = isDemarrage === true
+  targetPeriodiciteDialog.value = targetPeriodicite || (isDemarrage ? 'demarrage' : '')
   showVerifMachineDialog.value = true
 }
 
@@ -660,6 +735,7 @@ const initMachineDocument = async (machineCode) => {
       const doc = cat?.docs.find(d => d.machineCode === machineCode && !d.estTermine) 
                || cat?.docs.find(d => d.machineCode === machineCode) 
                || { typeDocument: 'VERIF_MACHINE', machineCode }
+      doc.targetPeriodicite = targetPeriodiciteDialog.value || (isDemarrageModeDialog.value ? 'demarrage' : '')
       ouvrirDocument(doc)
     }
   } catch (e) {
@@ -850,9 +926,35 @@ const cloturerOf = async () => {
           </p>
         </div>
         
+        <!-- Boutons d'action OF (Aux Réglages, Pause, Fin poste) -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button @click="mettreEnReglageOf" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+            <i class="pi pi-cog"></i> Aux Réglages
+          </button>
+
+          <button v-if="ofActif?.statut === 'EN_PAUSE'" @click="reprendreOf" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+            <i class="pi pi-play"></i> Reprendre
+          </button>
+          <button v-else @click="mettreEnPauseOf" class="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+            <i class="pi pi-pause"></i> Pause
+          </button>
+
+          <button @click="cloturerOf" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+            <i class="pi pi-stop"></i> Fin poste
+          </button>
+        </div>
       </div>
 
-      <!-- Corps Principal : Cartes des catégories de documents (Vérification machine, Contrôle au poste, Échantillonnage, Plan Assemblage...) -->
+      <!-- Assistant To-Do List (Flux de démarrage guidé) -->
+      <AssistantDemarrage 
+        v-if="documentCategories && documentCategories.length > 0"
+        :categories="documentCategories"
+        :documents="documents"
+        :alertes="alertesActives"
+        @action-click="(cat, opts) => onCategoryClick(cat, true, opts)"
+      />
+
+      <!-- Corps Principal : Cartes des catégories de documents -->
       <div class="flex-1 overflow-y-auto mt-2">
         <DocumentCategories 
           :tousLesPostesActifs="tousLesPostesActifs" 
@@ -861,7 +963,7 @@ const cloturerOf = async () => {
           :isLoadingDocs="isLoadingDocs" 
           @update:selectedPoste="val => selectedPoste = val"
           @refresh="fetchDocumentsStatus" 
-          @category-click="onCategoryClick" 
+          @category-click="cat => onCategoryClick(cat, false)" 
           @cloturer-category="handleCloturerCategory" 
         />
       </div>
@@ -903,6 +1005,7 @@ const cloturerOf = async () => {
                   </span>
                   <div class="flex gap-2">
                     <Button v-if="!doc.estTermine" icon="pi pi-check" severity="success" outlined size="small" @click="marquerTermine(doc.id)" v-tooltip.top="'Marquer terminé'" />
+                    <Button v-if="doc.estTermine" icon="pi pi-undo" severity="warning" outlined size="small" @click="rouvrirDocument(doc.id)" v-tooltip.top="'Réouvrir le document'" />
                     <Button :label="doc.estTermine ? 'Consulter' : 'Ouvrir'" :icon="doc.estTermine ? 'pi pi-eye' : 'pi pi-pencil'" :severity="doc.estTermine ? 'secondary' : 'primary'" size="small" @click="ouvrirDocument(doc)" />
                   </div>
                 </div>
@@ -960,11 +1063,16 @@ const cloturerOf = async () => {
       :allMachines="allMachines"
       :documentCategories="documentCategories" 
       :sessionEquipe="sessionEquipe"
+      :isDemarrageMode="isDemarrageModeDialog"
+      :targetPeriodicite="targetPeriodiciteDialog"
       @ouvrir-document="ouvrirDocument" 
       @init-document="initMachineDocument" 
+      @marquer-termine="marquerTermine"
+      @rouvrir-document="rouvrirDocument"
       @add-machine="addMachineToPoste"
       @remove-machine="removeMachineFromPoste"
       @cloturer-machine="cloturerDocumentsMachine"
+      @signaler-plan-manquant="code => { planManquantMachineCode = code; showPlanManquantDialog = true; showVerifMachineDialog = false; }"
     />
 
     <!-- Dialog Plan Manquant Contrôle au Poste -->

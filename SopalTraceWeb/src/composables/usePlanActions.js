@@ -1,7 +1,9 @@
 import { prepareSectionsForBackend } from '@/utils/sectionUtils';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
+import { useReferentielStore } from '@/stores/referentielStore';
 
 export function usePlanActions(editorState, dependencies) {
+  const refStore = useReferentielStore();
   const {
     toast, router, store, usePlanMapper
   } = dependencies;
@@ -47,10 +49,10 @@ export function usePlanActions(editorState, dependencies) {
 
       if (!currentPlanId || currentPlanId === 'nouveau') return;
 
-      await prepareSectionsForBackend(editorState.sections.value, store.periodicites, async (payload) => {
+      await prepareSectionsForBackend(editorState.sections.value, refStore.periodicites || [], async (payload) => {
         const res = await fabPlanService.createPeriodicite(payload);
         const resData = res?.data?.data || res?.data || res;
-        store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payload });
+        refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payload });
         return res;
       });
 
@@ -91,11 +93,11 @@ export function usePlanActions(editorState, dependencies) {
     try {
       await prepareSectionsForBackend(
         editorState.sections.value,
-        store.periodicites || [],
+        refStore.periodicites || [],
         async (payloadFreq) => {
           const res = await fabPlanService.createPeriodicite(payloadFreq);
           const resData = res?.data?.data || res?.data || res;
-          store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+          refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
           return res;
         }
       );
@@ -158,11 +160,11 @@ export function usePlanActions(editorState, dependencies) {
 
         await prepareSectionsForBackend(
           editorState.sections.value,
-          store.periodicites || [],
+          refStore.periodicites || [],
           async (payloadFreq) => {
             const res = await fabPlanService.createPeriodicite(payloadFreq);
             const resData = res?.data?.data || res?.data || res;
-            store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+            refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
             return res;
           }
         );
@@ -226,11 +228,11 @@ export function usePlanActions(editorState, dependencies) {
 
       await prepareSectionsForBackend(
         editorState.sections.value,
-        store.periodicites || [],
+        refStore.periodicites || [],
         async (payloadFreq) => {
           const res = await fabPlanService.createPeriodicite(payloadFreq);
           const resData = res?.data?.data || res?.data || res;
-          store.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+          refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
           return res;
         }
       );

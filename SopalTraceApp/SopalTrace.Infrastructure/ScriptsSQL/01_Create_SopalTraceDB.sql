@@ -931,7 +931,8 @@ CREATE TABLE dbo.Exec_ControleOF (
         CHECK (Statut IN ('EN_COURS','CLOTURE','EN_PAUSE','REGLAGE')),
     EstEnReglage     BIT         NOT NULL DEFAULT 0,
     DateDebut        DATETIME    NOT NULL DEFAULT GETDATE(),
-    DateFin          DATETIME
+    DateFin          DATETIME,
+    TempsPauseTotalMinutes FLOAT NOT NULL DEFAULT 0
 );
 GO
 
@@ -949,6 +950,8 @@ CREATE TABLE dbo.Exec_ControleDocumentStatut (
     PosteCode VARCHAR(30) NULL REFERENCES dbo.PosteTravail(CodePoste),
     MachineCode VARCHAR(50) NULL,
     DocId UNIQUEIDENTIFIER NULL,
+    EstDemarrageTermine BIT NOT NULL DEFAULT 0,
+    EstPauseTermine BIT NOT NULL DEFAULT 0,
     EstTermine BIT NOT NULL DEFAULT 0,
     DateTermine DATETIME NULL,
     Equipe VARCHAR(20) NULL,

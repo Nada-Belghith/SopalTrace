@@ -62,7 +62,7 @@
                 Résultat: {{ tranche.resultatFinal === 'C' ? 'Conforme' : tranche.resultatFinal === 'NC' ? 'Non Conforme' : tranche.resultatFinal === 'REGLAGE' ? 'Réglage' : 'Ignoré' }}
               </span>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2" v-if="tranche.occurrences.some(occ => !isUpcoming(occ))">
               <button v-if="aDesControlesReglage" @click="declarerTrancheReglageAction(tranche.trancheHoraire)" class="text-xs bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-1 rounded hover:bg-yellow-100 transition-colors flex items-center shadow-sm">
                 ⚙️ Déclarer comme Réglage
               </button>
@@ -116,9 +116,9 @@
         </div>
 
         <!-- Informations Plan -->
-        <div v-if="legendeMoyens || remarques" class="bg-blue-50 border-b border-blue-100 p-4 text-sm text-blue-900">
+        <div v-if="legendeMoyens || remarquesDeTranche" class="bg-blue-50 border-b border-blue-100 p-4 text-sm text-blue-900">
           <div v-if="legendeMoyens" class="mb-2"><strong class="font-bold">Légende des moyens :</strong> {{ legendeMoyens }}</div>
-          <div v-if="remarques"><strong class="font-bold">Remarques / Observations :</strong> {{ remarques }}</div>
+          <div v-if="remarquesDeTranche"><strong class="font-bold">Remarques / Observations :</strong> {{ remarquesDeTranche }}</div>
         </div>
 
         <!-- Body Modal (Tableau) -->
@@ -289,11 +289,14 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import operateurService from '@/services/operateurService';
 import { useOperateurStore } from '@/stores/execution/operateurStore';
 import { useAuthStore } from '@/stores/authStore';
 
 const authStore = useAuthStore();
+const router = useRouter();
+const route = useRoute();
 
 const props = defineProps({
   execControleOfId: {
@@ -339,6 +342,20 @@ const tranchesProd = computed(() => {
   return tranches.value.filter(t => !t.trancheHoraire || !t.trancheHoraire.startsWith('REGLAGE'));
 });
 
+const trancheOfSelectedOcc = computed(() => {
+  if (!selectedOcc.value) return null;
+  return tranches.value.find(t => t.trancheHoraire === selectedOcc.value.trancheHoraire);
+});
+
+const remarquesDeTranche = computed(() => {
+  if (!trancheOfSelectedOcc.value) return props.remarques;
+  let r = trancheOfSelectedOcc.value.remarques || '';
+  if (trancheOfSelectedOcc.value.detailsNc) {
+     r += (r ? ' | ' : '') + 'NC: ' + trancheOfSelectedOcc.value.detailsNc;
+  }
+  return r || props.remarques;
+});
+
 const groupedCaracteristiques = computed(() => {
   if (!selectedOcc.value || !selectedOcc.value.caracteristiques) return [];
   
@@ -359,10 +376,8 @@ const groupedCaracteristiques = computed(() => {
 
 const formatSectionLibelle = (lib) => {
   if (!lib) return '';
-  return lib
-    .replace("Effectif de l'échantillon /poste (A/B) (p/h)", "4 p/h")
-    .replace("échantillon /poste...", "4 p/h")
-    .replace("(p/h)", "(4 p/h)");
+  // Le backend envoie déjà le libellé formaté dynamiquement
+  return lib;
 };
 
 const extraCols = computed(() => {
@@ -416,6 +431,22 @@ const fetchAlertes = async () => {
   try {
     const response = await operateurService.getAlertesActives(props.execControleOfId);
     operateurStore.alertesParOf[props.execControleOfId] = response.data;
+    
+    if (route.query.autoOpen1stPending === 'true' && response.data && response.data.length > 0) {
+      let firstPending = null;
+      for (const tranche of response.data) {
+        if (tranche.occurrences) {
+          firstPending = tranche.occurrences.find(o => !isUpcoming(o) && !o.estRepondu);
+          if (firstPending) break;
+        }
+      }
+      if (firstPending && !selectedOcc.value) {
+        ouvrirPlan(firstPending);
+        const query = { ...route.query };
+        delete query.autoOpen1stPending;
+        router.replace({ query });
+      }
+    }
   } catch (error) {
     console.error('Erreur lors du chargement des alertes', error);
   } finally {

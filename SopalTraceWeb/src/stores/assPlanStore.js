@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { documentService as assPlanService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
 import { mapSectionForBackend, mapImportedSection } from '@/utils/sectionUtils';
+import { useReferentielStore } from './referentielStore';
 
 export const useAssPlanStore = defineStore('assPlan', () => {
   // --- DICTIONNAIRES ---
@@ -55,8 +56,8 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   // --- ACTIONS ---
   const fetchDictionnaires = async () => {
     try {
-      const response = await referentielsService.getDictionnaires();
-      const data = response.data.data;
+      const response = await referentielsService.getDictionnairesFabrication();
+      const data = response.data.data || response.data;
 
       operations.value = data.operations || [];
       typesRobinet.value = data.typesRobinet || [];
@@ -140,6 +141,8 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     }
   };
 
+  const refStore = useReferentielStore();
+
   const mapPayload = (legendeMoyens = '') => ({
     id: entete.value.id || undefined,
     typeDocumentCode: 'PLAN_ASS',
@@ -155,7 +158,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     versionInitiale: entete.value.versionInitiale,
     colonneDefs: entete.value.configurationColonnes || [],
     refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
-    sections: sections.value.map((s, sIdx) => mapSectionForBackend(s, sIdx, periodicites.value))
+    sections: sections.value.map((s, sIdx) => mapSectionForBackend(s, sIdx, refStore.periodicites))
   });
 
   const savePlan = async (legendeMoyens = '') => {
@@ -163,7 +166,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       const res = await assPlanService.createDocument(payload);
-      return res.data || res; 
+      return res.data || res;
     } finally {
       isLoading.value = false;
     }

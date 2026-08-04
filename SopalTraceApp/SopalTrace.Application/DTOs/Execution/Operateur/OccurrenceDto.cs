@@ -46,6 +46,8 @@ public class TrancheAlertesDto
 {
     public string TrancheHoraire { get; set; } = null!;
     public string? ResultatFinal { get; set; }
+    public string? Remarques { get; set; }
+    public string? DetailsNc { get; set; }
     public List<OccurrenceDto> Occurrences { get; set; } = new();
 }
 

@@ -231,7 +231,7 @@ public static class DocumentMapper
     {
         return new DocumentSection
         {
-            Id = Guid.NewGuid(),
+            Id = (dto.Id.HasValue && dto.Id.Value != Guid.Empty) ? dto.Id.Value : Guid.NewGuid(),
             EnteteId = entiteId,
             OrdreAffiche = dto.OrdreAffiche,
             LibelleSection = dto.LibelleSection,
@@ -260,7 +260,7 @@ public static class DocumentMapper
     {
         return new DocumentLigne
         {
-            Id = Guid.NewGuid(),
+            Id = (dto.Id.HasValue && dto.Id.Value != Guid.Empty) ? dto.Id.Value : Guid.NewGuid(),
             EnteteId = entiteId,
             SectionId = sectionId,
             OrdreAffiche = dto.OrdreAffiche,

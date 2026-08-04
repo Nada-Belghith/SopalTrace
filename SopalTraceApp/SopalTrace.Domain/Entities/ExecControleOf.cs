@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -30,6 +30,8 @@ public partial class ExecControleOf
     public DateTime DateDebut { get; set; }
 
     public DateTime? DateFin { get; set; }
+
+    public double TempsPauseTotalMinutes { get; set; }
 
     public virtual ICollection<ExecControleDocumentStatut> ExecControleDocumentStatuts { get; set; } = new List<ExecControleDocumentStatut>();
 

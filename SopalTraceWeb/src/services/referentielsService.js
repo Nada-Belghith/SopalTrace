@@ -1,8 +1,16 @@
 import apiClient from './apiClient';
 
 export const referentielsService = {
-  getDictionnaires() {
+  getDictionnairesFabrication() {
     return apiClient.get('/referentiels/fabrication');
+  },
+
+  getDictionnairesVerifMachine() {
+    return apiClient.get('/referentiels/verif-machine');
+  },
+
+  getDictionnairesControlePoste() {
+    return apiClient.get('/referentiels/plans-nc');
   },
 
   getFormulairesListByRole(role) {

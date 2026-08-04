@@ -1,7 +1,10 @@
 import { resolveFrequencyFromPeriodiciteId, parseFrequenceLibelle } from '@/utils/frequencyUtils';
+import { useReferentielStore } from '@/stores/referentielStore';
 
 export function usePlanMapper(store) {
-  
+  // Les dictionnaires partagés viennent maintenant de useReferentielStore
+  const getRefStore = () => useReferentielStore();
+
   const normalizeId = (id) => (typeof id === 'string' && id.length <= 36 ? id : null);
 
   const normalizePlanData = (data) => {
@@ -16,13 +19,14 @@ export function usePlanMapper(store) {
 
   const cleanSectionName = (libelleSection, typeSectionId, freqLib = '', regleLib = '') => {
     if (!libelleSection) return '';
-    const normalizeApostrophes = (s) => s.replace(/’/g, "'");
-    let clean = normalizeApostrophes(libelleSection).replace(/caractéristiques à contrôler/gi, '').trim();
+    const refStore = getRefStore();
+    const normalizeApostrophes = (s) => s.replace(/\u2019/g, "'");
+    let clean = normalizeApostrophes(libelleSection).replace(/caract\u00e9ristiques \u00e0 contr\u00f4ler/gi, '').trim();
     
     const escapeRegExp = (str) => str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
     
     if (typeSectionId) {
-      const typeSec = (store.typesSection || []).find(t => t.id === typeSectionId);
+      const typeSec = (refStore.typesSection || []).find(t => t.id === typeSectionId);
       if (typeSec && typeSec.libelle) {
         clean = clean.replace(new RegExp(escapeRegExp(normalizeApostrophes(typeSec.libelle)), 'gi'), '').trim();
       }
@@ -46,10 +50,11 @@ export function usePlanMapper(store) {
   };
 
   const mapModelDataToSections = (modeleModel) => {
+    const refStore = getRefStore();
     return (modeleModel.sections || []).map(sec => {
       let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
       if (sec.periodiciteId) {
-        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
+        const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, refStore.periodicites || []);
         if (resolved) {
           freqData = resolved;
         }
@@ -57,7 +62,7 @@ export function usePlanMapper(store) {
       const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
       if (freqData.modeFreq === 'SANS') {
         if (texteParse) {
-          freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+          freqData = parseFrequenceLibelle(texteParse, refStore.periodicites || []);
         }
       }
 
@@ -73,7 +78,7 @@ export function usePlanMapper(store) {
       } else if (periodiciteId) {
         modeFreq = 'VARIABLE';
       } else if (texteParse) {
-        const regMatch = (store.reglesEchantillonnage || []).find(r => r.libelle === texteParse);
+        const regMatch = (refStore.reglesEchantillonnage || []).find(r => r.libelle === texteParse);
         if (regMatch) {
           modeFreq = 'FIXE';
           regleEchantillonnageId = regMatch.id;
@@ -86,7 +91,7 @@ export function usePlanMapper(store) {
         let bestMatch = null;
         let maxLength = -1;
 
-        store.typesSection.forEach(t => {
+        (refStore.typesSection || []).forEach(t => {
           const tLib = (t.libelle || '').trim().toLowerCase();
           if (!tLib || secLib === 'section sans nom') return;
 
@@ -205,18 +210,19 @@ export function usePlanMapper(store) {
   };
 
   const buildServicePayload = (sections, isDraft) => {
+    const refStore = getRefStore();
     return sections.value.map((originalSection, idx) => {
       let finalFrequenceLibelle = '';
       if (originalSection.modeFreq === 'VARIABLE') {
         const is100 = originalSection.freqNum === 100 && originalSection.typeVariable === 'HEURE';
         if (is100) {
-          const p100 = (store.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
-          finalFrequenceLibelle = p100 ? p100.libelle : "100% des pièces/h";
+          const p100 = (refStore.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
+          finalFrequenceLibelle = p100 ? p100.libelle : "100% des pi\u00e8ces/h";
         } else {
           finalFrequenceLibelle = originalSection.frequenceLibelle || '';
         }
       } else if (originalSection.periodiciteId) {
-        const matchingPeriod = (store.periodicites || []).find(p => {
+        const matchingPeriod = (refStore.periodicites || []).find(p => {
           const pId = p.id || p.Id;
           return pId && typeof pId === 'string' && typeof originalSection.periodiciteId === 'string' && pId.toLowerCase() === originalSection.periodiciteId.toLowerCase();
         });
@@ -226,7 +232,7 @@ export function usePlanMapper(store) {
       let regleEchLibelle = '';
       const regleEchId = originalSection.regleEchantillonnageId;
       if (regleEchId) {
-        regleEchLibelle = (store.reglesEchantillonnage || []).find(r => r.id === regleEchId)?.libelle || '';
+        regleEchLibelle = (refStore.reglesEchantillonnage || []).find(r => r.id === regleEchId)?.libelle || '';
       }
 
       const typeSectionId = originalSection.typeSectionId;
@@ -243,7 +249,7 @@ export function usePlanMapper(store) {
         periodiciteId: (originalSection.periodiciteId && originalSection.periodiciteId !== "") ? originalSection.periodiciteId : null,
         regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
         lignes: (originalSection.lignes || []).map((l, lIdx) => {
-          const caractMatch = (store.typesCaracteristique || store.caracteristiques || []).find(c => c.id === l.typeCaracteristiqueId);
+          const caractMatch = (refStore.typesCaracteristique || []).find(c => c.id === l.typeCaracteristiqueId);
           const nomCaract = caractMatch?.libelle || '';
           
           const mesurements = sanitizeMeasurements(l, isDraft);

@@ -86,7 +86,7 @@
                     class="w-full py-2 px-3 bg-white border-2 border-emerald-100 rounded-xl outline-none focus:border-emerald-500 font-black text-slate-700 shadow-sm transition-all text-center text-sm cursor-pointer appearance-none"
                   >
                     <option value="" disabled>-- NQA --</option>
-                    <option v-for="nqa in store.nqaList" :key="nqa.id" :value="nqa.valeurNqa">
+                    <option v-for="nqa in (refStore.nqaList || [])" :key="nqa.id" :value="nqa.valeurNqa">
                       {{ nqa.valeurNqa }}
                     </option>
                   </select>
@@ -190,6 +190,7 @@ import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import { useDocumentEchantillonnageStore } from '@/stores/documentEchantillonnageStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 
 import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';
 import { useDocumentSaveManager } from '@/composables/useDocumentSaveManager';
@@ -200,6 +201,7 @@ const router = useRouter();
 const toast = useToast();
 const confirm = useConfirm();
 const store = useDocumentEchantillonnageStore();
+const refStore = useReferentielStore();
 
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 
@@ -223,7 +225,7 @@ const headerSubtitle = computed(() => {
 const nqaInput = computed({
   get: () => {
     if (store.entete.nqaId) {
-      const found = store.nqaList.find(n => n.id === store.entete.nqaId);
+      const found = refStore.nqaList?.find(n => n.id === store.entete.nqaId);
       if (found) return found.valeurNqa;
     }
     return store.entete.valeurNqa;
@@ -231,7 +233,7 @@ const nqaInput = computed({
   set: (val) => {
     store.entete.valeurNqa = val;
     if (val) {
-      const found = store.nqaList.find(n => Number(n.valeurNqa) === Number(val));
+      const found = refStore.nqaList?.find(n => Number(n.valeurNqa) === Number(val));
       store.entete.nqaId = found ? found.id : null;
     } else {
       store.entete.nqaId = null;
@@ -241,8 +243,8 @@ const nqaInput = computed({
 
 
 onMounted(async () => {
-  if (!store.isDicosLoaded) {
-    await store.fetchDictionnaires();
+  if (!refStore.isDicosFabricationLoaded) {
+    await refStore.fetchDictionnaires('fabrication');
   }
   await store.fetchPlansExistants();
 
@@ -255,7 +257,7 @@ onMounted(async () => {
       niveauControle: 'I',
       typePlan: 'SIMPLE',
       modeControle: 'NORMAL',
-      nqaId: store.nqaList[0]?.id,
+      nqaId: refStore.nqaList?.[0]?.id,
       valeurNqa: 0.65,
       version: 1,
       statut: 'ACTIF',

@@ -3,7 +3,7 @@
     <tr class="bg-[#0f1923] text-white">
       <th 
         v-for="(col, idx) in columns" 
-        :key="idx"
+        :key="col.key || idx"
         :style="{ 
           ...{ backgroundColor: col.bgColor },
           ...(col.textAlign && { textAlign: col.textAlign })
@@ -24,7 +24,7 @@ defineProps({
   columns: {
     type: Array,
     required: true,
-    description: 'Array of column configs: { label, width, bgColor, textAlign }'
+    description: 'Array of column configs: { key, label, width, bgColor, textAlign }'
   }
 });
 </script>

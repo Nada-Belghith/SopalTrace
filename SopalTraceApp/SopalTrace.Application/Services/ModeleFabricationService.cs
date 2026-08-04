@@ -153,7 +153,7 @@ public class ModeleFabricationService : IModeleFabricationService
 
     private async Task HandleInPlaceUpdateAsync(ModeleFabricationEntete existingModele, ModeleFabricationEntete newEntityData, CreateModeleRequestDto request, FormulaireStructureDto formStruct)
     {
-        UpdateModelInPlace(existingModele, newEntityData, request);
+        UpdateModelInPlace(existingModele, request);
         await SyncExtraColumnsAsync(existingModele, formStruct.Id);
         
         await _unitOfWork.ModeleFabricationEnteteRepository.UpdateAsync(existingModele);
@@ -252,28 +252,39 @@ public class ModeleFabricationService : IModeleFabricationService
         }
     }
 
-    private void UpdateModelInPlace(ModeleFabricationEntete modele, ModeleFabricationEntete newEntityData, CreateModeleRequestDto request)
+    private void UpdateModelInPlace(ModeleFabricationEntete modele, CreateModeleRequestDto request)
     {
         modele.Notes = request.Notes;
         modele.LegendeMoyens = request.LegendeMoyens;
         modele.OperationCode = request.OperationCode ?? modele.OperationCode;
 
-        if (modele.ModeleFabricationSections != null)
+        if (request.Sections != null)
         {
-            foreach (var section in modele.ModeleFabricationSections.ToList())
-                _unitOfWork.ModeleFabricationEnteteRepository.RemoveSection(section);
-            modele.ModeleFabricationSections.Clear();
-            _unitOfWork.FlushDeletesAsync().Wait();
-        }
-        else
-        {
-            modele.ModeleFabricationSections = new List<ModeleFabricationSection>();
-        }
-        
-        foreach (var s in newEntityData.ModeleFabricationSections)
-        {
-            s.ModeleEnteteId = modele.Id; 
-            modele.ModeleFabricationSections.Add(s);
+            if (modele.ModeleFabricationSections == null)
+            {
+                modele.ModeleFabricationSections = new List<ModeleFabricationSection>();
+            }
+
+            SopalTrace.Application.Utilities.SectionUpdateHelper.UpdateSections(
+                modele.ModeleFabricationSections,
+                request.Sections,
+                sec => _unitOfWork.ModeleFabricationEnteteRepository.RemoveSection(sec),
+                lig => _unitOfWork.ModeleFabricationEnteteRepository.RemoveLigne(lig),
+                dto => dto.Id,
+                dto => dto.Id,
+                sec => sec.Id,
+                lig => lig.Id,
+                dto => ModeleFabricationMapper.CreateSection(dto, modele.Id),
+                (sec, dto) => ModeleFabricationMapper.UpdateSection(sec, dto),
+                sec => sec.ModeleFabricationLignes,
+                dto => dto.Lignes,
+                (dto, sec) => ModeleFabricationMapper.CreateLigne(dto, modele.Id, sec.Id),
+                (lig, dto) => 
+                {
+                    ModeleFabricationMapper.UpdateLigne(lig, dto);
+                    ModeleFabricationMapper.MergerExtraColonnes(lig, dto.ExtraColonnes ?? new(), _unitOfWork);
+                }
+            );
         }
     }
 

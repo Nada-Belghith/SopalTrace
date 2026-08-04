@@ -15,12 +15,19 @@ export function useExcelStructureImporter(store, toast) {
           detail: `${result.total} ligne(s) récupérée(s) depuis le fichier.`,
           life: 4000
         });
+      } else {
+        toast.add({
+          severity: 'error',
+          summary: 'Échec de l\'import',
+          detail: result.message || 'Impossible de lire le fichier Excel.',
+          life: 5000
+        });
       }
     } catch (error) {
       toast.add({
         severity: 'error',
         summary: 'Échec de l\'import',
-        detail: error.response?.data?.message || 'Impossible de lire le fichier Excel.',
+        detail: error.response?.data?.message || error.message || 'Impossible de lire le fichier Excel.',
         life: 5000
       });
     }

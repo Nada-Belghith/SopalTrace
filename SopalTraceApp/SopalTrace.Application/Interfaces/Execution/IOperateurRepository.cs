@@ -25,6 +25,8 @@ public interface IOperateurRepository
     Task<IEnumerable<Machine>> GetMachinesByPosteAsync(string posteCode);
     Task<IEnumerable<Machine>> GetAllMachinesAsync();
     Task<Dictionary<string, string>> GetMachineLabelsAsync(IEnumerable<string> machineCodes);
+    Task<Dictionary<string, List<string>>> GetMachinesPlanPeriodicitesAsync();
+    Task<List<string>> GetMachinesWithDemarragePlanAsync(); // Kept for backward compatibility if needed
     Task SaveChangesAsync();
     
     // Nouveaux pour Assemblage

@@ -113,9 +113,12 @@
 <script setup>
 import { computed, watch, ref } from 'vue';
 import { useAssPlanStore } from '@/stores/assPlanStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 const store = useAssPlanStore();
+const refStore = useReferentielStore();
+
 const props = defineProps({
   isEditMode: {
     type: Boolean,
@@ -127,11 +130,11 @@ const props = defineProps({
   }
 });
 
-const formulairesReferences = computed(() => store.formulairesReferences || []);
+const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['EN_COURS_DE_ASSEMBLAGE'] || []);
 const refFormulaireSelected = ref('');
 const isAutoFilling = ref(false);
 
-  watch(refFormulaireSelected, async (newRefId) => {
+watch(refFormulaireSelected, async (newRefId) => {
   if (!newRefId) return;
   const refObj = formulairesReferences.value.find(r => r.id === newRefId);
   if (!refObj) return;
@@ -139,7 +142,7 @@ const isAutoFilling = ref(false);
   const designation = refObj.designation || '';
   isAutoFilling.value = true;
 
-  const parsed = parseDesignation(designation, store.famillesProduit || [], [], store.postes || []);
+  const parsed = parseDesignation(designation, refStore.famillesProduit || [], [], refStore.postes || []);
 
   if (parsed.familleCode !== '') store.entete.familleProduitCode = parsed.familleCode;
   else store.entete.familleProduitCode = '';
@@ -148,13 +151,8 @@ const isAutoFilling = ref(false);
   store.entete.operationCode = parsed.operationCode;
   store.entete.posteCode = parsed.posteCode;
 
-  // DO NOT overwrite libelle with the designation of the reference form
-  // The user should type their own libelle for the model (e.g. Modèle MOD-TRONC-CORPS V1)
-
-  // ✅ Mémoriser le codeReference du formulaire sélectionné pour le versioning ciblé
   store.entete.refFormulaireCodeReference = refObj.codeReference || '';
   
-  // Appliquer la configuration des colonnes du formulaire sélectionné
   if (refObj.configurationStructureJson) {
     try {
       store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
@@ -168,7 +166,6 @@ const isAutoFilling = ref(false);
     store.entete.configurationColonnes = [];
   }
 
-  // Libérer le flag après la propagation de la réactivité
   setTimeout(() => {
     isAutoFilling.value = false;
   }, 100);
@@ -180,7 +177,7 @@ const onLibelleBlur = () => {
   if (!lib) return;
   
   isAutoFilling.value = true;
-  const parsed = parseDesignation(lib, store.famillesProduit || [], [], store.postes || []);
+  const parsed = parseDesignation(lib, refStore.famillesProduit || [], [], refStore.postes || []);
   
   if (parsed.familleCode) store.entete.familleProduitCode = parsed.familleCode;
   if (parsed.natureComposantCode) store.entete.natureComposantCode = parsed.natureComposantCode;
@@ -192,17 +189,10 @@ const onLibelleBlur = () => {
   }, 100);
 };
 
-// =========================================================================
-// LOGIQUE PRINCIPALE : AFFICHER POSTE SI FAMILLE=SOUPAPE ET ARTICLE=PF
-// =========================================================================
-
 const afficherPoste = computed(() => {
   const famille = String(store.entete.familleProduitCode || '').trim().toLowerCase();
   const article = String(store.entete.natureComposantCode || '').trim().toUpperCase();
 
-  // Afficher Poste UNIQUEMENT si :
-  // 1. Famille contient "soupape"
-  // 2. ET Article = "PF"
   return famille.includes('soupape') && article === 'PF';
 });
 
@@ -210,12 +200,8 @@ const isPiston = computed(() => {
   return String(store.entete.natureComposantCode || '').trim().toUpperCase() === 'PISTON';
 });
 
-// =========================================================================
-// FILTRES DYNAMIQUES
-// =========================================================================
-
 const composantsFiltres = computed(() => {
-  let toutesLesNatures = store.naturesComposant || [];
+  let toutesLesNatures = refStore.naturesComposant || [];
   
   toutesLesNatures = toutesLesNatures.filter(n => {
     const code = (n.code || '').trim().toUpperCase();
@@ -223,11 +209,10 @@ const composantsFiltres = computed(() => {
   });
 
   const selectedOp = (store.entete.operationCode || '').trim().toUpperCase();
-  const gammes = store.gammesOperatoires || [];
+  const gammes = refStore.gammesOperatoires || [];
 
   if (!selectedOp || !gammes.length) return toutesLesNatures;
 
-  // Filtrer les natures autorisées pour l'opération sélectionnée
   const naturesPermises = gammes
     .filter(g => (g.operationCode || '').trim().toUpperCase() === selectedOp)
     .map(g => (g.natureComposantCode || '').trim().toUpperCase());
@@ -236,18 +221,17 @@ const composantsFiltres = computed(() => {
 });
 
 const famillesFiltrees = computed(() => {
-  const allFamilies = store.famillesProduit || [];
+  const allFamilies = refStore.famillesProduit || [];
   if (isPiston.value) {
-    // On ajoute 'TOUS' au début mais on laisse les autres familles accessibles
     return [{ code: 'TOUS' }, ...allFamilies];
   }
   return allFamilies;
 });
 
 const operationsFiltrees = computed(() => {
-  const toutesLesOperations = store.operations || [];
+  const toutesLesOperations = refStore.operations || [];
   const selectedNature = (store.entete.natureComposantCode || '').trim().toUpperCase();
-  const gammes = store.gammesOperatoires || [];
+  const gammes = refStore.gammesOperatoires || [];
 
   if (!gammes.length) return toutesLesOperations;
 
@@ -256,7 +240,6 @@ const operationsFiltrees = computed(() => {
     return nat === 'PISTON' || nat === 'PF';
   });
 
-  // Si une nature est sélectionnée, on filtre les opérations liées à cette nature
   if (selectedNature) {
     const opsPermises = gammesFiltrees
       .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === selectedNature)
@@ -265,13 +248,12 @@ const operationsFiltrees = computed(() => {
     return toutesLesOperations.filter(op => opsPermises.includes((op.code || '').trim().toUpperCase()));
   }
 
-  // Sinon, on montre toutes les opérations qui existent dans les gammes filtrées
   const toutesOpsDansGammes = [...new Set(gammesFiltrees.map(g => (g.operationCode || '').trim().toUpperCase()))];
   return toutesLesOperations.filter(op => toutesOpsDansGammes.includes((op.code || '').trim().toUpperCase()));
 });
 
 const postesDisponibles = computed(() =>
-  (store.postes || [])
+  (refStore.postes || [])
     .map(p => ({
       code: p.code || p.Code || p.codePoste || p.CodePoste,
       libelle: p.libelle || p.Libelle || p.designation || p.Designation

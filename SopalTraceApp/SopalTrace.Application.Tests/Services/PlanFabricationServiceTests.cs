@@ -78,7 +78,7 @@ namespace SopalTrace.Application.Tests.Services
                 .Callback<PlanFabricationEntete>(e => savedPlan = e);
 
             // Act
-            var resultId = await _service.CreerPlanAsync(request);
+            var resultId = await _service.CreatePlanAsync(request);
 
             // Assert
             Assert.Equal("ARCHIVE", existingDoc.Statut); // Ancien plan doit passer en ARCHIVE
@@ -114,7 +114,7 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(new List<PlanFabricationEntete>());
 
             // Act
-            var resultId = await _service.CreerPlanAsync(request);
+            var resultId = await _service.CreatePlanAsync(request);
 
             // Assert
             Assert.NotNull(savedPlan);
@@ -151,7 +151,7 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(new RefFormulaire { Id = formStruct.Id, CodeReference = "FRM_002", Version = 4 });
 
             // Act
-            var result = await _service.MettreAJourPlanAsync(planId, request);
+            var result = await _service.UpdatePlanAsync(existingPlan.Id, request);
 
             // Assert
             Assert.True(result);
@@ -195,10 +195,10 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()))
                 .Callback<PlanFabricationEntete>(e => savedPlan = e);
                 
-            var request = new NouvelleVersionPlanFabricationRequestDto { AncienId = existingId };
+            var newVersionRequest = new NouvelleVersionPlanFabricationRequestDto { AncienId = existingId };
 
             // Act
-            var newId = await _service.CreerNouvelleVersionPlanAsync(request);
+            var result = await _service.CreateNewVersionAsync(newVersionRequest);
 
             // Assert
             Assert.NotNull(savedPlan);

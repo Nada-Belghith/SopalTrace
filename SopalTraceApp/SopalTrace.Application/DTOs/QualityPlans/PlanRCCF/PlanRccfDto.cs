@@ -58,20 +58,37 @@ namespace SopalTrace.Application.DTOs.QualityPlans.PlanRCCF
     {
         public string SectionType { get; set; } = null!;
         public string? LibelleAffiche { get; set; }
+        public string? LibelleSection { get; set; }
+        public string? Nom { get; set; }
         public int OrdreAffiche { get; set; }
+        public Guid? TypeSectionId { get; set; }
+        public Guid? PeriodiciteId { get; set; }
+        public Guid? RegleEchantillonnageId { get; set; }
+        public string? RegleEchantillonnageLibelle { get; set; }
+        public string? FrequenceLibelle { get; set; }
+        public string? ModeFreq { get; set; }
+        public int? FreqNum { get; set; }
+        public string? TypeVariable { get; set; }
+        public int? FreqHours { get; set; }
         public List<CreatePlanRccfLigneRequest> Lignes { get; set; } = new List<CreatePlanRccfLigneRequest>();
     }
 
     public class CreatePlanRccfLigneRequest
     {
         public string Caracteristique { get; set; } = null!;
+        public string? LibelleAffiche { get; set; }
         public int OrdreAffiche { get; set; }
         
+        public Guid? TypeCaracteristiqueId { get; set; }
+        public string? TypeCaracteristiqueLibelle { get; set; }
         public Guid? TypeControleId { get; set; }
+        public string? TypeControleLibelle { get; set; }
+        public Guid? MoyenControleId { get; set; }
+        public string? MoyenControleLibelle { get; set; }
         public string? InstrumentCode { get; set; }
         public string? LimiteSpecTexte { get; set; }
         public string? Observations { get; set; }
-        public Guid? MoyenControleId { get; set; }
+        public string? ImageBase64 { get; set; }
     }
 
     public class UpdatePlanRccfRequest

@@ -45,7 +45,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
   // --- ACTIONS ---
   const fetchDictionnaires = async () => {
     try {
-      const response = await referentielsService.getDictionnaires();
+      const response = await referentielsService.getDictionnairesFabrication();
       const data = response.data.data;
 
       typesRobinet.value = data.typesRobinet || [];

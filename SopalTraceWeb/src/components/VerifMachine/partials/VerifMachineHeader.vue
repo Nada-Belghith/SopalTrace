@@ -41,7 +41,7 @@
             v-model="refFormulaireSelected" 
             class="w-full md:w-1/3 rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow bg-white border border-slate-300 text-slate-800 cursor-pointer shadow-sm">
             <option value="">-- Choisir un formulaire générique --</option>
-            <option v-for="ref in store.formulairesReferences" :key="ref.id" :value="ref.id">
+            <option v-for="ref in (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || [])" :key="ref.id" :value="ref.id">
               {{ ref.codeReference }} - {{ ref.designation }}
             </option>
           </select>
@@ -54,7 +54,7 @@
           <select v-model="selectedMachineCode" @change="onMachineChange" :disabled="isReadOnly || store.entete.id"
             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 outline-none bg-slate-50 cursor-pointer disabled:opacity-75 disabled:bg-slate-100 font-semibold text-slate-700 transition-all">
             <option value="">-- Choisir une machine --</option>
-            <option v-for="mac in store.machines" :key="mac.code" :value="mac.code">
+            <option v-for="mac in (refStore.machines || [])" :key="mac.code" :value="mac.code">
               {{ mac.code }} - {{ mac.libelle }}
             </option>
           </select>
@@ -92,6 +92,7 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 defineProps({
@@ -101,13 +102,14 @@ defineProps({
 const emit = defineEmits(['import-excel', 'configure-columns', 'nom-blur', 'machine-changed']);
 
 const store = useVerifMachineStore();
+const refStore = useReferentielStore();
 const fileInput = ref(null);
 const refFormulaireSelected = ref('');
 const selectedMachineCode = ref('');
 
 const hasExistingVersion = computed(() => {
   if (!refFormulaireSelected.value) return false;
-  const refObj = store.formulairesReferences.find(r => r.id === refFormulaireSelected.value);
+  const refObj = (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || []).find(r => r.id === refFormulaireSelected.value);
   if (!refObj) return false;
   return refObj.version > 0 || refObj.Version > 0 || refObj.configurationStructureJson !== null;
 });
@@ -122,11 +124,11 @@ watch(refFormulaireSelected, async (newRefId) => {
     store.entete.configurationColonnes = [];
     return;
   }
-  const refObj = store.formulairesReferences.find(r => r.id === newRefId);
+  const refObj = (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || []).find(r => r.id === newRefId);
   if (!refObj) return;
 
   const designation = refObj.designation || '';
-  const parsed = parseDesignation(designation, [], store.machines || []);
+  const parsed = parseDesignation(designation, [], refStore.machines || []);
 
   if (parsed.machineCode) {
     selectedMachineCode.value = parsed.machineCode;

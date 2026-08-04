@@ -64,10 +64,10 @@
                   {{ resolveMoyenControle(ligne) }}
                 </template>
                 <template v-else-if="col.key === 'code_instrument'">
-                  {{ ligne.instrumentCode || '—' }}
+                  {{ ligne.instrumentCode || ligne.InstrumentCode || '—' }}
                 </template>
                 <template v-else-if="col.key === 'observations'">
-                  <span class="italic text-slate-600">{{ ligne.observations || '' }}</span>
+                  <span class="italic text-slate-600">{{ ligne.observations || ligne.Observations || '' }}</span>
                 </template>
               </td>
             </tr>
@@ -226,20 +226,37 @@ function buildSectionTitle(section) {
 }
 
 function resolveLibelle(ligne) {
-  if (ligne.libelleAffiche) return ligne.libelleAffiche;
-  const tc = props.typesCaracteristique.find(t => t.id === ligne.typeCaracteristiqueId);
-  return tc ? tc.libelle : '—';
+  const lib = ligne.libelleAffiche || ligne.LibelleAffiche;
+  if (lib) return lib;
+  const idToMatch = ligne.typeCaracteristiqueId || ligne.TypeCaracteristiqueId;
+  if (!idToMatch) return '—';
+  const tc = props.typesCaracteristique.find(t => {
+    const tid = t.id || t.Id;
+    return tid && String(tid).toLowerCase() === String(idToMatch).toLowerCase();
+  });
+  return tc ? (tc.libelle || tc.Libelle || '—') : '—';
 }
 
 function resolveTypeControle(ligne) {
-  const tc = props.typesControle.find(t => t.id === ligne.typeControleId);
-  return tc ? tc.libelle : '—';
+  const idToMatch = ligne.typeControleId || ligne.TypeControleId;
+  if (!idToMatch) return '—';
+  const tc = props.typesControle.find(t => {
+    const tid = t.id || t.Id;
+    return tid && String(tid).toLowerCase() === String(idToMatch).toLowerCase();
+  });
+  return tc ? (tc.libelle || tc.Libelle || tc.code || tc.Code || '—') : '—';
 }
 
 function resolveMoyenControle(ligne) {
-  if (ligne.moyenTexteLibre) return ligne.moyenTexteLibre;
-  const mc = props.moyensControle.find(m => m.id === ligne.moyenControleId);
-  return mc ? mc.libelle : '—';
+  const textLibre = ligne.moyenTexteLibre || ligne.MoyenTexteLibre;
+  if (textLibre) return textLibre;
+  const idToMatch = ligne.moyenControleId || ligne.MoyenControleId;
+  if (!idToMatch) return '—';
+  const mc = props.moyensControle.find(m => {
+    const mid = m.id || m.Id;
+    return mid && String(mid).toLowerCase() === String(idToMatch).toLowerCase();
+  });
+  return mc ? (mc.libelle || mc.Libelle || mc.code || mc.Code || '—') : '—';
 }
 
 // ─── Impression ───

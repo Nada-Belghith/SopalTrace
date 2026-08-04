@@ -14,17 +14,45 @@
     <template v-if="store.planInitialise">
       <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto w-full">
-          <VerifMachineTableConformite 
-            v-if="store.entete.afficheConformite && !isMachineSansConformite"
-            :isReadOnly="props.isReadOnly"
-            @add-piece="openAddPieceModalFromEvent"
-          />
+          <div class="min-w-max flex flex-col w-full">
+            <!-- Table 1 : Test de conformité -->
+            <VerifMachineTableConformite 
+              v-if="store.entete.afficheConformite && !isMachineSansConformite"
+              :isReadOnly="props.isReadOnly"
+              :showEtalonColumns="false"
+              @add-piece="openAddPieceModalFromEvent"
+            />
 
-          <VerifMachineTableRisques 
-            v-if="store.lignesRisques.length > 0"
-            :isReadOnly="props.isReadOnly"
-            @add-piece="openAddPieceModalFromEvent"
-          />
+            <!-- Pour MAS22 : Affichage en 2 tables distinctes pour Risques Normaux et Risques Étalon (Table 2 & Table 3) -->
+            <template v-if="isMAS22">
+              <!-- Table 2 : Section Risques & Défauts (sans fuite) -->
+              <VerifMachineTableRisques 
+                :isReadOnly="props.isReadOnly"
+                :showEtalonColumns="false"
+                filterType="normal"
+                title="Section Risques & Défauts"
+                @add-piece="openAddPieceModalFromEvent"
+              />
+
+              <!-- Table 3 : Section Contrôle d'Étanchéité / Fuite Étalon & Pression (avec fuite/pression/dp) -->
+              <VerifMachineTableRisques 
+                :isReadOnly="props.isReadOnly"
+                :showEtalonColumns="true"
+                filterType="etalon"
+                title="Section Contrôle d'Étanchéité / Fuite Étalon & Pression"
+                @add-piece="openAddPieceModalFromEvent"
+              />
+            </template>
+
+            <template v-else>
+              <VerifMachineTableRisques 
+                v-if="store.lignesRisques.length > 0"
+                :isReadOnly="props.isReadOnly"
+                filterType="all"
+                @add-piece="openAddPieceModalFromEvent"
+              />
+            </template>
+          </div>
         </div>
       </section>
 
@@ -60,7 +88,7 @@
       v-model:visible="showColumnModal"
       v-model="store.entete.configurationColonnes"
       :baseColumns="vmBaseColumns"
-      :showTargetTable="isMAS22 || isMAS26"
+      :showTargetTable="isMAS26"
   >
       <!-- GESTION DES FAMILLES DE CORPS -->
       <template #extra-configuration>
@@ -103,7 +131,7 @@
       <template #preview="{ previewColumns, previewTarget }">
         <div class="flex flex-col gap-6">
           <!-- Aperçu Conformité -->
-          <div v-if="(store.entete.afficheConformite && !isMachineSansConformite) && ((!isMAS22 && !isMAS26) || previewTarget === 'conformite')" class="border border-slate-300 rounded overflow-hidden">
+          <div v-if="(store.entete.afficheConformite && !isMachineSansConformite) && (!isMAS26 || previewTarget === 'conformite')" class="border border-slate-300 rounded overflow-hidden">
             <div class="bg-[#0f172a] text-slate-200 border-l-4 border-emerald-500 text-[10px] font-bold uppercase p-2">Section Conformité</div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs whitespace-nowrap">
@@ -181,7 +209,7 @@
           </div>
 
           <!-- Aperçu Risques -->
-          <div v-if="(!isMAS22 && !isMAS26) || previewTarget === 'risques'" class="border border-slate-300 rounded overflow-hidden">
+          <div v-if="!isMAS26 || previewTarget === 'risques'" class="border border-slate-300 rounded overflow-hidden">
             <div class="bg-[#0f172a] text-slate-200 border-l-4 border-rose-500 text-[10px] font-bold uppercase p-2">Section Risques & Défauts</div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs whitespace-nowrap">
@@ -275,6 +303,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
@@ -292,6 +321,7 @@ import VerifMachineTableRisques from './partials/VerifMachineTableRisques.vue';
 import AddPieceModal from './partials/AddPieceModal.vue';
 
 const store = useVerifMachineStore();
+const refStore = useReferentielStore();
 const toast = useToast();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 
@@ -310,8 +340,8 @@ const selectedFamilleObj = ref(null);
 const filteredFamilles = ref([]);
 
 const allPossibleFamilles = computed(() => {
-  const fCorps = store.famillesCorps.map(f => ({ id: f.id, label: f.code + ' - ' + f.libelle, type: 'famille' }));
-  const pRef = store.piecesReference.map(p => ({ id: p.id, label: p.code, type: 'piece' }));
+  const fCorps = (refStore.famillesCorps || []).map(f => ({ id: f.id, label: f.code + ' - ' + f.libelle, type: 'famille' }));
+  const pRef = (refStore.piecesReference || []).map(p => ({ id: p.id, label: p.code, type: 'piece' }));
   return [...fCorps, ...pRef];
 });
 
@@ -333,9 +363,12 @@ const onFamilleSelected = (event) => {
 const showColumnModal = ref(false);
 const refFormulaireSelected = ref('');
 
-onMounted(() => {
+onMounted(async () => {
+  if (!refStore.isDicosVerifMachineLoaded) {
+    await refStore.fetchDictionnaires('verif-machine');
+  }
   if (!props.isReadOnly && !store.entete.id) {
-    store.fetchFormulairesReferences('VERIF_MACHINE');
+    await refStore.fetchFormulairesReferences('VERIF_MACHINE');
   }
 });
 
@@ -344,23 +377,20 @@ watch(refFormulaireSelected, async (newRefId) => {
     store.entete.configurationColonnes = [];
     return;
   }
-  const refObj = store.formulairesReferences.find(r => r.id === newRefId);
+  const refObj = (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || []).find(r => r.id === newRefId);
   console.log('[DEBUG] refFormulaireSelected changed to:', newRefId, 'Found refObj:', refObj);
   if (!refObj) return;
 
   store.entete.refFormulaireCodeReference = refObj.codeReference;
   const designation = refObj.designation || '';
-  const parsed = parseDesignation(designation, [], store.machines || []);
+  const parsed = parseDesignation(designation, [], refStore.machines || []);
 
   if (parsed.machineCode) {
     selectedMachineCode.value = parsed.machineCode;
-    // On force l'initialisation de la machine de manière asynchrone pour ne pas écraser les colonnes ensuite
     await store.initialiserPlan(parsed.machineCode);
-    // On met aussi à jour le nom
     store.entete.nom = designation;
   }
 
-  // Appliquer la configuration des colonnes du formulaire sélectionné
   if (refObj.configurationStructureJson) {
     try {
       store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
@@ -380,6 +410,13 @@ const onCancel = () => {
 };
 
 const selectedMachineCode = ref('');
+
+const onMachineChange = async (machineCode) => {
+  if (machineCode) {
+    selectedMachineCode.value = machineCode;
+    await store.initialiserPlan(machineCode);
+  }
+};
 
 // Synchroniser le code machine local avec le store
 watch(() => store.entete.machineCode, (newVal) => {

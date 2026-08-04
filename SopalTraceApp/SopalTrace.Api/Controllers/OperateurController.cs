@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SopalTrace.Application.DTOs.Execution.Operateur;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Application.Interfaces.Execution;
 
 namespace SopalTrace.Api.Controllers;
 
@@ -12,47 +14,58 @@ namespace SopalTrace.Api.Controllers;
 [Authorize]
 public class OperateurController : ControllerBase
 {
-    private readonly IOperateurService _operateurService;
+    private readonly IExecutionOfService _executionOfService;
+    private readonly IExecutionCatalogueService _executionCatalogueService;
+    private readonly IAssemblageExecutionService _assemblageExecutionService;
+    private readonly IVerifMachineExecutionService _verifMachineExecutionService;
     private readonly IOccurrenceService _occurrenceService;
 
-    public OperateurController(IOperateurService operateurService, IOccurrenceService occurrenceService)
+    public OperateurController(
+        IExecutionOfService executionOfService,
+        IExecutionCatalogueService executionCatalogueService,
+        IAssemblageExecutionService assemblageExecutionService,
+        IVerifMachineExecutionService verifMachineExecutionService,
+        IOccurrenceService occurrenceService)
     {
-        _operateurService = operateurService;
+        _executionOfService = executionOfService;
+        _executionCatalogueService = executionCatalogueService;
+        _assemblageExecutionService = assemblageExecutionService;
+        _verifMachineExecutionService = verifMachineExecutionService;
         _occurrenceService = occurrenceService;
     }
 
     [HttpGet("postes")]
     public async Task<IActionResult> GetPostesDisponibles()
     {
-        var postes = await _operateurService.GetPostesDisponiblesAsync();
+        var postes = await _executionCatalogueService.GetPostesDisponiblesAsync();
         return Ok(postes);
     }
 
     [HttpGet("poste/{posteCode}/machines")]
     public async Task<IActionResult> GetMachinesPourPoste(string posteCode)
     {
-        var machines = await _operateurService.GetMachinesPourPosteAsync(posteCode);
+        var machines = await _executionCatalogueService.GetMachinesPourPosteAsync(posteCode);
         return Ok(machines);
     }
 
     [HttpGet("ofs/operations")]
     public async Task<IActionResult> GetAllOfOperations()
     {
-        var ofs = await _operateurService.GetAllOfOperationsDisponiblesAsync();
+        var ofs = await _executionCatalogueService.GetAllOfOperationsDisponiblesAsync();
         return Ok(ofs);
     }
 
     [HttpGet("plan/existe")]
     public async Task<IActionResult> VerifierPlanActif([FromQuery] string articleCode, [FromQuery] string? operationCode = null)
     {
-        var result = await _operateurService.VerifierPlanActifAsync(articleCode, operationCode);
+        var result = await _executionOfService.VerifierPlanActifAsync(articleCode, operationCode);
         return Ok(result);
     }
 
     [HttpPut("plan/ligne/{ligneId:guid}")]
     public async Task<IActionResult> UpdatePlanLigne(Guid ligneId, [FromBody] UpdatePlanLigneDto dto)
     {
-        var result = await _operateurService.UpdatePlanLigneAsync(ligneId, dto);
+        var result = await _executionOfService.UpdatePlanLigneAsync(ligneId, dto);
         if (!result) return BadRequest(new { Message = "Impossible de mettre à jour la ligne du plan." });
         return Ok();
     }
@@ -72,7 +85,7 @@ public class OperateurController : ControllerBase
     [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/ignorer")]
     public async Task<IActionResult> IgnorerTranche(Guid execControleOfId, string trancheHoraire, [FromBody] IgnorerTrancheRequest request)
     {
-        var result = await _operateurService.IgnorerTrancheAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur, request.Raison);
+        var result = await _executionOfService.IgnorerTrancheAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur, request.Raison);
         if (!result) return NotFound(new { Message = "Tranche ou OF introuvable." });
         return Ok();
     }
@@ -80,7 +93,7 @@ public class OperateurController : ControllerBase
     [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/reglage")]
     public async Task<IActionResult> DeclarerTrancheEnReglage(Guid execControleOfId, string trancheHoraire, [FromBody] IgnorerTrancheRequest request)
     {
-        var result = await _operateurService.DeclarerTrancheEnReglageAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur);
+        var result = await _executionOfService.DeclarerTrancheEnReglageAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur);
         if (!result) return NotFound(new { Message = "Tranche ou OF introuvable." });
         return Ok();
     }
@@ -90,7 +103,7 @@ public class OperateurController : ControllerBase
     {
         try
         {
-            var result = await _operateurService.DemarrerOfAsync(request);
+            var result = await _executionOfService.DemarrerOfAsync(request);
             return Ok(result);
         }
         catch (Exception ex)
@@ -102,7 +115,7 @@ public class OperateurController : ControllerBase
     [HttpPost("of/{execControleOfId:guid}/mettre-en-reglage")]
     public async Task<IActionResult> MettreEnReglage(Guid execControleOfId)
     {
-        var result = await _operateurService.MettreEnReglageAsync(execControleOfId);
+        var result = await _executionOfService.MettreEnReglageAsync(execControleOfId);
         if (!result) return BadRequest(new { Message = "Impossible de mettre l'OF en réglage." });
         return Ok();
     }
@@ -110,7 +123,7 @@ public class OperateurController : ControllerBase
     [HttpPost("of/{execControleOfId:guid}/pause")]
     public async Task<IActionResult> MettreEnPause(Guid execControleOfId, [FromBody] PauseOfRequest request)
     {
-        var result = await _operateurService.MettreEnPauseAsync(execControleOfId, request.Raison);
+        var result = await _executionOfService.MettreEnPauseAsync(execControleOfId, request.Raison);
         if (!result) return BadRequest(new { Message = "Impossible de mettre l'OF en pause." });
         return Ok();
     }
@@ -118,20 +131,19 @@ public class OperateurController : ControllerBase
     [HttpPost("of/{execControleOfId:guid}/reprendre")]
     public async Task<IActionResult> ReprendreDepuisPause(Guid execControleOfId)
     {
-        var resultPause = await _operateurService.ReprendreDepuisPauseAsync(execControleOfId);
+        var resultPause = await _executionOfService.ReprendreDepuisPauseAsync(execControleOfId);
         if (resultPause) return Ok();
 
-        var resultReglage = await _operateurService.ReprendreOfAsync(execControleOfId);
+        var resultReglage = await _executionOfService.ReprendreOfAsync(execControleOfId);
         if (resultReglage.Success) return Ok();
 
-        // Si ce n'était ni une pause, ni un réglage réussi, ou si la validation bloque
         return BadRequest(new { Message = resultReglage.Message ?? "Impossible de reprendre cet OF." });
     }
 
     [HttpPost("of/{execControleOfId:guid}/close")]
     public async Task<IActionResult> CloturerOf(Guid execControleOfId)
     {
-        var result = await _operateurService.CloturerOfAsync(execControleOfId);
+        var result = await _executionOfService.CloturerOfAsync(execControleOfId);
         if (!result) return BadRequest(new { Message = "Impossible de clôturer cet OF." });
         return Ok();
     }
@@ -165,7 +177,7 @@ public class OperateurController : ControllerBase
     {
         try
         {
-            var result = await _operateurService.DemarrerOfAssemblageAsync(request);
+            var result = await _assemblageExecutionService.DemarrerOfAssemblageAsync(request);
             return Ok(result);
         }
         catch (Exception ex)
@@ -180,7 +192,7 @@ public class OperateurController : ControllerBase
         try
         {
             var matricule = User.FindFirst("matricule")?.Value;
-            var result = await _operateurService.InitDocumentsAsync(execControleOfId, typeDocument, posteCode, machineCode, equipe, matricule);
+            var result = await _assemblageExecutionService.InitDocumentsAsync(execControleOfId, typeDocument, posteCode, machineCode, equipe, matricule);
             return Ok(new { initialized = result });
         }
         catch (Exception ex)
@@ -192,21 +204,21 @@ public class OperateurController : ControllerBase
     [HttpGet("of/{execControleOfId:guid}/assemblage-documents")]
     public async Task<IActionResult> GetDocumentsAssemblageStatus(Guid execControleOfId)
     {
-        var statuts = await _operateurService.GetDocumentsAssemblageStatusAsync(execControleOfId);
+        var statuts = await _assemblageExecutionService.GetDocumentsAssemblageStatusAsync(execControleOfId);
         return Ok(statuts);
     }
 
     [HttpGet("postes/{posteCode}/machines")]
     public async Task<IActionResult> GetMachinesByPoste(string posteCode)
     {
-        var machines = await _operateurService.GetMachinesByPosteAsync(posteCode);
+        var machines = await _assemblageExecutionService.GetMachinesByPosteAsync(posteCode);
         return Ok(machines);
     }
 
     [HttpGet("machines")]
     public async Task<IActionResult> GetAllMachines()
     {
-        var machines = await _operateurService.GetAllMachinesAsync();
+        var machines = await _executionCatalogueService.GetAllMachinesAsync();
         return Ok(machines);
     }
 
@@ -214,7 +226,15 @@ public class OperateurController : ControllerBase
     public async Task<IActionResult> MarquerDocumentTermine(Guid statutId)
     {
         var matricule = User.FindFirst("matricule")?.Value;
-        var result = await _operateurService.MarquerDocumentTermineAsync(statutId, matricule);
+        var result = await _assemblageExecutionService.MarquerDocumentTermineAsync(statutId, matricule);
+        if (!result) return NotFound(new { Message = "Statut document introuvable." });
+        return Ok();
+    }
+
+    [HttpPut("assemblage-documents/{statutId:guid}/rouvrir")]
+    public async Task<IActionResult> RouvrirDocument(Guid statutId)
+    {
+        var result = await _assemblageExecutionService.RouvrirDocumentAsync(statutId);
         if (!result) return NotFound(new { Message = "Statut document introuvable." });
         return Ok();
     }
@@ -224,7 +244,7 @@ public class OperateurController : ControllerBase
     {
         try
         {
-            var result = await _operateurService.GetOfsAssemblageStatutAsync();
+            var result = await _assemblageExecutionService.GetOfsAssemblageStatutAsync();
             return Ok(result);
         }
         catch (Exception ex)
@@ -238,7 +258,7 @@ public class OperateurController : ControllerBase
     {
         try
         {
-            var result = await _operateurService.AjouterPostesAsync(execControleOfId, posteCodes);
+            var result = await _assemblageExecutionService.AjouterPostesAsync(execControleOfId, posteCodes);
             if (!result) return NotFound(new { Message = "Exécution introuvable." });
             return Ok();
         }
@@ -252,21 +272,21 @@ public class OperateurController : ControllerBase
     [HttpGet("verif-machine/periodicites")]
     public async Task<IActionResult> GetPeriodicitesMachine()
     {
-        var periodes = await _operateurService.GetPeriodicitesMachineAsync();
+        var periodes = await _verifMachineExecutionService.GetPeriodicitesMachineAsync();
         return Ok(periodes);
     }
 
     [HttpGet("verif-machine/statut/{statutId:guid}")]
     public async Task<IActionResult> GetAllExecVerifMachine(Guid statutId)
     {
-        var exec = await _operateurService.GetExecVerifMachineAsync(statutId, null);
+        var exec = await _verifMachineExecutionService.GetExecVerifMachineAsync(statutId, null);
         return Ok(exec);
     }
 
     [HttpGet("verif-machine/statut/{statutId:guid}/periodicite/{periodiciteId:guid}")]
     public async Task<IActionResult> GetExecVerifMachine(Guid statutId, Guid periodiciteId)
     {
-        var exec = await _operateurService.GetExecVerifMachineAsync(statutId, periodiciteId);
+        var exec = await _verifMachineExecutionService.GetExecVerifMachineAsync(statutId, periodiciteId);
         return Ok(exec);
     }
 
@@ -281,7 +301,7 @@ public class OperateurController : ControllerBase
                 request.MatriculeOperateur = matricule;
             }
 
-            var result = await _operateurService.SaveExecVerifMachineAsync(request);
+            var result = await _verifMachineExecutionService.SaveExecVerifMachineAsync(request);
             return Ok(new { success = result });
         }
         catch (Exception ex)
@@ -295,7 +315,7 @@ public class OperateurController : ControllerBase
     {
         try
         {
-            var result = await _operateurService.TerminerToutDocumentsMachineAsync(execControleOfId, machineCode);
+            var result = await _verifMachineExecutionService.TerminerToutDocumentsMachineAsync(execControleOfId, machineCode);
             return Ok(new { success = result });
         }
         catch (Exception ex)
@@ -309,7 +329,7 @@ public class OperateurController : ControllerBase
     {
         try
         {
-            var result = await _operateurService.CloturerTousVerifMachineAsync(execControleOfId, posteCode);
+            var result = await _verifMachineExecutionService.CloturerTousVerifMachineAsync(execControleOfId, posteCode);
             return Ok(new { success = result });
         }
         catch (Exception ex)

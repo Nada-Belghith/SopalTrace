@@ -72,8 +72,13 @@ const getCategoryIconColor = (cat) => {
           v-for="cat in documentCategories"
           :key="cat.id"
           @click="emit('category-click', cat)"
-          class="border rounded-xl p-6 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg flex flex-col items-center text-center relative overflow-hidden bg-white"
-          :class="getCategoryBorderColor(cat).replace('bg-', 'border-').replace('400', '200') + ' hover:border-primary'"
+          class="border rounded-xl p-6 transition-all hover:-translate-y-1 flex flex-col items-center text-center relative overflow-hidden bg-white"
+          :class="[
+            getCategoryBorderColor(cat).replace('bg-', 'border-').replace('400', '200'),
+            (cat.id === 'verifMachine' || cat.id === 'planAss') && !isCatTermine(documentCategories.find(c => c.id === 'echantillonnage')) && documentCategories.find(c => c.id === 'echantillonnage')?.docs?.length > 0
+              ? 'opacity-75 cursor-not-allowed grayscale-[0.2]'
+              : 'cursor-pointer hover:shadow-lg hover:border-primary'
+          ]"
         >
           <div class="absolute left-0 top-0 right-0 h-1" :class="getCategoryBorderColor(cat)"></div>
           
@@ -85,10 +90,23 @@ const getCategoryIconColor = (cat) => {
             <i class="pi pi-check-circle text-xl"></i>
           </button>
 
+          <!-- Lock Icon for blocked categories -->
+          <div v-if="(cat.id === 'verifMachine' || cat.id === 'planAss') && !isCatTermine(documentCategories.find(c => c.id === 'echantillonnage')) && documentCategories.find(c => c.id === 'echantillonnage')?.docs?.length > 0" class="absolute top-3 left-3 text-red-500 bg-red-50 border border-red-200 p-2 rounded-full flex items-center justify-center shadow-sm" v-tooltip.top="'Bloqué : Nécessite la Fiche d\'Échantillonnage'">
+            <i class="pi pi-lock text-sm"></i>
+          </div>
+
           <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4 mt-2" :class="getCategoryIconColor(cat)">
             <i :class="cat.icon" class="text-3xl"></i>
           </div>
-          <h3 class="font-bold text-gray-800 text-base leading-tight mb-3 flex-1 flex items-center">{{ cat.title }}</h3>
+          <h3 class="font-bold text-gray-800 text-base leading-tight mb-2 flex-1 flex items-center">{{ cat.title }}</h3>
+          
+          <div v-if="cat.id === 'planAss'" class="mb-2 w-full text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg p-1.5 font-semibold flex items-center justify-center gap-1 shadow-xs">
+            <i class="pi pi-clock text-xs text-blue-500"></i> Suivi des Tranches Horaires
+          </div>
+          <div v-else-if="cat.id === 'documentControlePoste'" class="mb-2 w-full text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-1.5 font-semibold flex items-center justify-center gap-1 shadow-xs">
+            <i class="pi pi-bell text-xs text-amber-500"></i> Rappel Horaire (1h)
+          </div>
+
           <div class="mt-auto w-full">
             <Tag v-if="cat.docs.length > 0 || cat.id === 'tracabilite'" :value="isCatTermine(cat) ? 'Terminé' : 'À Remplir'" :severity="isCatTermine(cat) ? 'success' : 'warning'" class="w-full" />
             <Tag v-else value="Non requis" severity="secondary" class="w-full" />

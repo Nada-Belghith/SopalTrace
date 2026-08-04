@@ -356,15 +356,7 @@ public class OperateurRepository : IOperateurRepository
 
         if (planActif == null)
         {
-            planActif = await _context.DocumentVerifMachineEntetes
-                .Include(p => p.Formulaire)
-                .Where(p => p.Statut == "ACTIF" || p.Statut == "Actif")
-                .FirstOrDefaultAsync();
-        }
-
-        if (planActif == null)
-        {
-            throw new Exception("Aucun plan de vérification actif n'a été trouvé pour cette machine. Veuillez signaler au superviseur pour le créer.");
+            throw new Exception($"Aucun plan de vérification actif n'a été trouvé pour cette machine ({machineCode}). Veuillez signaler au superviseur pour le créer.");
         }
 
         return new List<RefFormulaire> { new RefFormulaire { Id = planActif.Id } };
@@ -451,6 +443,58 @@ public class OperateurRepository : IOperateurRepository
         return await _context.Machines
             .Where(m => machineCodes.Contains(m.CodeMachine))
             .ToDictionaryAsync(m => m.CodeMachine, m => m.Libelle);
+    }
+
+    public async Task<List<string>> GetMachinesWithDemarragePlanAsync()
+    {
+        var plans = await _context.DocumentVerifMachineEntetes
+            .Include(e => e.DocumentVerifMachineLignes)
+                .ThenInclude(l => l.DocumentVerifMachineEcheances)
+                    .ThenInclude(g => g.PeriodiciteMachine)
+            .Where(e => e.Statut == "ACTIF" || e.Statut == "Actif")
+            .Where(e => e.MachineCode != null)
+            .ToListAsync();
+
+        return plans
+            .Where(p => p.DocumentVerifMachineLignes.Any(l => l.DocumentVerifMachineEcheances.Any(g => g.PeriodiciteMachine != null && g.PeriodiciteMachine.Libelle.ToLower().Contains("démarrage"))))
+            .Select(p => p.MachineCode!)
+            .Distinct()
+            .ToList();
+    }
+
+    public async Task<Dictionary<string, List<string>>> GetMachinesPlanPeriodicitesAsync()
+    {
+        var plans = await _context.DocumentVerifMachineEntetes
+            .Include(e => e.DocumentVerifMachineLignes)
+                .ThenInclude(l => l.DocumentVerifMachineEcheances)
+                    .ThenInclude(g => g.PeriodiciteMachine)
+            .Where(e => e.Statut == "ACTIF" || e.Statut == "Actif")
+            .Where(e => e.MachineCode != null)
+            .ToListAsync();
+
+        var result = new Dictionary<string, List<string>>();
+
+        foreach (var p in plans)
+        {
+            if (p.MachineCode == null) continue;
+            
+            var periodicites = p.DocumentVerifMachineLignes
+                .SelectMany(l => l.DocumentVerifMachineEcheances)
+                .Where(e => e.PeriodiciteMachine != null)
+                .Select(e => e.PeriodiciteMachine.Libelle.ToLower())
+                .Distinct()
+                .ToList();
+
+            if (!result.ContainsKey(p.MachineCode))
+            {
+                result[p.MachineCode] = new List<string>();
+            }
+
+            result[p.MachineCode].AddRange(periodicites);
+            result[p.MachineCode] = result[p.MachineCode].Distinct().ToList();
+        }
+
+        return result;
     }
 
     public async Task<bool> AjouterPostesAsync(Guid execControleOfId, List<string> posteCodes)

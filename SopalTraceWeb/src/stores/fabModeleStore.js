@@ -3,24 +3,11 @@ import { ref, computed } from 'vue';
 import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
 import { referentielsService } from '@/services/referentielsService';
 import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
+import { useReferentielStore } from './referentielStore';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
-  // --- DICTIONNAIRES ---
-  const operations = ref([]);
-  const typesRobinet = ref([]);
-  const naturesComposant = ref([]);
-  const typesCaracteristique = ref([]);
-  const typesControle = ref([]);
-  const moyensControle = ref([]);
-  const periodicites = ref([]);
-  const reglesEchantillonnage = ref([]); // Ajouté pour les règles ISO
-  const typesSection = ref([]);
-  const instruments = ref([]);
-  const postes = ref([]);
-  const famillesProduit = ref([]);
-  const gammesOperatoires = ref([]);
-  const formulairesReferences = ref([]);
-  const isDicosLoaded = ref(false);
+  // Dictionnaires are now in useReferentielStore
+  const isDicosLoaded = ref(false); // Can be kept for backwards compat or removed if not needed
 
   // --- ÉTAT DU MODÈLE ---
   const entete = ref({
@@ -44,7 +31,12 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const parseConfigurationColonnes = (configJson) => {
     if (!configJson) return [];
     try {
-      return typeof configJson === 'string' ? JSON.parse(configJson) : configJson;
+      const parsed = typeof configJson === 'string' ? JSON.parse(configJson) : configJson;
+      // If parsed is an object with customCols (DocumentControlePoste structure), extract only customCols
+      if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.customCols)) {
+        return parsed.customCols;
+      }
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -52,7 +44,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const findFormulaireActif = (codeReference) => {
     if (!codeReference) return null;
-    const refs = formulairesReferences.value || [];
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     return refs
       .filter(r => (r.codeReference || '').trim() === codeReference.trim())
       .sort((a, b) => {
@@ -65,7 +58,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const applyFormulaireConfiguration = (codeReference = null, force = false) => {
     if (!force && entete.value.configurationColonnes && entete.value.configurationColonnes.length > 0) return;
-    const refs = formulairesReferences.value || [];
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     if (!refs.length) return;
 
     const codeRef = (codeReference || entete.value.refFormulaireCodeReference || refs[0]?.codeReference || '').trim();
@@ -82,7 +76,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const applyFormulaireVersionConfiguration = (codeReference, version) => {
     if (!codeReference || version === undefined || version === null) return;
-    const refs = formulairesReferences.value || [];
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     const refObj = refs.find(r => (r.codeReference || '').trim() === codeReference.trim() && (r.version === version || r.Version === version));
     if (refObj) {
       entete.value.refFormulaireCodeReference = refObj.codeReference || '';
@@ -96,7 +91,12 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   /** Colonnes PRC/PRNC : Retourner les colonnes de l'entete si elles existent, sinon celles du formulaire actif */
   const effectiveConfigurationColonnes = computed(() => {
     if (entete.value.configurationColonnes !== undefined && entete.value.configurationColonnes !== null) {
-      return entete.value.configurationColonnes;
+      const cols = entete.value.configurationColonnes;
+      // Normalize: if it's an object with customCols (wrong structure), extract the array
+      if (!Array.isArray(cols) && cols && Array.isArray(cols.customCols)) {
+        return cols.customCols;
+      }
+      return Array.isArray(cols) ? cols : [];
     }
 
     const codeRef = (entete.value.refFormulaireCodeReference || '').trim();
@@ -106,7 +106,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       if (cols.length > 0) return cols;
     }
 
-    const refs = formulairesReferences.value || [];
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     if (refs.length > 0) {
       const latest = [...refs].sort((a, b) => {
         const statutA = String(a.statut || a.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
@@ -165,45 +166,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   });
 
   // --- ACTIONS ---
-  const fetchDictionnaires = async () => {
-    try {
-      const response = await referentielsService.getDictionnaires();
-      const data = response.data.data;
-
-      operations.value = data.operations || [];
-      typesRobinet.value = data.typesRobinet || [];
-      naturesComposant.value = data.naturesComposant || [];
-      typesCaracteristique.value = data.typesCaracteristique || [];
-      typesControle.value = data.typesControle || [];
-      moyensControle.value = data.moyensControle || [];
-      periodicites.value = data.periodicites || [];
-      reglesEchantillonnage.value = data.reglesEchantillonnage || []; // Récupération depuis le backend
-      typesSection.value = data.typesSection || data.typesSections || [];
-      instruments.value = data.instruments || [];
-      postes.value = data.postes || [];
-      famillesProduit.value = (data.famillesProduit || []).map(f => ({
-        code: f.code,
-        libelle: f.designation || f.libelle || '',
-        typeRobinetCode: f.typeRobinetCode
-      }));
-      gammesOperatoires.value = data.gammes || [];
-
-      isDicosLoaded.value = true;
-    } catch (apiError) {
-      console.error("Erreur réseau (Dictionnaires):", apiError);
-      throw apiError;
-    }
-  };
-
-  const fetchFormulairesReferences = async (role) => {
-    try {
-      const response = await referentielsService.getFormulairesListByRole(role);
-      formulairesReferences.value = response.data?.data || [];
-      applyFormulaireConfiguration();
-    } catch (e) {
-      console.error("Erreur fetch formulaires:", e);
-    }
-  };
 
   const addSection = () => {
     sections.value.push({
@@ -231,7 +193,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     section.lignes.push({
       id: crypto.randomUUID(),
       ordreAffiche: section.lignes.length + 1,
-      typeCaracteristiqueId: typesCaracteristique.value.length > 0 ? typesCaracteristique.value[0].id : '',
+      typeCaracteristiqueId: '',
       typeControleId: null,
       libelleAffiche: '',
       moyenControleId: null,
@@ -256,7 +218,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const syncSectionLibellesFromTypes = () => {
     sections.value.forEach((section) => {
       if (!section.typeSectionId) return;
-      section.libelleSection = resolveSectionDisplayTitle(section, typesSection.value);
+      section.libelleSection = resolveSectionDisplayTitle(section);
     });
   };
 
@@ -285,7 +247,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         typeSectionId: (s.typeSectionId && s.typeSectionId !== '') ? s.typeSectionId : null,
         periodiciteId: s.periodiciteId || null,
         regleEchantillonnageId: s.regleEchantillonnageId || null,
-        libelleSection: s.libelleSection || resolveSectionDisplayTitle(s, typesSection.value) || 'SECTION SANS NOM',
+        libelleSection: s.libelleSection || 'SECTION SANS NOM',
         frequenceLibelle: s.frequenceLibelle || '',
         notes: s.notes || '',
         lignes: (s.lignes || []).map((l, lIdx) => ({
@@ -429,8 +391,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
             imageBase64: lig.imageBase64 || null
           }))
         }));
-
-        await fetchDictionnaires();
       }
       return parsedData;
     } finally {
@@ -439,21 +399,11 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   };
 
   return {
-    operations, typesRobinet, naturesComposant,
-    typesCaracteristique, typesControle, moyensControle,
-    periodicites, typesSection, reglesEchantillonnage,
-    instruments,
-    postes,
-    famillesProduit,
-    gammesOperatoires,
-    formulairesReferences,
     isDicosLoaded,
 
     // État Modèle
     entete, sections, isLoading, version, codeModeleAuto, effectiveConfigurationColonnes, tableColumns,
     // Actions
-    fetchDictionnaires,
-    fetchFormulairesReferences,
     applyFormulaireConfiguration,
     syncConfigurationFromFormulaire,
     applyFormulaireVersionConfiguration,

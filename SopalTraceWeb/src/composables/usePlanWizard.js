@@ -3,7 +3,8 @@ import { useToast } from 'primevue/usetoast';
 import { referentielsService } from '@/services/referentielsService';
 import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
-import { useFabModeleStore } from '@/stores/fabModeleStore'; // Accès au dictionnaire global
+import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 
 /**
  * Composable pour gérer la logique du wizard de création de plan
@@ -12,6 +13,7 @@ import { useFabModeleStore } from '@/stores/fabModeleStore'; // Accès au dictio
 export function usePlanWizard() {
   const toast = useToast();
   const store = useFabModeleStore();
+  const refStore = useReferentielStore();
 
   // ============================================================================
   // STATE
@@ -75,7 +77,7 @@ export function usePlanWizard() {
     const type = String(typeRobinetCode.value || '').trim().toUpperCase();
     if (!type) return [];
 
-    return (store.famillesProduit || [])
+    return (refStore.famillesProduit || [])
       .filter(f => String(f.typeRobinetCode || '').trim().toUpperCase() === type);
   });
 
@@ -92,7 +94,7 @@ export function usePlanWizard() {
   });
 
   const hasValidStructure = computed(() => {
-    const refs = store.formulairesReferences || [];
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     if (refs.length === 0) return false;
     return refs.some(r => {
       const s = String(r.statut || r.Statut || '').trim().toUpperCase();
@@ -129,7 +131,7 @@ export function usePlanWizard() {
       isArticleValid.value = true;
 
       // 🔧 Récupérer estGenerique depuis la table naturesComposant du store
-      const nature = store.naturesComposant?.find(n => {
+      const nature = refStore.naturesComposant?.find(n => {
         const nCode = n.code || n.Code;
         const aCode = articleData.natureComposantCode || articleData.NatureComposantCode;
         return nCode && aCode && String(nCode).trim().toUpperCase() === String(aCode).trim().toUpperCase();
@@ -143,27 +145,14 @@ export function usePlanWizard() {
         isGeneriqueValue: isGenerique.value,
         timestamp: new Date().toLocaleTimeString(),
         articleCode: articleData.natureComposantCode || articleData.NatureComposantCode,
-        allNatures: store.naturesComposant
+        allNatures: refStore.naturesComposant
       };
 
       operationCode.value = '';
       posteCode.value = '';
 
-      // 🤖 AUTO-SÉLECTION DE L'OPÉRATION (via Gamme Opératoire)
-      if (natureComposantCode.value && isGenerique.value === 0) {
-        const targetNature = String(natureComposantCode.value).trim().toUpperCase();
-        const opsPossibles = (store.gammesOperatoires || [])
-          .filter(g => {
-            const code = g.natureComposantCode || g.NatureComposantCode;
-            return code && String(code).trim().toUpperCase() === targetNature;
-          })
-          .map(g => g.operationCode || g.OperationCode);
-
-        if (opsPossibles.length === 1) {
-          operationCode.value = opsPossibles[0];
-          console.log(`Auto-sélection de l'opération unique : ${operationCode.value}`);
-        }
-      }
+      // 🤖 AUTO-SÉLECTION DE L'OPÉRATION (via Gamme Opératoire) - DÉSACTIVÉE SUIVANT DEMANDE UTILISATEUR
+      // L'utilisateur doit choisir lui-même l'opération.
 
       sourceType.value = 'MODELE';
       selectedSourceId.value = null;
@@ -197,8 +186,8 @@ export function usePlanWizard() {
   // ÉTAPE 2: FILTRES DES OPÉRATIONS (Via la Gamme Opératoire en BDD)
   // ============================================================================
   const operationsFiltrees = computed(() => {
-    const ops = store.operations || [];
-    const gammes = store.gammesOperatoires || [];
+    const ops = refStore.operations || [];
+    const gammes = refStore.gammesOperatoires || [];
 
     // Si pas d'article identifié, on affiche tout par défaut
     if (!natureComposantCode.value) return ops;
@@ -230,7 +219,7 @@ export function usePlanWizard() {
 
   const getLibelleType = (code) => {
     if (!code) return '--';
-    const match = store.typesRobinet?.find(t => {
+    const match = refStore.typesRobinet?.find(t => {
       const tCode = t.code || t.Code;
       return tCode && String(tCode).trim().toUpperCase() === String(code).trim().toUpperCase();
     });
@@ -239,7 +228,7 @@ export function usePlanWizard() {
 
   const getLibelleNature = (code) => {
     if (!code) return '--';
-    const match = store.naturesComposant?.find(n => {
+    const match = refStore.naturesComposant?.find(n => {
       const nCode = n.code || n.Code;
       return nCode && String(nCode).trim().toUpperCase() === String(code).trim().toUpperCase();
     });
@@ -306,31 +295,28 @@ export function usePlanWizard() {
       const allPlans = Array.isArray(response) ? response : (response.data?.data || response.data || []);
 
       // Récupérer la version de la structure PRC active (Role EN_COURS_DE_FABRICATION)
-      const activePrcVersion = store.formulairesReferences?.find(r => String(r.statut || r.Statut || '').trim().toUpperCase() === 'ACTIF')?.version;
+      const activePrcVersion = (refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || []).find(r => String(r.statut || r.Statut || '').trim().toUpperCase() === 'ACTIF')?.version;
 
       availablePlans.value = allPlans.filter(p => {
         // Exclure les archives et les plans de ce même article (on ne se clone pas soi-même)
         if (p.statut === 'ARCHIVE') return false;
-        
+
         const nomPlan = p.nom || p.Nom || p.codeArticleSageVersionne || '';
         // Récupérer la partie avant le point s'il y a une version (ex: "n-25B0A01.0" -> "n-25B0A01")
         const baseNom = nomPlan.split('.')[0].trim().toLowerCase();
-        
+
         let rawTargetCode = codeArticleSage.value;
         if (typeof rawTargetCode === 'object' && rawTargetCode !== null) {
           rawTargetCode = rawTargetCode.codeArticle;
         }
         const targetCode = String(rawTargetCode || '').trim().toLowerCase();
-        
+
         if (baseNom === targetCode || String(p.codeArticleSage || '').trim().toLowerCase() === targetCode) {
           return false;
         }
 
-        // FILTRE STRICT : On ne propose de cloner que les plans liés à la version active de la structure PRC
-        if (activePrcVersion !== undefined) {
-          const planVersion = p.version !== undefined ? p.version : p.Version;
-          if (planVersion !== activePrcVersion) return false;
-        }
+        // L'ancienne logique comparait p.version (version du plan) à activePrcVersion (version du formulaire PRC)
+        // ce qui était incorrect et masquait les plans disponibles. On accepte tous les plans ACTIFs d'articles différents.
 
         // Optionnel : filtrer par poste
         if (posteCode.value) {
@@ -338,6 +324,11 @@ export function usePlanWizard() {
         }
         return true;
       });
+
+      // Auto-sélectionner s'il n'y a qu'un seul plan
+      if (availablePlans.value.length === 1) {
+        selectedSourceId.value = availablePlans.value[0].id;
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des plans:', error);
       availablePlans.value = [];
@@ -357,7 +348,7 @@ export function usePlanWizard() {
   });
 
   const postesDisponibles = computed(() =>
-    (store.postes || [])
+    (refStore.postes || [])
       .map(p => ({
         code: p.code || p.Code || p.codePoste || p.CodePoste,
         libelle: p.libelle || p.Libelle || p.designation || p.Designation
@@ -383,26 +374,12 @@ export function usePlanWizard() {
   // WATCHERS POUR AUTO-SÉLECTION
   // ============================================================================
 
-  // Auto-sélectionner l'opération s'il n'y en a qu'une
-  watch(operationsFiltrees, (newOps) => {
-    if (newOps.length === 1 && !operationCode.value) {
-      operationCode.value = newOps[0].code;
-    }
-  });
+  // Auto-sélectionner l'opération s'il n'y en a qu'une - DÉSACTIVÉE SUIVANT DEMANDE UTILISATEUR
+  // watch(operationsFiltrees, (newOps) => { ... });
 
-  // Auto-sélectionner le modèle s'il n'y en a qu'un
-  watch(availableModeles, (newModeles) => {
-    if (newModeles.length === 1 && !selectedSourceId.value && sourceType.value === 'MODELE') {
-      selectedSourceId.value = newModeles[0].id;
-    }
-  });
-
-  // Auto-sélectionner le plan s'il n'y en a qu'un
-  watch(availablePlans, (newPlans) => {
-    if (newPlans.length === 1 && !selectedSourceId.value && sourceType.value === 'CLONE') {
-      selectedSourceId.value = newPlans[0].id;
-    }
-  });
+  // Les sélections automatiques de modèles et de plans sont maintenant
+  // gérées de manière synchrone à l'intérieur de chargerModelesFiltrés et chargerPlansFiltrés
+  // pour éviter la boucle "Maximum recursive updates exceeded".
 
   // ============================================================================
   // GÉNÉRATION & VALIDATION

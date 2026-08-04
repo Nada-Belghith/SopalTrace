@@ -120,7 +120,10 @@ builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.ITracabil
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.ITracabiliteService, SopalTrace.Application.Services.TracabiliteService>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOperateurRepository, SopalTrace.Infrastructure.Repositories.Execution.OperateurRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOccurrenceRepository, SopalTrace.Infrastructure.Repositories.Execution.OccurrenceRepository>();
-builder.Services.AddScoped<IOperateurService, SopalTrace.Application.Services.OperateurService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecutionOfService, SopalTrace.Application.Services.Execution.ExecutionOfService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecutionCatalogueService, SopalTrace.Application.Services.Execution.ExecutionCatalogueService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IAssemblageExecutionService, SopalTrace.Application.Services.Execution.AssemblageExecutionService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IVerifMachineExecutionService, SopalTrace.Application.Services.Execution.VerifMachineExecutionService>();
 builder.Services.AddScoped<IOccurrenceService, SopalTrace.Application.Services.OccurrenceService>();
 builder.Services.AddScoped<IErpService, SqlErpService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();

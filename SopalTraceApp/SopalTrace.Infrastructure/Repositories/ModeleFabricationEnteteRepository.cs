@@ -76,6 +76,11 @@ public class ModeleFabricationEnteteRepository : IModeleFabricationEnteteReposit
         _context.ModeleFabricationLignes.Remove(ligne);
     }
 
+    public void RemoveExtraColonne(ModeleFabricationLigneExtraColonne extraColonne)
+    {
+        _context.ModeleFabricationLigneExtraColonnes.Remove(extraColonne);
+    }
+
     public async Task<IEnumerable<ModeleFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId)
     {
         return await _context.ModeleFabricationEntetes

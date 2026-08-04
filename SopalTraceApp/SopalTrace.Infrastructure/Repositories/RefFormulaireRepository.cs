@@ -154,7 +154,6 @@ public class RefFormulaireRepository : IRefFormulaireRepository
         if (newCols.Any())
         {
             _context.RefFormulaireColonneDefs.AddRange(newCols);
-            await _context.SaveChangesAsync();
         }
 
         // 3. Mise à jour des colonnes existantes

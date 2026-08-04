@@ -254,4 +254,124 @@ public static class PlanFabricationMapper
             }).ToList() ?? new List<CreatePlanFabricationExtraColonneDto>()
         };
     }
+
+    public static PlanFabricationSection CreateSection(CreatePlanFabricationSectionDto dto, Guid planId)
+    {
+        return new PlanFabricationSection
+        {
+            Id = Guid.NewGuid(),
+            PlanEnteteId = planId,
+            LibelleSection = dto.LibelleSection ?? "",
+            OrdreAffiche = dto.OrdreAffiche,
+            TypeSectionId = dto.TypeSectionId,
+            PeriodiciteId = dto.PeriodiciteId,
+            RegleEchantillonnageId = dto.RegleEchantillonnageId,
+            PlanFabricationLignes = new List<PlanFabricationLigne>()
+        };
+    }
+
+    public static void UpdateSection(PlanFabricationSection sec, CreatePlanFabricationSectionDto dto)
+    {
+        sec.OrdreAffiche = dto.OrdreAffiche;
+        sec.LibelleSection = dto.LibelleSection ?? "";
+        sec.TypeSectionId = dto.TypeSectionId;
+        sec.PeriodiciteId = dto.PeriodiciteId;
+        sec.RegleEchantillonnageId = dto.RegleEchantillonnageId;
+    }
+
+    public static PlanFabricationLigne CreateLigne(CreatePlanFabricationLigneDto dto, Guid planId, Guid sectionId)
+    {
+        var planLigne = new PlanFabricationLigne
+        {
+            Id = Guid.NewGuid(),
+            PlanEnteteId = planId,
+            SectionId = sectionId,
+            OrdreAffiche = dto.OrdreAffiche,
+            CaracteristiqueId = dto.CaracteristiqueId,
+            LibelleAffiche = dto.LibelleAffiche,
+            TypeCaracteristiqueId = dto.TypeCaracteristiqueId,
+            TypeControleId = dto.TypeControleId,
+            MoyenControleId = dto.MoyenControleId,
+            MoyenTexteLibre = string.IsNullOrWhiteSpace(dto.MoyenTexteLibre) ? null : dto.MoyenTexteLibre,
+            InstrumentCode = dto.InstrumentCode,
+            PeriodiciteId = dto.PeriodiciteId,
+            LimiteSpecTexte = dto.LimiteSpecTexte,
+            EstCritique = dto.EstCritique,
+            Instruction = dto.Instruction,
+            Observations = dto.Observations,
+            ImageBase64 = dto.ImageBase64,
+            PlanFabricationLigneExtraColonnes = new List<PlanFabricationLigneExtraColonne>()
+        };
+
+        if (dto.ExtraColonnes != null)
+        {
+            foreach (var ec in dto.ExtraColonnes)
+            {
+                planLigne.PlanFabricationLigneExtraColonnes.Add(new PlanFabricationLigneExtraColonne
+                {
+                    Id = Guid.NewGuid(),
+                    LigneId = planLigne.Id,
+                    CleColonne = ec.CleColonne,
+                    ValeurColonne = ec.ValeurColonne,
+                    OrdreAffiche = 0
+                });
+            }
+        }
+
+        SopalTrace.Application.Utilities.LineCleanupHelper.CleanupPlanFabLine(planLigne);
+        return planLigne;
+    }
+
+    public static void UpdateLigne(PlanFabricationLigne lig, CreatePlanFabricationLigneDto dto)
+    {
+        lig.OrdreAffiche = dto.OrdreAffiche;
+        lig.CaracteristiqueId = dto.CaracteristiqueId;
+        lig.LibelleAffiche = dto.LibelleAffiche;
+        lig.TypeCaracteristiqueId = dto.TypeCaracteristiqueId;
+        lig.TypeControleId = dto.TypeControleId;
+        lig.MoyenControleId = dto.MoyenControleId;
+        lig.MoyenTexteLibre = string.IsNullOrWhiteSpace(dto.MoyenTexteLibre) ? null : dto.MoyenTexteLibre;
+        lig.InstrumentCode = dto.InstrumentCode;
+        lig.PeriodiciteId = dto.PeriodiciteId;
+        lig.LimiteSpecTexte = dto.LimiteSpecTexte;
+        lig.EstCritique = dto.EstCritique;
+        lig.Instruction = dto.Instruction;
+        lig.Observations = dto.Observations;
+        lig.ImageBase64 = dto.ImageBase64;
+
+        SopalTrace.Application.Utilities.LineCleanupHelper.CleanupPlanFabLine(lig);
+    }
+
+    public static void MergerExtraColonnes(PlanFabricationLigne lig, List<CreatePlanFabricationExtraColonneDto> incoming, SopalTrace.Application.Interfaces.IUnitOfWork unitOfWork)
+    {
+        var existing = lig.PlanFabricationLigneExtraColonnes.ToList();
+
+        foreach (var ec in existing.Where(e => !incoming.Any(i => i.CleColonne == e.CleColonne)))
+        {
+            unitOfWork.PlanFabricationEnteteRepository.RemoveExtraColonne(ec);
+            lig.PlanFabricationLigneExtraColonnes.Remove(ec);
+        }
+
+        foreach (var inc in incoming)
+        {
+            var found = existing.FirstOrDefault(e => e.CleColonne == inc.CleColonne);
+            if (found != null)
+            {
+                found.ValeurColonne = inc.ValeurColonne;
+                // Assuming OrdreAffiche can be updated if present in DTO, otherwise keep it or reset
+            }
+            else
+            {
+                lig.PlanFabricationLigneExtraColonnes.Add(new PlanFabricationLigneExtraColonne
+                {
+                    Id = Guid.NewGuid(),
+                    LigneId = lig.Id,
+                    Ligne = lig,
+                    CleColonne = inc.CleColonne,
+                    ValeurColonne = inc.ValeurColonne,
+                    OrdreAffiche = 0
+                });
+            }
+        }
+    }
 }

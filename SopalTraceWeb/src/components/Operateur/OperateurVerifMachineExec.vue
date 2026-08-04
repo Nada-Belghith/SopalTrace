@@ -18,6 +18,8 @@ const store = useVerifMachineStore()
 const authStore = useAuthStore()
 const operateurStore = useOperateurStore()
 
+const isMAS22 = computed(() => (store.entete?.machineCode || docHeader.value?.machineCode || '').toUpperCase().includes('MAS22'))
+
 const planId = route.params.id
 const currentStatutId = ref(route.query.statutId)
 
@@ -116,6 +118,8 @@ const fetchSessionData = async (targetStatutId) => {
         machineCode: res.data.machineCode || operateurStore.activeOfContext?.machineCode || '-',
         dateExecution: formatDate(rawDate)
       }
+
+      applyPeriodiciteFilter()
     }
   } catch {
     toast.error('Erreur', 'Impossible de charger la session.')
@@ -124,7 +128,40 @@ const fetchSessionData = async (targetStatutId) => {
   }
 }
 
+const applyPeriodiciteFilter = () => {
+  const targetPerioQuery = route.query.periodicite || route.query.perio || route.query.etape
+  if (targetPerioQuery && store.periodicitesMachine && store.periodicitesMachine.length > 0) {
+    const normQuery = targetPerioQuery.toString().toLowerCase().trim()
+    const found = store.periodicitesMachine.find(p => {
+      const lib = (p.libelle || p.Libelle || '').toLowerCase()
+      const id = (p.id || p.Id || '').toString().toLowerCase()
+      if (id === normQuery || lib === normQuery) return true
+      if ((normQuery.includes('demarr') || normQuery.includes('démarr')) && lib.includes('demarr')) return true
+      if (normQuery.includes('pause') && lib.includes('pause')) return true
+      if (normQuery.includes('fin') && lib.includes('fin')) return true
+      return false
+    })
+    if (found) {
+      selectedPeriodiciteId.value = found.id || found.Id
+      toast.info('Information', `Filtré sur la périodicité "${found.libelle || found.Libelle}".`)
+      return
+    }
+  }
 
+  // --- LOGIQUE DE DÉMARRAGE PAR DÉFAUT ---
+  if (execReponses.value.length === 0 && availableSessions.value.length > 0) {
+    const teamSessions = availableSessions.value.filter(s => s.equipe === docHeader.value.equipe)
+    if (teamSessions.length <= 1) { // Première session
+      const demarragePerio = store.periodicitesMachine.find(p => 
+        p.libelle && (p.libelle.toLowerCase().includes('démarrage') || p.libelle.toLowerCase().includes('demarrage'))
+      )
+      if (demarragePerio) {
+        selectedPeriodiciteId.value = demarragePerio.id
+        toast.info('Information', 'Filtré sur la périodicité "Démarrage" pour la première exécution de l\'équipe.')
+      }
+    }
+  }
+}
 
 const checkConsultationMode = (statutId) => {
   const session = availableSessions.value.find(s => s.statutId === statutId)
@@ -141,6 +178,7 @@ onMounted(async () => {
     await store.fetchDictionnaires()
     await store.loadDocumentById(planId)
     await fetchSessionData(currentStatutId.value)
+    applyPeriodiciteFilter()
     checkConsultationMode(currentStatutId.value)
   } catch {
     toast.error('Erreur', 'Impossible de charger les données.')
@@ -439,22 +477,58 @@ const handleBackArrow = () => {
             :isConsultationMode="isConsultationMode"
             :execReponses="execReponses"
             :selectedPeriodiciteId="selectedPeriodiciteId"
+            :showEtalonColumns="false"
           />
         </div>
       </div>
 
       <!-- SECTION RISQUES & DÉFAUTS -->
-      <div v-if="store.lignesRisques.length > 0" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-        <div class="overflow-x-auto w-full">
-          <VerifMachineTableRisques 
-            :isReadOnly="true"
-            :isExecution="true"
-            :isConsultationMode="isConsultationMode"
-            :execReponses="execReponses"
-            :selectedPeriodiciteId="selectedPeriodiciteId"
-          />
+      <template v-if="isMAS22">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+          <div class="overflow-x-auto w-full">
+            <VerifMachineTableRisques 
+              :isReadOnly="true"
+              :isExecution="true"
+              :isConsultationMode="isConsultationMode"
+              :execReponses="execReponses"
+              :selectedPeriodiciteId="selectedPeriodiciteId"
+              :showEtalonColumns="false"
+              filterType="normal"
+              title="Section Risques & Défauts"
+            />
+          </div>
         </div>
-      </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+          <div class="overflow-x-auto w-full">
+            <VerifMachineTableRisques 
+              :isReadOnly="true"
+              :isExecution="true"
+              :isConsultationMode="isConsultationMode"
+              :execReponses="execReponses"
+              :selectedPeriodiciteId="selectedPeriodiciteId"
+              :showEtalonColumns="true"
+              filterType="etalon"
+              title="Section Contrôle d'Étanchéité / Fuite Étalon & Pression"
+            />
+          </div>
+        </div>
+      </template>
+
+      <template v-else-if="store.lignesRisques.length > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+          <div class="overflow-x-auto w-full">
+            <VerifMachineTableRisques 
+              :isReadOnly="true"
+              :isExecution="true"
+              :isConsultationMode="isConsultationMode"
+              :execReponses="execReponses"
+              :selectedPeriodiciteId="selectedPeriodiciteId"
+              filterType="all"
+            />
+          </div>
+        </div>
+      </template>
       
       <div v-if="!isConsultationMode" class="bg-slate-50 border border-slate-200 p-6 flex justify-end rounded-xl shadow-sm">
         <Button label="Enregistrer la vérification" icon="pi pi-save" @click="save" class="p-button-success shadow-md" />

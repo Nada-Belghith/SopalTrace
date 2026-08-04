@@ -15,4 +15,5 @@ public interface IOccurrenceService
     Task<bool> IgnorerOccurrencesAsync(List<Guid> occurrenceIds, string matriculeOperateur, string? raison = null);
     Task<bool> DeclarerOccurrencesReglageAsync(List<Guid> occurrenceIds, string matriculeOperateur);
     Task AjouterRemarqueTrancheEnCoursAsync(Guid execControleOfId, string remarque);
+    Task AjusterDateDebutApresReglageAsync(Guid execControleOfId);
 }

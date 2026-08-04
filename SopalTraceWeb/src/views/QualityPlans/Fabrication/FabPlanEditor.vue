@@ -82,52 +82,37 @@
                 :remarques="remarques"
                 :legende-moyens="legendeMoyens"
                 :configuration-colonnes="planConfigurationColonnes"
-                :types-section="store.typesSection || []"
-                :types-caracteristique="store.typesCaracteristique || []"
-                :types-controle="store.typesControle || []"
-                :moyens-controle="store.moyensControle || []"
-                :periodicites="store.periodicites || []"
+                :types-section="refStore.typesSection || []"
+                :types-caracteristique="refStore.typesCaracteristique || []"
+                :types-controle="refStore.typesControle || []"
+                :moyens-controle="refStore.moyensControle || []"
+                :periodicites="refStore.periodicites || []"
               />
               </div>
 
               <!-- Mode EDITION -->
               <div v-else class="border border-slate-200 rounded-lg overflow-x-auto shadow-sm mb-6 bg-white">
                 <table class="w-full text-left border-collapse min-w-[1200px]">
-                  <FabTableHeader :columns="planColumns" />
+                  <BaseTableHeader :columns="planColumns" />
                   
-                  <SharedSectionCard 
+                  <PlanSection 
                     v-for="(section, index) in sections"
                     :key="section.id"
-                    :groupe="section"
+                    :section="section"
                     :index="index"
+                    :columns="planColumns"
                     :is-read-only="isReadOnly"
-                    :typesSection="store.typesSection"
-                    :periodicites="store.periodicites"
-                    :reglesEchantillonnage="store.reglesEchantillonnage"
-                    :operationCode="plan?.operationCode || wizard.operationCode.value"
+                    :types-section="refStore.typesSection"
+                    :periodicites="refStore.periodicites"
+                    :regles-echantillonnage="refStore.reglesEchantillonnage"
+                    :types-controle="refStore.typesControle"
+                    :moyens-controle="refStore.moyensControle"
+                    :instruments="refStore.instruments"
+                    :operation-code="plan?.operationCode || wizard.operationCode.value"
                     defaultTitle="Caractéristiques à contrôler"
-                    @remove="supprimerSection(section.id)"
-                    @update-groupe="(updatedSection) => mettreAJourSection(index, updatedSection)"
-                  >
-                    <FabPlanLigneControl
-                      v-for="ligne in section.lignes"
-                      :key="ligne.id"
-                      :ligne="ligne"
-                      :section="section"
-                      :columns="planColumns"
-                      :is-archived="isReadOnly"
-                      :operation-code="plan?.operationCode || wizard.operationCode.value"
-                      @remove="(ligneId) => supprimerLigneASection(index, ligneId)"
-                      @update="(updated) => {
-                        const idx = section.lignes.findIndex(l => l.id === updated.id);
-                        if (idx !== -1) {
-                           let updatedSection = JSON.parse(JSON.stringify(section));
-                           updatedSection.lignes.splice(idx, 1, updated);
-                           mettreAJourSection(index, updatedSection);
-                        }
-                      }"
-                    />
-                  </SharedSectionCard>
+                    @remove="supprimerSection"
+                    @update-section="(updatedSection) => mettreAJourSection(index, updatedSection)"
+                  />
                 </table>
               </div>
 
@@ -201,16 +186,16 @@
   import { usePlanWizard } from '@/composables/usePlanWizard';
   import { useFabModeleStore } from '@/stores/fabModeleStore';
 
-
-  import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
-  import PlanReadView from '@/components/Shared/PlanReadView.vue';
-  import FabTableHeader from '@/components/Fabrication/FabTableHeader.vue';
-  import SharedSectionCard from '@/components/Shared/SharedSectionCard.vue';
-  import FabPlanLigneControl from '@/components/Fabrication/FabPlanLigneControl.vue';
-  import EditorActions from '@/components/Shared/EditorActions.vue';
-  import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
-  import ConfirmDialog from 'primevue/confirmdialog';
   import PlanHeader from '@/components/Shared/PlanHeader.vue';
+  import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
+  import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
+  import PlanReadView from '@/components/Shared/PlanReadView.vue';
+  import PlanSection from '@/components/Shared/PlanSection.vue';
+  import BaseTableHeader from '@/components/Shared/BaseTableHeader.vue';
+  import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
+  import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
+  import EditorActions from '@/components/Shared/EditorActions.vue';
+  import ConfirmDialog from 'primevue/confirmdialog';
   import InputText from 'primevue/inputtext';
 
   import { useEditorSections } from '@/composables/useEditorSections';
@@ -221,6 +206,7 @@
   import { usePlanMapper } from '@/composables/usePlanMapper';
   import { usePlanActions } from '@/composables/usePlanActions';
   import { useDraftRecovery } from '@/composables/useDraftRecovery';
+  import { useReferentielStore } from '@/stores/referentielStore';
 
   const route = useRoute();
   const router = useRouter();
@@ -229,6 +215,7 @@
   const { confirmArchivagePlanActif } = useActivePlanConfirmation();
   const { interceptCreation } = useDraftRecovery(fabPlanService, confirm, toast, router, '/dev/fab/plans/editer');
   const store = useFabModeleStore();
+  const refStore = useReferentielStore();
 
   const wizard = usePlanWizard();
   const isGeneratingPlan = ref(false);
@@ -313,9 +300,17 @@
     return base;
   });
 
-  const planColumns = computed(() => store.tableColumns || []);
-
   const planConfigurationColonnes = computed(() => {
+    if (plan.value && plan.value.configurationColonnesJson) {
+      try {
+        const parsed = JSON.parse(plan.value.configurationColonnesJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("Erreur de parsing de configurationColonnesJson", e);
+      }
+    }
     if (store.effectiveConfigurationColonnes?.length) return store.effectiveConfigurationColonnes;
     if (plan.value?.colonneDefs) {
       return plan.value.colonneDefs;
@@ -323,9 +318,37 @@
     return [];
   });
 
+  const baseTableColumns = [
+    { key: 'caracteristique', label: 'Caractéristique contrôlée', width: 'w-[22%]' },
+    { key: 'limite_spec', label: 'Limite spécif.', width: 'w-[12%]', textAlign: 'center' },
+    { key: 'type_controle', label: 'Type de contrôle', width: 'w-[15%]', textAlign: 'center' },
+    { key: 'moyen_controle', label: 'Moyen de contrôle', width: 'w-[15%]', textAlign: 'center' },
+    { key: 'code_instrument', label: 'Code instrument', width: 'w-[15%]', textAlign: 'center' },
+    { key: 'observations', label: 'Observations', width: 'flex-1' }
+  ];
+
+  const planColumns = computed(() => {
+    let cols = [...baseTableColumns];
+    (planConfigurationColonnes.value || []).forEach((cc) => {
+      const insertIdx = cols.findIndex((c) => c.key === cc.insertAfter);
+      const newCol = {
+        key: cc.key,
+        label: cc.label,
+        type: cc.type,
+        width: 'w-[12%]',
+        textAlign: 'center',
+        isCustom: true
+      };
+      if (insertIdx !== -1) cols.splice(insertIdx + 1, 0, newCol);
+      else cols.push(newCol);
+    });
+    cols.push({ key: 'actions', label: '', width: 'w-12', textAlign: 'center' });
+    return cols;
+  });
+
   const hasValidStructure = computed(() => {
     if (plan.value?.colonneDefs && plan.value?.colonneDefs.length > 0) return true;
-    const refs = store.formulairesReferences || [];
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     if (refs.length === 0) return false;
     return refs.some(r => {
       const s = String(r.statut || r.Statut || '').trim().toUpperCase();
@@ -436,9 +459,11 @@
   }, 30000);
 
   onMounted(async () => {
-    if (!store.isDicosLoaded) await store.fetchDictionnaires();
-    if (!store.formulairesReferences?.length) {
-      await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
+    if (!refStore.isDicosFabricationLoaded) {
+      await refStore.fetchDictionnaires('fabrication');
+    }
+    if (!refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION']?.length) {
+      await refStore.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
     }
     if (!wizard.refFormulaireCodeReference?.value) {
       wizard.refFormulaireCodeReference.value = 'PRC';
@@ -459,7 +484,7 @@
       statut: 'ACTIF',
       codeArticleSage: codeArticle,
       designation: wizard.designationArticle.value,
-      version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
+      version: (refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || []).find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
       operationCode: data.operationCode,
       posteCode: wizard.posteCode.value || null,
       notes: data.notes || '',
@@ -538,7 +563,7 @@
           nom: `Plan de contrôle en cours de fabrication ${wizard.designationArticle.value || data.designation}${wizard.posteCode.value ? ' (' + wizard.posteCode.value + ')' : ''}`,
           codeArticleSage: codeArticle || data.codeArticleSage,
           designation: wizard.designationArticle.value || data.designation,
-          version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
+          version: (refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || []).find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
           operationCode: data.operationCode,
           posteCode: wizard.posteCode.value || data.posteCode
         };
@@ -592,7 +617,7 @@
           statut: 'ACTIF',
           codeArticleSage: codeArticle,
           designation: wizard.designationArticle.value,
-          version: store.formulairesReferences?.find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
+          version: (refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || []).find(f => f.codeReference === (wizard.refFormulaireCodeReference?.value || 'PRC'))?.version || 1,
           operationCode: wizard.operationCode.value,
           posteCode: wizard.posteCode.value || null,
           colonneDefs: store.effectiveConfigurationColonnes,
