@@ -12,10 +12,17 @@ namespace SopalTrace.Application.Services.Execution;
 public class AssemblageExecutionService : IAssemblageExecutionService
 {
     private readonly IOperateurRepository _operateurRepository;
+    private readonly IOccurrenceService _occurrenceService;
+    private readonly IOccurrenceRepository _occurrenceRepository;
 
-    public AssemblageExecutionService(IOperateurRepository operateurRepository)
+    public AssemblageExecutionService(
+        IOperateurRepository operateurRepository,
+        IOccurrenceService occurrenceService,
+        IOccurrenceRepository occurrenceRepository)
     {
         _operateurRepository = operateurRepository;
+        _occurrenceService = occurrenceService;
+        _occurrenceRepository = occurrenceRepository;
     }
 
     public async Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request)
@@ -49,6 +56,11 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         }
 
         await _operateurRepository.SaveChangesAsync();
+
+        execOf.Statut = "EN_COURS";
+        execOf.EstEnReglage = false;
+        await _operateurRepository.SaveChangesAsync();
+        await _occurrenceService.GenererOccurrencesInitialesAsync(execOf.Id);
 
         return new ExecControleOfDto
         {
@@ -222,19 +234,47 @@ public class AssemblageExecutionService : IAssemblageExecutionService
             return new MachineDto { 
                 CodeMachine = m.CodeMachine, 
                 Libelle = m.Libelle, 
-                HasDemarragePlan = per.Any(p => p.Contains("démarrage") || p.Contains("demarrage")),
-                HasApresPausePlan = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause")),
-                HasFinPostePlan = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste"))
+                HasDemarragePlan = per.Any(p => p.Contains("démarrage") || p.Contains("demarrage") || p.Contains("début") || p.Contains("debut")),
+                HasApresPausePlan = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause") || p.Contains("pause")),
+                HasFinPostePlan = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste") || p.Contains("fin du poste") || p.Contains("fin"))
             };
         });
     }
 
-    public async Task<bool> MarquerDocumentTermineAsync(Guid statutId, string? matricule = null)
+    public async Task<bool> MarquerDocumentTermineAsync(Guid statutId, string? matricule = null, string periodicite = "")
     {
         var statut = await _operateurRepository.GetDocumentStatutByIdAsync(statutId);
         if (statut == null) return false;
 
-        statut.EstDemarrageTermine = true;
+        bool hasApresPause = false;
+        bool hasFinPoste = false;
+        
+        if (!string.IsNullOrEmpty(statut.MachineCode))
+        {
+            var periodicitesMap = await _operateurRepository.GetMachinesPlanPeriodicitesAsync();
+            if (periodicitesMap.ContainsKey(statut.MachineCode))
+            {
+                var per = periodicitesMap[statut.MachineCode];
+                hasApresPause = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause") || p.Contains("pause"));
+                hasFinPoste = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste") || p.Contains("fin du poste") || p.Contains("fin"));
+            }
+        }
+
+        if (periodicite == "APRES_PAUSE")
+        {
+            statut.EstPauseTermine = true;
+            if (!hasFinPoste) statut.EstTermine = true;
+        }
+        else if (periodicite == "FIN_POSTE" || periodicite == "fin_poste")
+        {
+            statut.EstTermine = true;
+        }
+        else
+        {
+            statut.EstDemarrageTermine = true;
+            if (!hasApresPause && !hasFinPoste) statut.EstTermine = true;
+        }
+
         statut.DateTermine = DateTime.Now;
         if (!string.IsNullOrEmpty(matricule))
         {
@@ -245,12 +285,24 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         return true;
     }
 
-    public async Task<bool> RouvrirDocumentAsync(Guid statutId)
+    public async Task<bool> RouvrirDocumentAsync(Guid statutId, string periodicite = "")
     {
         var statut = await _operateurRepository.GetDocumentStatutByIdAsync(statutId);
         if (statut == null) return false;
 
-        statut.EstTermine = false;
+        if (periodicite == "APRES_PAUSE")
+        {
+            statut.EstPauseTermine = false;
+        }
+        else if (periodicite == "FIN_POSTE" || periodicite == "fin_poste")
+        {
+            statut.EstTermine = false;
+        }
+        else
+        {
+            statut.EstDemarrageTermine = false;
+            statut.EstTermine = false;
+        }
         statut.DateTermine = null;
 
         await _operateurRepository.SaveChangesAsync();
@@ -277,7 +329,7 @@ public class AssemblageExecutionService : IAssemblageExecutionService
                 CodeArticle = of.CodeArticle,
                 QuantiteLancee = of.QuantiteLancee,
                 DateDebut = execExistante != null ? execExistante.DateDebut : of.DateDebut,
-                Statut = execExistante != null ? "EN_COURS" : null,
+                Statut = execExistante != null ? execExistante.Statut : null,
                 ExecControleOfId = execExistante?.Id,
                 PostesExistants = execExistante?.ExecControleOfPostes.Select(p => p.PosteCode).ToList() ?? new List<string>()
             });

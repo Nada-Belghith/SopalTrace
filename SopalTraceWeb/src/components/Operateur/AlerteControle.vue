@@ -140,12 +140,12 @@
                       <button @click="setAllResults('NC')" class="px-2 py-0.5 text-[10px] uppercase font-bold border-t border-b border-r rounded-r-lg bg-red-50 text-red-700 hover:bg-red-100 border-red-200 transition-colors" title="Marquer tout comme Non-Conforme">Tout NC</button>
                     </div>
                   </th>
-                  <th class="px-3 py-3" v-if="!selectedOcc.trancheHoraire?.startsWith('REGLAGE')">Valeur / Remarque</th>
+                  <th class="px-3 py-3 w-48">Valeur / Remarque</th>
                 </tr>
               </thead>
               <tbody v-for="group in groupedCaracteristiques" :key="group.sectionId">
                 <tr class="bg-blue-100 border-b border-blue-200">
-                  <td :colspan="(selectedOcc.trancheHoraire?.startsWith('REGLAGE') ? 7 : 8) + extraCols.length" class="px-3 py-2 text-center font-bold text-blue-900 shadow-sm">
+                  <td :colspan="8 + extraCols.length" class="px-3 py-2 text-center font-bold text-blue-900 shadow-sm">
                     {{ formatSectionLibelle(group.sectionLibelle) }}
                   </td>
                 </tr>
@@ -180,32 +180,21 @@
                       </button>
                     </div>
                   </td>
-                  <td class="px-3 py-3" v-if="!selectedOcc.trancheHoraire?.startsWith('REGLAGE')">
-                    <span v-if="selectedOcc.estRepondu" 
-                          :class="{
-                            'bg-green-100 text-green-800 border border-green-200': selectedOcc.resultat === 'C',
-                            'bg-red-100 text-red-800 border border-red-200': selectedOcc.resultat === 'NC',
-                            'bg-yellow-100 text-yellow-800 border border-yellow-200': selectedOcc.resultat === 'REGLAGE',
-                            'bg-gray-200 text-gray-700 border border-gray-300': selectedOcc.resultat === 'IGNORE'
-                          }"
-                          class="ml-2 px-2 py-0.5 text-xs rounded-full font-medium shadow-sm">
-                      {{ selectedOcc.resultat === 'C' ? 'Conforme' : 
-                         selectedOcc.resultat === 'NC' ? 'Non Conforme' : 
-                         selectedOcc.resultat === 'REGLAGE' ? 'Réglage' : 
-                         selectedOcc.resultat === 'IGNORE' ? 'Ignoré' : 'Répondu' }}
-                    </span>
-                    <input v-if="cara.typeControle === 'Mesure'" type="number" step="0.01" 
-                           v-model="forms[selectedOcc.id][cara.lignePlanId].valeurMesuree"
-                           class="w-full border rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Valeur...">
-                    <div v-if="getLigneResultat(selectedOcc.id, cara.lignePlanId) && !selectedOcc.trancheHoraire?.startsWith('REGLAGE')">
-                      <input type="text" 
-                             v-model="forms[selectedOcc.id][cara.lignePlanId].remarque"
-                             class="w-full border rounded p-1.5 text-sm mt-1 focus:ring-blue-500 focus:border-blue-500"
-                             :class="getLigneResultat(selectedOcc.id, cara.lignePlanId) === 'NC' ? 'border-red-300' : 'border-gray-300'"
-                             :placeholder="getLigneResultat(selectedOcc.id, cara.lignePlanId) === 'NC' ? 'Détails de la Non-Conformité (optionnel)...' : 'Remarque ou observation (optionnel)...'">
-                      <input v-if="getLigneResultat(selectedOcc.id, cara.lignePlanId) === 'NC'" type="text" 
-                             v-model="forms[selectedOcc.id][cara.lignePlanId].actionCorrective"
-                             class="w-full border border-red-300 rounded p-1.5 text-sm mt-1 focus:ring-red-500 focus:border-red-500" placeholder="Action de correction (obligatoire pour NC)...">
+                  <td class="px-3 py-3">
+                    <div>
+                      <input v-if="cara.typeControle === 'Mesure'" type="number" step="0.01" 
+                             v-model="forms[selectedOcc.id][cara.lignePlanId].valeurMesuree"
+                             class="w-full border rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 mb-1" placeholder="Valeur...">
+                      <div v-if="getLigneResultat(selectedOcc.id, cara.lignePlanId)">
+                        <input type="text" 
+                               v-model="forms[selectedOcc.id][cara.lignePlanId].remarque"
+                               class="w-full border rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500"
+                               :class="getLigneResultat(selectedOcc.id, cara.lignePlanId) === 'NC' ? 'border-red-300' : 'border-gray-300'"
+                               :placeholder="getLigneResultat(selectedOcc.id, cara.lignePlanId) === 'NC' ? 'Détails de la Non-Conformité...' : 'Remarque ou observation (optionnel)...'">
+                        <input v-if="getLigneResultat(selectedOcc.id, cara.lignePlanId) === 'NC'" type="text" 
+                               v-model="forms[selectedOcc.id][cara.lignePlanId].actionCorrective"
+                               class="w-full border border-red-300 rounded p-1.5 text-sm mt-1 focus:ring-red-500 focus:border-red-500" placeholder="Action corrective (obligatoire pour NC)...">
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -328,6 +317,7 @@ const operateurStore = useOperateurStore();
 const tranches = computed(() => operateurStore.alertesParOf[props.execControleOfId] || []);
 const loading = ref(true);
 let clockInterval = null;
+let pollInterval = null;
 
 const currentTime = ref('');
 const selectedOcc = ref(null);
@@ -380,6 +370,15 @@ const formatSectionLibelle = (lib) => {
   return lib;
 };
 
+const isPlanAssSection = (lib) => {
+  if (!lib) return false;
+  const lower = lib.toLowerCase();
+  if (lower.includes("échantillonnage") || lower.includes("echantillonnage") || lower.includes("fe0591")) {
+    return false;
+  }
+  return lower.includes("100%") || lower.includes("100 %") || lower.includes("plan d'assemblage") || lower.includes("plan_ass");
+};
+
 const extraCols = computed(() => {
   if (!selectedOcc.value?.caracteristiques) return [];
   const map = new Map();
@@ -429,7 +428,8 @@ const initForms = (data) => {
 
 const fetchAlertes = async () => {
   try {
-    const response = await operateurService.getAlertesActives(props.execControleOfId);
+    const pCode = props.posteCode || route.query.posteCode || null;
+    const response = await operateurService.getAlertesActives(props.execControleOfId, pCode);
     operateurStore.alertesParOf[props.execControleOfId] = response.data;
     
     if (route.query.autoOpen1stPending === 'true' && response.data && response.data.length > 0) {
@@ -467,10 +467,16 @@ onMounted(() => {
   clockInterval = setInterval(updateClock, 1000);
   
   fetchAlertes();
+  pollInterval = setInterval(() => {
+    if (!selectedOcc.value) {
+      fetchAlertes();
+    }
+  }, 300000);
 });
 
 onUnmounted(() => {
   if (clockInterval) clearInterval(clockInterval);
+  if (pollInterval) clearInterval(pollInterval);
   operateurStore.isPollingPaused = false;
 });
 
@@ -563,6 +569,7 @@ const getLigneResultat = (occId, ligneId) => {
 const isOccurrenceComplete = (occ) => {
   if (!occ.caracteristiques || occ.caracteristiques.length === 0) return true;
   return occ.caracteristiques.every(cara => {
+    if (isPlanAssSection(cara.sectionLibelle)) return true;
     return forms.value[occ.id]?.[cara.lignePlanId]?.resultat != null;
   });
 };
@@ -638,7 +645,7 @@ const soumettreOccurrence = async (occ, forceResultat = null) => {
 
 const executerSoumissionOccurrence = async (occ, forceResultat, raison) => {
   try {
-    const lignesForms = Object.values(forms.value[occ.id] || {});
+    const lignesForms = Object.values(forms.value[occ.id] || {}).filter(l => l.resultat != null && l.resultat !== '');
     let resultatGlobal = forceResultat;
 
     if (!resultatGlobal) {

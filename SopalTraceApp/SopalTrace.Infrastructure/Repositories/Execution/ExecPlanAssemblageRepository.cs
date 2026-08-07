@@ -23,6 +23,7 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             return await _context.ExecControleOfs
                 .Include(e => e.NumeroOfNavigation)
                     .ThenInclude(o => o.CodeArticleNavigation)
+                .Include(e => e.ExecControleOfPostes)
                 .FirstOrDefaultAsync(e => e.Id == id);
         }
 
@@ -65,6 +66,8 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             var plans = await _context.Set<DocumentEntete>()
                 .Include(p => p.DocumentSections)
                     .ThenInclude(s => s.TypeSection)
+                .Include(p => p.DocumentSections)
+                    .ThenInclude(s => s.RegleEchantillonnage)
                 .Include(p => p.DocumentSections)
                     .ThenInclude(s => s.DocumentLignes)
                         .ThenInclude(l => l.Caracteristique)
@@ -163,6 +166,8 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             return await _context.DocumentEntetes
                 .Include(p => p.DocumentSections)
                     .ThenInclude(s => s.TypeSection)
+                .Include(p => p.DocumentSections)
+                    .ThenInclude(s => s.RegleEchantillonnage)
                 .Include(p => p.DocumentSections)
                     .ThenInclude(s => s.DocumentLignes)
                         .ThenInclude(l => l.Caracteristique)

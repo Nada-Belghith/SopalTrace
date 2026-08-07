@@ -126,13 +126,10 @@ public class ExecutionOfService : IExecutionOfService
 
         execOf.EstEnReglage = true;
         execOf.Statut = "REGLAGE";
-        if (!execOf.DateFin.HasValue)
-        {
-            execOf.DateFin = DateTime.Now;
-        }
+        execOf.DateFin = DateTime.Now;
         
         var futureUnansweredOccurrences = execOf.ExecPrelevementIntermediaires
-            .Where(o => o.HeureNotifPrevue > DateTime.Now && !o.EstRepondu)
+            .Where(o => !o.TrancheHoraire.StartsWith("REGLAGE") && !o.EstRepondu && o.HeureNotifPrevue >= execOf.DateFin)
             .ToList();
             
         foreach (var occ in futureUnansweredOccurrences)

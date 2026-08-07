@@ -53,6 +53,12 @@ const displayedMachines = computed(() => {
       !(m.hasDemarragePlan || m.hasApresPausePlan || m.hasFinPostePlan)
     )
   }
+  if (props.targetPeriodicite === 'APRES_PAUSE') {
+    return props.machinesPoste.filter(m => 
+      m.hasApresPausePlan || 
+      !(m.hasDemarragePlan || m.hasApresPausePlan || m.hasFinPostePlan)
+    )
+  }
   return props.machinesPoste
 })
 
@@ -68,13 +74,18 @@ const hasDocForCurrentSession = (machineCode) => {
   return docs.some(d => d.equipe === props.sessionEquipe && d.dateExecution && d.dateExecution.split('T')[0] === todayStr)
 }
 
+const isDocTermineForCurrentMode = (doc) => {
+  if (doc.estTermine) return true
+  if (props.targetPeriodicite === 'APRES_PAUSE') return doc.estPauseTermine
+  if (props.targetPeriodicite === 'FIN_POSTE') return doc.estTermine
+  if (props.isDemarrageMode || props.targetPeriodicite === 'demarrage') return doc.estDemarrageTermine
+  return doc.estTermine
+}
+
 const isMachineTerminee = (machineCode) => {
   const docs = getDocs(machineCode)
   if (docs.length === 0) return false
-  if (props.isDemarrageMode) {
-    return docs.every(d => d.estDemarrageTermine || d.estTermine)
-  }
-  return docs.every(d => d.estTermine)
+  return docs.every(d => isDocTermineForCurrentMode(d))
 }
 
 const formatDate = (dateStr) => {
@@ -128,7 +139,7 @@ const formatDate = (dateStr) => {
               <!-- Boutons pour chaque document existant -->
               <template v-for="doc in getDocs(machine.codeMachine)" :key="doc.id">
                 <Button 
-                  v-if="!doc.estDemarrageTermine && !doc.estTermine" 
+                  v-if="!isDocTermineForCurrentMode(doc)" 
                   icon="pi pi-check" 
                   severity="success" 
                   outlined 
@@ -137,7 +148,7 @@ const formatDate = (dateStr) => {
                   v-tooltip.top="'Marquer comme terminé'" 
                 />
                 <Button 
-                  v-if="doc.estTermine" 
+                  v-if="isDocTermineForCurrentMode(doc)" 
                   icon="pi pi-undo" 
                   severity="warning" 
                   outlined 
@@ -146,9 +157,9 @@ const formatDate = (dateStr) => {
                   v-tooltip.top="'Réouvrir le document'" 
                 />
                 <Button 
-                  :label="(doc.estTermine ? 'Consulter' : 'Ouvrir') + ' (' + (doc.equipe || 'N/A') + ' - ' + formatDate(doc.dateExecution) + ')'" 
-                  :icon="doc.estTermine ? 'pi pi-eye' : 'pi pi-pencil'" 
-                  :severity="doc.estTermine ? 'secondary' : 'primary'" 
+                  :label="(isDocTermineForCurrentMode(doc) ? 'Consulter' : 'Ouvrir') + ' (' + (doc.equipe || 'N/A') + ' - ' + formatDate(doc.dateExecution) + ')'" 
+                  :icon="isDocTermineForCurrentMode(doc) ? 'pi pi-eye' : 'pi pi-pencil'" 
+                  :severity="isDocTermineForCurrentMode(doc) ? 'secondary' : 'primary'" 
                   size="small" 
                   @click="emit('ouvrir-document', { ...doc, targetPeriodicite: props.targetPeriodicite || (props.isDemarrageMode ? 'demarrage' : '') })" 
                 />
@@ -168,9 +179,9 @@ const formatDate = (dateStr) => {
 
 
 
-            <!-- Bouton Initialiser disponible dès qu'aucun document n'existe pour la session/équipe courante aujourd'hui -->
+            <!-- Bouton Initialiser disponible uniquement si aucun document n'existe encore pour la machine -->
             <Button 
-              v-if="!hasDocForCurrentSession(machine.codeMachine) && (machine.hasDemarragePlan || machine.hasApresPausePlan || machine.hasFinPostePlan)" 
+              v-if="getDocs(machine.codeMachine).length === 0 && (machine.hasDemarragePlan || machine.hasApresPausePlan || machine.hasFinPostePlan)" 
               label="Initialiser" 
               icon="pi pi-play" 
               severity="success" 

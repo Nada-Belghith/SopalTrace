@@ -50,17 +50,56 @@ public class OccurrenceRepository : IOccurrenceRepository
         return sections.Where(s => IsEchantillonnageSection(s)).ToList();
     }
 
+    public async Task<bool> IsDemarrageAssTermineAsync(Guid execControleOfId)
+    {
+        var statuts = await _context.ExecControleDocumentStatuts
+            .Where(s => s.ExecControleOfId == execControleOfId)
+            .ToListAsync();
+
+        if (!statuts.Any()) return true;
+
+        var vmStatuts = statuts.Where(s => s.TypeDocument == "VERIF_MACHINE").ToList();
+        var planStatuts = statuts.Where(s => s.TypeDocument == "PLAN_ASS" || s.TypeDocument == "PLAN_ASSEMBLAGE").ToList();
+
+        if (!vmStatuts.Any() && !planStatuts.Any()) return true;
+
+        bool vmDone = !vmStatuts.Any() || vmStatuts.All(s => s.EstDemarrageTermine || s.EstTermine);
+        bool planDone = !planStatuts.Any() || planStatuts.All(s => s.EstDemarrageTermine || s.EstTermine || s.EstPauseTermine);
+
+        return vmDone && planDone;
+    }
+
     public async Task<List<DocumentSection>> GetDocumentSectionsActivesAsync(Guid execControleOfId)
     {
-        var docIds = await _context.ExecControleDocumentStatuts
-            .Where(s => s.ExecControleOfId == execControleOfId && s.DocId.HasValue)
+        return await GetDocumentSectionsActivesParPosteAsync(execControleOfId, null!);
+    }
+
+    public async Task<List<DocumentSection>> GetDocumentSectionsActivesParPosteAsync(Guid execControleOfId, string posteCode)
+    {
+        var query = _context.ExecControleDocumentStatuts
+            .Where(s => s.ExecControleOfId == execControleOfId && s.DocId.HasValue);
+
+        if (!string.IsNullOrEmpty(posteCode))
+        {
+            query = query.Where(s => s.PosteCode == posteCode);
+        }
+
+        var docIds = await query
             .Select(s => s.DocId!.Value)
             .Distinct()
             .ToListAsync();
 
         if (!docIds.Any()) return new List<DocumentSection>();
 
+        var matchingEnteteIds = await _context.DocumentEntetes
+            .Where(d => docIds.Contains(d.Id) || (d.FormulaireId.HasValue && docIds.Contains(d.FormulaireId.Value)))
+            .Select(d => d.Id)
+            .ToListAsync();
+
+        var allEnteteIds = docIds.Concat(matchingEnteteIds).Distinct().ToList();
+
         return await _context.DocumentSections
+            .Include(s => s.Entete)
             .Include(s => s.TypeSection)
             .Include(s => s.Periodicite)
             .Include(s => s.RegleEchantillonnage)
@@ -70,8 +109,14 @@ public class OccurrenceRepository : IOccurrenceRepository
                 .ThenInclude(l => l.MoyenControle)
             .Include(s => s.DocumentLignes)
                 .ThenInclude(l => l.Caracteristique)
-            .Where(s => docIds.Contains(s.EnteteId))
+            .Where(s => allEnteteIds.Contains(s.EnteteId))
             .ToListAsync();
+    }
+
+    public async Task<List<DocumentSection>> GetDocumentSectionsEchantillonnageParPosteAsync(Guid execControleOfId, string posteCode)
+    {
+        var sections = await GetDocumentSectionsActivesParPosteAsync(execControleOfId, posteCode);
+        return sections.Where(s => IsEchantillonnageSection(s)).ToList();
     }
 
     private static bool IsEchantillonnageSection(DocumentSection s)

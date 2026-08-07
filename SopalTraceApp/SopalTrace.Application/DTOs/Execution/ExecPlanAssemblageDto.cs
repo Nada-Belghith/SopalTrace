@@ -93,6 +93,7 @@ namespace SopalTrace.Application.DTOs.Execution
     {
         public Guid TrancheId { get; set; }
         public string? Contexte { get; set; }
+        public string? Periodicite { get; set; } // demarrage, FIN_POSTE
         public string? Resultat { get; set; }
         public string? NonConformite { get; set; }
         public string? ActionCorrective { get; set; }

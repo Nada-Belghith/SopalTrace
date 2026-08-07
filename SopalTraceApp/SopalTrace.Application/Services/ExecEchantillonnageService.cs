@@ -98,6 +98,10 @@ namespace SopalTrace.Application.Services
 
             await _unitOfWork.ExecEchantillonnageRepository.AddAsync(execEchantillonnage);
 
+            // Ajuster TempsPauseTotalMinutes pour que les occurrences d'échantillonnage
+            // commencent à partir de MAINTENANT, et non pas depuis le début de l'OF (DateDebut).
+            execOf.TempsPauseTotalMinutes = (DateTime.Now - execOf.DateDebut).TotalMinutes;
+
             await _unitOfWork.CommitAsync();
 
             return new ExecEchantillonnageDto

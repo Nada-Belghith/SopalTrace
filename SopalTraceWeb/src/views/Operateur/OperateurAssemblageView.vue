@@ -100,6 +100,17 @@ onMounted(async () => {
       selectedPoste.value = route.query.posteCode
     }
     await fetchDocumentsStatus()
+    
+    if (route.query.finPoste === 'true' || route.query.isFinPoste === 'true' || (execOfIdActif.value && sessionStorage.getItem('finPoste_' + execOfIdActif.value) === 'true')) {
+      isFinPosteMode.value = true
+    }
+
+    if (route.query.triggerApresPause === 'true') {
+      openVerifMachineDialog(false, 'APRES_PAUSE')
+      const newQuery = { ...route.query }
+      delete newQuery.triggerApresPause
+      router.replace({ query: newQuery })
+    }
   }
 })
 
@@ -112,6 +123,17 @@ watch([() => route.query.execControleOfId, () => route.query.posteCode, () => ro
     if (of) ofActif.value = of
     if (route.query.posteCode) selectedPoste.value = route.query.posteCode
     await fetchDocumentsStatus()
+    
+    if (route.query.finPoste === 'true' || route.query.isFinPoste === 'true' || (execOfIdActif.value && sessionStorage.getItem('finPoste_' + execOfIdActif.value) === 'true')) {
+      isFinPosteMode.value = true
+    }
+
+    if (route.query.triggerApresPause === 'true') {
+      openVerifMachineDialog(false, 'APRES_PAUSE')
+      const newQuery = { ...route.query }
+      delete newQuery.triggerApresPause
+      router.replace({ query: newQuery })
+    }
   }
 })
 
@@ -152,10 +174,8 @@ const onOfClick = (of) => {
 }
 
 const postesExistants = computed(() => ofClique.value?.postesExistants ?? [])
-const postesAAjouter = computed(() =>
-  postesDisponibles.value.filter(p => !postesExistants.value.includes(p.codePoste))
-)
-const isDejaEnCours = computed(() => ofClique.value?.statut === 'EN_COURS')
+const postesAAjouter = computed(() => postesDisponibles.value)
+const isDejaEnCours = computed(() => ofClique.value?.statut && ['EN_COURS', 'REGLAGE', 'EN_PAUSE'].includes(ofClique.value.statut))
 
 // ────────────────────────── Démarrer ou Ajouter ───────────────────────
 const confirmerPostes = async ({ postes: postesSelectionnes, equipe }) => {
@@ -222,7 +242,8 @@ const fetchDocumentsStatus = async () => {
     documents.value = response.data
     
     try {
-      const responseAlertes = await apiClient.get(`/Operateur/of/${execOfIdActif.value}/alertes-actives`)
+      const pCode = selectedPoste.value ? `?posteCode=${encodeURIComponent(selectedPoste.value)}` : ''
+      const responseAlertes = await apiClient.get(`/Operateur/of/${execOfIdActif.value}/alertes-actives${pCode}`)
       alertesActives.value = responseAlertes.data || []
     } catch (e) {
       console.warn('Erreur chargement alertes-actives', e)
@@ -245,25 +266,30 @@ const documentCategories = computed(() => {
 
   // Verif Machine : Démarrage vs Clôture Finale
   const isVmForceTermine = posteDocs.some(d => d.typeDocument === 'CLOTURE_VM_POSTE')
-  const isVmDemarrageTermine = isVmForceTermine || (
+  const hasDoneVmDocs = vmDocs.length > 0 && vmDocs.every(d => d.estDemarrageTermine || d.estTermine)
+  const isVmDemarrageTermine = isVmForceTermine || hasDoneVmDocs || (
     isLoadingDocs.value ? false : (
       machinesPoste.value.length > 0 && machinesPoste.value.every(m => {
+        // Une machine sans plan de démarrage (comme MAS26) n'est pas requise en démarrage
+        if (!m.hasDemarragePlan) return true
         const mDocs = vmDocs.filter(d => d.machineCode === m.codeMachine)
         return mDocs.length > 0 && mDocs.every(d => d.estDemarrageTermine || d.estTermine)
       })
     )
   )
-  const isVmFinalTermine = isVmForceTermine || (
+  const hasFinalVmDocs = vmDocs.length > 0 && vmDocs.every(d => d.estTermine)
+  const isVmFinalTermine = isVmForceTermine || hasFinalVmDocs || (
     isLoadingDocs.value ? false : (
       machinesPoste.value.length > 0 && machinesPoste.value.every(m => {
+        if (!(m.hasDemarragePlan || m.hasApresPausePlan || m.hasFinPostePlan)) return true
         const mDocs = vmDocs.filter(d => d.machineCode === m.codeMachine)
         return mDocs.length > 0 && mDocs.every(d => d.estTermine)
       })
     )
   )
 
-  const cpDocs = posteDocs.filter(d => d.typeDocument === 'RESULTAT_CONTROLE_POSTE')
-  const isCpTermine = posteDocs.some(d => d.typeDocument === 'CLOTURE_RC_POSTE')
+  const cpDocs = posteDocs.filter(d => ['RESULTAT_CONTROLE_POSTE', 'DOCUMENT_CONTROLE_POSTE', 'CTRL_POSTE', 'RC_POSTE', 'RESULTAT_CP'].includes(d.typeDocument))
+  const isCpTermine = (cpDocs.length > 0 && cpDocs.every(d => d.estTermine)) || posteDocs.some(d => d.typeDocument === 'CLOTURE_RC_POSTE')
 
   const echDocs = posteDocs.filter(d => d.typeDocument === 'ECHANTILLONNAGE')
   const isEchTermine = echDocs.length > 0 && echDocs.every(d => d.estTermine)
@@ -282,6 +308,23 @@ const documentCategories = computed(() => {
     { id: 'planAss',        title: 'Plan Assemblage + Résultat',icon: 'pi pi-sitemap',   docs: planAssDocs, isDemarrageTermine: isPlanAssDemarrageTermine, isTermine: isPlanAssFinalTermine },
     { id: 'tracabilite',    title: 'Registre de Traçabilité',  icon: 'pi pi-history',    docs: tracaDocs, isDemarrageTermine: isTracaTermine, isTermine: isTracaTermine }
   ]
+})
+
+const isProduction = computed(() => {
+  if (!documentCategories.value || documentCategories.value.length === 0) return false;
+  
+  const echCat = documentCategories.value.find(c => c.id === 'echantillonnage');
+  const vmCat = documentCategories.value.find(c => c.id === 'verifMachine');
+  const planAssCat = documentCategories.value.find(c => c.id === 'planAss');
+  
+  if (echCat && !echCat.isTermine) return false;
+  
+  const isVmDemarrageDone = vmCat ? (vmCat.isDemarrageTermine ?? vmCat.isTermine) : true;
+  const isPlanAssDemarrageDone = planAssCat ? (planAssCat.isDemarrageTermine ?? planAssCat.isTermine) : true;
+  
+  if (!isVmDemarrageDone || !isPlanAssDemarrageDone) return false;
+  
+  return true;
 })
 
 const onCategoryClick = async (cat, isFromAssistant = false, opts = {}) => {
@@ -314,7 +357,13 @@ const onCategoryClick = async (cat, isFromAssistant = false, opts = {}) => {
       openEchantillonnageDialog()
     }
   } else if (cat.id === 'verifMachine') {
-    openVerifMachineDialog(isFromAssistant)
+    if (opts && opts.finPoste) {
+      openVerifMachineDialog(false, 'FIN_POSTE')
+    } else if (opts && opts.apresPause) {
+      openVerifMachineDialog(false, 'APRES_PAUSE')
+    } else {
+      openVerifMachineDialog(isFromAssistant)
+    }
   } else if (cat.id === 'documentControlePoste') {
     if (operateurStore) {
       operateurStore.setActiveOfContext({
@@ -346,7 +395,8 @@ const onCategoryClick = async (cat, isFromAssistant = false, opts = {}) => {
           params: { execControleOfId: execOfIdActif.value },
           query: { 
             posteCode: selectedPoste.value,
-            mode: 'auto'
+            mode: 'auto',
+            finPoste: opts?.finPoste ? 'true' : undefined
           }
         })
       }
@@ -380,7 +430,8 @@ const onCategoryClick = async (cat, isFromAssistant = false, opts = {}) => {
           posteCode: selectedPoste.value,
           isDemarrageDone: isDemarrageDoneNav ? 'true' : 'false',
           autoOpen1stPending: isFromAssistant ? 'true' : 'false',
-          autoOpen100pct: opts.section100pct ? 'true' : 'false'
+          autoOpen100pct: opts.section100pct ? 'true' : 'false',
+          finPoste: (opts?.finPoste || isFinPosteMode.value) ? 'true' : undefined
         }
       })
     } catch (err) {
@@ -392,7 +443,10 @@ const onCategoryClick = async (cat, isFromAssistant = false, opts = {}) => {
     router.push({
       name: 'exec-tracabilite',
       params: { execControleOfId: execOfIdActif.value },
-      query: { posteCode: selectedPoste.value }
+      query: { 
+        posteCode: selectedPoste.value,
+        finPoste: (opts?.finPoste || isFinPosteMode.value) ? 'true' : undefined
+      }
     })
   }
 }
@@ -445,14 +499,17 @@ const handleCloturerCategory = async (cat) => {
 
 const marquerTermine = async (docId) => {
   try {
-    await apiClient.put(`/Operateur/assemblage-documents/${docId}/terminer`)
+    const perio = targetPeriodiciteDialog.value || (isDemarrageModeDialog.value ? 'demarrage' : '')
+    await apiClient.put(`/Operateur/assemblage-documents/${docId}/terminer?periodicite=${perio}`)
+    toast.success('Succès', 'Document marqué comme terminé.')
     await fetchDocumentsStatus()
   } catch (error) { console.error('Erreur maj document:', error) }
 }
 
 const rouvrirDocument = async (docId) => {
   try {
-    await apiClient.put(`/Operateur/assemblage-documents/${docId}/rouvrir`)
+    const perio = targetPeriodiciteDialog.value || (isDemarrageModeDialog.value ? 'demarrage' : '')
+    await apiClient.put(`/Operateur/assemblage-documents/${docId}/rouvrir?periodicite=${perio}`)
     toast.success('Succès', 'Document réouvert avec succès.')
     await fetchDocumentsStatus()
   } catch (error) {
@@ -701,6 +758,12 @@ const loadMachinesForPoste = async () => {
   }
 }
 
+watch(selectedPoste, async (newPoste) => {
+  if (newPoste) {
+    await loadMachinesForPoste()
+  }
+}, { immediate: true })
+
 const addMachineToPoste = (machineCode) => {
   if (machineCode && !machinesPoste.value.some(m => m.codeMachine === machineCode)) {
     const machine = allMachines.value.find(m => m.codeMachine === machineCode)
@@ -854,22 +917,50 @@ const mettreEnReglageOf = async () => {
   }
 }
 
+const checkInitialFinPoste = () => {
+  if (typeof window === 'undefined') return false
+  const urlParams = new URLSearchParams(window.location.search)
+  const fp = urlParams.get('finPoste') || urlParams.get('isFinPoste')
+  if (fp === 'true') return true
+  const execId = urlParams.get('execControleOfId')
+  if (execId && sessionStorage.getItem('finPoste_' + execId) === 'true') return true
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i)
+    if (key && key.startsWith('finPoste_') && sessionStorage.getItem(key) === 'true') {
+      return true
+    }
+  }
+  return false
+}
+
+const isFinPosteMode = ref(checkInitialFinPoste())
+
+const triggerFinPoste = () => {
+  isFinPosteMode.value = true
+  if (execOfIdActif.value) {
+    sessionStorage.setItem('finPoste_' + execOfIdActif.value, 'true')
+  }
+}
+
 // eslint-disable-next-line no-unused-vars
-const cloturerOf = async () => {
+const confirmerClotureOf = async () => {
   const result = await Swal.fire({
-    title: 'Clôturer l\'OF d\'assemblage ?',
-    text: 'Êtes-vous sûr de vouloir clôturer définitivement cet ordre de fabrication ?',
+    title: 'Clôturer la session de l\'équipe ?',
+    text: 'Êtes-vous sûr de vouloir clôturer la session de travail de cet OF pour votre équipe ?',
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#d33',
     cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Oui, clôturer',
+    confirmButtonText: 'Oui, clôturer pour l\'équipe',
     cancelButtonText: 'Annuler'
   })
 
   if (result.isConfirmed) {
     try {
       await operateurService.cloturerOf(execOfIdActif.value)
+      if (execOfIdActif.value) {
+        sessionStorage.removeItem('finPoste_' + execOfIdActif.value)
+      }
       toast.success('Succès', 'L\'OF a été clôturé.')
       quitterSession()
     } catch (error) {
@@ -928,18 +1019,7 @@ const cloturerOf = async () => {
         
         <!-- Boutons d'action OF (Aux Réglages, Pause, Fin poste) -->
         <div class="flex items-center gap-2 flex-wrap">
-          <button @click="mettreEnReglageOf" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-cog"></i> Aux Réglages
-          </button>
-
-          <button v-if="ofActif?.statut === 'EN_PAUSE'" @click="reprendreOf" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-play"></i> Reprendre
-          </button>
-          <button v-else @click="mettreEnPauseOf" class="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-pause"></i> Pause
-          </button>
-
-          <button @click="cloturerOf" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+          <button @click="triggerFinPoste" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
             <i class="pi pi-stop"></i> Fin poste
           </button>
         </div>
@@ -951,7 +1031,10 @@ const cloturerOf = async () => {
         :categories="documentCategories"
         :documents="documents"
         :alertes="alertesActives"
+        :isFinPosteMode="isFinPosteMode"
         @action-click="(cat, opts) => onCategoryClick(cat, true, opts)"
+        @cloturer-poste="confirmerClotureOf"
+        @annuler-fin-poste="isFinPosteMode = false"
       />
 
       <!-- Corps Principal : Cartes des catégories de documents -->

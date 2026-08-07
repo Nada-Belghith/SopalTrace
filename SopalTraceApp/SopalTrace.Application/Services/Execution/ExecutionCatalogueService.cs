@@ -37,9 +37,9 @@ public class ExecutionCatalogueService : IExecutionCatalogueService
                 return new MachineDto { 
                     CodeMachine = m.CodeMachine, 
                     Libelle = m.Libelle, 
-                    HasDemarragePlan = per.Any(p => p.Contains("démarrage") || p.Contains("demarrage")),
-                    HasApresPausePlan = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause")),
-                    HasFinPostePlan = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste"))
+                    HasDemarragePlan = per.Any(p => p.Contains("démarrage") || p.Contains("demarrage") || p.Contains("début") || p.Contains("debut")),
+                    HasApresPausePlan = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause") || p.Contains("pause")),
+                    HasFinPostePlan = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste") || p.Contains("fin du poste") || p.Contains("fin"))
                 };
             })
             .ToList();
@@ -59,9 +59,9 @@ public class ExecutionCatalogueService : IExecutionCatalogueService
                 return new MachineDto { 
                     CodeMachine = m.CodeMachine, 
                     Libelle = m.Libelle, 
-                    HasDemarragePlan = per.Any(p => p.Contains("démarrage") || p.Contains("demarrage")),
-                    HasApresPausePlan = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause")),
-                    HasFinPostePlan = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste"))
+                    HasDemarragePlan = per.Any(p => p.Contains("démarrage") || p.Contains("demarrage") || p.Contains("début") || p.Contains("debut")),
+                    HasApresPausePlan = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause") || p.Contains("pause")),
+                    HasFinPostePlan = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste") || p.Contains("fin du poste") || p.Contains("fin"))
                 };
         }).ToList();
     }

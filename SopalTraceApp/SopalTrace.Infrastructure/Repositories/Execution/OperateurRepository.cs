@@ -405,16 +405,34 @@ public class OperateurRepository : IOperateurRepository
 
     public async Task<Dictionary<Guid, string>> GetFormulaireDesignationsAsync(IEnumerable<Guid> ids)
     {
-        return await _context.RefFormulaires
-            .Where(f => ids.Contains(f.Id))
-            .ToDictionaryAsync(f => f.Id, f => f.Designation);
+        var idList = ids.Distinct().ToList();
+        if (!idList.Any()) return new Dictionary<Guid, string>();
+
+        var refForms = await _context.RefFormulaires
+            .Where(f => idList.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, f => f.Designation ?? f.CodeReference);
+
+        var docEntetes = await _context.DocumentEntetes
+            .Where(d => idList.Contains(d.Id))
+            .Select(d => new { d.Id, Designation = !string.IsNullOrEmpty(d.Designation) ? d.Designation : d.Nom })
+            .ToDictionaryAsync(d => d.Id, d => d.Designation);
+
+        var result = new Dictionary<Guid, string>(refForms);
+        foreach (var kvp in docEntetes)
+        {
+            if (!result.ContainsKey(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
+            {
+                result[kvp.Key] = kvp.Value;
+            }
+        }
+        return result;
     }
 
     public async Task<IEnumerable<ExecControleOf>> GetExecsAssemblageEnCoursAsync()
     {
         return await _context.ExecControleOfs
             .Include(e => e.ExecControleOfPostes)
-            .Where(e => e.TypeOf == "ASS" && e.Statut == "EN_COURS")
+            .Where(e => e.TypeOf == "ASS" && e.Statut != "CLOTURE" && e.Statut != "TERMINE")
             .ToListAsync();
     }
 

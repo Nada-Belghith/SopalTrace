@@ -158,12 +158,12 @@ INSERT INTO dbo.PeriodiciteMachine (Code, Libelle, OrdreAffichage) VALUES
 ('PAU', 'Après la pause', 0), 
 ('FIN', 'A la fin du poste', 0);
 
-INSERT INTO dbo.Ref_RegleEchantillonnage (Code, Libelle) VALUES 
-('REG-9F43B', 'selon ISO 2859-1 : Tableau 2-A, avec un NQA de 0,65'),
-('REG-43BD2', 'Selon FE0591 : Effectif de l’échantillon /poste (A/B) (p/h)'),
-('REG-7A57N', 'la première et la dernière pièce et 0,01% du lot'),
-('REG-7A57C', 'selon ISO 3951-1 : Tableau 2, avec un NQA de 0,65'),
-('REG-8B29P', 'la première et la dernière pièce pour chaque poste');
+INSERT INTO dbo.Ref_RegleEchantillonnage (Code, Libelle, PerimetreControle) VALUES 
+('REG-9F43B', 'selon ISO 2859-1 : Tableau 2-A, avec un NQA de 0,65',            'ECHANTILLONNAGE'),
+('REG-43BD2', 'Selon FE0591 : Effectif de l''échantillon /poste (A/B) (p/h)', 'POSTE'),
+('REG-7A57N', 'la première et la dernière pièce et 0,01% du lot',              'OF'),
+('REG-7A57C', 'selon ISO 3951-1 : Tableau 2, avec un NQA de 0,65',            'ECHANTILLONNAGE'),
+('REG-8B29P', 'la première et la dernière pièce pour chaque poste',           'POSTE');
 
 -- 13. TYPES CARACTÉRISTIQUES ET CONTRÔLE
 INSERT INTO dbo.TypeCaracteristique (Code, Libelle) VALUES 

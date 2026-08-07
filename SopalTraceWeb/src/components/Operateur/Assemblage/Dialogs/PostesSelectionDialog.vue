@@ -40,10 +40,12 @@ const equipeSelectionnee = ref(null)
 
 watch(() => props.visible, (newVal) => {
   if (newVal) {
-    postesSelectionnes.value = []
+    postesSelectionnes.value = (props.isDejaEnCours && props.postesExistants && props.postesExistants.length > 0)
+      ? [...props.postesExistants]
+      : []
     equipeSelectionnee.value = null
   }
-})
+}, { immediate: true })
 
 const fermer = () => {
   emit('update:visible', false)
@@ -70,33 +72,23 @@ const confirmer = () => {
         <span class="font-semibold text-gray-800">Qté lancée :</span> {{ ofClique?.quantiteLancee ?? '-' }}
       </div>
 
-      <!-- Postes existants (lecture seule, si EN COURS) -->
-      <div v-if="isDejaEnCours && postesExistants.length > 0">
-        <label class="block text-sm font-bold text-gray-700 mb-2">
-          <i class="pi pi-lock mr-1 text-green-600"></i> Postes déjà enregistrés (non modifiables)
-        </label>
-        <div class="flex flex-wrap gap-2 bg-green-50 border border-green-200 rounded-lg p-3">
-          <Tag v-for="p in postesExistants" :key="p" :value="p" severity="success" />
-        </div>
-      </div>
-
-      <!-- Sélection de nouveaux postes -->
+      <!-- Sélection des postes -->
       <div>
         <label class="block text-sm font-bold text-gray-700 mb-2">
           <i class="pi pi-plus-circle mr-1 text-primary"></i>
-          {{ isDejaEnCours ? 'Ajouter des postes supplémentaires (optionnel)' : 'Sélectionner les postes de travail *' }}
+          Sélectionner les postes de travail *
         </label>
         <MultiSelect
           v-model="postesSelectionnes"
           :options="postesAAjouter"
           optionLabel="libelle"
           optionValue="codePoste"
-          :placeholder="isDejaEnCours ? 'Ajouter un poste...' : 'Sélectionner des postes'"
+          placeholder="Sélectionner des postes"
           :maxSelectedLabels="5"
           class="w-full"
           display="chip"
         />
-        <small v-if="!isDejaEnCours" class="text-gray-500 mt-1 block">
+        <small class="text-gray-500 mt-1 block">
           Sélectionnez tous les postes concernés par cet OF.
         </small>
       </div>
@@ -120,7 +112,7 @@ const confirmer = () => {
       <div class="flex justify-end gap-2 mt-4">
         <Button label="Annuler" icon="pi pi-times" severity="secondary" text @click="fermer" :disabled="isSubmitting" />
         <Button
-          :label="isDejaEnCours ? (postesSelectionnes?.length > 0 ? 'Ajouter et Reprendre' : 'Reprendre') : 'Démarrer l\'assemblage'"
+          :label="isDejaEnCours ? 'Reprendre' : 'Démarrer l\'assemblage'"
           :icon="isDejaEnCours ? 'pi pi-play' : 'pi pi-play'"
           severity="primary"
           @click="confirmer"

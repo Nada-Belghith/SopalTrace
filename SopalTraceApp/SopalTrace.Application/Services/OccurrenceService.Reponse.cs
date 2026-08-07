@@ -205,8 +205,8 @@ public partial class OccurrenceService
                 NumeroReglage = contexte == "REGLAGE" ? "REG" + occurrence.NumeroOccurrence : null,
                 ResultatType = l.Resultat == "C" ? "CONFORME" : l.Resultat == "NC" ? "NON_CONFORME" : "MESURE",
                 ValeurMesuree = (decimal?)l.ValeurMesuree,
-                DetailsNc = l.Resultat == "NC" ? l.Remarque : null,
-                ActionsCorrection = l.ActionCorrective,
+                DetailsNc = !string.IsNullOrWhiteSpace(l.Remarque) ? l.Remarque : null,
+                ActionsCorrection = !string.IsNullOrWhiteSpace(l.ActionCorrective) ? l.ActionCorrective : null,
                 OperateurId = operateurId.Value,
                 DateSaisie = DateTime.Now
             }).ToList());
@@ -275,12 +275,11 @@ public partial class OccurrenceService
         bool hasC = allOccurrences.Any(o => o.Resultat == "C");
         bool allReglage = allOccurrences.All(o => o.Resultat == "REGLAGE");
         bool allRepondu = allOccurrences.All(o => o.EstRepondu);
+        bool isReglageTranche = trancheHoraire.StartsWith("REGLAGE");
 
         tranche.ResultatFinal = hasNC ? "NC"
-            : allRepondu ? (hasC ? "C" : allReglage ? "REGLAGE" : "IGNORE")
+            : allRepondu ? (isReglageTranche ? "REGLAGE" : (hasC ? "C" : allReglage ? "REGLAGE" : "IGNORE"))
             : null;
-
-
 
         await _occurrenceRepository.SaveChangesAsync();
     }

@@ -19,7 +19,18 @@
           <p class="text-gray-500 m-0 mt-1 text-sm">Statut: <span class="font-semibold text-green-600">{{ execution?.statut || 'EN_COURS' }}</span></p>
         </div>
         
-        <div></div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button @click="mettreEnReglageOf" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+            <i class="pi pi-cog"></i> Aux Réglages
+          </button>
+
+          <button v-if="execution?.statut === 'EN_PAUSE'" @click="reprendreOf" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+            <i class="pi pi-play"></i> Reprendre la production
+          </button>
+          <button v-else @click="mettreEnPauseOf" class="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
+            <i class="pi pi-pause"></i> Pause
+          </button>
+        </div>
       </div>
     </div>
 
@@ -93,7 +104,7 @@
       </div>
       
       <!-- Section Contrôles en cours de production : géré en temps réel par AlerteControle -->
-      <div v-if="isDemarrageDone" class="mb-8">
+      <div v-if="!isFinPoste && (isProdActive || isDemarrageDone || execution?.estDemarrageTermine)" class="mb-8">
         <h4 class="text-lg font-bold text-blue-600 mb-4 flex items-center">
           <i class="pi pi-clock mr-2 text-xl"></i>
           Contrôles en cours de production (Saisie des Tranches & Occurrences)
@@ -114,7 +125,7 @@
             {{ formatTypeSection(sec.typeSection) }} — {{ sec.libelle }}
           </h4>
 
-          <div v-if="getGroupedTranches(sec).length > 0">
+          <div v-if="!isFinPoste && getGroupedTranches(sec).length > 0">
             <div v-for="trancheGroup in getGroupedTranches(sec)" :key="trancheGroup.trancheLabel" class="mb-6 border rounded overflow-hidden shadow-sm">
               <div class="bg-slate-100 p-3 font-bold border-b text-slate-800 flex justify-between items-center">
                 <div class="flex items-center space-x-3">
@@ -166,24 +177,26 @@
             </div>
           </div>
 
-          <div v-else-if="sec.resultats && sec.resultats.length > 0 && sec.resultats.every(r => r.resultat)" class="col-span-full text-center py-10 bg-green-50 border border-green-200 rounded-2xl text-green-800 my-2 shadow-sm">
+          <div v-else-if="!isFinPoste && ((sec.resultats && sec.resultats.length > 0 && sec.resultats.every(r => r.resultat)) || sec.estTermine || sec.estDemarrageTermine)" class="col-span-full text-center py-10 bg-green-50 border border-green-200 rounded-2xl text-green-800 my-2 shadow-sm">
             <i class="pi pi-check-circle text-4xl text-green-600 mb-3 block"></i>
             <span class="font-bold text-lg block">Toutes les occurrences de contrôle pour cette section ont été effectuées !</span>
             <span class="text-sm text-green-700 mt-1 block">La section est à jour et complète.</span>
           </div>
-          <div v-else-if="(!sec.resultats || sec.resultats.length === 0) && (sec.lignesPlan?.length > 0 || sec.lignesResultat?.length > 0)" class="p-5 rounded-xl border bg-white shadow-sm hover:shadow-md transition-all text-center col-span-full md:col-span-1 md:max-w-md mx-auto">
+          <div v-else-if="(isFinPoste || (!sec.resultats || sec.resultats.length === 0)) && (sec.lignesPlan?.length > 0 || sec.lignesResultat?.length > 0)" class="p-5 rounded-xl border-2 border-orange-300 bg-orange-50/50 shadow-sm hover:shadow-md transition-all text-center col-span-full md:col-span-1 md:max-w-md mx-auto my-4">
             <div class="font-bold flex items-center justify-center mb-3">
-               <span class="text-blue-600 bg-blue-100 px-2.5 py-1 rounded text-xs border border-blue-200 font-bold uppercase tracking-wider">⏳ CONTRÔLE À EXÉCUTER</span>
+               <span class="text-orange-700 bg-orange-100 px-3 py-1 rounded-full text-xs border border-orange-300 font-bold uppercase tracking-wider">
+                 <i class="pi pi-flag mr-1"></i> CONTRÔLE FIN DE POSTE
+               </span>
             </div>
-            <div class="text-gray-800 font-bold text-lg leading-snug">{{ sec.libelle }}</div>
+            <div class="text-gray-800 font-bold text-lg leading-snug mb-2">{{ sec.libelle }}</div>
             <div class="text-sm font-medium text-gray-500 mt-2 flex items-center justify-center gap-1.5 mb-5">
               <i class="pi pi-list text-gray-400"></i> {{ (sec.lignesPlan?.length || 0) + (sec.lignesResultat?.length || 0) }} caractéristique(s)
             </div>
             <button 
-              @click="openSaisirDialog({ id: 'init-' + sec.id, frequence: sec.libelle }, sec)" 
-              class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0"
+              @click="openSaisirDialog(null, sec)" 
+              class="w-full px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0 transition-colors"
             >
-              <i class="pi pi-check-square"></i> Exécuter le contrôle
+              <i class="pi pi-check-square"></i> Saisir le contrôle (Fin Poste)
             </button>
           </div>
           <div v-else-if="!sec.resultats || sec.resultats.length === 0" class="col-span-full text-center py-6 text-gray-500 text-sm">
@@ -273,7 +286,7 @@
               <div class="text-sm text-gray-500 mt-1">{{ sec.lignesPlan?.length || 0 }} caractéristique(s) à contrôler (Série de {{ execution.effectifEchantillonParHeure || 4 }} pièces)</div>
               
               <button 
-                @click="openSaisirDialog(sec.resultats?.[0] || { id: 'reg-' + idx, frequence: 'Démarrage (Réglage Initial)' }, sec); showReglagesModal = false" 
+                @click="openSaisirDialog(sec.resultats?.[0] || null, sec); showReglagesModal = false" 
                 class="mt-4 w-full px-4 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold rounded-lg shadow transition-colors cursor-pointer flex items-center justify-center gap-2 border-0"
               >
                 <i class="pi pi-check-square"></i> Exécuter le contrôle de réglage
@@ -423,6 +436,30 @@
       </div>
     </div>
 
+    <!-- Modal Motif Pause / Ignorer Optionnel -->
+    <div v-if="raisonModalConfig.show" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl animate-fade-in-up">
+        <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center">
+          <svg class="w-6 h-6 mr-2 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          {{ raisonModalConfig.titre }}
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">{{ raisonModalConfig.description }}</p>
+        <textarea v-model="raisonModalConfig.texte" 
+                  rows="3" 
+                  class="w-full border border-gray-300 rounded-lg shadow-sm focus:border-yellow-500 focus:ring-yellow-500 p-3 mb-4 text-sm" 
+                  placeholder="Saisissez le motif (Optionnel, ex: Panne machine, pause déjeuner)..."
+                  @keyup.enter="confirmerRaison"
+                  autofocus></textarea>
+        <div class="flex justify-end gap-3">
+          <button @click="annulerRaison" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Annuler</button>
+          <button @click="confirmerRaison" 
+                  class="px-4 py-2 bg-yellow-600 text-white hover:bg-yellow-700 rounded-lg font-medium shadow-sm transition-colors">
+            Confirmer
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -453,6 +490,8 @@ const props = defineProps({
     default: null
   }
 })
+
+const emit = defineEmits(['back', 'reprendre'])
 
 const route = useRoute()
 const router = useRouter()
@@ -504,16 +543,31 @@ const signalerDocsManquants = async () => {
   }
 }
 
+const isFinPoste = computed(() => route.query.finPoste === 'true')
+
+const isProdActive = computed(() => {
+  if (!execution.value) return false;
+  return execution.value.estDemarrageTermine || isDemarrageDone.value || execution.value.sections?.some(s => s.typeSection === 'ECHANTILLONNAGE' && s.resultats?.length > 0);
+})
+
 const visibleSections = computed(() => {
   if (!execution.value || !execution.value.sections) return [];
+
   return execution.value.sections.filter(sec => {
+    // Si c'est l'étape 4 (Fin de Poste), on n'affiche QUE les périmètres OF et POSTE
+    if (isFinPoste.value) {
+      return sec.typeSection === 'LOT_OF' || sec.typeSection === 'LOT_POSTE';
+    }
+
     if (sec.typeSection === 'REGLAGE' || sec.typeSection === 'REGLAGE_PROD' || sec.typeSection === 'ECHANTILLONNAGE') {
       return false;
     }
-    
-    // Les sections LOT_POSTE et LOT_OF sont affichées par défaut,
-    // l'état "FAIT" ou "A_FAIRE" gérera leur statut visuel.
-    
+
+    // Masquer les sections de périmètre (LOT_OF et LOT_POSTE) en phase de production (Étape 3)
+    if (isProdActive.value && (sec.typeSection === 'LOT_OF' || sec.typeSection === 'LOT_POSTE')) {
+      return false;
+    }
+
     return true;
   });
 })
@@ -542,6 +596,38 @@ const saisieForm = ref({
   piecesEchantillon: [],
   lignesControle: []
 })
+
+const raisonModalConfig = ref({
+  show: false,
+  texte: '',
+  titre: '',
+  description: '',
+  action: null,
+  payload: null
+})
+
+const demanderRaison = (titre, description, actionCallback, payload = null) => {
+  raisonModalConfig.value = {
+    show: true,
+    texte: '',
+    titre,
+    description,
+    action: actionCallback,
+    payload
+  }
+}
+
+const annulerRaison = () => {
+  raisonModalConfig.value.show = false
+}
+
+const confirmerRaison = () => {
+  const { action, texte, payload } = raisonModalConfig.value
+  raisonModalConfig.value.show = false
+  if (action) {
+    action(texte, payload)
+  }
+}
 
 const isCloturing = ref(false)
 
@@ -593,7 +679,7 @@ const loadData = async () => {
     // isDemarrageDone = true dès que les sections de démarrage sont toutes terminées
     if (!isDemarrageDone.value && execution.value?.sections) {
       const demarrageTermine = execution.value.sections
-        .filter(s => s.typeSection === 'DEMARRAGE' || s.typeSection === 'REGLAGE')
+        .filter(s => s.typeSection === 'LOT_OF' || s.typeSection === 'LOT_POSTE' || s.typeSection === 'REGLAGE')
         .every(s => s.estDemarrageTermine || s.estTermine)
       if (demarrageTermine || execution.value.sections.length === 0) {
         isDemarrageDone.value = true
@@ -648,7 +734,8 @@ const navigateAway = () => {
     name: 'operateur-of-fini',
     query: {
       execControleOfId: execControleOfId.value,
-      posteCode: posteCode.value
+      posteCode: posteCode.value,
+      finPoste: isFinPoste.value ? 'true' : undefined
     }
   })
 }
@@ -782,6 +869,8 @@ const submitResultat = async () => {
       saisieForm.value.nonConformite = ''
       saisieForm.value.actionCorrective = ''
     }
+    const isFinPoste = route.query.finPoste === 'true'
+    saisieForm.value.periodicite = isFinPoste ? 'FIN_POSTE' : 'demarrage'
 
     await execAssemblageService.saveResultat(execControleOfId.value, saisieForm.value)
     toast.success('Résultat enregistré avec succès')
@@ -813,42 +902,57 @@ const cloturerDoc = async () => {
 }
 
 const mettreEnPauseOf = async () => {
-  const result = await Swal.fire({
-    title: 'Mettre la production en Pause ?',
-    text: 'Voulez-vous vraiment mettre l\'OF en pause ?',
-    input: 'text',
-    inputPlaceholder: 'Motif (Optionnel, ex: Panne machine, pause déjeuner)...',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#eab308',
-    cancelButtonColor: '#64748b',
-    confirmButtonText: 'Oui, mettre en pause',
-    cancelButtonText: 'Annuler'
-  })
-
-  if (result.isConfirmed) {
-    try {
-      const raison = result.value?.trim() || 'Pause'
-      await operateurService.mettreEnPause(execControleOfId.value, raison)
-      toast.success('Production en Pause', 'L\'OF est maintenant en pause.')
-      if (execution.value) execution.value.statut = 'EN_PAUSE'
-      await loadData()
-    } catch (error) {
-      console.error(error)
-      toast.error('Erreur', 'Impossible de mettre en pause.')
+  demanderRaison(
+    'Mettre la production en Pause ?',
+    'Voulez-vous vraiment mettre l\'OF en pause ? (Motif Optionnel) :',
+    async (raison) => {
+      try {
+        const r = raison?.trim() || 'Pause'
+        await operateurService.mettreEnPause(execControleOfId.value, r)
+        toast.success('Production en Pause', 'L\'OF est maintenant en pause.')
+        if (execution.value) execution.value.statut = 'EN_PAUSE'
+        await loadData()
+      } catch (error) {
+        console.error(error)
+        toast.error('Erreur', 'Impossible de mettre en pause.')
+      }
     }
-  }
+  )
 }
 
 const reprendreOf = async () => {
   try {
     await operateurService.reprendreDepuisPause(execControleOfId.value)
-    toast.success('Reprise', 'La production a repris.')
+    toast.success('Reprise', 'La production a repris. Veuillez effectuer la vérification machine après pause.')
     if (execution.value) execution.value.statut = 'EN_COURS'
-    await loadData()
+    
+    if (props.embedded) {
+      emit('reprendre')
+    } else {
+      router.push({
+        name: 'operateur-of-fini',
+        query: { 
+          execControleOfId: execControleOfId.value,
+          posteCode: posteCode.value,
+          triggerApresPause: 'true' 
+        }
+      })
+    }
   } catch (error) {
     console.error(error)
     toast.error('Erreur', error.response?.data?.message || 'Impossible de reprendre la production.')
+  }
+}
+
+const mettreEnReglageOf = async () => {
+  try {
+    await operateurService.mettreEnReglage(execControleOfId.value)
+    toast.success('Mode Réglage', 'Production en mode réglage. Procédez aux contrôles au démarrage.')
+    if (execution.value) execution.value.statut = 'REGLAGE'
+    await loadData()
+  } catch (error) {
+    console.error(error)
+    toast.error('Erreur', 'Impossible de mettre en réglage.')
   }
 }
 
@@ -975,10 +1079,12 @@ const declarerTrancheReglage = async (trancheGroup) => {
   if (!result.isConfirmed) return
 
   try {
+    const isFinPoste = route.query.finPoste === 'true'
     for (const res of trancheGroup.resultats) {
       await execAssemblageService.saveResultat(execControleOfId.value, {
         trancheId: res.id,
-        resultat: 'REGLAGE'
+        resultat: 'REGLAGE',
+        periodicite: isFinPoste ? 'FIN_POSTE' : 'demarrage'
       })
     }
     toast.success('Succès', 'Tranche déclarée comme réglage.')
@@ -990,36 +1096,29 @@ const declarerTrancheReglage = async (trancheGroup) => {
 }
 
 const ignorerTranche = async (trancheGroup) => {
-  const result = await Swal.fire({
-    title: 'Ignorer la tranche ?',
-    text: `Voulez-vous vraiment ignorer tous les contrôles de la tranche ${trancheGroup.trancheLabel} ?`,
-    input: 'text',
-    inputPlaceholder: 'Raison de l\'ignorance (Optionnel)...',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#ef4444',
-    cancelButtonColor: '#64748b',
-    confirmButtonText: 'Oui, ignorer',
-    cancelButtonText: 'Annuler'
-  })
-
-  if (!result.isConfirmed) return
-
-  try {
-    const raison = result.value?.trim() || 'Ignoré'
-    for (const res of trancheGroup.resultats) {
-      await execAssemblageService.saveResultat(execControleOfId.value, {
-        trancheId: res.id,
-        resultat: 'IGNORE',
-        remarques: raison
-      })
+  demanderRaison(
+    'Ignorer la tranche ?',
+    `Voulez-vous vraiment ignorer tous les contrôles de la tranche ${trancheGroup.trancheLabel} ? (Motif Optionnel) :`,
+    async (raison) => {
+      try {
+        const r = raison?.trim() || 'Ignoré'
+        const isFinPoste = route.query.finPoste === 'true'
+        for (const res of trancheGroup.resultats) {
+          await execAssemblageService.saveResultat(execControleOfId.value, {
+            trancheId: res.id,
+            resultat: 'IGNORE',
+            remarques: r,
+            periodicite: isFinPoste ? 'FIN_POSTE' : 'demarrage'
+          })
+        }
+        toast.success('Succès', 'Tranche ignorée.')
+        await loadData()
+      } catch (error) {
+        console.error(error)
+        toast.error('Erreur', error.response?.data?.message || 'Erreur lors de l\'ignorance de la tranche.')
+      }
     }
-    toast.success('Succès', 'Tranche ignorée.')
-    await loadData()
-  } catch (error) {
-    console.error(error)
-    toast.error('Erreur', error.response?.data?.message || 'Erreur lors de l\'ignorance de la tranche.')
-  }
+  )
 }
 </script>
 

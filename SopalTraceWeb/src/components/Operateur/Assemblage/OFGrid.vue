@@ -23,6 +23,38 @@ const formatDate = (dateString) => {
     year: 'numeric'
   }).format(date)
 }
+
+const getStatutClass = (statut) => {
+  switch (statut) {
+    case 'REGLAGE':
+      return 'bg-amber-100 text-amber-700'
+    case 'EN_COURS':
+      return 'bg-green-50 text-green-600'
+    case 'EN_PAUSE':
+      return 'bg-blue-100 text-blue-700'
+    case 'CLOTURE':
+    case 'TERMINE':
+      return 'bg-slate-200 text-slate-700'
+    default:
+      return 'bg-gray-100 text-gray-500'
+  }
+}
+
+const formatStatutLabel = (statut) => {
+  switch (statut) {
+    case 'REGLAGE':
+      return 'EN RÉGLAGE'
+    case 'EN_COURS':
+      return 'EN COURS'
+    case 'EN_PAUSE':
+      return 'EN PAUSE'
+    case 'CLOTURE':
+    case 'TERMINE':
+      return 'CLÔTURÉ'
+    default:
+      return 'NON COMMENCÉ'
+  }
+}
 </script>
 
 <template>
@@ -44,8 +76,8 @@ const formatDate = (dateString) => {
         <div class="flex justify-between items-start mb-4">
           <span class="text-xs font-bold text-blue-600 tracking-wider">OF: {{ of.numeroOf }}</span>
           <span class="px-2 py-1 font-bold text-[10px] rounded uppercase tracking-wider"
-                :class="of.statut === 'EN_COURS' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'">
-            {{ of.statut === 'EN_COURS' ? 'EN COURS' : 'NON COMMENCÉ' }}
+                :class="getStatutClass(of.statut)">
+            {{ formatStatutLabel(of.statut) }}
           </span>
         </div>
 
@@ -79,7 +111,7 @@ const formatDate = (dateString) => {
           </div>
           <div class="text-right">
             <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Date début</p>
-            <p class="text-sm font-medium text-slate-600">{{ of.statut === 'EN_COURS' && of.dateDebut ? formatDate(of.dateDebut) : '-' }}</p>
+            <p class="text-sm font-medium text-slate-600">{{ of.dateDebut ? formatDate(of.dateDebut) : '-' }}</p>
           </div>
         </div>
       </div>

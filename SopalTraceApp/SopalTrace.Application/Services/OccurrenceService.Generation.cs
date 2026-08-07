@@ -15,7 +15,20 @@ public partial class OccurrenceService
         try
         {
             var of = await _occurrenceRepository.GetExecControleOfWithIntermediairesAsync(execControleOfId);
-            if (of == null || of.Statut == "EN_PAUSE") return;
+            if (of == null || of.Statut == "EN_PAUSE" || of.EstEnReglage || of.Statut == "REGLAGE") return;
+
+            if (of.TypeOf == "ASS")
+            {
+                 bool isDemarrageFini = await _occurrenceRepository.IsDemarrageAssTermineAsync(execControleOfId);
+                 if (!isDemarrageFini)
+                 {
+                     // Si le démarrage n'est pas terminé, on est toujours dans les écrans de réglage.
+                     // On synchronise le TempsPauseTotalMinutes pour ne générer aucune occurrence.
+                     of.TempsPauseTotalMinutes = (DateTime.Now - of.DateDebut).TotalMinutes;
+                     await _occurrenceRepository.SaveChangesAsync();
+                     return;
+                 }
+            }
 
             if (of.TypeOf == "FAB")
                 await GenererOccurrencesFabAsync(of);
@@ -58,12 +71,19 @@ public partial class OccurrenceService
             var prodSection = assSections.FirstOrDefault();
             if (prodSection != null)
             {
-                interval = CalculerIntervalleMinutes(prodSection.Periodicite);
-                if (interval.HasValue)
+                if (prodSection.Periodicite != null)
+                    interval = CalculerIntervalleMinutes(prodSection.Periodicite);
+
+                if (!interval.HasValue || interval.Value <= 0)
                 {
-                    var existantes = of.ExecPrelevementIntermediaires.Where(x => x.SectionId == prodSection.Id && x.NumeroOccurrence > 0).ToList();
-                    maxNumero = existantes.Any() ? existantes.Max(x => x.NumeroOccurrence) : 0;
+                    int? effectifParHeure = await _occurrenceRepository.GetEffectifEchantillonnageAsync(of.Id);
+                    interval = (effectifParHeure.HasValue && effectifParHeure.Value > 0)
+                        ? 60.0 / effectifParHeure.Value
+                        : 60.0;
                 }
+
+                var existantes = of.ExecPrelevementIntermediaires.Where(x => x.SectionId == prodSection.Id && x.NumeroOccurrence > 0).ToList();
+                maxNumero = existantes.Any() ? existantes.Max(x => x.NumeroOccurrence) : 0;
             }
         }
 
@@ -100,7 +120,8 @@ public partial class OccurrenceService
         {
             var assSections = await _occurrenceRepository.GetDocumentSectionsActivesAsync(execControleOfId);
             newIntermediaires.AddRange(assSections
-                .Where(s => s.TypeSection?.Code is "REGLAGE" or "REGLAGE_PROD")
+                .Where(s => (s.TypeSection?.Code is "REGLAGE" or "REGLAGE_PROD") || 
+                            (s.LibelleSection != null && (s.LibelleSection.Contains("réglage", StringComparison.OrdinalIgnoreCase) || s.LibelleSection.Contains("reglage", StringComparison.OrdinalIgnoreCase))))
                 .Select(s => CreerIntermediaire(of.Id, s.Id, trancheReglage, 0, DateTime.Now)));
         }
 
@@ -167,7 +188,7 @@ public partial class OccurrenceService
 
         foreach (var sec in sectionsEch)
         {
-            if (of.Statut == "EN_PAUSE") continue;
+            if (of.Statut == "EN_PAUSE" || of.EstEnReglage || of.Statut == "REGLAGE") continue;
 
             // Essayer la périodicité de la section, sinon utiliser l'effectif de la fiche
             double? intervalMinutes = null;
@@ -190,13 +211,23 @@ public partial class OccurrenceService
     private List<ExecPrelevementIntermediaire> GenererOccurrencesSectionProd(
         ExecControleOf of, Guid sectionId, double intervalMinutes, DateTime now)
     {
-        DateTime virtualDateDebut = of.DateDebut.AddMinutes(of.TempsPauseTotalMinutes);
-        double simulatedElapsed = (now - virtualDateDebut).TotalMinutes;
-        int expectedTotal = Math.Min((int)Math.Floor(simulatedElapsed / intervalMinutes) + 1, 500);
-
         var existantes = of.ExecPrelevementIntermediaires
             .Where(x => x.SectionId == sectionId && x.NumeroOccurrence > 0).ToList();
         int maxNumero = existantes.Any() ? existantes.Max(x => x.NumeroOccurrence) : 0;
+
+        DateTime virtualDateDebut = of.DateDebut.AddMinutes(of.TempsPauseTotalMinutes);
+
+        // Si aucune occurrence n'a encore été générée et que la date de début est dans le passé,
+        // réinitialiser le temps de démarrage virtuel à l'heure actuelle ('now') afin de ne pas générer
+        // des occurrences rétroactives sur des heures ou jours passés.
+        if (maxNumero == 0 && (now - virtualDateDebut).TotalMinutes > intervalMinutes)
+        {
+            virtualDateDebut = now;
+            of.TempsPauseTotalMinutes = (now - of.DateDebut).TotalMinutes;
+        }
+
+        double simulatedElapsed = (now - virtualDateDebut).TotalMinutes;
+        int expectedTotal = Math.Min((int)Math.Floor(simulatedElapsed / intervalMinutes) + 1, 500);
 
         if (expectedTotal > maxNumero + 500) expectedTotal = maxNumero + 500;
 
@@ -204,7 +235,7 @@ public partial class OccurrenceService
         for (int i = maxNumero + 1; i <= expectedTotal; i++)
         {
             DateTime intendedTime = virtualDateDebut.AddMinutes(intervalMinutes * i);
-            string tranche = $"H_{intendedTime.Hour:00}_{intendedTime.Hour + 1:00}";
+            string tranche = $"H_{intendedTime.Hour:00}_{(intendedTime.Hour + 1) % 24:00}";
             
             bool trancheIsFinalized = of.ExecControleTranches?.Any(t => t.TrancheHoraire == tranche && !string.IsNullOrEmpty(t.ResultatFinal)) == true;
             if (trancheIsFinalized) continue;

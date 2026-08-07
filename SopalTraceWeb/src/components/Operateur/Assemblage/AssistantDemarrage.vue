@@ -54,6 +54,56 @@
               <span>{{ isPlanAssDemarrageDone ? 'Plan Assemblage (Répondu)' : 'Plan Assemblage' }}</span>
             </button>
           </template>
+
+          <template v-if="currentStep === 4">
+            <button 
+              v-if="vmCat"
+              @click="onActionClick('verifMachine', { finPoste: true })"
+              class="shrink-0 px-4 py-2.5 rounded-xl font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg flex items-center gap-2 cursor-pointer border-0"
+              :class="isVmFinPosteDone ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-600 hover:bg-orange-700'"
+            >
+              <i :class="isVmFinPosteDone ? 'pi pi-check-circle text-emerald-200' : 'pi pi-cog'"></i>
+              <span>{{ isVmFinPosteDone ? 'Vérif. Machine (Répondu)' : 'Vérif. Machine (Fin Poste)' }}</span>
+            </button>
+
+            <button 
+              v-if="planAssCat"
+              @click="onActionClick('planAss', { finPoste: true })"
+              class="shrink-0 px-4 py-2.5 rounded-xl font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg flex items-center gap-2 cursor-pointer border-0"
+              :class="isPlanAssFinPosteDone ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-600 hover:bg-orange-700'"
+            >
+              <i :class="isPlanAssFinPosteDone ? 'pi pi-check-circle text-emerald-200' : 'pi pi-sitemap'"></i>
+              <span>{{ isPlanAssFinPosteDone ? 'Plan Assemblage (Répondu)' : 'Plan Assemblage (Fin Poste)' }}</span>
+            </button>
+            
+            <button 
+              v-if="cpCat"
+              @click="onActionClick('documentControlePoste', { finPoste: true })"
+              class="shrink-0 px-4 py-2.5 rounded-xl font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg flex items-center gap-2 cursor-pointer border-0"
+              :class="isCpDone ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-600 hover:bg-orange-700'"
+            >
+              <i :class="isCpDone ? 'pi pi-check-circle text-emerald-200' : 'pi pi-calendar-plus'"></i>
+              <span>{{ isCpDone ? 'Résultat Contrôle Poste (Fait)' : 'Résultat Contrôle Poste' }}</span>
+            </button>
+
+            <button 
+              @click="onActionClick('tracabilite', { finPoste: true })"
+              class="shrink-0 px-4 py-2.5 rounded-xl font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg flex items-center gap-2 cursor-pointer border-0"
+              :class="tracabiliteCat?.isTermine ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'"
+            >
+              <i :class="tracabiliteCat?.isTermine ? 'pi pi-check-circle text-emerald-200' : 'pi pi-file-edit'"></i>
+              <span>{{ tracabiliteCat?.isTermine ? 'Registre Traçabilité (Répondu)' : 'Registre Traçabilité' }}</span>
+            </button>
+            
+            <button 
+              @click="canCloturerPoste ? emit('cloturer-poste') : onBlockedCloture()"
+              class="shrink-0 px-4 py-2.5 rounded-xl font-bold text-white shadow-md transition-all flex items-center gap-2 border-0"
+              :class="canCloturerPoste ? 'bg-red-600 hover:bg-red-700 cursor-pointer shadow-lg animate-pulse' : 'bg-slate-400 opacity-70 cursor-not-allowed'"
+            >
+              <i :class="canCloturerPoste ? 'pi pi-stop-circle' : 'pi pi-lock'"></i>
+              <span>{{ canCloturerPoste ? 'Terminer le poste définitivement' : 'Clôture (Répondre aux contrôles)' }}</span>
+            </button>
+          </template>
         </div>
 
       </div>
@@ -82,6 +132,16 @@
             </span>
           </button>
 
+
+          <!-- 2. Bouton Vérif Machine Après Pause -->
+          <button 
+            v-if="vmCat"
+            @click="onActionClick('verifMachine', { apresPause: true })"
+            class="px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow-md transition-all border-0 cursor-pointer flex items-center gap-2"
+          >
+            <i class="pi pi-cog text-sm"></i>
+            <span>Vérif. Machine (Après Pause)</span>
+          </button>
 
           <!-- 3. Bouton Résultat Contrôle Poste -->
           <button 
@@ -116,15 +176,20 @@ const props = defineProps({
   alertes: {
     type: Array,
     default: () => []
+  },
+  isFinPosteMode: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['action-click']);
+const emit = defineEmits(['action-click', 'cloturer-poste', 'annuler-fin-poste']);
 
 const echCat = computed(() => props.categories.find(c => c.id === 'echantillonnage'));
 const vmCat = computed(() => props.categories.find(c => c.id === 'verifMachine'));
 const planAssCat = computed(() => props.categories.find(c => c.id === 'planAss'));
 const cpCat = computed(() => props.categories.find(c => c.id === 'documentControlePoste'));
+const tracabiliteCat = computed(() => props.categories.find(c => c.id === 'tracabilite'));
 
 // Occurrences restantes pour Plan Assemblage & CF (hors réglage et hors 100%)
 const planAssPendingCount = computed(() => {
@@ -164,15 +229,55 @@ const echStatusText = computed(() => {
 });
 
 // Statut Contrôle Poste (Horaire)
+const isVmDemarrageDone = computed(() => {
+  if (!props.documents || props.documents.length === 0) return true;
+  const vmDocs = props.documents.filter(d => d.typeDocument === 'VERIF_MACHINE');
+  if (vmDocs.length === 0) return true;
+  return vmDocs.every(d => d.estDemarrageTermine || d.estTermine);
+});
+
+const isVmFinPosteDone = computed(() => {
+  if (!props.documents || props.documents.length === 0) return true;
+  const vmDocs = props.documents.filter(d => d.typeDocument === 'VERIF_MACHINE');
+  if (vmDocs.length === 0) return true;
+  return vmDocs.every(d => d.estTermine);
+});
+
+const isPlanAssDemarrageDone = computed(() => planAssCat.value ? (planAssCat.value.isDemarrageTermine ?? planAssCat.value.isTermine) : true);
+
+const isPlanAssFinPosteDone = computed(() => planAssCat.value ? planAssCat.value.isTermine : true);
+
+const isTracabiliteDone = computed(() => tracabiliteCat.value ? tracabiliteCat.value.isTermine : true);
+
+const isCpDone = computed(() => cpCat.value ? cpCat.value.isTermine : true);
+
+const canCloturerPoste = computed(() => {
+  return isVmFinPosteDone.value && isPlanAssFinPosteDone.value && isTracabiliteDone.value && isCpDone.value;
+});
+
+const onBlockedCloture = () => {
+  const missing = [];
+  if (!isVmFinPosteDone.value) missing.push('Vérif. Machine (Fin Poste)');
+  if (!isPlanAssFinPosteDone.value) missing.push('Plan Assemblage (Fin Poste)');
+  if (!isCpDone.value) missing.push('Résultat Contrôle Poste');
+  if (!isTracabiliteDone.value) missing.push('Registre Traçabilité');
+  
+  Swal.fire({
+    title: 'Clôture impossible',
+    text: `Veuillez répondre à toutes les tâches de fin de poste avant de clôturer : ${missing.join(', ')}`,
+    icon: 'warning',
+    confirmButtonColor: '#3085d6',
+    confirmButtonText: 'D\'accord'
+  });
+};
+
 const cpStatusText = computed(() => {
   if (!cpCat.value) return 'Non requis';
   return cpCat.value.isTermine ? 'Fait' : 'Rappel 1h';
 });
 
-const isVmDemarrageDone = computed(() => vmCat.value ? (vmCat.value.isDemarrageTermine ?? vmCat.value.isTermine) : true);
-const isPlanAssDemarrageDone = computed(() => planAssCat.value ? (planAssCat.value.isDemarrageTermine ?? planAssCat.value.isTermine) : true);
-
 const currentStep = computed(() => {
+  if (props.isFinPosteMode) return 4;
   if (echCat.value && !echCat.value.isTermine) return 1;
   if (!isVmDemarrageDone.value || !isPlanAssDemarrageDone.value) return 2;
   return 3;
@@ -183,33 +288,38 @@ const isProduction = computed(() => currentStep.value === 3);
 const stepBadgeText = computed(() => {
   if (currentStep.value === 1) return 'Étape 1';
   if (currentStep.value === 2) return 'Étape 2';
+  if (currentStep.value === 4) return 'Étape 4';
   return 'En cours';
 });
 
 const title = computed(() => {
   if (currentStep.value === 1) return 'Remplir la fiche d\'échantillonnage';
   if (currentStep.value === 2) return 'Vérifications de Démarrage';
+  if (currentStep.value === 4) return 'Clôture de Poste';
   return 'Production en cours';
 });
 
 const description = computed(() => {
   if (currentStep.value === 1) return 'L\'échantillonnage est obligatoire avant de pouvoir commencer les autres contrôles.';
   if (currentStep.value === 2) return 'Veuillez effectuer la vérification machine et le contrôle de démarrage (Plan d\'assemblage).';
+  if (currentStep.value === 4) return 'Veuillez effectuer les vérifications de fin de poste, valider les plans et la traçabilité avant de clôturer.';
   return 'Toutes les tâches de démarrage sont terminées. Restez attentif aux alertes.';
 });
 
 const iconClass = computed(() => {
   if (currentStep.value === 1) return 'pi pi-chart-pie';
   if (currentStep.value === 2) return 'pi pi-list-check';
+  if (currentStep.value === 4) return 'pi pi-power-off';
   return 'pi pi-check-circle';
 });
 
-const onActionClick = (type) => {
-  if (type === 'echantillonnage') emit('action-click', echCat.value);
-  else if (type === 'verifMachine') emit('action-click', vmCat.value);
-  else if (type === 'planAss') emit('action-click', planAssCat.value, { isFromAssistant: true });
-  else if (type === 'controle100pct') emit('action-click', planAssCat.value, { isFromAssistant: true, section100pct: true });
-  else if (type === 'documentControlePoste') emit('action-click', cpCat.value);
+const onActionClick = (type, opts = {}) => {
+  if (type === 'echantillonnage') emit('action-click', echCat.value, opts);
+  else if (type === 'verifMachine') emit('action-click', vmCat.value, opts);
+  else if (type === 'planAss') emit('action-click', planAssCat.value, { isFromAssistant: true, ...opts });
+  else if (type === 'controle100pct') emit('action-click', planAssCat.value, { isFromAssistant: true, section100pct: true, ...opts });
+  else if (type === 'documentControlePoste') emit('action-click', cpCat.value, opts);
+  else if (type === 'tracabilite') emit('action-click', tracabiliteCat.value || { id: 'tracabilite' }, opts);
 };
 
 // Styles

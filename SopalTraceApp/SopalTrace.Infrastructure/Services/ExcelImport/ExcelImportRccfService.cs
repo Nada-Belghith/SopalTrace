@@ -186,8 +186,9 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                         var tc = await _unitOfWork.DictionnaireQualiteRepository.GetTypeCaracteristiqueByLibelleAsync(caracName);
                         if (tc == null)
                         {
-                            tc = new TypeCaracteristique { Id = Guid.NewGuid(), Libelle = caracName, Actif = true };
+                            tc = new TypeCaracteristique { Id = Guid.NewGuid(), Code = caracName.Length > 20 ? caracName.Substring(0, 20).ToUpper() : caracName.ToUpper(), Libelle = caracName, Actif = true };
                             await _unitOfWork.DictionnaireQualiteRepository.AddTypeCaracteristiqueAsync(tc);
+                            await _unitOfWork.CommitAsync();
                         }
                         typeCaracId = tc.Id;
                         typeCaracLibelle = tc.Libelle;
@@ -198,8 +199,9 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                         var tctrl = await _unitOfWork.DictionnaireQualiteRepository.GetTypeControleByLibelleAsync(typeCtrl);
                         if (tctrl == null)
                         {
-                            tctrl = new TypeControle { Id = Guid.NewGuid(), Libelle = typeCtrl, Actif = true };
+                            tctrl = new TypeControle { Id = Guid.NewGuid(), Code = typeCtrl.Length > 20 ? typeCtrl.Substring(0, 20).ToUpper() : typeCtrl.ToUpper(), Libelle = typeCtrl, Actif = true };
                             await _unitOfWork.DictionnaireQualiteRepository.AddTypeControleAsync(tctrl);
+                            await _unitOfWork.CommitAsync();
                         }
                         typeCtrlId = tctrl.Id;
                         typeCtrlLibelle = tctrl.Libelle;
@@ -217,8 +219,9 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                             var mc = await _unitOfWork.DictionnaireQualiteRepository.GetMoyenControleByLibelleAsync(moyenCtrl);
                             if (mc == null)
                             {
-                                mc = new MoyenControle { Id = Guid.NewGuid(), Libelle = moyenCtrl, Actif = true };
+                                mc = new MoyenControle { Id = Guid.NewGuid(), Code = moyenCtrl.Length > 20 ? moyenCtrl.Substring(0, 20).ToUpper() : moyenCtrl.ToUpper(), Libelle = moyenCtrl, Actif = true };
                                 await _unitOfWork.DictionnaireQualiteRepository.AddMoyenControleAsync(mc);
+                                await _unitOfWork.CommitAsync();
                             }
                             moyenCtrlId = mc.Id;
                             moyenCtrlLibelle = mc.Libelle;

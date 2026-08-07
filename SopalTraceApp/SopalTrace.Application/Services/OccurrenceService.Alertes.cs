@@ -9,7 +9,7 @@ namespace SopalTrace.Application.Services;
 
 public partial class OccurrenceService
 {
-    public async Task<List<TrancheAlertesDto>> GetAlertesActivesAsync(Guid execControleOfId)
+    public async Task<List<TrancheAlertesDto>> GetAlertesActivesAsync(Guid execControleOfId, string? posteCode = null)
     {
         await GenererOccurrencesInitialesAsync(execControleOfId);
 
@@ -18,6 +18,26 @@ public partial class OccurrenceService
 
         var occurrences = (await _occurrenceRepository.GetIntermediairesActifsAsync(execControleOfId))
             .OrderBy(o => o.HeureNotifPrevue).ToList();
+
+        bool isAssOf = of.TypeOf == "ASS";
+
+        var docSectionsForLabels = isAssOf
+            ? (!string.IsNullOrEmpty(posteCode)
+                ? await _occurrenceRepository.GetDocumentSectionsActivesParPosteAsync(execControleOfId, posteCode)
+                : await _occurrenceRepository.GetDocumentSectionsActivesAsync(execControleOfId))
+            : new List<DocumentSection>();
+
+        // Si posteCode est fourni pour un OF d'assemblage, ne conserver que les occurrences associées aux sections de ce poste
+        if (isAssOf && !string.IsNullOrEmpty(posteCode) && docSectionsForLabels.Any())
+        {
+            var posteSectionIds = docSectionsForLabels.Select(s => s.Id).ToHashSet();
+            occurrences = occurrences.Where(o => posteSectionIds.Contains(o.SectionId)).ToList();
+        }
+
+        if (of.EstEnReglage || of.Statut == "REGLAGE")
+        {
+            occurrences = occurrences.Where(o => o.TrancheHoraire.StartsWith("REGLAGE") || o.EstRepondu).ToList();
+        }
 
         bool isPaused = of.Statut == "EN_PAUSE";
         DateTime pauseStart = of.DateFin ?? DateTime.Now;
@@ -36,12 +56,8 @@ public partial class OccurrenceService
 
         var alertesVisibles = FiltrerOccurrencesVisibles(occurrences, isPaused, pauseStart);
 
-        bool isAssOf = of.TypeOf == "ASS";
         var sectionIds = alertesVisibles.Select(o => o.SectionId).Distinct().ToList();
         var lignesPerSection = await ChargerLignesParSectionAsync(sectionIds, isAssOf);
-        var docSectionsForLabels = isAssOf
-            ? await _occurrenceRepository.GetDocumentSectionsEchantillonnageAsync(execControleOfId)
-            : new List<DocumentSection>();
 
         var colDefsMap = await ResolveColDefsAsync(of, isAssOf);
 
@@ -318,7 +334,17 @@ public partial class OccurrenceService
         {
             var lignes = docLignesPerSection.GetValueOrDefault(x.SectionId, new());
             var sec = docSectionsForLabels.FirstOrDefault(s => s.Id == x.SectionId);
-            string libelle = NormaliserLibelle(sec?.LibelleSection ?? "Caractéristiques", sec);
+            string baseLibelle = NormaliserLibelle(sec?.LibelleSection ?? "Caractéristiques", sec);
+            string docPrefix = "";
+            if (sec?.Entete != null)
+            {
+                string typeCode = (sec.Entete.TypeDocumentCode ?? "").ToUpper();
+                if (typeCode is "RESULTAT_CF" or "RCCF" or "CTRL_POSTE" or "RESULTAT_CONTROLE_POSTE")
+                    docPrefix = "[Contrôle CF] ";
+                else if (typeCode is "PLAN_ASS" or "PLAN_ASSEMBLAGE")
+                    docPrefix = "[Plan d'Assemblage] ";
+            }
+            string libelle = docPrefix + baseLibelle;
 
             return lignes.Select(l => new CaracteristiqueARepondreDto
             {

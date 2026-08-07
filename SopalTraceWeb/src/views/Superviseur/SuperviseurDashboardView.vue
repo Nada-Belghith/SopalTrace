@@ -110,16 +110,15 @@ const filteredPlans = computed(() => plans.value[activeTab.value] || []);
 const loadData = async () => {
   loading.value = true;
   try {
-    // We fetch data from actual endpoints
-    const [resAss, resPf, resMach] = await Promise.allSettled([
-      apiClient.get('/api/plan-fabrication/recherche'),
-      apiClient.get('/api/plan-pf/recherche'),
-      apiClient.get('/api/plan-nc/recherche') // Adjust endpoint if needed
+    const [resFab, resAss, resPf] = await Promise.allSettled([
+      apiClient.get('/PlanFabrication'),
+      apiClient.get('/Document?typeDocumentCode=PLAN_ASS'),
+      apiClient.get('/Document?typeDocumentCode=PLAN_PF')
     ]);
 
-    plans.value.assemblage = resAss.status === 'fulfilled' ? resAss.value.data.data || resAss.value.data : [];
-    plans.value.pf = resPf.status === 'fulfilled' ? resPf.value.data.data || resPf.value.data : [];
-    plans.value.machines = resMach.status === 'fulfilled' ? resMach.value.data.data || resMach.value.data : [];
+    plans.value.assemblage = resAss.status === 'fulfilled' ? (resAss.value.data.data || resAss.value.data) : [];
+    plans.value.pf = resPf.status === 'fulfilled' ? (resPf.value.data.data || resPf.value.data) : [];
+    plans.value.fabrication = resFab.status === 'fulfilled' ? (resFab.value.data.data || resFab.value.data) : [];
   } catch (err) {
     console.error("Erreur de chargement:", err);
   } finally {

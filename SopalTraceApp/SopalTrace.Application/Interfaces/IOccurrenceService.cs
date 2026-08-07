@@ -8,7 +8,7 @@ namespace SopalTrace.Application.Interfaces;
 public interface IOccurrenceService
 {
     Task GenererOccurrencesInitialesAsync(Guid execControleOfId);
-    Task<List<TrancheAlertesDto>> GetAlertesActivesAsync(Guid execControleOfId);
+    Task<List<TrancheAlertesDto>> GetAlertesActivesAsync(Guid execControleOfId, string? posteCode = null);
     Task GenererOccurrencesReglageCoursAsync(Guid execControleOfId);
     Task NettoyerOccurrencesReglageAsync(Guid execControleOfId);
     Task<bool> RepondreOccurrenceAsync(Guid occurrenceId, RepondreOccurrenceRequest request);

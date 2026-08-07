@@ -32,6 +32,12 @@ namespace SopalTrace.Application.Services
             {
                 // Fetch the exact document version the operator started with
                 plan = await _repository.GetPlanByIdAsync(statut.DocId.Value);
+
+                // Si le statut pointait par erreur vers le document RESULTAT_CF, réinitialiser pour trouver le bon plan RESULTAT_CONTROLE_POSTE
+                if (plan != null && plan.TypeDocumentCode == "RESULTAT_CF")
+                {
+                    plan = null;
+                }
             }
 
             if (plan == null)
@@ -60,6 +66,11 @@ namespace SopalTrace.Application.Services
                 };
                 
                 _repository.AddStatut(statut);
+                await _repository.SaveChangesAsync();
+            }
+            else if (statut.DocId != plan.Id)
+            {
+                statut.DocId = plan.Id;
                 await _repository.SaveChangesAsync();
             }
             

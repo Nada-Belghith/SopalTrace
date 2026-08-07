@@ -133,10 +133,11 @@ CREATE TABLE dbo.PeriodiciteMachine (
 GO
 
 CREATE TABLE dbo.Ref_RegleEchantillonnage (
-    Id      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    Code    VARCHAR(30)  NOT NULL UNIQUE,
-    Libelle VARCHAR(250) NOT NULL,
-    Actif   BIT          NOT NULL DEFAULT 1
+    Id                UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    Code              VARCHAR(30)   NOT NULL UNIQUE,
+    Libelle           VARCHAR(250)  NOT NULL,
+    PerimetreControle NVARCHAR(20)  NULL,   -- 'OF' | 'POSTE' | NULL (pour EN_COURS/ECHANT_NQA)
+    Actif             BIT           NOT NULL DEFAULT 1
 );
 GO
 

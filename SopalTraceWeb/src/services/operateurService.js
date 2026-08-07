@@ -50,8 +50,9 @@ class OperateurService {
     return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${trancheHoraire}/reglage`, { matriculeOperateur });
   }
 
-  getAlertesActives(execControleOfId) {
-    return apiClient.get(`/Operateur/of/${execControleOfId}/alertes-actives`);
+  getAlertesActives(execControleOfId, posteCode = null) {
+    const query = posteCode ? `?posteCode=${encodeURIComponent(posteCode)}` : '';
+    return apiClient.get(`/Operateur/of/${execControleOfId}/alertes-actives${query}`);
   }
 
   repondreOccurrence(occurrenceId, data) {

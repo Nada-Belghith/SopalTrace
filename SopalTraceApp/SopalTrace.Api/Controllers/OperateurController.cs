@@ -149,9 +149,9 @@ public class OperateurController : ControllerBase
     }
 
     [HttpGet("of/{execControleOfId:guid}/alertes-actives")]
-    public async Task<IActionResult> GetAlertesActives(Guid execControleOfId)
+    public async Task<IActionResult> GetAlertesActives(Guid execControleOfId, [FromQuery] string? posteCode = null)
     {
-        var alertes = await _occurrenceService.GetAlertesActivesAsync(execControleOfId);
+        var alertes = await _occurrenceService.GetAlertesActivesAsync(execControleOfId, posteCode);
         return Ok(alertes);
     }
 
@@ -223,18 +223,18 @@ public class OperateurController : ControllerBase
     }
 
     [HttpPut("assemblage-documents/{statutId:guid}/terminer")]
-    public async Task<IActionResult> MarquerDocumentTermine(Guid statutId)
+    public async Task<IActionResult> MarquerDocumentTermine(Guid statutId, [FromQuery] string periodicite = "")
     {
         var matricule = User.FindFirst("matricule")?.Value;
-        var result = await _assemblageExecutionService.MarquerDocumentTermineAsync(statutId, matricule);
+        var result = await _assemblageExecutionService.MarquerDocumentTermineAsync(statutId, matricule, periodicite);
         if (!result) return NotFound(new { Message = "Statut document introuvable." });
         return Ok();
     }
 
     [HttpPut("assemblage-documents/{statutId:guid}/rouvrir")]
-    public async Task<IActionResult> RouvrirDocument(Guid statutId)
+    public async Task<IActionResult> RouvrirDocument(Guid statutId, [FromQuery] string periodicite = "")
     {
-        var result = await _assemblageExecutionService.RouvrirDocumentAsync(statutId);
+        var result = await _assemblageExecutionService.RouvrirDocumentAsync(statutId, periodicite);
         if (!result) return NotFound(new { Message = "Statut document introuvable." });
         return Ok();
     }

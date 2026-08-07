@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -10,6 +10,8 @@ public partial class RefRegleEchantillonnage
     public string Code { get; set; } = null!;
 
     public string Libelle { get; set; } = null!;
+
+    public string? PerimetreControle { get; set; }
 
     public bool Actif { get; set; }
 

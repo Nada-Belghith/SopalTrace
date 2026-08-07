@@ -19,6 +19,12 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
 
         public async Task<ExecControleDocumentStatut?> GetStatutWithDetailsAsync(Guid execControleOfId, string posteCode, string equipe, DateTime dateExecution)
         {
+            if (string.IsNullOrEmpty(posteCode))
+            {
+                var execOf = await _context.ExecControleOfs.Include(e => e.ExecControleOfPostes).FirstOrDefaultAsync(e => e.Id == execControleOfId);
+                posteCode = execOf?.ExecControleOfPostes.FirstOrDefault()?.PosteCode ?? execOf?.PosteCode ?? "";
+            }
+
             return await _context.ExecControleDocumentStatuts
                 .Include(s => s.ExecRcPosteHeures)
                 .Include(s => s.ExecRcPosteReponses)
@@ -31,6 +37,12 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
 
         public async Task<List<ExecControleDocumentStatut>> GetAllStatutsAsync(Guid execControleOfId, string posteCode)
         {
+            if (string.IsNullOrEmpty(posteCode))
+            {
+                var execOf = await _context.ExecControleOfs.Include(e => e.ExecControleOfPostes).FirstOrDefaultAsync(e => e.Id == execControleOfId);
+                posteCode = execOf?.ExecControleOfPostes.FirstOrDefault()?.PosteCode ?? execOf?.PosteCode ?? "";
+            }
+
             return await _context.ExecControleDocumentStatuts
                 .Where(s => s.ExecControleOfId == execControleOfId 
                             && s.PosteCode == posteCode 
@@ -50,16 +62,37 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
 
         public async Task<DocumentEntete?> GetPlanByIdAsync(Guid id)
         {
-            return await _context.DocumentEntetes
+            var doc = await _context.DocumentEntetes
                 .Include(p => p.Formulaire)
                 .Include(p => p.DocumentLignes)
                     .ThenInclude(l => l.RisqueDefaut)
                 .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (doc != null) return doc;
+
+            var refForm = await _context.RefFormulaires.FirstOrDefaultAsync(f => f.Id == id && f.Statut == "ACTIF");
+            if (refForm != null)
+            {
+                return new DocumentEntete
+                {
+                    Id = refForm.Id,
+                    FormulaireId = refForm.Id,
+                    TypeDocumentCode = "RESULTAT_CONTROLE_POSTE",
+                    Formulaire = refForm
+                };
+            }
+
+            return null;
         }
 
         public async Task<DocumentEntete?> GetPlanActifByPosteAsync(string posteCode, Guid execControleOfId)
         {
-            var execOf = await _context.ExecControleOfs.FirstOrDefaultAsync(e => e.Id == execControleOfId);
+            var execOf = await _context.ExecControleOfs.Include(e => e.ExecControleOfPostes).FirstOrDefaultAsync(e => e.Id == execControleOfId);
+            if (string.IsNullOrEmpty(posteCode) && execOf != null)
+            {
+                posteCode = execOf.ExecControleOfPostes.FirstOrDefault()?.PosteCode ?? execOf.PosteCode ?? "";
+            }
+
             var of = execOf != null ? await _context.MfgheadOrdreFabrications.FirstOrDefaultAsync(o => o.NumeroOf == execOf.NumeroOf) : null;
             var pf = of != null ? await _context.ProduitFinis.FirstOrDefaultAsync(p => p.CodeArticle == of.CodeArticle) : null;
             
@@ -70,18 +103,39 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .Include(p => p.DocumentLignes)
                     .ThenInclude(l => l.RisqueDefaut)
                 .Where(p => (string.IsNullOrEmpty(posteCode) || p.PosteCode == posteCode || p.PosteCode == "TOUS") &&
-                            (p.TypeDocumentCode == "CTRL_POSTE" || p.TypeDocumentCode == "RESULTAT_CONTROLE_POSTE" || p.TypeDocumentCode == "RESULTAT_CF") && 
+                            (p.TypeDocumentCode == "CTRL_POSTE" || p.TypeDocumentCode == "RESULTAT_CONTROLE_POSTE") && 
                             p.Statut == "ACTIF")
                 .ToListAsync();
                 
+            DocumentEntete? selectedPlan = null;
             if (isSoupape)
             {
-                return plans.FirstOrDefault(p => p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
+                selectedPlan = plans.FirstOrDefault(p => p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
             }
             else
             {
-                return plans.FirstOrDefault(p => p.Formulaire == null || p.Formulaire.CodeReference == null || !p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
+                selectedPlan = plans.FirstOrDefault(p => p.Formulaire == null || p.Formulaire.CodeReference == null || !p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
             }
+
+            if (selectedPlan != null) return selectedPlan;
+
+            string formRefCode = isSoupape ? $"FE-RC-{posteCode}_SOUPAPE" : $"FE-RC-{posteCode}";
+            var refForm = await _context.RefFormulaires
+                .FirstOrDefaultAsync(f => f.Role == "RESULTAT_CONTROLE_POSTE" && f.Statut == "ACTIF" &&
+                                         (f.CodeReference == formRefCode || f.CodeReference.Contains(posteCode)));
+
+            if (refForm != null)
+            {
+                return new DocumentEntete
+                {
+                    Id = refForm.Id,
+                    FormulaireId = refForm.Id,
+                    TypeDocumentCode = "RESULTAT_CONTROLE_POSTE",
+                    Formulaire = refForm
+                };
+            }
+
+            return null;
         }
 
         public void RemoveHeures(IEnumerable<ExecRcPosteHeure> heures) => _context.ExecRcPosteHeures.RemoveRange(heures);

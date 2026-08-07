@@ -41,12 +41,11 @@ public class RefFormulaireRepository : IRefFormulaireRepository
     public async Task<RefFormulaire?> GetFormulaireActifByRoleAsync(string role)
     {
         var roleTrimmed = role?.Trim();
-        // Priorité : ACTIF d'abord, puis BROUILLON si pas encore activé
         return await _context.RefFormulaires
             .AsNoTracking()
             .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed)
                      && (f.Statut != null && (f.Statut.Trim() == StatutsPlan.Actif || f.Statut.Trim() == StatutsPlan.Brouillon)))
-            .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1) // ACTIF en premier
+            .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1)
             .ThenByDescending(f => f.Version)
             .FirstOrDefaultAsync();
     }
@@ -54,12 +53,11 @@ public class RefFormulaireRepository : IRefFormulaireRepository
     public async Task<RefFormulaire?> GetFormulaireActifByCodeReferenceAsync(string codeReference)
     {
         var codeRefTrimmed = codeReference?.Trim();
-        // Priorité : ACTIF d'abord, puis BROUILLON si pas encore activé
         return await _context.RefFormulaires
             .AsNoTracking()
             .Where(f => (f.CodeReference != null && f.CodeReference.Trim() == codeRefTrimmed)
                      && (f.Statut != null && (f.Statut.Trim() == StatutsPlan.Actif || f.Statut.Trim() == StatutsPlan.Brouillon)))
-            .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1) // ACTIF en premier
+            .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1)
             .ThenByDescending(f => f.Version)
             .FirstOrDefaultAsync();
     }
