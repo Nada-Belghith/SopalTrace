@@ -1,9 +1,12 @@
+using System.Linq.Expressions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using SopalTrace.Application.DTOs.Execution.Operateur;
 using SopalTrace.Application.Interfaces.Execution;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 
@@ -11,12 +14,30 @@ namespace SopalTrace.Infrastructure.Repositories.Execution;
 
 public class OperateurRepository : IOperateurRepository
 {
+    /// <summary>
+    /// OF proposé aux opérateurs : composants servis par le magasin (préparation terminée) et production pas encore finie
+    /// (au moins une opération de la gamme sans exécution clôturée, ou une exécution encore ouverte).
+    /// </summary>
+    private static readonly Expression<Func<MagPreparationOf, bool>> OfDisponiblePourLaProduction = m =>
+        m.Statut == StatutsPreparationMagasin.Termine &&
+        !(m.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations.Any() &&
+          m.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations.All(op =>
+              m.NumeroOfNavigation.ExecControleOfs.Any(e => e.OperationCode == op.OperationCode && e.Statut == StatutsExecution.Cloture) &&
+              !m.NumeroOfNavigation.ExecControleOfs.Any(e => e.OperationCode == op.OperationCode && e.Statut != StatutsExecution.Cloture)));
+
+    private static readonly string[] StatutsPlanVerifMachineActif = { "ACTIF", "Actif" };
+
     private readonly SopalTraceDbContext _context;
 
     public OperateurRepository(SopalTraceDbContext context)
     {
         _context = context;
     }
+
+    // ───────────────────────────── OF & exécution ─────────────────────────────
+
+    public async Task<Operation?> GetOperationAsync(string operationCode)
+        => await _context.Operations.AsNoTracking().FirstOrDefaultAsync(o => o.Code == operationCode);
 
     public async Task<MfgheadOrdreFabrication?> GetOfAsync(string numeroOf)
     {
@@ -25,22 +46,18 @@ public class OperateurRepository : IOperateurRepository
             .FirstOrDefaultAsync(o => o.NumeroOf == numeroOf);
     }
 
-    public async Task<MagPreparationOf?> GetMagPreparationOfAsync(string numeroOf)
+    public async Task<DocumentEntete?> GetPlanActifAsync(string codeArticle, string? operationCode = null)
     {
-        return await _context.MagPreparationOfs
-            .FirstOrDefaultAsync(p => p.NumeroOf == numeroOf);
-    }
-
-    public async Task<PlanFabricationEntete?> GetPlanActifAsync(string codeArticle, string? operationCode = null)
-    {
-        var query = _context.PlanFabricationEntetes
-            .Include(p => p.PlanFabricationSections)
-                .ThenInclude(s => s.PlanFabricationLignes)
-            .Include(p => p.PlanFabricationSections)
+        var query = _context.DocumentEntetes
+            .AsSplitQuery()
+            .Include(p => p.DocumentSections)
+                .ThenInclude(s => s.DocumentLignes)
+            .Include(p => p.DocumentSections)
                 .ThenInclude(s => s.TypeSection)
-            .Where(p => p.Statut == "ACTIF" && 
-                        (p.CodeArticleSageVersionne == codeArticle || 
-                         p.CodeArticleSageVersionne.StartsWith(codeArticle + ".")));
+            .Where(p => p.TypeDocumentCode == TypesDocument.PlanFabrication &&
+                        p.Statut == StatutsPlan.Actif &&
+                        (p.CodeArticleSageVersionne == codeArticle ||
+                         p.CodeArticleSageVersionne!.StartsWith(codeArticle + ".")));
 
         if (!string.IsNullOrEmpty(operationCode))
         {
@@ -48,6 +65,18 @@ public class OperateurRepository : IOperateurRepository
         }
 
         return await query.FirstOrDefaultAsync();
+    }
+
+    public async Task<(decimal? Longueur, decimal? Diametre)> GetDernieresCotesTronconnageAsync(string codeArticle, string? operationCode)
+    {
+        var derniere = await _context.ExecControleOfs
+            .Where(e => e.NumeroOfNavigation.CodeArticle == codeArticle
+                        && (operationCode == null || e.OperationCode == operationCode)
+                        && (e.LongueurNominale != null || e.DiametreNominal != null))
+            .OrderByDescending(e => e.DateDebut)
+            .Select(e => new { e.LongueurNominale, e.DiametreNominal })
+            .FirstOrDefaultAsync();
+        return (derniere?.LongueurNominale, derniere?.DiametreNominal);
     }
 
     public async Task<ExecControleOf?> GetExecOfByIdAsync(Guid execOfId)
@@ -75,21 +104,48 @@ public class OperateurRepository : IOperateurRepository
         _context.ExecControleOfs.Add(execOf);
     }
 
-
-
     public async Task<bool> HasReglageSectionsAsync(Guid planSourceId)
     {
-        return await _context.PlanFabricationSections
-            .Include(s => s.TypeSection)
-            .AnyAsync(s => s.PlanEnteteId == planSourceId && s.TypeSection != null &&
-                           (s.TypeSection.Code == "REGLAGE" || s.TypeSection.Code == "REGLAGE_PROD"));
+        return await _context.DocumentSections
+            .AnyAsync(s => s.EnteteId == planSourceId && s.TypeSection != null &&
+                           (s.TypeSection.TypeNormalise == SectionTypes.Reglage || s.TypeSection.TypeNormalise == SectionTypes.ReglageProd));
     }
 
+    public async Task<bool> CanStartOperationAsync(string numeroOf, string operationCode)
+    {
+        var operationsGamme = await _context.MfgheadOrdreFabrications
+            .Where(o => o.NumeroOf == numeroOf)
+            .SelectMany(o => o.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations)
+            .OrderBy(o => o.OrdreGamme)
+            .Select(o => o.OperationCode)
+            .ToListAsync();
 
+        var index = operationsGamme.IndexOf(operationCode);
+        if (index <= 0) return true; // Première opération de la gamme ou opération hors gamme
+
+        var previousOp = operationsGamme[index - 1];
+        return await _context.ExecControleOfs.AnyAsync(e => e.NumeroOf == numeroOf && e.OperationCode == previousOp);
+    }
+
+    public async Task SaveChangesAsync()
+    {
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+        {
+            // Index uniques (exécution active par OF, poste par OF...) : action déjà faite depuis un autre poste.
+            throw ex.ToDomainExceptionOrSelf("Cette action vient d'être enregistrée depuis un autre poste. Rafraîchissez l'écran.");
+        }
+    }
+
+    // ───────────────────────────── Catalogue ─────────────────────────────
 
     public async Task<IEnumerable<PosteTravail>> GetPostesDisponiblesAsync()
     {
         return await _context.PosteTravails
+            .AsNoTracking()
             .Where(p => p.Actif)
             .ToListAsync();
     }
@@ -97,11 +153,22 @@ public class OperateurRepository : IOperateurRepository
     public async Task<PosteTravail?> GetPosteWithMachinesAsync(string posteCode)
     {
         return await _context.PosteTravails
+            .AsNoTracking()
             .Include(p => p.CodeMachines)
             .FirstOrDefaultAsync(p => p.CodePoste == posteCode);
     }
 
-    public async Task<IEnumerable<SopalTrace.Application.DTOs.Execution.Operateur.OperateurOfDto>> GetAllOfOperationsDisponiblesAsync()
+    public async Task<IReadOnlySet<string>> GetCodesPostesActifsAsync(IEnumerable<string> posteCodes)
+    {
+        var codes = posteCodes.Distinct().ToList();
+        var existants = await _context.PosteTravails
+            .Where(p => p.Actif && codes.Contains(p.CodePoste))
+            .Select(p => p.CodePoste)
+            .ToListAsync();
+        return existants.ToHashSet();
+    }
+
+    public async Task<IEnumerable<OperateurOfDto>> GetAllOfOperationsDisponiblesAsync()
     {
         // On récupère uniquement les OFs qui ont été préparés par le magasin (MagPreparationOf)
         var ofs = await _context.MagPreparationOfs
@@ -110,10 +177,10 @@ public class OperateurRepository : IOperateurRepository
                     .ThenInclude(a => a.NatureArticleCodeNavigation)
                         .ThenInclude(na => na.NatureArticleOperations)
                             .ThenInclude(nao => nao.OperationCodeNavigation)
-            .Where(m => m.Statut == "EN_COURS" || m.Statut == "PLANIFIE" || m.Statut == "EN_PAUSE")
+            .Where(OfDisponiblePourLaProduction)
             .ToListAsync();
 
-        var result = new List<SopalTrace.Application.DTOs.Execution.Operateur.OperateurOfDto>();
+        var result = new List<OperateurOfDto>();
 
         foreach (var magOf in ofs)
         {
@@ -124,7 +191,7 @@ public class OperateurRepository : IOperateurRepository
                 .Where(e => e.NumeroOf == of.NumeroOf)
                 .ToListAsync();
 
-            var dto = new SopalTrace.Application.DTOs.Execution.Operateur.OperateurOfDto
+            var dto = new OperateurOfDto
             {
                 NumeroOf = of.NumeroOf,
                 StatutOf = of.StatutOf,
@@ -141,7 +208,7 @@ public class OperateurRepository : IOperateurRepository
                 {
                     var machine = await _context.Machines.FirstOrDefaultAsync(m => m.OperationCode == op.OperationCode);
                     var execForOp = activeExecs.OrderByDescending(e => e.DateDebut).FirstOrDefault(e => e.OperationCode == op.OperationCode);
-                    
+
                     bool aDesControlesReglage = false;
                     string? legendeMoyens = null;
                     string? remarques = null;
@@ -149,7 +216,7 @@ public class OperateurRepository : IOperateurRepository
                     if (execForOp != null && execForOp.PlanSourceId.HasValue)
                     {
                         aDesControlesReglage = await HasReglageSectionsAsync(execForOp.PlanSourceId.Value);
-                        var plan = await _context.PlanFabricationEntetes.FirstOrDefaultAsync(p => p.Id == execForOp.PlanSourceId.Value);
+                        var plan = await _context.DocumentEntetes.FirstOrDefaultAsync(p => p.Id == execForOp.PlanSourceId.Value);
                         if (plan != null)
                         {
                             legendeMoyens = plan.LegendeMoyens;
@@ -157,15 +224,17 @@ public class OperateurRepository : IOperateurRepository
                         }
                     }
 
-                    dto.GammeOperatoire.Add(new SopalTrace.Application.DTOs.Execution.Operateur.OperateurOperationDto
+                    dto.GammeOperatoire.Add(new OperateurOperationDto
                     {
                         OperationCode = op.OperationCode,
                         Libelle = op.OperationCodeNavigation?.Libelle ?? op.OperationCode,
                         MachinePrevueCode = machine?.CodeMachine ?? "",
+                        AvecMachine = op.OperationCodeNavigation?.AvecMachine ?? false,
+                        AvecCotesTronconnage = op.OperationCodeNavigation?.AvecCotesTronconnage ?? false,
                         ActiveExecControleOfId = execForOp?.Id,
                         ActiveExecStatut = execForOp?.Statut,
                         ActiveMachineCode = execForOp?.MachineCode,
-                        EstEnReglage = execForOp?.EstEnReglage,
+                        EstEnReglage = execForOp == null ? null : execForOp.Statut == StatutsExecution.Reglage,
                         A_Des_Controles_Reglage = execForOp != null ? aDesControlesReglage : (bool?)null,
                         LegendeMoyens = legendeMoyens,
                         Remarques = remarques
@@ -179,153 +248,264 @@ public class OperateurRepository : IOperateurRepository
         return result;
     }
 
-    public async Task<PlanFabricationLigne?> GetPlanLigneAsync(Guid ligneId)
+    public async Task<IEnumerable<Machine>> GetAllMachinesAsync()
     {
-        return await _context.PlanFabricationLignes.FirstOrDefaultAsync(l => l.Id == ligneId);
+        return await _context.Machines.AsNoTracking().Where(m => m.Actif).ToListAsync();
     }
 
-    public async Task<bool> AreAllOperationsClosedAsync(string numeroOf)
+    public async Task<Dictionary<string, string>> GetMachineLabelsAsync(IEnumerable<string> machineCodes)
     {
-        var of = await _context.MfgheadOrdreFabrications
-            .Include(o => o.CodeArticleNavigation)
-                .ThenInclude(a => a.NatureArticleCodeNavigation)
-                    .ThenInclude(na => na.NatureArticleOperations)
-            .FirstOrDefaultAsync(o => o.NumeroOf == numeroOf);
+        var codes = machineCodes.Distinct().ToList();
+        if (codes.Count == 0) return new Dictionary<string, string>();
 
-        if (of?.CodeArticleNavigation?.NatureArticleCodeNavigation?.NatureArticleOperations == null) 
-            return false;
+        return await _context.Machines
+            .Where(m => codes.Contains(m.CodeMachine))
+            .ToDictionaryAsync(m => m.CodeMachine, m => m.Libelle);
+    }
 
-        var requiredOperations = of.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations
-            .Select(o => o.OperationCode)
-            .ToList();
-        
-        var execs = await _context.ExecControleOfs
-            .Where(e => e.NumeroOf == numeroOf)
-            .ToListAsync();
+    public async Task<Dictionary<string, List<string>>> GetMachinesPlanPeriodicitesAsync()
+    {
+        var lignes = await GetPeriodicitesPlansActifsAsync(machineCode: null);
 
-        foreach (var reqOp in requiredOperations)
+        return lignes
+            .GroupBy(l => l.MachineCode)
+            .ToDictionary(g => g.Key, g => g.Select(l => l.Libelle).Distinct().ToList());
+    }
+
+    public async Task<List<string>> GetPeriodicitesPlanMachineAsync(string machineCode)
+    {
+        var lignes = await GetPeriodicitesPlansActifsAsync(machineCode);
+        return lignes.Select(l => l.Libelle).Distinct().ToList();
+    }
+
+    /// <summary>Couples (machine, libellé de périodicité en minuscules) des plans de vérification actifs.</summary>
+    private async Task<List<(string MachineCode, string Libelle)>> GetPeriodicitesPlansActifsAsync(string? machineCode)
+    {
+        var plans = _context.DocumentEntetes
+            .Where(e => e.TypeDocumentCode == TypesDocument.VerifMachine &&
+                        StatutsPlanVerifMachineActif.Contains(e.Statut) && e.MachineCode != null);
+
+        if (machineCode != null)
         {
-            var exec = execs.OrderByDescending(e => e.DateDebut).FirstOrDefault(e => e.OperationCode == reqOp);
-            // Si une opération requise n'a jamais été commencée ou n'est pas clôturée, c'est faux.
-            if (exec == null || exec.Statut != "CLOTURE")
-                return false;
+            plans = plans.Where(e => e.MachineCode == machineCode);
         }
 
-        return true;
-    }
-
-    public async Task<bool> CanStartOperationAsync(string numeroOf, string operationCode)
-    {
-        var of = await _context.MfgheadOrdreFabrications
-            .Include(o => o.CodeArticleNavigation)
-                .ThenInclude(a => a.NatureArticleCodeNavigation)
-                    .ThenInclude(na => na.NatureArticleOperations)
-            .FirstOrDefaultAsync(o => o.NumeroOf == numeroOf);
-
-        if (of?.CodeArticleNavigation?.NatureArticleCodeNavigation?.NatureArticleOperations == null) 
-            return true;
-
-        var operationsGamme = of.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations
-            .OrderBy(o => o.OrdreGamme)
-            .ToList();
-
-        var index = operationsGamme.FindIndex(o => o.OperationCode == operationCode);
-        if (index <= 0) return true; // C'est la première opération ou l'opération n'est pas dans la gamme
-
-        var previousOp = operationsGamme[index - 1];
-
-        // Vérifier si l'opération précédente a commencé
-        var execPrecedente = await _context.ExecControleOfs
-            .Where(e => e.NumeroOf == numeroOf && e.OperationCode == previousOp.OperationCode)
-            .OrderByDescending(e => e.DateDebut)
-            .FirstOrDefaultAsync();
-
-        return execPrecedente != null;
-    }
-
-    public async Task SaveChangesAsync()
-    {
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<DocumentEntete?> GetPlanAssemblageActifAsync(string codeArticle)
-    {
-        var pf = await _context.ProduitFinis.FirstOrDefaultAsync(p => p.CodeArticle == codeArticle);
-        var familleCode = pf?.FamilleProduitFiniCode;
-
-        bool isSoupape = pf != null && !string.IsNullOrEmpty(pf.FamilleProduitFiniCode) && pf.FamilleProduitFiniCode.IndexOf("soupape", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                         !string.IsNullOrEmpty(codeArticle) && (codeArticle.IndexOf("PAS", StringComparison.OrdinalIgnoreCase) >= 0 || codeArticle.IndexOf("soupape", StringComparison.OrdinalIgnoreCase) >= 0);
-
-        var plans = await _context.Set<DocumentEntete>()
-            .Include(p => p.DocumentSections)
-                .ThenInclude(s => s.DocumentLignes)
-            .Include(p => p.Formulaire)
-            .Where(p => p.Statut == "ACTIF")
-            .OrderByDescending(p => p.CreeLe)
+        var lignes = await plans
+            .SelectMany(e => e.DocumentLignes
+                .SelectMany(l => l.DocumentVerifMachineEcheances)
+                .Where(g => g.PeriodiciteMachine.ControlMoment != null)
+                .Select(g => new { MachineCode = e.MachineCode!, Moment = g.PeriodiciteMachine.ControlMoment! }))
+            .Distinct()
             .ToListAsync();
 
-        var plansAss = plans.Where(p => p.TypeDocumentCode == "PLAN_ASS" || p.TypeDocumentCode == "PLAN_ASSEMBLAGE" || p.TypeDocumentCode == "PLAN_FAB" || p.TypeDocumentCode == "MODELE_FAB").ToList();
-        if (!plansAss.Any())
-        {
-            plansAss = plans.Where(p => p.TypeDocumentCode == "RESULTAT_CF" || p.TypeDocumentCode == "RCCF" || p.TypeDocumentCode == "CTRL_POSTE" || p.TypeDocumentCode == "RESULTAT_CONTROLE_POSTE").ToList();
-        }
-        
-        DocumentEntete? match = null;
-        if (isSoupape)
-        {
-            match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
-            if (match == null)
+        return lignes.Select(l => (l.MachineCode, l.Moment)).ToList();
+    }
+
+    // ───────────────────────────── Assemblage (OF produits finis) ─────────────────────────────
+
+    private IQueryable<MagPreparationOf> QueryOfsAssemblageDisponibles()
+    {
+        return _context.MagPreparationOfs
+            .Where(OfDisponiblePourLaProduction)
+            .Where(m => m.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations
+                            .Any(o => o.OperationCode == CodesOperation.Assemblage));
+    }
+
+    public async Task<List<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync()
+    {
+        var ofs = await QueryOfsAssemblageDisponibles()
+            .AsNoTracking()
+            .Select(m => new
             {
-                match = plansAss.FirstOrDefault(p => (p.Nom != null && (p.Nom.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Nom.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                     (p.Designation != null && (p.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                     (p.Formulaire != null && p.Formulaire.CodeReference != null && (p.Formulaire.CodeReference.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.CodeReference.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                     (p.Formulaire != null && p.Formulaire.Designation != null && (p.Formulaire.Designation.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.Formulaire.Designation.Contains("PAS", StringComparison.OrdinalIgnoreCase))) ||
-                                                     (p.FamilleProduitFiniCode != null && (p.FamilleProduitFiniCode.Contains("soupape", StringComparison.OrdinalIgnoreCase) || p.FamilleProduitFiniCode.Contains("PAS", StringComparison.OrdinalIgnoreCase))));
-            }
-        }
-        if (match == null) match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == codeArticle || (p.Nom != null && p.Nom.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)) || (p.Designation != null && p.Designation.Contains(codeArticle, StringComparison.OrdinalIgnoreCase)));
-        if (match == null && !string.IsNullOrEmpty(familleCode)) match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == familleCode);
-        if (match == null) match = plansAss.FirstOrDefault(p => p.FamilleProduitFiniCode == "GEN" || string.IsNullOrEmpty(p.FamilleProduitFiniCode));
-
-        return match ?? plansAss.FirstOrDefault();
-    }
-
-    public async Task<DocumentEntete?> GetPlanControlePosteAsync(string posteCode, string codeArticle)
-    {
-        var pf = await _context.ProduitFinis.FirstOrDefaultAsync(p => p.CodeArticle == codeArticle);
-        bool isSoupape = pf != null && !string.IsNullOrEmpty(pf.FamilleProduitFiniCode) && pf.FamilleProduitFiniCode.IndexOf("soupape", StringComparison.OrdinalIgnoreCase) >= 0;
-
-        var plans = await _context.DocumentEntetes
-            .Include(p => p.Formulaire)
-            .Where(p => (string.IsNullOrEmpty(posteCode) || p.PosteCode == posteCode || p.PosteCode == "TOUS") &&
-                        (p.TypeDocumentCode == "CTRL_POSTE" || p.TypeDocumentCode == "RESULTAT_CONTROLE_POSTE" || p.TypeDocumentCode == "RESULTAT_CF") && 
-                        p.Statut == "ACTIF")
+                m.NumeroOfNavigation.NumeroOf,
+                m.NumeroOfNavigation.CodeArticle,
+                m.NumeroOfNavigation.CodeArticleNavigation.Designation,
+                m.NumeroOfNavigation.QuantiteLancee,
+                m.NumeroOfNavigation.DateDebut
+            })
+            .Distinct()
             .ToListAsync();
-            
-        if (isSoupape)
+
+        var numeros = ofs.Select(o => o.NumeroOf).ToList();
+
+        var execs = await _context.ExecControleOfs
+            .AsNoTracking()
+            .Where(e => e.TypeOf == TypesOf.Assemblage && e.Statut != StatutsExecution.Cloture && numeros.Contains(e.NumeroOf))
+            .Select(e => new
+            {
+                e.Id,
+                e.NumeroOf,
+                e.Statut,
+                e.DateDebut,
+                Postes = e.ExecControleOfPostes.Select(p => p.PosteCode).ToList(),
+                // Équipe qui a la main (en production, sinon la dernière en pause) et équipes en pause.
+                Equipe = e.ExecControleOfSessions
+                    .Where(s => s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause)
+                    .OrderBy(s => s.Statut == StatutsSession.EnCours ? 0 : 1)
+                    .ThenByDescending(s => s.DateDebut)
+                    .Select(s => s.Equipe)
+                    .FirstOrDefault(),
+                EquipesEnPause = e.ExecControleOfSessions
+                    .Where(s => s.Statut == StatutsSession.EnPause)
+                    .Select(s => s.Equipe)
+                    .ToList()
+            })
+            .ToListAsync();
+
+        var execParOf = execs
+            .GroupBy(e => e.NumeroOf)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(e => e.DateDebut).First());
+
+        return ofs.Select(of =>
         {
-            return plans.FirstOrDefault(p => p.Formulaire != null && p.Formulaire.CodeReference != null && p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
-        }
-        else
-        {
-            return plans.FirstOrDefault(p => p.Formulaire == null || p.Formulaire.CodeReference == null || !p.Formulaire.CodeReference.Contains("SOUPAPE", StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
-        }
+            execParOf.TryGetValue(of.NumeroOf, out var exec);
+            return new OfAssemblageStatutDto
+            {
+                NumeroOf = of.NumeroOf,
+                CodeArticle = of.CodeArticle,
+                DesignationArticle = of.Designation,
+                QuantiteLancee = of.QuantiteLancee,
+                DateDebut = exec?.DateDebut ?? of.DateDebut,
+                Statut = exec?.Statut,
+                ExecControleOfId = exec?.Id,
+                EquipeActuelle = exec?.Equipe,
+                EquipesEnPause = exec?.EquipesEnPause ?? new List<string>(),
+                PostesExistants = exec?.Postes ?? new List<string>()
+            };
+        }).ToList();
     }
 
-    public async Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId)
+    public async Task<bool> OfAssemblageDisponibleAsync(string numeroOf)
     {
-        return await _context.Set<ExecControleDocumentStatut>()
-            .Where(d => d.ExecControleOfId == execControleOfId)
+        return await QueryOfsAssemblageDisponibles().AnyAsync(m => m.NumeroOf == numeroOf);
+    }
+
+    public async Task<bool> ExisteExecutionAssemblageActiveAsync(string numeroOf)
+    {
+        return await _context.ExecControleOfs
+            .AnyAsync(e => e.NumeroOf == numeroOf && e.TypeOf == TypesOf.Assemblage && e.Statut != StatutsExecution.Cloture);
+    }
+
+    public async Task<Guid?> GetPlanVerifMachineActifIdAsync(string machineCode)
+    {
+        return await _context.DocumentEntetes
+            .Where(p => p.TypeDocumentCode == TypesDocument.VerifMachine &&
+                        p.MachineCode == machineCode && StatutsPlanVerifMachineActif.Contains(p.Statut))
+            .Select(p => (Guid?)p.Id)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<List<(Guid EcheanceId, string Periodicite)>> GetEcheancesPlanVerifMachineAsync(Guid planId)
+    {
+        var echeances = await _context.DocumentVerifMachineEcheances
+            .AsNoTracking()
+            .Where(g => g.Ligne.EnteteId == planId)
+            .Select(g => new { g.Id, g.PeriodiciteMachine.ControlMoment })
+            .ToListAsync();
+        return echeances.Select(g => (g.Id, g.ControlMoment ?? string.Empty)).ToList();
+    }
+
+    public async Task<List<ExecControleDocumentStatut>> GetStatutsVerifMachineAsync(Guid execControleOfId)
+    {
+        return await _context.ExecControleDocumentStatuts
+            .AsNoTracking()
+            .Where(s => s.ExecControleOfId == execControleOfId && s.TypeDocument == TypesDocumentExecution.VerifMachine)
+            .OrderByDescending(s => s.DateExecution)
+            .ToListAsync();
+    }
+
+    public async Task<Dictionary<Guid, string>> GetFormulaireDesignationsAsync(IEnumerable<Guid> ids)
+    {
+        var idList = ids.Distinct().ToList();
+        if (idList.Count == 0) return new Dictionary<Guid, string>();
+
+        var result = await _context.RefFormulaires
+            .Where(f => idList.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, f => f.Designation ?? f.CodeReference);
+
+        var docEntetes = await _context.DocumentEntetes
+            .Where(d => idList.Contains(d.Id))
+            .Select(d => new { d.Id, Designation = !string.IsNullOrEmpty(d.Designation) ? d.Designation : d.Nom })
+            .ToListAsync();
+
+        foreach (var doc in docEntetes.Where(d => !string.IsNullOrEmpty(d.Designation)))
+        {
+            result.TryAdd(doc.Id, doc.Designation!);
+        }
+        return result;
+    }
+
+    public void AddExecControleOfPoste(ExecControleOfPoste poste)
+    {
+        _context.ExecControleOfPostes.Add(poste);
+    }
+
+    // ───────────────────────────── Sessions d'équipe ─────────────────────────────
+
+    /// <summary>
+    /// Session qui a la main sur l'OF : l'équipe en production, sinon l'équipe la plus récemment mise en pause.
+    /// Plusieurs équipes peuvent avoir une session ouverte (une seule en production, les autres en pause).
+    /// </summary>
+    public async Task<ExecControleOfSession?> GetActiveSessionAsync(Guid execControleOfId)
+    {
+        return await _context.ExecControleOfSessions
+            .Where(s => s.ExecControleOfId == execControleOfId &&
+                        (s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause))
+            .OrderBy(s => s.Statut == StatutsSession.EnCours ? 0 : 1)
+            .ThenByDescending(s => s.DateDebut)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<List<ExecControleOfSession>> GetSessionsOuvertesAsync(Guid execControleOfId)
+    {
+        return await _context.ExecControleOfSessions
+            .Where(s => s.ExecControleOfId == execControleOfId &&
+                        (s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause))
+            .OrderByDescending(s => s.DateDebut)
+            .ToListAsync();
+    }
+
+    public void AddSession(ExecControleOfSession session)
+    {
+        _context.ExecControleOfSessions.Add(session);
+    }
+
+    // ───────────────────────────── Statuts de documents ─────────────────────────────
+
+    /// <summary>Statuts de la session donnée, par défaut la session active (ou sans session si aucune équipe n'est active).</summary>
+    public async Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId, Guid? sessionId = null)
+    {
+        var activeSessionId = sessionId ?? (await GetActiveSessionAsync(execControleOfId))?.Id;
+
+        return await _context.ExecControleDocumentStatuts
+            .Where(d => d.ExecControleOfId == execControleOfId && d.SessionId == activeSessionId)
             .ToListAsync();
     }
 
     public async Task<ExecControleDocumentStatut?> GetDocumentStatutByIdAsync(Guid statutId)
     {
-        return await _context.Set<ExecControleDocumentStatut>()
+        return await _context.ExecControleDocumentStatuts
             .Include(d => d.ExecControleOf)
                 .ThenInclude(e => e.NumeroOfNavigation)
                     .ThenInclude(o => o.CodeArticleNavigation)
             .FirstOrDefaultAsync(d => d.Id == statutId);
+    }
+
+    public async Task<List<ExecControleDocumentStatut>> GetDocumentStatutsForMachineAsync(Guid execControleOfId, string machineCode)
+    {
+        var query = _context.ExecControleDocumentStatuts
+            .Where(s => s.ExecControleOfId == execControleOfId && s.MachineCode == machineCode && s.TypeDocument == TypesDocumentExecution.VerifMachine);
+
+        var activeSessionId = (await GetActiveSessionAsync(execControleOfId))?.Id;
+        if (activeSessionId != null)
+        {
+            query = query.Where(d => d.SessionId == activeSessionId);
+        }
+
+        return await query
+            .OrderByDescending(s => s.DateExecution)
+            .ThenBy(s => s.Equipe)
+            .ToListAsync();
     }
 
     public void AddExecControleDocumentStatut(ExecControleDocumentStatut statut)
@@ -338,241 +518,18 @@ public class OperateurRepository : IOperateurRepository
         _context.ExecControleDocumentStatuts.Update(statut);
     }
 
-    public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourPosteAsync(string posteCode, string role)
-    {
-        // Pour un poste donné et un rôle (ex: RESULTAT_CONTROLE_POSTE)
-        return await _context.RefFormulaires
-            .Where(f => f.Statut == "ACTIF" && f.Role == role && f.CodeReference.Contains(posteCode))
-            .ToListAsync();
-    }
-
-    public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourMachineAsync(string machineCode, string role)
-    {
-        var codeTrim = machineCode?.Trim();
-        var planActif = await _context.DocumentVerifMachineEntetes
-            .Include(p => p.Formulaire)
-            .Where(p => p.MachineCode != null && p.MachineCode.Trim() == codeTrim && (p.Statut == "ACTIF" || p.Statut == "Actif"))
-            .FirstOrDefaultAsync();
-
-        if (planActif == null)
-        {
-            throw new Exception($"Aucun plan de vérification actif n'a été trouvé pour cette machine ({machineCode}). Veuillez signaler au superviseur pour le créer.");
-        }
-
-        return new List<RefFormulaire> { new RefFormulaire { Id = planActif.Id } };
-    }
-
-    public async Task<IEnumerable<RefFormulaire>> GetFormulairesPourArticleAsync(string codeArticle, string role)
-    {
-        if (role == "PLAN_ASS" || role == "PLAN_ASSEMBLAGE")
-        {
-            var planAss = await GetPlanAssemblageActifAsync(codeArticle);
-            if (planAss != null)
-            {
-                return new List<RefFormulaire>
-                {
-                    new RefFormulaire
-                    {
-                        Id = planAss.Id,
-                        CodeReference = planAss.TypeDocumentCode,
-                        Designation = planAss.Nom ?? planAss.Designation ?? "Plan Assemblage",
-                        Statut = "ACTIF"
-                    }
-                };
-            }
-            return new List<RefFormulaire>();
-        }
-
-        // Pour un article et un rôle (ex: PRODUIT_FINI, RESULTAT_CONTROLE_CF, ECHANTILLONNAGE)
-        // La logique ici peut dépendre de la famille, mais comme c'est un repo on peut faire une recherche par mot clé
-        // Ou utiliser les plans directement si ça existe.
-        // Ici on simplifie pour correspondre aux RefFormulaires
-        var of = await _context.Articles.Include(a => a.NatureArticleCodeNavigation).FirstOrDefaultAsync(a => a.CodeArticle == codeArticle);
-        var famillePF = _context.ProduitFinis.FirstOrDefault(p => p.CodeArticle == codeArticle)?.FamilleProduitFiniCode;
-
-        if (string.IsNullOrEmpty(famillePF)) return new List<RefFormulaire>();
-
-        return await _context.RefFormulaires
-            .Where(f => f.Statut == "ACTIF" && f.Role == role && (f.CodeReference.Contains(famillePF) || f.CodeReference.Contains(codeArticle)))
-            .ToListAsync();
-    }
-
-    public async Task<RefFormulaire?> GetFormulaireGlobalAsync(string role)
-    {
-        return await _context.RefFormulaires
-            .FirstOrDefaultAsync(f => f.Statut == "ACTIF" && f.Role == role);
-    }
-
-    public async Task<Dictionary<Guid, string>> GetFormulaireDesignationsAsync(IEnumerable<Guid> ids)
-    {
-        var idList = ids.Distinct().ToList();
-        if (!idList.Any()) return new Dictionary<Guid, string>();
-
-        var refForms = await _context.RefFormulaires
-            .Where(f => idList.Contains(f.Id))
-            .ToDictionaryAsync(f => f.Id, f => f.Designation ?? f.CodeReference);
-
-        var docEntetes = await _context.DocumentEntetes
-            .Where(d => idList.Contains(d.Id))
-            .Select(d => new { d.Id, Designation = !string.IsNullOrEmpty(d.Designation) ? d.Designation : d.Nom })
-            .ToDictionaryAsync(d => d.Id, d => d.Designation);
-
-        var result = new Dictionary<Guid, string>(refForms);
-        foreach (var kvp in docEntetes)
-        {
-            if (!result.ContainsKey(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
-            {
-                result[kvp.Key] = kvp.Value;
-            }
-        }
-        return result;
-    }
-
-    public async Task<IEnumerable<ExecControleOf>> GetExecsAssemblageEnCoursAsync()
-    {
-        return await _context.ExecControleOfs
-            .Include(e => e.ExecControleOfPostes)
-            .Where(e => e.TypeOf == "ASS" && e.Statut != "CLOTURE" && e.Statut != "TERMINE")
-            .ToListAsync();
-    }
-
-    public void AddExecControleOfPoste(ExecControleOfPoste poste)
-    {
-        _context.ExecControleOfPostes.Add(poste);
-    }
-
-    public async Task<IEnumerable<Machine>> GetMachinesByPosteAsync(string posteCode)
-    {
-        var poste = await _context.PosteTravails
-            .Include(p => p.CodeMachines)
-            .FirstOrDefaultAsync(p => p.CodePoste == posteCode);
-            
-        if (poste == null) return new List<Machine>();
-        return poste.CodeMachines.Where(m => m.Actif).ToList();
-    }
-
-    public async Task<IEnumerable<Machine>> GetAllMachinesAsync()
-    {
-        return await _context.Machines.Where(m => m.Actif).ToListAsync();
-    }
-
-    public async Task<Dictionary<string, string>> GetMachineLabelsAsync(IEnumerable<string> machineCodes)
-    {
-        return await _context.Machines
-            .Where(m => machineCodes.Contains(m.CodeMachine))
-            .ToDictionaryAsync(m => m.CodeMachine, m => m.Libelle);
-    }
-
-    public async Task<List<string>> GetMachinesWithDemarragePlanAsync()
-    {
-        var plans = await _context.DocumentVerifMachineEntetes
-            .Include(e => e.DocumentVerifMachineLignes)
-                .ThenInclude(l => l.DocumentVerifMachineEcheances)
-                    .ThenInclude(g => g.PeriodiciteMachine)
-            .Where(e => e.Statut == "ACTIF" || e.Statut == "Actif")
-            .Where(e => e.MachineCode != null)
-            .ToListAsync();
-
-        return plans
-            .Where(p => p.DocumentVerifMachineLignes.Any(l => l.DocumentVerifMachineEcheances.Any(g => g.PeriodiciteMachine != null && g.PeriodiciteMachine.Libelle.ToLower().Contains("démarrage"))))
-            .Select(p => p.MachineCode!)
-            .Distinct()
-            .ToList();
-    }
-
-    public async Task<Dictionary<string, List<string>>> GetMachinesPlanPeriodicitesAsync()
-    {
-        var plans = await _context.DocumentVerifMachineEntetes
-            .Include(e => e.DocumentVerifMachineLignes)
-                .ThenInclude(l => l.DocumentVerifMachineEcheances)
-                    .ThenInclude(g => g.PeriodiciteMachine)
-            .Where(e => e.Statut == "ACTIF" || e.Statut == "Actif")
-            .Where(e => e.MachineCode != null)
-            .ToListAsync();
-
-        var result = new Dictionary<string, List<string>>();
-
-        foreach (var p in plans)
-        {
-            if (p.MachineCode == null) continue;
-            
-            var periodicites = p.DocumentVerifMachineLignes
-                .SelectMany(l => l.DocumentVerifMachineEcheances)
-                .Where(e => e.PeriodiciteMachine != null)
-                .Select(e => e.PeriodiciteMachine.Libelle.ToLower())
-                .Distinct()
-                .ToList();
-
-            if (!result.ContainsKey(p.MachineCode))
-            {
-                result[p.MachineCode] = new List<string>();
-            }
-
-            result[p.MachineCode].AddRange(periodicites);
-            result[p.MachineCode] = result[p.MachineCode].Distinct().ToList();
-        }
-
-        return result;
-    }
-
-    public async Task<bool> AjouterPostesAsync(Guid execControleOfId, List<string> posteCodes)
-    {
-        var existingPostes = await _context.ExecControleOfPostes
-            .Where(p => p.ExecControleOfId == execControleOfId)
-            .Select(p => p.PosteCode)
-            .ToListAsync();
-
-        var newPostes = posteCodes.Except(existingPostes).ToList();
-        foreach(var p in newPostes)
-        {
-            _context.ExecControleOfPostes.Add(new ExecControleOfPoste
-            {
-                ExecControleOfId = execControleOfId,
-                PosteCode = p
-            });
-        }
-        await SaveChangesAsync();
-        return true;
-    }
-
+    // ───────────────────────────── Vérification machine ─────────────────────────────
 
     public void AddExecVerifMachineReponses(IEnumerable<ExecVerifMachineReponse> reponses)
     {
         _context.ExecVerifMachineReponses.AddRange(reponses);
     }
 
-    public void RemoveExecVerifMachineReponses(IEnumerable<ExecVerifMachineReponse> reponses)
+    public async Task<List<ExecVerifMachineReponse>> GetExecVerifMachineReponsesAsync(Guid statutId)
     {
-        _context.ExecVerifMachineReponses.RemoveRange(reponses);
-    }
-
-    public async Task<List<ExecVerifMachineReponse>> GetExecVerifMachineReponsesAsync(Guid statutId, Guid? periodiciteId = null)
-    {
-        var query = _context.ExecVerifMachineReponses
-            .Where(r => r.ExecControleDocumentStatutId == statutId);
-
-        if (periodiciteId.HasValue)
-        {
-            query = query.Where(r => r.DocumentVerifMachineEcheance.PeriodiciteMachineId == periodiciteId.Value);
-        }
-
-        return await query.ToListAsync();
-    }
-
-    public async Task<List<ExecControleDocumentStatut>> GetDocumentStatutsForMachineAsync(Guid execControleOfId, string machineCode)
-    {
-        return await _context.ExecControleDocumentStatuts
-            .Where(s => s.ExecControleOfId == execControleOfId && s.MachineCode == machineCode && s.TypeDocument == "VERIF_MACHINE")
-            .OrderByDescending(s => s.DateExecution)
-            .ThenBy(s => s.Equipe)
-            .ToListAsync();
-    }
-
-    public async Task<IEnumerable<PeriodiciteMachine>> GetPeriodicitesMachineAsync()
-    {
-        return await _context.PeriodiciteMachines
-            .Where(p => p.Actif)
-            .OrderBy(p => p.OrdreAffichage)
+        return await _context.ExecVerifMachineReponses
+            .AsNoTracking()
+            .Where(r => r.ExecControleDocumentStatutId == statutId)
             .ToListAsync();
     }
 }

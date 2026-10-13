@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
+using FluentValidation;
+using SopalTrace.Application.Utilities;
 
 namespace SopalTrace.Api.Controllers;
 
@@ -15,16 +17,20 @@ namespace SopalTrace.Api.Controllers;
 public class DocumentVerifMachineController : ControllerBase
 {
     private readonly IDocumentVerifMachineService _documentVerifMachineService;
+    private readonly IValidator<CreateDocumentVerifMachineRequestDto> _validateur;
 
-    public DocumentVerifMachineController(IDocumentVerifMachineService documentVerifMachineService)
+    public DocumentVerifMachineController(IDocumentVerifMachineService documentVerifMachineService,
+        IValidator<CreateDocumentVerifMachineRequestDto> validateur)
     {
         _documentVerifMachineService = documentVerifMachineService;
+        _validateur = validateur;
     }
 
     [HttpPost]
     [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> Create([FromBody] CreateDocumentVerifMachineRequestDto request)
     {
+        await ValidationHelper.ValidateAndThrowAsync(_validateur, request, "création du plan de vérification machine");
         var id = await _documentVerifMachineService.CreateDocumentAsync(request);
         return Ok(new { id = id });
     }
@@ -33,6 +39,7 @@ public class DocumentVerifMachineController : ControllerBase
     [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> CreateNouvelleVersion([FromBody] NouvelleVersionVerifMachineRequestDto request)
     {
+        await ValidationHelper.ValidateAndThrowAsync(_validateur, request.Donnees, "nouvelle version du plan de vérification machine");
         var id = await _documentVerifMachineService.CreateNewVersionAsync(request);
         return Ok(new { id = id });
     }
@@ -63,7 +70,8 @@ public class DocumentVerifMachineController : ControllerBase
     [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentVerifMachineRequestDto request)
     {
-        await _documentVerifMachineService.UpdateDocumentAsync(id, request);
-        return NoContent();
+        await ValidationHelper.ValidateAndThrowAsync<CreateDocumentVerifMachineRequestDto>(_validateur, request, "modification du plan de vérification machine");
+        var rowVersion = await _documentVerifMachineService.UpdateDocumentAsync(id, request);
+        return Ok(new { rowVersion });
     }
 }

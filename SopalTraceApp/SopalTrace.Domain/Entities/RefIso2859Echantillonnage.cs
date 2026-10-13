@@ -9,7 +9,5 @@ public partial class RefIso2859Echantillonnage
 
     public string CodeLettre { get; set; } = null!;
 
-    public double ValeurNqa { get; set; }
-
     public int Quantite { get; set; }
 }

@@ -11,25 +11,37 @@ public partial class Machine
 
     public string OperationCode { get; set; } = null!;
 
-    public string TypeAffectation { get; set; } = null!;
-
-    public string? RoleMachine { get; set; }
-
     public bool Actif { get; set; }
 
-    public virtual ICollection<DocumentLigne> DocumentLigneMachineCodeCtrlPosteNavigations { get; set; } = new List<DocumentLigne>();
+    public string? VerifModele { get; set; }
 
-    public virtual ICollection<DocumentLigne> DocumentLigneMachineCodeNavigations { get; set; } = new List<DocumentLigne>();
+    public bool VerifSansConformite { get; set; }
 
-    public virtual ICollection<DocumentVerifMachineEntete> DocumentVerifMachineEntetes { get; set; } = new List<DocumentVerifMachineEntete>();
+    public bool VerifFuiteEtalon { get; set; }
+
+    public bool VerifMoyenControleNumerote { get; set; }
+
+    public bool VerifSansDeltaP { get; set; }
+
+    public bool VerifSansPression { get; set; }
+
+    public bool VerifTablesEtalonSeparees { get; set; }
+
+    public bool VerifFuiteEnPa { get; set; }
+
+    public bool VerifColonnesParTableau { get; set; }
+
+    public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
+
+    public virtual ICollection<DocumentLigne> DocumentLignes { get; set; } = new List<DocumentLigne>();
+
+    public virtual ICollection<ExecControleDocumentStatut> ExecControleDocumentStatuts { get; set; } = new List<ExecControleDocumentStatut>();
 
     public virtual ICollection<ExecControleOf> ExecControleOfMachineCodeNavigations { get; set; } = new List<ExecControleOf>();
 
     public virtual ICollection<ExecControleOf> ExecControleOfMachineCodePrevuNavigations { get; set; } = new List<ExecControleOf>();
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
-
-    public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 
     public virtual ICollection<PosteTravail> CodePostes { get; set; } = new List<PosteTravail>();
 

@@ -4,6 +4,7 @@ import { documentService as assPlanService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
 import { mapSectionForBackend, mapImportedSection } from '@/utils/sectionUtils';
 import { useReferentielStore } from './referentielStore';
+import { verifierImportExcel } from '@/utils/importExcelResultat';
 
 export const useAssPlanStore = defineStore('assPlan', () => {
   // --- DICTIONNAIRES ---
@@ -14,7 +15,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   const typesControle = ref([]);
   const moyensControle = ref([]);
   const periodicites = ref([]);
-  const reglesEchantillonnage = ref([]); // Ajouté pour les règles ISO
   const typesSection = ref([]);
   const instruments = ref([]);
   const postes = ref([]);
@@ -66,7 +66,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
       typesControle.value = data.typesControle || [];
       moyensControle.value = data.moyensControle || [];
       periodicites.value = data.periodicites || [];
-      reglesEchantillonnage.value = data.reglesEchantillonnage || []; // Récupération depuis le backend
       typesSection.value = data.typesSection || data.typesSections || [];
       instruments.value = data.instruments || [];
       postes.value = data.postes || [];
@@ -99,7 +98,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
       ordreAffiche: sections.value.length + 1,
       typeSectionId: '',
       periodiciteId: null,
-      regleEchantillonnageId: null, // Ajouté pour la règle d'échantillonnage
       libelleSection: '',
       frequenceLibelle: '',
       notes: '',
@@ -145,10 +143,11 @@ export const useAssPlanStore = defineStore('assPlan', () => {
 
   const mapPayload = (legendeMoyens = '') => ({
     id: entete.value.id || undefined,
+    // Version reçue au chargement : refus 409 si le plan a été modifié entre-temps
+    rowVersion: entete.value.rowVersion,
     typeDocumentCode: 'PLAN_ASS',
     nom: entete.value.code || codePlanAuto.value,
-    designation: entete.value.libelle || `Modèle ${codePlanAuto.value} V${version.value}`,
-    libre1: entete.value.typeRobinetCode || null,
+    designation: entete.value.libelle || `Plan d'assemblage ${codePlanAuto.value} V${version.value}`,
     natureArticleCode: entete.value.natureComposantCode || '',
     operationCode: entete.value.operationCode || '',
     posteCode: entete.value.posteCode || null,
@@ -195,6 +194,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
       const res = await assPlanService.updateDocument(id, payload);
+      entete.value.rowVersion = res?.rowVersion ?? res?.data?.rowVersion ?? entete.value.rowVersion;
       return res.data;
     } finally {
       isLoading.value = false;
@@ -208,10 +208,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     } finally {
       isLoading.value = false;
     }
-  };
-
-  const restaurerPlan = async () => {
-    throw new Error("La restauration n'est pas supportée pour les documents centralisés.");
   };
 
   const importerDepuisExcel = async (file) => {
@@ -228,14 +224,14 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     isLoading.value = true;
     try {
       // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
-      const parsedData = await assPlanService.importExcel(formData);
+      const parsedData = verifierImportExcel(await assPlanService.importExcel(formData));
 
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
           entete.value.notes = (entete.value.notes ? entete.value.notes + '\n' : '') + parsedData.remarques.trim();
         }
 
-        sections.value = parsedData.sections.map(sec => mapImportedSection(sec, reglesEchantillonnage.value));
+        sections.value = parsedData.sections.map(sec => mapImportedSection(sec));
 
         await fetchDictionnaires();
       }
@@ -248,7 +244,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   return {
     operations, typesRobinet, naturesComposant,
     typesCaracteristique, typesControle, moyensControle,
-    periodicites, typesSection, reglesEchantillonnage,
+    periodicites, typesSection,
     instruments,
     postes,
     famillesProduit,
@@ -262,7 +258,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, savePlan, createNewVersion, creerNouvelleVersion, updatePlan, activerPlanDraft, restaurerPlan, importerDepuisExcel,
+    removeSection, addLigneLibre, removeLigne, savePlan, createNewVersion, creerNouvelleVersion, updatePlan, activerPlanDraft, importerDepuisExcel,
     isBeingLoaded
   };
 });

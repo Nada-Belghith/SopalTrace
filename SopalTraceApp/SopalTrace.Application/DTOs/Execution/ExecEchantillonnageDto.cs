@@ -20,7 +20,7 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? PosteCode { get; set; }
         public string? TypePlan { get; set; }
         public string? ModeControle { get; set; }
-        public double? NqaValeur { get; set; }
+        public decimal? NqaValeur { get; set; }
 
         // En-tête du document
         public string? CodeArticle { get; set; }

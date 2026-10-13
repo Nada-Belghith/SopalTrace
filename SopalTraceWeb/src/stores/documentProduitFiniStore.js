@@ -1,9 +1,12 @@
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { documentService as documentService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
 import { mapSectionForBackend, hydrateSectionFromBackend, mapImportedSection } from '@/utils/sectionUtils';
+import { verifierImportExcel } from '@/utils/importExcelResultat';
+import { useReferentielStore } from './referentielStore';
 
 export const usedocumentProduitFiniStore = defineStore('documentProduitFini', () => {
   // --- DICTIONNAIRES ---
@@ -16,7 +19,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
   const typesSection = ref([]);
   const instruments = ref([]);
   const postes = ref([]);
-  const reglesEchantillonnage = ref([]);
   const formulairesReferences = ref([]);
   const isDicosLoaded = ref(false);
 
@@ -57,7 +59,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
       typesSection.value = data.typesSection || data.typesSections || [];
       instruments.value = data.instruments || [];
       postes.value = data.postes || [];
-      reglesEchantillonnage.value = data.reglesEchantillonnage || [];
 
       isDicosLoaded.value = true;
     } catch (apiError) {
@@ -75,6 +76,12 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
     }
   };
 
+  // Référentiel partagé (chargé par l'éditeur) : la liste locale n'est remplie qu'après un import Excel.
+  const periodicitesConnues = () => {
+    const partagees = useReferentielStore().periodicites || [];
+    return partagees.length ? partagees : periodicites.value;
+  };
+
   const getPlan = async (id) => {
     isLoading.value = true;
     try {
@@ -83,6 +90,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
 
       entete.value = {
         id: data.id,
+        rowVersion: data.rowVersion,
         familleProduitFiniCode: data.familleProduitFiniCode || '',
         familleProduitFiniLibelle: data.familleProduitFiniLibelle || '',
         version: data.version,
@@ -95,14 +103,15 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         configurationColonnes: (data.colonneDefs || []).map(c => ({
           key: c.cleColonne || c.key,
           label: c.labelAffiche || c.label,
-          type: c.typeValeur || c.type || 'Texte',
+          type: normaliserTypeColonne(c.typeValeur || c.type),
+          options: c.options || [],
           insertAfter: c.insertAfter || 'code_instrument'
         })),
       };
 
       sections.value = (data.sections || [])
         .sort((a, b) => (a.ordreAffiche ?? 9999) - (b.ordreAffiche ?? 9999))
-        .map(s => hydrateSectionFromBackend(s, periodicites.value, reglesEchantillonnage.value));
+        .map(s => hydrateSectionFromBackend(s, periodicitesConnues()));
     } finally {
       isLoading.value = false;
     }
@@ -121,7 +130,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         colonneDefs: entete.value.configurationColonnes || [],
-        sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicites.value))
+        sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicitesConnues()))
       };
 
       const response = await documentService.createDocument(payload);
@@ -142,6 +151,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
     try {
       const payload = {
         id: entete.value.id,
+        rowVersion: entete.value.rowVersion,
         nom: `PLAN_PF_${entete.value.familleProduitFiniCode}`,
         designation: entete.value.familleProduitFiniLibelle,
         typeDocumentCode: 'PLAN_PF',
@@ -151,9 +161,11 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         configurationColonnesJson: JSON.stringify(entete.value.configurationColonnes || []),
-        sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicites.value))
+        sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicitesConnues()))
       };
       const response = await documentService.updateDocument(entete.value.id, payload);
+      // Nouvelle version : permet d'enregistrer de nouveau sans recharger le document.
+      entete.value.rowVersion = response?.rowVersion ?? entete.value.rowVersion;
       return response.data || response;
     } finally {
       isLoading.value = false;
@@ -166,6 +178,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
     try {
       const payload = {
         ancienId: entete.value.id,
+        rowVersion: entete.value.rowVersion,
         nom: `PLAN_PF_${entete.value.familleProduitFiniCode}`,
         designation: entete.value.familleProduitFiniLibelle,
         typeDocumentCode: 'PLAN_PF',
@@ -177,7 +190,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         colonneDefs: entete.value.configurationColonnes || [],
-        sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicites.value))
+        sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicitesConnues()))
       };
       const response = await documentService.createNewVersion(payload.ancienId, payload);
       return response.data?.planId || response.planId || response;
@@ -186,10 +199,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
     }
   };
   const creerNouvelleVersion = createNewVersion;
-
-  const restaurerPlan = async () => {
-    throw new Error("La restauration n'est pas supportée pour les documents centralisés.");
-  };
 
   const importerDepuisExcel = async (file) => {
     const formData = new FormData();
@@ -204,14 +213,14 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
 
     isLoading.value = true;
     try {
-      const parsedData = await documentService.importExcel(formData);
+      const parsedData = verifierImportExcel(await documentService.importExcel(formData));
 
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
           entete.value.notes = (entete.value.notes ? entete.value.notes + '\n' : '') + parsedData.remarques.trim();
         }
 
-        sections.value = parsedData.sections.map(sec => mapImportedSection(sec, reglesEchantillonnage.value));
+        sections.value = parsedData.sections.map(sec => mapImportedSection(sec));
 
         await fetchDictionnaires();
       }
@@ -224,7 +233,7 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
   return {
     typesRobinet, famillesProduit, typesCaracteristique, typesControle, moyensControle,
     periodicites, typesSection, instruments, postes, isDicosLoaded,
-    entete, sections, isLoading, reglesEchantillonnage, formulairesReferences,
-    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, updatePlan, archiverPlan, createNewVersion, creerNouvelleVersion, restaurerPlan, importerDepuisExcel
+    entete, sections, isLoading, formulairesReferences,
+    fetchDictionnaires, fetchFormulairesReferences, getPlan, createPlan, updatePlan, archiverPlan, createNewVersion, creerNouvelleVersion, importerDepuisExcel
   };
 });

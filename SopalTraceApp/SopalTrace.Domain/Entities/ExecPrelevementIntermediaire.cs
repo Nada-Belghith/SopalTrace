@@ -27,5 +27,21 @@ public partial class ExecPrelevementIntermediaire
 
     public DateTime CreeLe { get; set; }
 
+    public Guid? SessionId { get; set; }
+
+    public string? PosteCode { get; set; }
+
+    public Guid? ProductionPeriodId { get; set; }
+
+    public byte[] RowVersion { get; set; } = null!;
+
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
+
+    public virtual PosteTravail? PosteCodeNavigation { get; set; }
+
+    public virtual ExecProductionPeriod? ProductionPeriod { get; set; }
+
+    public virtual DocumentSection Section { get; set; } = null!;
+
+    public virtual ExecControleOfSession? Session { get; set; }
 }

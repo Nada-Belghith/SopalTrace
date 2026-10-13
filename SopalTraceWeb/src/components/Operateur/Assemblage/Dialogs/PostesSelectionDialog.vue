@@ -1,7 +1,6 @@
 <script setup>
-import { defineProps, defineEmits, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
-import Tag from 'primevue/tag'
 import MultiSelect from 'primevue/multiselect'
 import Button from 'primevue/button'
 import Dropdown from 'primevue/dropdown'

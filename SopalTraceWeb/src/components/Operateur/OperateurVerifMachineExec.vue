@@ -1,12 +1,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import apiClient from '@/services/apiClient'
+import execAssemblageService from '@/services/execAssemblageService'
 import { useAppToast } from '@/composables/useAppToast'
 import Button from 'primevue/button'
+import { idsDuMoment } from '@/utils/periodicitesMachine'
 
 import { useVerifMachineStore } from '@/stores/verifMachineStore'
-import { useAuthStore } from '@/stores/authStore'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
 import VerifMachineTableConformite from '@/components/VerifMachine/partials/VerifMachineTableConformite.vue'
 import VerifMachineTableRisques from '@/components/VerifMachine/partials/VerifMachineTableRisques.vue'
@@ -15,21 +15,30 @@ const router = useRouter()
 const route = useRoute()
 const toast = useAppToast()
 const store = useVerifMachineStore()
-const authStore = useAuthStore()
 const operateurStore = useOperateurStore()
 
-const isMAS22 = computed(() => (store.entete?.machineCode || docHeader.value?.machineCode || '').toUpperCase().includes('MAS22'))
+// Risques normaux et risques étalon en deux tableaux : configuration de la machine (table Machine)
+const tablesEtalonSeparees = computed(() => !!store.getMachineConfig(store.entete?.machineCode || docHeader.value?.machineCode).tablesEtalonSeparees)
 
 const planId = route.params.id
 const currentStatutId = ref(route.query.statutId)
 
-const viewMode = ref(route.query.mode === 'all' ? 'gallery' : 'details')
-const isConsultationMode = ref(route.query.mode === 'all')
+/**
+ * Ouvert depuis les vérifications machine d'un poste d'assemblage : moment imposé (démarrage, après la pause,
+ * fin de poste), pas de galerie, et une validation qui enregistre puis marque le moment comme fait.
+ */
+const modeAssistant = route.query.assistant === '1'
+const periodiciteAssistant = route.query.periodicite || ''
+const LIBELLES_MOMENT = { DEMARRAGE: 'Démarrage', APRES_PAUSE: 'Après la pause', FIN_POSTE: 'Fin de poste' }
+const libelleMoment = LIBELLES_MOMENT[periodiciteAssistant] || periodiciteAssistant
+const isValidating = ref(false)
+
+const viewMode = ref(route.query.mode === 'all' && !modeAssistant ? 'gallery' : 'details')
+const isConsultationMode = ref(route.query.mode === 'all' || route.query.consultation === '1')
 const loading = ref(false)
 const execReponses = ref([])
 const availableSessions = ref([])
 const selectedPeriodiciteId = ref(null)
-const matriculeOperateur = ref(authStore.user?.matricule || '')
 
 const docHeader = ref({
   codeArticle: '-',
@@ -90,15 +99,12 @@ const filteredSessions = computed(() => {
 const fetchSessionData = async (targetStatutId) => {
   loading.value = true
   try {
-    const res = await apiClient.get(`/Operateur/verif-machine/statut/${targetStatutId}`)
+    const res = await execAssemblageService.getVerifMachine(targetStatutId)
     if (res.data) {
       currentStatutId.value = targetStatutId
 
       if (res.data.reponses) {
         execReponses.value = res.data.reponses
-        if (execReponses.value.length > 0 && execReponses.value[0].matriculeOperateur) {
-          matriculeOperateur.value = execReponses.value[0].matriculeOperateur
-        }
       }
 
       if (res.data.availableSessions) {
@@ -128,42 +134,39 @@ const fetchSessionData = async (targetStatutId) => {
   }
 }
 
+/** Assistant : périodicités du moment imposé (code ControlMoment), affichées dans les tableaux. */
+const idsMoment = computed(() => (modeAssistant ? idsDuMoment(store.periodicitesMachine, periodiciteAssistant) : null))
+
+/** Fabrication : filtre initial d'après l'URL (identifiant, code ou moment), sinon le démarrage pour une première saisie. */
 const applyPeriodiciteFilter = () => {
-  const targetPerioQuery = route.query.periodicite || route.query.perio || route.query.etape
-  if (targetPerioQuery && store.periodicitesMachine && store.periodicitesMachine.length > 0) {
-    const normQuery = targetPerioQuery.toString().toLowerCase().trim()
-    const found = store.periodicitesMachine.find(p => {
-      const lib = (p.libelle || p.Libelle || '').toLowerCase()
-      const id = (p.id || p.Id || '').toString().toLowerCase()
-      if (id === normQuery || lib === normQuery) return true
-      if ((normQuery.includes('demarr') || normQuery.includes('démarr')) && lib.includes('demarr')) return true
-      if (normQuery.includes('pause') && lib.includes('pause')) return true
-      if (normQuery.includes('fin') && lib.includes('fin')) return true
-      return false
-    })
-    if (found) {
-      selectedPeriodiciteId.value = found.id || found.Id
-      toast.info('Information', `Filtré sur la périodicité "${found.libelle || found.Libelle}".`)
+  // Assistant : le moment est imposé par idsMoment, jamais déduit d'un libellé ni des réponses.
+  if (modeAssistant) return
+  const periodicites = store.periodicitesMachine || []
+
+  const cible = route.query.periodicite || route.query.perio || route.query.etape
+  if (cible) {
+    const valeur = String(cible)
+    const trouvee = periodicites.find(p => p.id === valeur || p.code === valeur || p.controlMoment === valeur)
+    if (trouvee) {
+      selectedPeriodiciteId.value = trouvee.id
+      toast.info('Information', `Filtré sur la périodicité "${trouvee.libelle}".`)
       return
     }
   }
 
-  // --- LOGIQUE DE DÉMARRAGE PAR DÉFAUT ---
   if (execReponses.value.length === 0 && availableSessions.value.length > 0) {
     const teamSessions = availableSessions.value.filter(s => s.equipe === docHeader.value.equipe)
-    if (teamSessions.length <= 1) { // Première session
-      const demarragePerio = store.periodicitesMachine.find(p => 
-        p.libelle && (p.libelle.toLowerCase().includes('démarrage') || p.libelle.toLowerCase().includes('demarrage'))
-      )
-      if (demarragePerio) {
-        selectedPeriodiciteId.value = demarragePerio.id
-        toast.info('Information', 'Filtré sur la périodicité "Démarrage" pour la première exécution de l\'équipe.')
-      }
+    const demarrage = periodicites.find(p => p.controlMoment === 'DEMARRAGE')
+    if (teamSessions.length <= 1 && demarrage) {
+      selectedPeriodiciteId.value = demarrage.id
+      toast.info('Information', 'Filtré sur la périodicité "Démarrage" pour la première exécution de l\'équipe.')
     }
   }
 }
 
 const checkConsultationMode = (statutId) => {
+  // Assistant : le mode lecture est choisi par l'écran des machines (consultation ou saisie).
+  if (modeAssistant) return
   const session = availableSessions.value.find(s => s.statutId === statutId)
   if (session && isSessionTerminee(session)) {
     isConsultationMode.value = true
@@ -200,24 +203,12 @@ const switchToGalleryMode = () => {
 }
 
 const save = async () => {
-  if (!matriculeOperateur.value) {
-    toast.error('Erreur', 'Le matricule de l\'opérateur est obligatoire.');
-    return;
-  }
-
   try {
-    execReponses.value.forEach(r => {
-      r.matriculeOperateur = matriculeOperateur.value
-    })
-
-    const payload = {
+    // L'opérateur est identifié par le serveur à partir de son jeton.
+    await execAssemblageService.saveVerifMachine({
       execControleDocumentStatutId: currentStatutId.value,
-      periodiciteMachineId: selectedPeriodiciteId.value || null,
-      matriculeOperateur: matriculeOperateur.value,
       reponses: execReponses.value
-    }
-    
-    await apiClient.post('/Operateur/verif-machine/save', payload)
+    })
     toast.success('Succès', 'Vérification machine enregistrée avec succès.')
     
     // Mettre à jour les données pour rafraîchir la liste des sessions
@@ -225,8 +216,38 @@ const save = async () => {
     
     // Retour automatique à la vue galerie (les cartes)
     switchToGalleryMode()
-  } catch {
-    toast.error('Erreur', 'Impossible de sauvegarder.')
+  } catch (error) {
+    toast.error('Erreur', error.message || 'Impossible de sauvegarder.')
+  }
+}
+
+/** Assistant : retour à la liste des machines du poste pour ce moment. */
+const retourMachines = () => router.push({
+  name: 'exec-verif-machines',
+  params: { execControleOfId: route.query.execControleOfId },
+  query: { posteCode: route.query.posteCode, periodicite: periodiciteAssistant }
+})
+
+const enregistrerSansValider = async () => {
+  try {
+    await execAssemblageService.saveVerifMachine({ execControleDocumentStatutId: currentStatutId.value, reponses: execReponses.value })
+    toast.success('Enregistré', 'Réponses enregistrées : la vérification reste à valider.')
+    await fetchSessionData(currentStatutId.value)
+  } catch (error) {
+    toast.error('Erreur', error.message || "Impossible d'enregistrer.")
+  }
+}
+
+const valider = async () => {
+  isValidating.value = true
+  try {
+    await execAssemblageService.validerVerifMachine(currentStatutId.value, periodiciteAssistant, execReponses.value)
+    toast.success('Vérification validée', `${docHeader.value.machineCode} — ${libelleMoment}`)
+    retourMachines()
+  } catch (error) {
+    toast.error('Validation impossible', error.message)
+  } finally {
+    isValidating.value = false
   }
 }
 
@@ -254,7 +275,16 @@ const goBack = () => {
   }
 }
 
+const titre = computed(() => {
+  if (modeAssistant) return `Vérification machine ${docHeader.value.machineCode} · ${libelleMoment}`
+  return viewMode.value === 'gallery' ? "Galerie des rapports d'exécution" : 'Exécution : Vérification Machine'
+})
+
 const handleBackArrow = () => {
+  if (modeAssistant) {
+    retourMachines()
+    return
+  }
   if (viewMode.value === 'details') {
     switchToGalleryMode()
   } else {
@@ -270,14 +300,14 @@ const handleBackArrow = () => {
       <div class="flex items-center gap-3">
         <Button icon="pi pi-arrow-left" class="p-button-rounded p-button-text p-button-secondary" @click="handleBackArrow" />
         <h2 class="m-0 text-xl font-bold text-slate-800">
-          {{ viewMode === 'gallery' ? 'Galerie des rapports d\'exécution' : 'Exécution : Vérification Machine' }}
+          {{ titre }}
         </h2>
       </div>
 
       <div class="flex items-center gap-3">
         <!-- Mode Toggle Button -->
         <button 
-          v-if="availableSessions.length > 0 && viewMode === 'details'"
+          v-if="!modeAssistant && availableSessions.length > 0 && viewMode === 'details'"
           @click="switchToGalleryMode"
           class="px-4 py-2 rounded-xl text-xs font-bold bg-white text-blue-600 border border-slate-300 shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center gap-2"
         >
@@ -287,7 +317,7 @@ const handleBackArrow = () => {
 
         <!-- Modifier Button -->
         <button 
-          v-if="viewMode === 'details' && isConsultationMode"
+          v-if="!modeAssistant && viewMode === 'details' && isConsultationMode"
           @click="isConsultationMode = false"
           class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 text-white shadow-sm hover:bg-amber-600 transition-all flex items-center gap-2"
         >
@@ -443,7 +473,12 @@ const handleBackArrow = () => {
     </div>
     
     <div v-else>
-      <div class="mb-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <div v-if="modeAssistant" class="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 font-semibold">
+        <i class="pi pi-filter mr-2"></i>Points à vérifier : {{ libelleMoment }}
+        <span v-if="idsMoment && !idsMoment.length" class="block mt-1 text-red-700">Aucune périodicité de ce plan n'est rattachée à ce moment : signalez-le au superviseur.</span>
+        <span v-if="isConsultationMode" class="ml-2 text-blue-700 font-normal">(consultation)</span>
+      </div>
+      <div v-else class="mb-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <label class="block font-bold mb-3 text-slate-700">Filtrer par Périodicité :</label>
         <div class="flex flex-wrap gap-3">
           <button 
@@ -477,13 +512,14 @@ const handleBackArrow = () => {
             :isConsultationMode="isConsultationMode"
             :execReponses="execReponses"
             :selectedPeriodiciteId="selectedPeriodiciteId"
+              :selectedPeriodiciteIds="idsMoment"
             :showEtalonColumns="false"
           />
         </div>
       </div>
 
       <!-- SECTION RISQUES & DÉFAUTS -->
-      <template v-if="isMAS22">
+      <template v-if="tablesEtalonSeparees">
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
           <div class="overflow-x-auto w-full">
             <VerifMachineTableRisques 
@@ -492,6 +528,7 @@ const handleBackArrow = () => {
               :isConsultationMode="isConsultationMode"
               :execReponses="execReponses"
               :selectedPeriodiciteId="selectedPeriodiciteId"
+              :selectedPeriodiciteIds="idsMoment"
               :showEtalonColumns="false"
               filterType="normal"
               title="Section Risques & Défauts"
@@ -507,6 +544,7 @@ const handleBackArrow = () => {
               :isConsultationMode="isConsultationMode"
               :execReponses="execReponses"
               :selectedPeriodiciteId="selectedPeriodiciteId"
+              :selectedPeriodiciteIds="idsMoment"
               :showEtalonColumns="true"
               filterType="etalon"
               title="Section Contrôle d'Étanchéité / Fuite Étalon & Pression"
@@ -524,13 +562,24 @@ const handleBackArrow = () => {
               :isConsultationMode="isConsultationMode"
               :execReponses="execReponses"
               :selectedPeriodiciteId="selectedPeriodiciteId"
+              :selectedPeriodiciteIds="idsMoment"
               filterType="all"
             />
           </div>
         </div>
       </template>
       
-      <div v-if="!isConsultationMode" class="bg-slate-50 border border-slate-200 p-6 flex justify-end rounded-xl shadow-sm">
+      <div v-if="modeAssistant && !isConsultationMode" class="bg-slate-50 border border-slate-200 p-4 flex flex-col md:flex-row justify-end gap-3 rounded-xl shadow-sm">
+        <button type="button" :disabled="isValidating" @click="enregistrerSansValider"
+                class="min-h-[52px] px-5 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50">
+          <i class="pi pi-save mr-2"></i>Enregistrer sans valider
+        </button>
+        <button type="button" :disabled="isValidating" @click="valider"
+                class="min-h-[52px] px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black border-0 cursor-pointer disabled:opacity-50">
+          <i class="pi mr-2" :class="isValidating ? 'pi-spin pi-spinner' : 'pi-check-circle'"></i>Valider la vérification — {{ libelleMoment }}
+        </button>
+      </div>
+      <div v-else-if="!isConsultationMode" class="bg-slate-50 border border-slate-200 p-6 flex justify-end rounded-xl shadow-sm">
         <Button label="Enregistrer la vérification" icon="pi pi-save" @click="save" class="p-button-success shadow-md" />
       </div>
     </div>

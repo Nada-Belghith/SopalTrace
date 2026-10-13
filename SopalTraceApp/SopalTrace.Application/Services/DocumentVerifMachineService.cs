@@ -3,7 +3,9 @@ using SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Constants;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,7 +34,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
 
     public async Task<Guid> CreateDocumentAsync(CreateDocumentVerifMachineRequestDto request)
     {
-        var user = _currentUserService.UserInfo ?? "";
+        var user = _currentUserService.MatriculeRequis;
         
         var docsExistants = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
         
@@ -46,8 +48,8 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         // 2. Construire l'entité
         var entite = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
         entite.Statut = formStatut;
-        entite.Version = formVersion;
-        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
+        entite.Version = formVersion ?? 1;
+        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version);
 
         // 3. Sauvegarder
         await _unitOfWork.DocumentVerifMachineEnteteRepository.AddAsync(entite);
@@ -59,9 +61,10 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
     public async Task<Guid> CreateNewVersionAsync(NouvelleVersionVerifMachineRequestDto request)
     {
         var ancienDoc = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(request.AncienId, includeRelations: true);
-        if (ancienDoc == null) throw new Exception("Ancien plan introuvable.");
+        if (ancienDoc == null) throw new RessourceIntrouvableException("Ancien plan introuvable.");
+        _unitOfWork.VerifierVersionDocument(ancienDoc, request.RowVersion, obligatoire: false);
 
-        var user = _currentUserService.UserInfo ?? "";
+        var user = _currentUserService.MatriculeRequis;
 
         // Le FormulaireStructureService gère l'archivage automatique des documents liés
         // lorsque le formulaire passe à une nouvelle version.
@@ -74,8 +77,8 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         // 2. Construire
         var entite = DocumentVerifMachineMapper.ToEntity(request.Donnees, user, formulaireId);
         entite.Statut = formStatut;
-        entite.Version = formVersion;
-        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version ?? 1);
+        entite.Version = formVersion ?? 1;
+        entite.Nom = UpdateVersionInString(entite.Nom, entite.Version);
 
         // 3. Sauvegarder
         await _unitOfWork.DocumentVerifMachineEnteteRepository.AddAsync(entite);
@@ -84,23 +87,24 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         return entite.Id;
     }
 
-    public async Task UpdateDocumentAsync(Guid id, UpdateDocumentVerifMachineRequestDto request)
+    public async Task<string> UpdateDocumentAsync(Guid id, UpdateDocumentVerifMachineRequestDto request)
     {
         var existingDoc = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(id, includeRelations: true);
-        if (existingDoc == null) throw new Exception("Plan introuvable");
+        if (existingDoc == null) throw new RessourceIntrouvableException("Plan introuvable");
+        _unitOfWork.VerifierVersionDocument(existingDoc, request.RowVersion, obligatoire: true);
 
-        var user = _currentUserService.UserInfo ?? "";
+        var user = _currentUserService.MatriculeRequis;
 
         // 1. Gérer le formulaire (correction mineure)
         var (formulaireId, formVersion, formStatut) = await ResolveFormulaireAsync(request.RefFormulaireCodeReference, request.ColonneDefs, null, isCorrectionMineure: true);
 
         // 2. Mettre à jour l'en-tête (ne modifie ni la version ni le statut)
         existingDoc.MachineCode = request.MachineCode;
-        existingDoc.Nom = UpdateVersionInString(request.Nom, existingDoc.Version ?? 1);
+        existingDoc.Nom = UpdateVersionInString(request.Nom, existingDoc.Version);
         existingDoc.Remarques = request.Remarques;
         existingDoc.LegendeMoyens = request.LegendeMoyens;
         existingDoc.ModifiePar = user;
-        existingDoc.ModifieLe = DateTime.UtcNow;
+        existingDoc.ModifieLe = DateTime.Now;
         existingDoc.FormulaireId = formulaireId;
 
         var newEntity = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
@@ -114,26 +118,27 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
 
         foreach (var f in newEntity.DocumentVerifMachineFamilles)
         {
-            f.PlanEnteteId = existingDoc.Id;
+            f.EnteteId = existingDoc.Id;
             _unitOfWork.DocumentVerifMachineEnteteRepository.AddFamille(f);
         }
 
         // 4. Vider et recréer les relations (Lignes)
-        foreach (var l in existingDoc.DocumentVerifMachineLignes.ToList())
+        foreach (var l in existingDoc.DocumentLignes.ToList())
         {
             _unitOfWork.DocumentVerifMachineEnteteRepository.RemoveLigne(l);
         }
-        existingDoc.DocumentVerifMachineLignes.Clear();
+        existingDoc.DocumentLignes.Clear();
 
-        foreach (var l in newEntity.DocumentVerifMachineLignes)
+        foreach (var l in newEntity.DocumentLignes)
         {
-            l.PlanEnteteId = existingDoc.Id;
+            l.EnteteId = existingDoc.Id;
             _unitOfWork.DocumentVerifMachineEnteteRepository.AddLigne(l);
         }
 
         // 5. Sauvegarder
         await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(existingDoc);
         await _unitOfWork.CommitAsync();
+        return VersionsDocument.EnTexte(existingDoc.RowVersion) ?? string.Empty;
     }
 
     private async Task<(Guid? FormulaireId, int? Version, string Statut)> ResolveFormulaireAsync(
@@ -145,12 +150,12 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
     {
         Guid? formulaireId = null;
         int version = 0;
-        string statut = "BROUILLON";
+        string statut = DocumentStatuts.Brouillon;
 
         if (!string.IsNullOrWhiteSpace(refFormulaireCodeReference))
         {
             var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(refFormulaireCodeReference);
-            string role = form?.Role ?? "UNKNOWN";
+            string role = form?.Role ?? RolesFormulaire.VerifMachine;
             
             var colsJson = colonneDefs != null && colonneDefs.Any()
                 ? System.Text.Json.JsonSerializer.Serialize(colonneDefs, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })
@@ -176,8 +181,16 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
             if (finalForm != null)
             {
                 version = finalForm.Version;
-                statut = finalForm.Statut ?? "BROUILLON";
+                statut = finalForm.Statut ?? DocumentStatuts.Brouillon;
             }
+        }
+
+        // Un plan de vérification machine est générique (une machine, pas un article) : pas de brouillon,
+        // actif dès sa création puis archivé par une nouvelle version.
+        if (statut == DocumentStatuts.Brouillon)
+        {
+            if (formulaireId.HasValue) await _formulaireStructureService.ActiverFormulaireAsync(formulaireId.Value);
+            statut = DocumentStatuts.Actif;
         }
 
         return (formulaireId, version, statut);
@@ -203,14 +216,10 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
     public async Task<DocumentVerifMachineEnteteDto> GetDocumentByIdAsync(Guid id)
     {
         var entite = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByIdAsync(id, includeRelations: true);
-        if (entite == null) throw new Exception("Plan Vérification Machine introuvable.");
+        if (entite == null) throw new RessourceIntrouvableException("Plan Vérification Machine introuvable.");
 
         var dto = DocumentVerifMachineMapper.ToDto(entite);
-        if (entite.Formulaire != null)
-        {
-            var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(entite.FormulaireId.Value);
-            dto.ConfigurationColonnesJson = SopalTrace.Application.Helpers.ColonneJsonMapper.Serialize(cols);
-        }
+        await CompleterConfigurationColonnesAsync(entite, dto);
 
         return dto;
     }
@@ -222,11 +231,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         foreach (var entite in plans)
         {
             var dto = DocumentVerifMachineMapper.ToDto(entite);
-            if (entite.Formulaire != null)
-            {
-                var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(entite.FormulaireId.Value);
-                dto.ConfigurationColonnesJson = SopalTrace.Application.Helpers.ColonneJsonMapper.Serialize(cols);
-            }
+            await CompleterConfigurationColonnesAsync(entite, dto);
             dtos.Add(dto);
         }
         return dtos;
@@ -239,11 +244,7 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         foreach (var entite in plans)
         {
             var dto = DocumentVerifMachineMapper.ToDto(entite);
-            if (entite.Formulaire != null)
-            {
-                var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(entite.FormulaireId.Value);
-                dto.ConfigurationColonnesJson = SopalTrace.Application.Helpers.ColonneJsonMapper.Serialize(cols);
-            }
+            await CompleterConfigurationColonnesAsync(entite, dto);
             dtos.Add(dto);
         }
         return dtos;
@@ -257,5 +258,14 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
             plan.Statut = DocumentStatuts.Archive;
             await _unitOfWork.DocumentVerifMachineEnteteRepository.UpdateAsync(plan);
         }
+    }
+
+    /// <summary>Ajoute au DTO la configuration des colonnes actives du formulaire associé au plan.</summary>
+    private async Task CompleterConfigurationColonnesAsync(DocumentEntete entite, DocumentVerifMachineEnteteDto dto)
+    {
+        if (entite.FormulaireId is not Guid formulaireId) return;
+
+        var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(formulaireId);
+        dto.ConfigurationColonnesJson = SopalTrace.Application.Helpers.ColonneJsonMapper.Serialize(cols);
     }
 }

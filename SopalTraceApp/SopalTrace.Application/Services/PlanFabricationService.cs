@@ -1,8 +1,10 @@
+using SopalTrace.Domain.Constants;
 using SopalTrace.Application.DTOs.QualityPlans.Fabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Documents;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -83,21 +85,21 @@ public class PlanFabricationService : IPlanFabricationService
 
         bool forceArchive = request.VersionInitiale.HasValue && request.VersionInitiale.Value != (existingDoc?.Version ?? -1);
 
-        if (existingDoc != null && existingDoc.Statut == "BROUILLON" && !forceArchive)
+        if (existingDoc != null && existingDoc.Statut == DocumentStatuts.Brouillon && !forceArchive)
         {
             await DeleteDraftIfExistsAsync(existingDoc);
         }
 
-        if (request.Statut != "BROUILLON")
+        if (request.Statut != DocumentStatuts.Brouillon)
         {
             ArchiveActivePlans(existingDocs, baseNom);
         }
 
         int finalVersion = CalculateNextVersion(existingDoc, request.VersionInitiale, forceArchive);
         string finalStatus = ResolvePlanStatus(request.Statut, existingDoc, forceArchive);
-        Guid? formulaireId = await GetFormulaireIdByRoleAsync("EN_COURS_DE_FABRICATION");
+        Guid? formulaireId = await GetFormulaireIdByRoleAsync(RolesFormulaire.EnCoursDeFabrication);
 
-        var plan = new PlanFabricationEntete
+        var plan = new DocumentEntete
         {
             Id = Guid.NewGuid(),
             CodeArticleSageVersionne = codeArticleSageVersionne ?? string.Empty,
@@ -109,17 +111,20 @@ public class PlanFabricationService : IPlanFabricationService
             FormulaireId = formulaireId,
             LegendeMoyens = request.LegendeMoyens,
             CreePar = user,
-            CreeLe = DateTime.UtcNow,
-            ModeleSourceId = request.ModeleSourceId,
-            PlanFabricationSections = new List<PlanFabricationSection>()
+            CreeLe = DateTime.Now,
+            TypeDocumentCode = TypesDocument.PlanFabrication,
+            Portee = PorteesDocument.Specifique,
+            DocumentSourceId = request.ModeleSourceId,
+            DocumentSections = new List<DocumentSection>()
         };
 
         await AddSectionsAndLinesAsync(plan, request.Sections, formulaireId);
+        await ReferencesLignesQualite.CompleterAsync(plan.DocumentSections, _unitOfWork.DictionnaireQualiteRepository);
 
         await _unitOfWork.PlanFabricationEnteteRepository.AddAsync(plan);
         await _unitOfWork.CommitAsync();
 
-        await ResolveMissingPlanAlertsAsync(plan.CodeArticleSageVersionne, user, currentUserEmail);
+        await ResolveMissingPlanAlertsAsync(plan.CodeArticleSageVersionne!, user, currentUserEmail);
 
         return plan.Id;
     }
@@ -127,20 +132,22 @@ public class PlanFabricationService : IPlanFabricationService
     public async Task<Guid> CreateNewVersionAsync(NouvelleVersionPlanFabricationRequestDto request)
     {
         var existingPlan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(request.AncienId, includeRelations: true);
-        if (existingPlan == null) throw new Exception("Plan introuvable");
+        if (existingPlan == null) throw new RessourceIntrouvableException("Plan introuvable.");
+        _unitOfWork.VerifierVersionDocument(existingPlan, request.RowVersion, obligatoire: false);
 
         var createReq = PlanFabricationMapper.ToCreatePlanRequest(existingPlan, request);
         return await CreatePlanAsync(createReq);
     }
 
-    public async Task<bool> UpdatePlanAsync(Guid id, UpdatePlanFabricationRequestDto request)
+    public async Task<string?> UpdatePlanAsync(Guid id, UpdatePlanFabricationRequestDto request)
     {
         var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
-        if (plan == null) return false;
+        if (plan == null) return null;
+        _unitOfWork.VerifierVersionDocument(plan, request.RowVersion, obligatoire: true);
 
         UpdatePlanEnteteProperties(plan, request);
 
-        Guid? formulaireId = await GetFormulaireIdByRoleAsync("EN_COURS_DE_FABRICATION");
+        Guid? formulaireId = await GetFormulaireIdByRoleAsync(RolesFormulaire.EnCoursDeFabrication);
         if (formulaireId.HasValue)
         {
             plan.FormulaireId = formulaireId;
@@ -157,7 +164,7 @@ public class PlanFabricationService : IPlanFabricationService
             }
 
             SopalTrace.Application.Utilities.SectionUpdateHelper.UpdateSections(
-                plan.PlanFabricationSections,
+                plan.DocumentSections,
                 request.Sections,
                 sec => _unitOfWork.PlanFabricationEnteteRepository.RemoveSection(sec),
                 lig => _unitOfWork.PlanFabricationEnteteRepository.RemoveLigne(lig),
@@ -167,19 +174,21 @@ public class PlanFabricationService : IPlanFabricationService
                 lig => lig.Id,
                 dto => PlanFabricationMapper.CreateSection(dto, plan.Id),
                 (sec, dto) => PlanFabricationMapper.UpdateSection(sec, dto),
-                sec => sec.PlanFabricationLignes,
+                sec => sec.DocumentLignes,
                 dto => dto.Lignes,
                 (dto, sec) => PlanFabricationMapper.CreateLigne(dto, plan.Id, sec.Id),
                 (lig, dto) => 
                 {
                     PlanFabricationMapper.UpdateLigne(lig, dto);
                     PlanFabricationMapper.MergerExtraColonnes(lig, dto.ExtraColonnes ?? new(), _unitOfWork);
-                }
-            );
+                },
+            ajouter: _unitOfWork.Ajouter);
+
+            await ReferencesLignesQualite.CompleterAsync(plan.DocumentSections, _unitOfWork.DictionnaireQualiteRepository);
         }
 
         await _unitOfWork.CommitAsync();
-        return true;
+        return VersionsDocument.EnTexte(plan.RowVersion) ?? string.Empty;
     }
 
     public async Task<bool> DeletePlanAsync(Guid id)
@@ -195,9 +204,9 @@ public class PlanFabricationService : IPlanFabricationService
     public async Task<Guid> UpgradeArchivedPlanAsync(Guid archiveId)
     {
         var plan = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(archiveId, includeRelations: true);
-        if (plan == null) throw new Exception("Plan introuvable");
+        if (plan == null) throw new RessourceIntrouvableException("Plan introuvable.");
 
-        var maxVersion = await _unitOfWork.PlanFabricationEnteteRepository.GetLatestVersionAsync(plan.CodeArticleSageVersionne, plan.OperationCode);
+        var maxVersion = await _unitOfWork.PlanFabricationEnteteRepository.GetLatestVersionAsync(plan.CodeArticleSageVersionne ?? "", plan.OperationCode);
         var createReq = PlanFabricationMapper.ToCreatePlanRequest(plan, maxVersion + 1);
 
         return await CreatePlanAsync(createReq);
@@ -206,16 +215,16 @@ public class PlanFabricationService : IPlanFabricationService
     public async Task ArchiveDocumentsByFormulaireAsync(Guid formulaireId)
     {
         var plansFabrication = await _unitOfWork.PlanFabricationEnteteRepository.GetByFormulaireIdAsync(formulaireId);
-        foreach (var plan in plansFabrication.Where(p => p.Statut == "ACTIF"))
+        foreach (var plan in plansFabrication.Where(p => p.Statut == DocumentStatuts.Actif))
         {
-            plan.Statut = "ARCHIVE";
+            plan.Statut = DocumentStatuts.Archive;
         }
         await _unitOfWork.CommitAsync();
     }
 
     private async Task<(string User, string? Email)> ResolveCurrentUserAsync()
     {
-        var user = _currentUserService.UserInfo ?? "";
+        var user = _currentUserService.MatriculeRequis;
         string? currentUserEmail = null;
         var currentUserMatricule = _currentUserService.Matricule;
 
@@ -232,7 +241,7 @@ public class PlanFabricationService : IPlanFabricationService
         return (user, currentUserEmail);
     }
 
-    private void UpdatePlanEnteteProperties(PlanFabricationEntete plan, UpdatePlanFabricationRequestDto request)
+    private void UpdatePlanEnteteProperties(DocumentEntete plan, UpdatePlanFabricationRequestDto request)
     {
         plan.Remarques = request.Remarques;
         plan.LegendeMoyens = request.LegendeMoyens;
@@ -247,11 +256,11 @@ public class PlanFabricationService : IPlanFabricationService
             plan.CodeArticleSageVersionne = request.Nom;
             plan.Nom = request.Nom;
         }
-        plan.ModifiePar = _currentUserService.UserInfo ?? "";
-        plan.ModifieLe = DateTime.UtcNow;
+        plan.ModifiePar = _currentUserService.MatriculeRequis;
+        plan.ModifieLe = DateTime.Now;
     }
 
-    private async Task DeleteDraftIfExistsAsync(PlanFabricationEntete existingDraft)
+    private async Task DeleteDraftIfExistsAsync(DocumentEntete existingDraft)
     {
         var fullDraft = await _unitOfWork.PlanFabricationEnteteRepository.GetByIdAsync(existingDraft.Id, includeRelations: true);
         if (fullDraft != null)
@@ -260,24 +269,24 @@ public class PlanFabricationService : IPlanFabricationService
         }
     }
 
-    private void ArchiveActivePlans(IEnumerable<PlanFabricationEntete> existingDocs, string baseNom)
+    private void ArchiveActivePlans(IEnumerable<DocumentEntete> existingDocs, string baseNom)
     {
         var activeDocs = existingDocs.Where(d => 
             (d.CodeArticleSageVersionne == baseNom || (d.CodeArticleSageVersionne != null && d.CodeArticleSageVersionne.StartsWith(baseNom + "."))) 
-            && d.Statut == "ACTIF"
+            && d.Statut == DocumentStatuts.Actif
         ).ToList();
         
         foreach (var act in activeDocs)
         {
-            act.Statut = "ARCHIVE";
+            act.Statut = DocumentStatuts.Archive;
         }
     }
 
-    private int CalculateNextVersion(PlanFabricationEntete? existingDoc, int? requestedVersion, bool forceArchive)
+    private int CalculateNextVersion(DocumentEntete? existingDoc, int? requestedVersion, bool forceArchive)
     {
         if (existingDoc == null) return requestedVersion ?? 0;
 
-        if (existingDoc.Statut == "BROUILLON" && !forceArchive)
+        if (existingDoc.Statut == DocumentStatuts.Brouillon && !forceArchive)
         {
             return existingDoc.Version;
         }
@@ -286,14 +295,14 @@ public class PlanFabricationService : IPlanFabricationService
         return (requestedVersion.HasValue && requestedVersion.Value > maxVersion) ? requestedVersion.Value : (maxVersion + 1);
     }
 
-    private string ResolvePlanStatus(string? requestedStatus, PlanFabricationEntete? existingDoc, bool forceArchive)
+    private string ResolvePlanStatus(string? requestedStatus, DocumentEntete? existingDoc, bool forceArchive)
     {
         if (!string.IsNullOrWhiteSpace(requestedStatus))
         {
             return requestedStatus;
         }
 
-        return (existingDoc != null && existingDoc.Statut == "BROUILLON" && !forceArchive) ? "BROUILLON" : "ACTIF";
+        return (existingDoc != null && existingDoc.Statut == DocumentStatuts.Brouillon && !forceArchive) ? DocumentStatuts.Brouillon : DocumentStatuts.Actif;
     }
 
     private async Task<Guid?> GetFormulaireIdByRoleAsync(string role)
@@ -302,7 +311,7 @@ public class PlanFabricationService : IPlanFabricationService
         return formStruct?.Id;
     }
 
-    private async Task AddSectionsAndLinesAsync(PlanFabricationEntete plan, IEnumerable<CreatePlanFabricationSectionDto>? requestSections, Guid? formulaireId)
+    private async Task AddSectionsAndLinesAsync(DocumentEntete plan, IEnumerable<CreatePlanFabricationSectionDto>? requestSections, Guid? formulaireId)
     {
         if (!formulaireId.HasValue || requestSections == null) return;
 
@@ -316,11 +325,11 @@ public class PlanFabricationService : IPlanFabricationService
             var periodiciteId = s.PeriodiciteId ?? (await _frequencyParserService.ResolveOrCreatePeriodiciteFromTextAsync(s.LibelleSection ?? string.Empty));
             var planSec = PlanFabricationMapper.ToSectionEntity(s, plan, periodiciteId, activeCols);
 
-            if (plan.PlanFabricationSections == null)
+            if (plan.DocumentSections == null)
             {
-                plan.PlanFabricationSections = new List<PlanFabricationSection>();
+                plan.DocumentSections = new List<DocumentSection>();
             }
-            plan.PlanFabricationSections.Add(planSec);
+            plan.DocumentSections.Add(planSec);
         }
     }
 
@@ -335,7 +344,7 @@ public class PlanFabricationService : IPlanFabricationService
             foreach (var alerte in alertes)
             {
                 alerte.EstResolu = true;
-                alerte.DateResolution = DateTime.UtcNow;
+                alerte.DateResolution = DateTime.Now;
                 await _unitOfWork.AlerteRepository.UpdateAsync(alerte);
 
                 var emails = alerte.Destinataires.Split(',')

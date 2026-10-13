@@ -1,3 +1,4 @@
+﻿using SopalTrace.Domain.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,6 +23,7 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
         {
             return await _context.ExecControleOfs
                 .Include(e => e.NumeroOfNavigation)
+                .Include(e => e.ExecControleOfPostes)
                 .FirstOrDefaultAsync(e => e.Id == execControleOfId);
         }
 
@@ -39,23 +41,8 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             return await _context.MagPreparationOfs
                 .Include(p => p.MagPreparationOfLots)
                 .ThenInclude(l => l.CodeArticleNavigation)
-                .Where(p => p.NumeroOf == numeroOf)
+                .Where(p => p.NumeroOf == numeroOf && p.Statut != StatutsPreparationMagasin.Annule)
                 .ToListAsync();
-        }
-
-        public async Task<ExecRegistreTracabilite?> GetLatestLigneAsync(Guid execControleOfId)
-        {
-            return await _context.ExecRegistreTracabilites
-                .Include(r => r.ExecRegistreTracabiliteComposants)
-                .Where(r => r.ExecControleOfId == execControleOfId)
-                .OrderByDescending(r => r.DateHeure)
-                .FirstOrDefaultAsync();
-        }
-
-        public async Task AddLigneAsync(ExecRegistreTracabilite ligne)
-        {
-            _context.ExecRegistreTracabilites.Add(ligne);
-            await _context.SaveChangesAsync();
         }
 
         public async Task<ExecRegistreTracabilite?> GetLigneAsync(Guid ligneId)
@@ -65,53 +52,51 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .FirstOrDefaultAsync(r => r.Id == ligneId);
         }
 
-        public async Task DeleteLigneAsync(ExecRegistreTracabilite ligne)
+        public void AddLigne(ExecRegistreTracabilite ligne) => _context.ExecRegistreTracabilites.Add(ligne);
+
+        public async Task<ExecControleOfSession?> GetSessionEnCoursAsync(Guid execControleOfId)
         {
-            _context.ExecRegistreTracabilites.Remove(ligne);
-            await _context.SaveChangesAsync();
+            return await _context.ExecControleOfSessions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.ExecControleOfId == execControleOfId && s.Statut == StatutsSession.EnCours);
         }
 
-        public async Task<bool> IsLotValideAsync(string numeroLot, string natureArticleCode)
-        {
-            return await _context.ExecControleOfs
-                .Include(e => e.NumeroOfNavigation)
-                .ThenInclude(n => n.CodeArticleNavigation)
-                .AnyAsync(e => e.NumeroOf == numeroLot && 
-                               e.OperationCode == "USINAG" && 
-                               (e.Statut == "EN_COURS" || e.Statut == "CLOTURE") &&
-                               e.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCode == natureArticleCode);
-        }
-
-        public async Task<List<string>> SearchLotsAsync(string natureArticleCode, string query)
-        {
-            var q = _context.ExecControleOfs
-                .Include(e => e.NumeroOfNavigation)
-                .ThenInclude(n => n.CodeArticleNavigation)
-                .Where(e => e.OperationCode == "USINAG" && 
-                            (e.Statut == "EN_COURS" || e.Statut == "CLOTURE") &&
-                            e.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCode == natureArticleCode);
-
-            if (!string.IsNullOrWhiteSpace(query))
-            {
-                q = q.Where(e => e.NumeroOf.Contains(query));
-            }
-
-            return await q.Select(e => e.NumeroOf)
-                          .Distinct()
-                          .Take(20)
-                          .ToListAsync();
-        }
-
-        public async Task<ExecControleDocumentStatut?> GetStatutTracabiliteAsync(Guid execControleOfId)
+        public async Task<List<ExecControleDocumentStatut>> GetConfirmationsAsync(Guid execControleOfId)
         {
             return await _context.ExecControleDocumentStatuts
-                .FirstOrDefaultAsync(s => s.ExecControleOfId == execControleOfId && s.TypeDocument == "REGISTRE_TRACA");
+                .AsNoTracking()
+                .Where(s => s.ExecControleOfId == execControleOfId && s.TypeDocument == TypesDocumentExecution.RegistreTracabilite && s.SessionId != null)
+                .OrderBy(s => s.DateTermine)
+                .ToListAsync();
         }
 
-        public async Task AddStatutTracabiliteAsync(ExecControleDocumentStatut statut)
+        public void AddStatut(ExecControleDocumentStatut statut) => _context.ExecControleDocumentStatuts.Add(statut);
+
+        private IQueryable<ExecControleOf> LotsPossibles(string natureArticleCode, string codeArticleProduitFini)
         {
-            await _context.ExecControleDocumentStatuts.AddAsync(statut);
-            await _context.SaveChangesAsync();
+            // Composants de cette nature dans la nomenclature du produit fini (vide si elle ne les connaît pas).
+            var composantsNomenclature = _context.BomdNomenclatures
+                .Where(b => b.ArticleParent == codeArticleProduitFini && b.CodeComposantNavigation.NatureArticleCode == natureArticleCode)
+                .Select(b => b.CodeComposant);
+
+            return _context.ExecControleOfs
+                .Where(e => e.OperationCode == CodesOperation.Usinage &&
+                            (e.Statut == StatutsExecution.EnCours || e.Statut == StatutsExecution.Cloture) &&
+                            e.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCode == natureArticleCode &&
+                            (!composantsNomenclature.Any() || composantsNomenclature.Contains(e.NumeroOfNavigation.CodeArticle)));
+        }
+
+        public async Task<bool> IsLotValideAsync(string numeroLot, string natureArticleCode, string codeArticleProduitFini)
+        {
+            return await LotsPossibles(natureArticleCode, codeArticleProduitFini).AnyAsync(e => e.NumeroOf == numeroLot);
+        }
+
+        public async Task<List<string>> SearchLotsAsync(string natureArticleCode, string codeArticleProduitFini, string query)
+        {
+            var q = LotsPossibles(natureArticleCode, codeArticleProduitFini);
+            if (!string.IsNullOrWhiteSpace(query))
+                q = q.Where(e => e.NumeroOf.Contains(query));
+            return await q.Select(e => e.NumeroOf).Distinct().Take(20).ToListAsync();
         }
 
         public async Task SaveChangesAsync()

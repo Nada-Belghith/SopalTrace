@@ -142,9 +142,7 @@ const confirmAddPiece = async () => {
     const payload = {
       code: newPiece.value.code.trim().toUpperCase(),
       typePiece: internalAddPieceType.value,
-      designation: newPiece.value.designation.trim() || null,
-      machineCode: newPiece.value.machineCode || null,
-      familleDesc: null
+      designation: newPiece.value.designation.trim() || null
     };
 
     const res = await apiClient.post('/referentiels/piece-reference', payload);

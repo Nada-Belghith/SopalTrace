@@ -281,9 +281,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import operateurService from '@/services/operateurService';
 import { useOperateurStore } from '@/stores/execution/operateurStore';
-import { useAuthStore } from '@/stores/authStore';
 
-const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -291,6 +289,16 @@ const props = defineProps({
   execControleOfId: {
     type: String,
     required: true
+  },
+  /** Assemblage : ne montrer que les contrôles du plan de ce poste (à défaut, le poste de l'URL). */
+  posteCode: {
+    type: String,
+    default: null
+  },
+  /** Assemblage : équipe de la tablette (par défaut, celle qui a la main sur l'OF). */
+  equipe: {
+    type: String,
+    default: null
   },
   aDesControlesReglage: {
     type: Boolean,
@@ -429,7 +437,7 @@ const initForms = (data) => {
 const fetchAlertes = async () => {
   try {
     const pCode = props.posteCode || route.query.posteCode || null;
-    const response = await operateurService.getAlertesActives(props.execControleOfId, pCode);
+    const response = await operateurService.getAlertesActives(props.execControleOfId, pCode, props.equipe || route.query.equipe || null);
     operateurStore.alertesParOf[props.execControleOfId] = response.data;
     
     if (route.query.autoOpen1stPending === 'true' && response.data && response.data.length > 0) {
@@ -471,7 +479,7 @@ onMounted(() => {
     if (!selectedOcc.value) {
       fetchAlertes();
     }
-  }, 300000);
+  }, 120000); // 2 min : le serveur crée les contrôles à leur heure, l'écran ne fait que les relire
 });
 
 onUnmounted(() => {
@@ -655,7 +663,6 @@ const executerSoumissionOccurrence = async (occ, forceResultat, raison) => {
 
     const payload = {
       resultat: resultatGlobal,
-      matriculeOperateur: authStore.user?.matricule || 'OP_INCONNU',
       raison: raison,
       lignes: forceResultat === 'REGLAGE' || forceResultat === 'IGNORE' ? [] : lignesForms,
       associatedIds: occ.associatedIds
@@ -678,8 +685,7 @@ const ignorerTrancheAction = (trancheHoraire) => {
     `Voulez-vous vraiment ignorer tous les contrôles de la tranche ${formatTranche(trancheHoraire)} ? Veuillez en préciser la raison :`,
     async (raison, tranche) => {
       try {
-        const matricule = authStore.user?.matricule || 'OP_INCONNU';
-        await operateurService.ignorerTranche(props.execControleOfId, tranche, matricule, raison);
+        await operateurService.ignorerTranche(props.execControleOfId, tranche, raison);
         fetchAlertes();
       } catch (error) {
         alert('Erreur: ' + (error.response?.data?.message || error.message));
@@ -695,8 +701,7 @@ const declarerTrancheReglageAction = (trancheHoraire) => {
     `Voulez-vous vraiment déclarer tous les contrôles de la tranche ${formatTranche(trancheHoraire)} comme Réglage ?`,
     async (tranche) => {
       try {
-        const matricule = authStore.user?.matricule || 'OP_INCONNU';
-        await operateurService.declarerTrancheReglage(props.execControleOfId, tranche, matricule);
+        await operateurService.declarerTrancheReglage(props.execControleOfId, tranche);
         fetchAlertes();
       } catch (error) {
         alert('Erreur: ' + (error.response?.data?.message || error.message));

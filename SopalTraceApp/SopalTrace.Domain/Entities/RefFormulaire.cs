@@ -25,15 +25,19 @@ public partial class RefFormulaire
 
     public string? Role { get; set; }
 
-    public virtual ICollection<DocumentEchantillonnageEntete> DocumentEchantillonnageEntetes { get; set; } = new List<DocumentEchantillonnageEntete>();
+    public string? PosteCode { get; set; }
+
+    public string? FamilleProduitFiniCode { get; set; }
+
+    public virtual Autili? CreeParNavigation { get; set; }
 
     public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
 
-    public virtual ICollection<DocumentVerifMachineEntete> DocumentVerifMachineEntetes { get; set; } = new List<DocumentVerifMachineEntete>();
+    public virtual FamilleProduitFini? FamilleProduitFiniCodeNavigation { get; set; }
 
-    public virtual ICollection<ModeleFabricationEntete> ModeleFabricationEntetes { get; set; } = new List<ModeleFabricationEntete>();
+    public virtual Autili? ModifieParNavigation { get; set; }
 
-    public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
+    public virtual PosteTravail? PosteCodeNavigation { get; set; }
 
     public virtual ICollection<RefFormulaireColonneDef> RefFormulaireColonneDefs { get; set; } = new List<RefFormulaireColonneDef>();
 

@@ -9,13 +9,11 @@ public partial class Article
 
     public string Designation { get; set; } = null!;
 
-    public string? Designation2 { get; set; }
-
     public string NatureArticleCode { get; set; } = null!;
 
     public string TypeArticle { get; set; } = null!;
 
-    public string Statut { get; set; } = null!;
+    public string Origin { get; set; } = null!;
 
     public DateTime? DateCreation { get; set; }
 
@@ -23,13 +21,13 @@ public partial class Article
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<BomdNomenclature> BomdNomenclatureArticleParentNavigations { get; set; } = new List<BomdNomenclature>();
+    public virtual ICollection<BomdNomenclature> BomdNomenclatureArticles { get; set; } = new List<BomdNomenclature>();
 
     public virtual ICollection<BomdNomenclature> BomdNomenclatureCodeComposantNavigations { get; set; } = new List<BomdNomenclature>();
 
-    public virtual ICollection<MagPreparationOfLot> MagPreparationOfLots { get; set; } = new List<MagPreparationOfLot>();
+    public virtual ICollection<ExecRegistreTracabiliteComposant> ExecRegistreTracabiliteComposants { get; set; } = new List<ExecRegistreTracabiliteComposant>();
 
-    public virtual ICollection<MagQuickControlRapport> MagQuickControlRapports { get; set; } = new List<MagQuickControlRapport>();
+    public virtual ICollection<MagPreparationOfLot> MagPreparationOfLots { get; set; } = new List<MagPreparationOfLot>();
 
     public virtual ICollection<MfgheadOrdreFabrication> MfgheadOrdreFabrications { get; set; } = new List<MfgheadOrdreFabrication>();
 
@@ -37,5 +35,5 @@ public partial class Article
 
     public virtual NatureArticle NatureArticleCodeNavigation { get; set; } = null!;
 
-    public virtual ProduitFini? ProduitFini { get; set; }
+    public virtual ICollection<ProduitFini> ProduitFinis { get; set; } = new List<ProduitFini>();
 }

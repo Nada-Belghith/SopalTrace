@@ -9,9 +9,13 @@ public partial class ExecRegistreTracabiliteComposant
 
     public Guid RegistreTracabiliteId { get; set; }
 
+    public string? CodeArticle { get; set; }
+
     public string DesignationComposant { get; set; } = null!;
 
     public string? LotSelectionne { get; set; }
+
+    public virtual Article? CodeArticleNavigation { get; set; }
 
     public virtual ExecRegistreTracabilite RegistreTracabilite { get; set; } = null!;
 }

@@ -2,250 +2,190 @@ using SopalTrace.Application.DTOs.QualityPlans.Echantillonnage;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Constants;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Application.Services;
 
+/// <summary>
+/// Plan d'échantillonnage : Document_Entete de type PLAN_ECHANTILLONNAGE + paramètres ISO 2859-1 (SamplingPlan).
+/// Un seul plan ACTIF à la fois (garanti par TR_DocumentEntete_SingleActive).
+/// </summary>
 public class DocumentEchantillonnageService : IDocumentEchantillonnageService
 {
+    private const string FormulaireParDefaut = "FE-ECHAN-01";
+
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IIso2859Service _iso2859Service;
     private readonly IFormulaireStructureService _formulaireStructureService;
+    private readonly ICurrentUserService _currentUserService;
 
     public DocumentEchantillonnageService(
-        IUnitOfWork unitOfWork, 
-        IIso2859Service iso2859Service,
-        IFormulaireStructureService formulaireStructureService)
+        IUnitOfWork unitOfWork,
+        IFormulaireStructureService formulaireStructureService,
+        ICurrentUserService currentUserService)
     {
         _unitOfWork = unitOfWork;
-        _iso2859Service = iso2859Service;
         _formulaireStructureService = formulaireStructureService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<DocumentEchantillonnageResponseDto?> GetActiveDocumentAsync()
     {
         var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
-        return plan?.ToResponseDto();
+        return plan.ToResponseDto();
     }
 
     public async Task<DocumentEchantillonnageResponseDto?> GetDocumentByIdAsync(Guid id)
     {
         var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id);
-        return plan?.ToResponseDto();
+        return plan.ToResponseDto();
     }
 
     /// <summary>
-    /// Crée le premier plan d'échantillonnage (v0 ACTIF).
-    ///
-    /// Cycle de vie complet :
-    ///   Seed   : FE-ECHAN-01  Version=0  Statut=BROUILLON  (1 seule ligne, jamais dupliquée)
-    ///
-    ///   1ère création :
-    ///     → FE-ECHAN-01 : Version=0, Statut=BROUILLON  ──update──►  Version=0, Statut=ACTIF
-    ///     → Document_Echantillonnage_Entete : Version=0, Statut=ACTIF
-    ///
-    ///   Nouvelle version (modification) :
-    ///     → Ancien plan  : Statut=ARCHIVE
-    ///     → FE-ECHAN-01 : Version=0 ──update──►  Version=1, Statut=ACTIF
-    ///     → Nouveau plan : Version=1, Statut=ACTIF
-    ///
-    ///   Et ainsi de suite : v1→ARCHIVE, FE-ECHAN-01 v2 ACTIF, plan v2 ACTIF ...
+    /// Crée un plan directement ACTIF, à la version du formulaire FE-ECHAN-01.
+    /// S'il existe déjà un plan actif, le formulaire passe à la version suivante et l'ancien plan est archivé.
     /// </summary>
-    public async Task<Guid> CreateDocumentAsync(CreateDocumentEchantillonnageRequestDto request, string creePar)
+    public async Task<Guid> CreateDocumentAsync(CreateDocumentEchantillonnageRequestDto request)
     {
-        // Vérifier s'il y a déjà un plan actif pour forcer une nouvelle version
         var planActif = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
-        bool forceNouvelleVersion = planActif != null;
+        var formulaire = await ResoudreFormulaireAsync(request.RefFormulaireCodeReference, versionInitiale: 0,
+            forceNouvelleVersion: planActif != null);
+        var niveauQualiteAcceptableId = await ResoudreNiveauQualiteAcceptableAsync(request.NqaId, request.ValeurNqa);
 
-        var formResult = await _formulaireStructureService.UpdateFormulaireStructureAsync(
-            "ECHANTILLONNAGE", 
-            null, 
-            request.RefFormulaireCodeReference ?? "FE-ECHAN-01", 
-            0, 
-            isCorrectionMineure: false, 
-            forceNouvelleVersion: forceNouvelleVersion);
-
-        if (!formResult.HasValue)
-            throw new InvalidOperationException("Erreur lors de la résolution du formulaire d'échantillonnage.");
-
-        var formulaire = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(formResult.Value.Id);
-        if (formulaire == null) throw new InvalidOperationException("Formulaire introuvable après résolution.");
-
-        var entity = request.ToEntity();
-        if (entity == null) throw new Exception("Requête invalide ou entité nulle.");
-        
-        entity.NqaId = await ResolveNqaId(request.NqaId, request.ValeurNqa);
-
-        entity.Id = Guid.NewGuid();
-        entity.FormulaireId = formulaire.Id;
-        entity.Version = formulaire.Version;  // prend la version du formulaire
-        entity.Statut = StatutsPlan.Actif;    // directement ACTIF
-        entity.CreePar = creePar;
-        entity.CreeLe = DateTime.Now;
-
-        if (planActif != null)
-        {
-            planActif.Statut = StatutsPlan.Archive;
-            planActif.ModifiePar = creePar;
-            planActif.ModifieLe = DateTime.Now;
-            await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(planActif);
-        }
-
-        await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(entity);
-        await _unitOfWork.CommitAsync();
-        return entity.Id;
+        var plan = DocumentEchantillonnageMapper.NouveauPlan(request, niveauQualiteAcceptableId);
+        return await RemplacerPlanActifAsync(planActif, plan, formulaire);
     }
 
-    /// <summary>
-    /// Active manuellement un plan BROUILLON (endpoint de secours, rarement utilisé).
-    /// </summary>
-    public async Task ActivateDocumentAsync(Guid id, string modifiePar)
+    /// <summary>Active un plan BROUILLON (endpoint de secours) en archivant le plan actif.</summary>
+    public async Task ActivateDocumentAsync(Guid id)
     {
-        var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id);
-        if (plan == null)
-            throw new InvalidOperationException("Plan introuvable.");
+        var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id)
+            ?? throw new RessourceIntrouvableException("Plan d'échantillonnage introuvable.");
         if (plan.Statut != StatutsPlan.Brouillon)
-            throw new InvalidOperationException($"Seul un plan BROUILLON peut être activé (statut actuel : {plan.Statut}).");
+            throw new RegleMetierException($"Seul un plan BROUILLON peut être activé (statut actuel : {plan.Statut}).");
 
         var planActif = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
-        if (planActif != null && planActif.Id != id)
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            planActif.Statut = StatutsPlan.Archive;
-            planActif.ModifiePar = modifiePar;
-            planActif.ModifieLe = DateTime.Now;
-            await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(planActif);
-        }
+            if (planActif != null && planActif.Id != id)
+            {
+                planActif.Statut = StatutsPlan.Archive;
+                await _unitOfWork.FlushDeletesAsync();
+            }
 
-        plan.Statut = StatutsPlan.Actif;
-        plan.ModifiePar = modifiePar;
-        plan.ModifieLe = DateTime.Now;
-        await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(plan);
+            plan.Statut = StatutsPlan.Actif;
 
-        var formulaire = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByRoleAsync("ECHANTILLONNAGE");
-        if (formulaire != null && formulaire.Statut != StatutsPlan.Actif)
-        {
-            formulaire.Statut = StatutsPlan.Actif;
-            await _unitOfWork.RefFormulaireRepository.UpdateAsync(formulaire);
-        }
-
-        await _unitOfWork.CommitAsync();
+            var formulaire = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByRoleAsync(RolesFormulaire.Echantillonnage);
+            if (formulaire != null && formulaire.Statut != StatutsPlan.Actif)
+            {
+                formulaire.Statut = StatutsPlan.Actif;
+                await _unitOfWork.RefFormulaireRepository.UpdateAsync(formulaire);
+            }
+            return plan.Id;
+        });
     }
 
-    /// <summary>
-    /// Met à jour les données du plan (sans changer la version ni le statut).
-    /// </summary>
-    public async Task UpdateDocumentAsync(Guid id, UpdateDocumentEchantillonnageRequestDto request)
+    /// <summary>Correction du plan en place (sans changer la version ni le statut).</summary>
+    public async Task<string> UpdateDocumentAsync(Guid id, UpdateDocumentEchantillonnageRequestDto request)
     {
-        var entity = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id);
-        if (entity == null) throw new InvalidOperationException("Plan introuvable.");
-        if (entity.Statut == StatutsPlan.Archive)
-            throw new InvalidOperationException("Impossible de modifier un plan archivé.");
+        var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(id)
+            ?? throw new RessourceIntrouvableException("Plan d'échantillonnage introuvable.");
+        if (plan.Statut == StatutsPlan.Archive)
+            throw new RegleMetierException("Impossible de modifier un plan archivé.");
+        _unitOfWork.VerifierVersionDocument(plan, request.RowVersion, obligatoire: true);
 
-        entity.UpdateEntity(request);
-        entity.NqaId = await ResolveNqaId(request.NqaId, request.ValeurNqa);
-        entity.ModifieLe = DateTime.Now;
+        plan.UpdateEntity(request, await ResoudreNiveauQualiteAcceptableAsync(request.NqaId, request.ValeurNqa));
 
-        // Gérer la correction mineure du formulaire
         await _formulaireStructureService.UpdateFormulaireStructureAsync(
-            "ECHANTILLONNAGE", 
-            null, 
-            request.RefFormulaireCodeReference ?? "FE-ECHAN-01", 
-            null, 
-            isCorrectionMineure: true, 
-            forceNouvelleVersion: false);
+            RolesFormulaire.Echantillonnage, null, request.RefFormulaireCodeReference ?? FormulaireParDefaut, null,
+            isCorrectionMineure: true, forceNouvelleVersion: false);
 
-        await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(entity);
         await _unitOfWork.CommitAsync();
+        return VersionsDocument.EnTexte(plan.RowVersion) ?? string.Empty;
     }
 
-    /// <summary>
-    /// Crée une nouvelle version du plan (vN+1 ACTIF) :
-    ///   1. Archive l'ancien plan (vN → ARCHIVE)
-    ///   2. Incrémente FE-ECHAN-01 : Version vN → vN+1, Statut reste ACTIF
-    ///   3. Crée le nouveau plan : Version=vN+1, Statut=ACTIF
-    /// </summary>
+    /// <summary>Nouvelle version : le formulaire passe en vN+1, l'ancien plan est archivé, le nouveau est ACTIF.</summary>
     public async Task<Guid> CreateNewVersionAsync(CreateNewVersionDocumentEchantillonnageRequestDto request)
     {
-        var ancienPlan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(request.AncienId);
-        if (ancienPlan == null)
-            throw new InvalidOperationException("L'ancien plan est introuvable.");
+        var ancienPlan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(request.AncienId)
+            ?? throw new RessourceIntrouvableException("L'ancien plan d'échantillonnage est introuvable.");
         if (ancienPlan.Statut == StatutsPlan.Archive)
-            throw new InvalidOperationException("Ce plan est déjà archivé.");
+            throw new RegleMetierException("Ce plan est déjà archivé.");
+        _unitOfWork.VerifierVersionDocument(ancienPlan, request.RowVersion, obligatoire: false);
 
-        // 1. Gérer le formulaire (nouvelle version) via le service partagé
-        var formResult = await _formulaireStructureService.UpdateFormulaireStructureAsync(
-            "ECHANTILLONNAGE", 
-            null, 
-            request.Donnees.RefFormulaireCodeReference ?? "FE-ECHAN-01", 
-            null, 
-            isCorrectionMineure: false, 
+        var formulaire = await ResoudreFormulaireAsync(request.Donnees.RefFormulaireCodeReference, versionInitiale: null,
             forceNouvelleVersion: true);
+        var niveauQualiteAcceptableId = await ResoudreNiveauQualiteAcceptableAsync(request.Donnees.NqaId, request.Donnees.ValeurNqa);
 
-        if (!formResult.HasValue)
-            throw new InvalidOperationException("Erreur lors de la création de la nouvelle version du formulaire.");
-
-        var formulaire = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(formResult.Value.Id);
-        if (formulaire == null) throw new InvalidOperationException("Nouveau formulaire introuvable.");
-
-        // 2. Archiver l'ancien plan (le FormulaireStructureService a déjà archivé les plans liés génériques,
-        // mais pour l'échantillonnage qui a sa propre table, on doit le faire manuellement ici si on veut
-        // garder le contrôle, ou bien s'appuyer sur la logique partagée. Dans le doute, on le fait ici.)
-        ancienPlan.Statut = StatutsPlan.Archive;
-        ancienPlan.ModifiePar = request.ModifiePar;
-        ancienPlan.ModifieLe = DateTime.Now;
-
-        // 3. Créer le nouveau plan directement ACTIF
-        int finalNqaId = await ResolveNqaId(request.Donnees.NqaId, request.Donnees.ValeurNqa);
-
-        var nouveauPlan = new DocumentEchantillonnageEntete
-        {
-            Id = Guid.NewGuid(),
-            FormulaireId = formulaire.Id,
-            Version = formulaire.Version,     // vN+1
-            Statut = StatutsPlan.Actif,       // directement ACTIF
-            CreePar = request.ModifiePar,
-            CreeLe = DateTime.Now,
-            CommentaireVersion = request.MotifModification,
-
-            NiveauControle = request.Donnees.NiveauControle,
-            TypePlan = request.Donnees.TypePlan,
-            ModeControle = request.Donnees.ModeControle,
-            NqaId = finalNqaId,
-            Remarques = request.Donnees.Remarques,
-            LegendeMoyens = request.Donnees.LegendeMoyens,
-            CritereAcceptationAc = request.Donnees.CritereAcceptationAc,
-            CritereRejetRe = request.Donnees.CritereRejetRe
-        };
-
-
-        await _unitOfWork.DocumentEchantillonnageEnteteRepository.UpdateAsync(ancienPlan);
-        await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
-        await _unitOfWork.CommitAsync();
-        return nouveauPlan.Id;
+        var plan = DocumentEchantillonnageMapper.NouveauPlan(request.Donnees, niveauQualiteAcceptableId, request.MotifModification);
+        return await RemplacerPlanActifAsync(ancienPlan, plan, formulaire);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private async Task<int> ResolveNqaId(int? nqaId, double? valeurNqa)
+    /// <summary>
+    /// Archive l'ancien plan puis enregistre le nouveau, dans une transaction : l'archivage est écrit avant l'insertion
+    /// pour respecter la règle « un seul plan actif », et un échec annule l'ensemble.
+    /// </summary>
+    private async Task<Guid> RemplacerPlanActifAsync(DocumentEntete? ancienPlan, DocumentEntete nouveauPlan, RefFormulaire formulaire)
     {
-        if (nqaId != null && nqaId != 0)
-            return nqaId.Value;
+        nouveauPlan.FormulaireId = formulaire.Id;
+        nouveauPlan.Version = formulaire.Version;
+        nouveauPlan.Nom = DocumentEchantillonnageMapper.Nom(formulaire.Version);
+        nouveauPlan.Statut = StatutsPlan.Actif;
+        nouveauPlan.CreePar = _currentUserService.MatriculeRequis;
 
-        if (!valeurNqa.HasValue)
-            throw new ArgumentException("Le champ NQA est obligatoire.");
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            if (ancienPlan != null && ancienPlan.Statut == StatutsPlan.Actif)
+            {
+                ancienPlan.Statut = StatutsPlan.Archive;
+                await _unitOfWork.FlushDeletesAsync();
+            }
 
-        var nqas = await _unitOfWork.DictionnaireQualiteRepository.GetActiveNqasAsync();
-        var matchingNqa = nqas.FirstOrDefault(n => Math.Abs(n.ValeurNqa - valeurNqa.Value) < 0.0001);
-        if (matchingNqa != null)
-            return matchingNqa.Id;
+            await _unitOfWork.DocumentEchantillonnageEnteteRepository.AddAsync(nouveauPlan);
+            return true;
+        });
 
-        var newNqa = new Nqa { ValeurNqa = valeurNqa.Value };
-        await _unitOfWork.DictionnaireQualiteRepository.AddNqaAsync(newNqa);
-        await _unitOfWork.CommitAsync();
-        return newNqa.Id;
+        // L'identifiant est attribué à l'enregistrement.
+        return nouveauPlan.Id;
     }
 
+    private async Task<RefFormulaire> ResoudreFormulaireAsync(string? codeReference, int? versionInitiale, bool forceNouvelleVersion)
+    {
+        var resultat = await _formulaireStructureService.UpdateFormulaireStructureAsync(
+            RolesFormulaire.Echantillonnage, null, codeReference ?? FormulaireParDefaut, versionInitiale,
+            isCorrectionMineure: false, forceNouvelleVersion: forceNouvelleVersion);
+
+        if (!resultat.HasValue)
+            throw new RegleMetierException("Le formulaire d'échantillonnage n'a pas pu être résolu.");
+
+        return await _unitOfWork.RefFormulaireRepository.GetByIdAsync(resultat.Value.Id)
+            ?? throw new RessourceIntrouvableException("Formulaire d'échantillonnage introuvable.");
+    }
+
+    /// <summary>Retrouve le niveau de qualité acceptable (NQA) par identifiant ou par valeur ; le crée s'il n'existe pas.</summary>
+    private async Task<int> ResoudreNiveauQualiteAcceptableAsync(int? id, decimal? valeur)
+    {
+        if (id is > 0)
+            return id.Value;
+
+        if (!valeur.HasValue)
+            throw new RegleMetierException("Le niveau de qualité acceptable (NQA) est obligatoire.");
+
+        var existants = await _unitOfWork.DictionnaireQualiteRepository.GetActiveNqasAsync();
+        var existant = existants.FirstOrDefault(n => n.ValeurNqa == valeur.Value);
+        if (existant != null)
+            return existant.Id;
+
+        var nouveau = new Nqa { ValeurNqa = valeur.Value };
+        await _unitOfWork.DictionnaireQualiteRepository.AddNqaAsync(nouveau);
+        await _unitOfWork.CommitAsync();
+        return nouveau.Id;
+    }
 }

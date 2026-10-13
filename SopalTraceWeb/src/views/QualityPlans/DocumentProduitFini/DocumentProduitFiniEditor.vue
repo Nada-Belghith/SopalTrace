@@ -98,7 +98,6 @@
                   :is-read-only="isReadOnly"
                   :types-section="refStore.typesSection"
                   :periodicites="refStore.periodicites"
-                  :regles-echantillonnage="refStore.reglesEchantillonnage"
                   :types-controle="refStore.typesControle"
                   :moyens-controle="refStore.moyensControle"
                   :instruments="refStore.instruments"
@@ -158,7 +157,6 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAppToast } from '@/composables/useAppToast';
-import { useConfirm } from 'primevue/useconfirm';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
@@ -176,6 +174,7 @@ import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import Toast from 'primevue/toast';
+import { messageImportExcel } from '@/utils/importExcelResultat';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
 
 const route = useRoute();
@@ -183,7 +182,6 @@ const router = useRouter();
 const toast = useAppToast();
 const store = usedocumentProduitFiniStore();
 const refStore = useReferentielStore();
-const confirm = useConfirm();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
@@ -198,16 +196,12 @@ const {
   sections,
   ajouterSection,
   supprimerSection,
-  mettreAJourSection,
-  supprimerLigneASection,
-  mettreAJourLigne
-  // ajouterLigneASection (inutilisé)
+  mettreAJourSection
 } = useEditorSections();
 
 const {
   showLegendValidation,
   hasCustomInstrumentsGlobal,
-  validerLegendeMoyens,
   validerSaisiePlan: validerSaisieValeurs
 } = useEditorValidation(sections, computed(() => store.entete.legendeMoyens), toast);
 
@@ -228,11 +222,13 @@ const onFileSelected = async (event) => {
 
   try {
     isLoadingData.value = true;
-    await store.importerDepuisExcel(file);
+    const resultat = await store.importerDepuisExcel(file);
     sections.value = JSON.parse(JSON.stringify(store.sections));
-    toast.success('Les données ont été chargées depuis le fichier Excel.', 'Import réussi');
+    const message = messageImportExcel(resultat);
+    if (message.severity === 'warn') toast.warn(message.detail, message.summary);
+    else toast.success(message.detail, message.summary);
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Impossible de lire le fichier.', 'Erreur d\'import');
+    toast.error(error.message || 'Impossible de lire le fichier.', 'Erreur d\'import');
   } finally {
     isLoadingData.value = false;
     if (event.target) event.target.value = '';

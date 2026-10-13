@@ -9,11 +9,9 @@ public partial class ProduitFini
 
     public string FamilleProduitFiniCode { get; set; } = null!;
 
-    public string TypeRobinetCode { get; set; } = null!;
+    public string ArticleType { get; set; } = null!;
 
-    public virtual Article CodeArticleNavigation { get; set; } = null!;
+    public virtual Article Article { get; set; } = null!;
 
     public virtual FamilleProduitFini FamilleProduitFiniCodeNavigation { get; set; } = null!;
-
-    public virtual TypeRobinet TypeRobinetCodeNavigation { get; set; } = null!;
 }

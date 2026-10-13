@@ -1,17 +1,20 @@
 using System;
-using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SopalTrace.Api.Extensions;
+using SopalTrace.Application.Dtos.VerifMachine;
 using SopalTrace.Application.DTOs.Execution.Operateur;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Interfaces.Execution;
+using SopalTrace.Domain.Constants;
 
 namespace SopalTrace.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize]
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.Operateur)]
 public class OperateurController : ControllerBase
 {
     private readonly IExecutionOfService _executionOfService;
@@ -19,14 +22,20 @@ public class OperateurController : ControllerBase
     private readonly IAssemblageExecutionService _assemblageExecutionService;
     private readonly IVerifMachineExecutionService _verifMachineExecutionService;
     private readonly IOccurrenceService _occurrenceService;
+    private readonly IAvancementAssemblageService _avancementAssemblage;
+    private readonly IPlanificationProductionService _planification;
 
     public OperateurController(
         IExecutionOfService executionOfService,
         IExecutionCatalogueService executionCatalogueService,
         IAssemblageExecutionService assemblageExecutionService,
         IVerifMachineExecutionService verifMachineExecutionService,
-        IOccurrenceService occurrenceService)
+        IOccurrenceService occurrenceService,
+        IAvancementAssemblageService avancementAssemblage,
+        IPlanificationProductionService planification)
     {
+        _avancementAssemblage = avancementAssemblage;
+        _planification = planification;
         _executionOfService = executionOfService;
         _executionCatalogueService = executionCatalogueService;
         _assemblageExecutionService = assemblageExecutionService;
@@ -34,307 +43,227 @@ public class OperateurController : ControllerBase
         _occurrenceService = occurrenceService;
     }
 
+    // ───────────────────────────── Catalogue ─────────────────────────────
+
     [HttpGet("postes")]
     public async Task<IActionResult> GetPostesDisponibles()
     {
-        var postes = await _executionCatalogueService.GetPostesDisponiblesAsync();
-        return Ok(postes);
+        return Ok(await _executionCatalogueService.GetPostesDisponiblesAsync());
     }
 
     [HttpGet("poste/{posteCode}/machines")]
-    public async Task<IActionResult> GetMachinesPourPoste(string posteCode)
+    public async Task<IActionResult> GetMachinesPourPoste(
+        [FromRoute, RegularExpression(FormatsEntree.Code, ErrorMessage = FormatsEntree.MessageCodeInvalide)] string posteCode)
     {
-        var machines = await _executionCatalogueService.GetMachinesPourPosteAsync(posteCode);
-        return Ok(machines);
-    }
-
-    [HttpGet("ofs/operations")]
-    public async Task<IActionResult> GetAllOfOperations()
-    {
-        var ofs = await _executionCatalogueService.GetAllOfOperationsDisponiblesAsync();
-        return Ok(ofs);
-    }
-
-    [HttpGet("plan/existe")]
-    public async Task<IActionResult> VerifierPlanActif([FromQuery] string articleCode, [FromQuery] string? operationCode = null)
-    {
-        var result = await _executionOfService.VerifierPlanActifAsync(articleCode, operationCode);
-        return Ok(result);
-    }
-
-    [HttpPut("plan/ligne/{ligneId:guid}")]
-    public async Task<IActionResult> UpdatePlanLigne(Guid ligneId, [FromBody] UpdatePlanLigneDto dto)
-    {
-        var result = await _executionOfService.UpdatePlanLigneAsync(ligneId, dto);
-        if (!result) return BadRequest(new { Message = "Impossible de mettre à jour la ligne du plan." });
-        return Ok();
-    }
-
-
-    public class IgnorerTrancheRequest
-    {
-        public string MatriculeOperateur { get; set; } = null!;
-        public string? Raison { get; set; }
-    }
-
-    public class PauseOfRequest
-    {
-        public string Raison { get; set; } = null!;
-    }
-
-    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/ignorer")]
-    public async Task<IActionResult> IgnorerTranche(Guid execControleOfId, string trancheHoraire, [FromBody] IgnorerTrancheRequest request)
-    {
-        var result = await _executionOfService.IgnorerTrancheAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur, request.Raison);
-        if (!result) return NotFound(new { Message = "Tranche ou OF introuvable." });
-        return Ok();
-    }
-
-    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/reglage")]
-    public async Task<IActionResult> DeclarerTrancheEnReglage(Guid execControleOfId, string trancheHoraire, [FromBody] IgnorerTrancheRequest request)
-    {
-        var result = await _executionOfService.DeclarerTrancheEnReglageAsync(execControleOfId, trancheHoraire, request.MatriculeOperateur);
-        if (!result) return NotFound(new { Message = "Tranche ou OF introuvable." });
-        return Ok();
-    }
-
-    [HttpPost("of/start")]
-    public async Task<IActionResult> DemarrerOf([FromBody] DemarrerOfRequest request)
-    {
-        try
-        {
-            var result = await _executionOfService.DemarrerOfAsync(request);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
-    }
-
-    [HttpPost("of/{execControleOfId:guid}/mettre-en-reglage")]
-    public async Task<IActionResult> MettreEnReglage(Guid execControleOfId)
-    {
-        var result = await _executionOfService.MettreEnReglageAsync(execControleOfId);
-        if (!result) return BadRequest(new { Message = "Impossible de mettre l'OF en réglage." });
-        return Ok();
-    }
-
-    [HttpPost("of/{execControleOfId:guid}/pause")]
-    public async Task<IActionResult> MettreEnPause(Guid execControleOfId, [FromBody] PauseOfRequest request)
-    {
-        var result = await _executionOfService.MettreEnPauseAsync(execControleOfId, request.Raison);
-        if (!result) return BadRequest(new { Message = "Impossible de mettre l'OF en pause." });
-        return Ok();
-    }
-
-    [HttpPost("of/{execControleOfId:guid}/reprendre")]
-    public async Task<IActionResult> ReprendreDepuisPause(Guid execControleOfId)
-    {
-        var resultPause = await _executionOfService.ReprendreDepuisPauseAsync(execControleOfId);
-        if (resultPause) return Ok();
-
-        var resultReglage = await _executionOfService.ReprendreOfAsync(execControleOfId);
-        if (resultReglage.Success) return Ok();
-
-        return BadRequest(new { Message = resultReglage.Message ?? "Impossible de reprendre cet OF." });
-    }
-
-    [HttpPost("of/{execControleOfId:guid}/close")]
-    public async Task<IActionResult> CloturerOf(Guid execControleOfId)
-    {
-        var result = await _executionOfService.CloturerOfAsync(execControleOfId);
-        if (!result) return BadRequest(new { Message = "Impossible de clôturer cet OF." });
-        return Ok();
-    }
-
-    [HttpGet("of/{execControleOfId:guid}/alertes-actives")]
-    public async Task<IActionResult> GetAlertesActives(Guid execControleOfId, [FromQuery] string? posteCode = null)
-    {
-        var alertes = await _occurrenceService.GetAlertesActivesAsync(execControleOfId, posteCode);
-        return Ok(alertes);
-    }
-
-    [HttpPost("occurrence/{occurrenceId:guid}/repondre")]
-    public async Task<IActionResult> RepondreOccurrence(Guid occurrenceId, [FromBody] RepondreOccurrenceRequest request)
-    {
-        var result = await _occurrenceService.RepondreOccurrenceAsync(occurrenceId, request);
-        if (!result) return BadRequest(new { Message = "Impossible de traiter cette occurrence." });
-        return Ok();
-    }
-
-    [HttpPost("occurrences/ignorer")]
-    public async Task<IActionResult> IgnorerOccurrences([FromBody] IgnorerOccurrencesRequest request)
-    {
-        var result = await _occurrenceService.IgnorerOccurrencesAsync(request.OccurrenceIds, request.MatriculeOperateur);
-        if (!result) return BadRequest(new { Message = "Erreur lors de la mise à jour des occurrences." });
-        return Ok();
-    }
-
-    // --- Endpoints pour OF d'Assemblage ---
-    [HttpPost("of/start-assemblage")]
-    public async Task<IActionResult> DemarrerOfAssemblage([FromBody] DemarrerOfAssemblageRequest request)
-    {
-        try
-        {
-            var result = await _assemblageExecutionService.DemarrerOfAssemblageAsync(request);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
-    }
-
-    [HttpPost("of/{execControleOfId:guid}/assemblage-documents/init/{typeDocument}")]
-    public async Task<IActionResult> InitDocumentsAssemblage(Guid execControleOfId, string typeDocument, [FromQuery] string? posteCode, [FromQuery] string? machineCode, [FromQuery] string? equipe)
-    {
-        try
-        {
-            var matricule = User.FindFirst("matricule")?.Value;
-            var result = await _assemblageExecutionService.InitDocumentsAsync(execControleOfId, typeDocument, posteCode, machineCode, equipe, matricule);
-            return Ok(new { initialized = result });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
-    }
-
-    [HttpGet("of/{execControleOfId:guid}/assemblage-documents")]
-    public async Task<IActionResult> GetDocumentsAssemblageStatus(Guid execControleOfId)
-    {
-        var statuts = await _assemblageExecutionService.GetDocumentsAssemblageStatusAsync(execControleOfId);
-        return Ok(statuts);
-    }
-
-    [HttpGet("postes/{posteCode}/machines")]
-    public async Task<IActionResult> GetMachinesByPoste(string posteCode)
-    {
-        var machines = await _assemblageExecutionService.GetMachinesByPosteAsync(posteCode);
-        return Ok(machines);
+        return Ok(await _executionCatalogueService.GetMachinesPourPosteAsync(posteCode));
     }
 
     [HttpGet("machines")]
     public async Task<IActionResult> GetAllMachines()
     {
-        var machines = await _executionCatalogueService.GetAllMachinesAsync();
-        return Ok(machines);
+        return Ok(await _executionCatalogueService.GetAllMachinesAsync());
     }
 
-    [HttpPut("assemblage-documents/{statutId:guid}/terminer")]
-    public async Task<IActionResult> MarquerDocumentTermine(Guid statutId, [FromQuery] string periodicite = "")
+    // ───────────────────────────── OF semi-finis (fabrication) ─────────────────────────────
+
+    [HttpGet("ofs/operations")]
+    public async Task<IActionResult> GetAllOfOperations()
     {
-        var matricule = User.FindFirst("matricule")?.Value;
-        var result = await _assemblageExecutionService.MarquerDocumentTermineAsync(statutId, matricule, periodicite);
-        if (!result) return NotFound(new { Message = "Statut document introuvable." });
-        return Ok();
+        return Ok(await _executionCatalogueService.GetAllOfOperationsDisponiblesAsync());
     }
 
-    [HttpPut("assemblage-documents/{statutId:guid}/rouvrir")]
-    public async Task<IActionResult> RouvrirDocument(Guid statutId, [FromQuery] string periodicite = "")
+    [HttpGet("plan/existe")]
+    public async Task<IActionResult> VerifierPlanActif(
+        [FromQuery, Required, StringLength(50)] string articleCode,
+        [FromQuery, StringLength(20)] string? operationCode = null)
     {
-        var result = await _assemblageExecutionService.RouvrirDocumentAsync(statutId, periodicite);
-        if (!result) return NotFound(new { Message = "Statut document introuvable." });
-        return Ok();
+        return Ok(await _executionOfService.VerifierPlanActifAsync(articleCode, operationCode));
     }
+
+    [HttpPost("of/start")]
+    public async Task<IActionResult> DemarrerOf([FromBody] DemarrerOfRequest request)
+    {
+        request.MatriculeOperateur = User.GetMatricule();
+        return Ok(await _executionOfService.DemarrerOfAsync(request));
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/mettre-en-reglage")]
+    public async Task<IActionResult> MettreEnReglage(Guid execControleOfId)
+    {
+        if (!await _executionOfService.MettreEnReglageAsync(execControleOfId))
+            return BadRequest(new { message = "Impossible de mettre l'OF en réglage." });
+        return NoContent();
+    }
+
+    // ───────────────────────────── Cycle de vie commun ─────────────────────────────
+
+    [HttpPost("of/{execControleOfId:guid}/pause")]
+    public async Task<IActionResult> MettreEnPause(Guid execControleOfId, [FromBody] PauseOfRequest request)
+    {
+        if (!await _executionOfService.MettreEnPauseAsync(execControleOfId, request.Raison, request.TypePause))
+            return BadRequest(new { message = "Impossible de mettre l'OF en pause." });
+        return NoContent();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/reprendre")]
+    public async Task<IActionResult> Reprendre(Guid execControleOfId, [FromQuery, StringLength(10)] string? equipe = null)
+    {
+        if (await _executionOfService.ReprendreDepuisPauseAsync(execControleOfId, equipe)) return NoContent();
+
+        var resultReglage = await _executionOfService.ReprendreOfAsync(execControleOfId);
+        if (resultReglage.Success) return NoContent();
+
+        return BadRequest(new { message = resultReglage.Message });
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/fin-poste")]
+    public async Task<IActionResult> FinPoste(Guid execControleOfId)
+    {
+        await VerifierFinAssemblageAsync(execControleOfId, DemandesCloture.FinPoste);
+        if (!await _executionOfService.TerminerPosteAsync(execControleOfId))
+            return BadRequest(new { message = "Impossible de clôturer la session de l'équipe." });
+        return NoContent();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/close")]
+    public async Task<IActionResult> CloturerOf(Guid execControleOfId)
+    {
+        await VerifierFinAssemblageAsync(execControleOfId, DemandesCloture.FinOf);
+        if (!await _executionOfService.CloturerOfAsync(execControleOfId))
+            return BadRequest(new { message = "Impossible de clôturer cet OF." });
+        return NoContent();
+    }
+
+    // ───────────────────────────── Occurrences de contrôle ─────────────────────────────
+
+    [HttpGet("of/{execControleOfId:guid}/alertes-actives")]
+    public async Task<IActionResult> GetAlertesActives(
+        Guid execControleOfId,
+        [FromQuery, RegularExpression(FormatsEntree.Code, ErrorMessage = FormatsEntree.MessageCodeInvalide)] string? posteCode = null,
+        [FromQuery, StringLength(10)] string? equipe = null)
+    {
+        // Assemblage : contrôles dus créés avant lecture (la tâche de fond les planifie aussi chaque minute).
+        await _planification.SynchroniserAsync(execControleOfId);
+        return Ok(await _occurrenceService.GetAlertesActivesAsync(execControleOfId, posteCode, equipe));
+    }
+
+    [HttpPost("occurrence/{occurrenceId:guid}/repondre")]
+    public async Task<IActionResult> RepondreOccurrence(Guid occurrenceId, [FromBody] RepondreOccurrenceRequest request)
+    {
+        request.MatriculeOperateur = User.GetMatricule();
+        if (!await _occurrenceService.RepondreOccurrenceAsync(occurrenceId, request))
+            return BadRequest(new { message = "Impossible de traiter cette occurrence." });
+        return NoContent();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/ignorer")]
+    public async Task<IActionResult> IgnorerTranche(
+        Guid execControleOfId,
+        [FromRoute, StringLength(20)] string trancheHoraire,
+        [FromBody] IgnorerTrancheRequest request)
+    {
+        if (!await _executionOfService.IgnorerTrancheAsync(execControleOfId, trancheHoraire, User.GetMatricule(), request.Raison))
+            return NotFound(new { message = "Tranche ou OF introuvable." });
+        return NoContent();
+    }
+
+    [HttpPost("of/{execControleOfId:guid}/tranche/{trancheHoraire}/reglage")]
+    public async Task<IActionResult> DeclarerTrancheEnReglage(Guid execControleOfId, [FromRoute, StringLength(20)] string trancheHoraire)
+    {
+        if (!await _executionOfService.DeclarerTrancheEnReglageAsync(execControleOfId, trancheHoraire, User.GetMatricule()))
+            return NotFound(new { message = "Tranche ou OF introuvable." });
+        return NoContent();
+    }
+
+    // ───────────────────────────── OF produits finis (assemblage) ─────────────────────────────
 
     [HttpGet("ofs/assemblage-statut")]
     public async Task<IActionResult> GetOfsAssemblageStatut()
     {
-        try
-        {
-            var result = await _assemblageExecutionService.GetOfsAssemblageStatutAsync();
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        return Ok(await _assemblageExecutionService.GetOfsAssemblageStatutAsync());
+    }
+
+    [HttpPost("of/start-assemblage")]
+    public async Task<IActionResult> DemarrerOfAssemblage([FromBody] DemarrerOfAssemblageRequest request)
+    {
+        return Ok(await _assemblageExecutionService.DemarrerOfAssemblageAsync(request));
     }
 
     [HttpPost("of/{execControleOfId:guid}/ajouter-postes")]
-    public async Task<IActionResult> AjouterPostes(Guid execControleOfId, [FromBody] List<string> posteCodes)
+    public async Task<IActionResult> AjouterPostes(Guid execControleOfId, [FromBody] AjouterPostesRequest request)
     {
-        try
-        {
-            var result = await _assemblageExecutionService.AjouterPostesAsync(execControleOfId, posteCodes);
-            if (!result) return NotFound(new { Message = "Exécution introuvable." });
-            return Ok();
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        await _assemblageExecutionService.AjouterPostesAsync(execControleOfId, request);
+        return NoContent();
     }
 
-    // --- Endpoints pour Vérification Machine ---
-    [HttpGet("verif-machine/periodicites")]
-    public async Task<IActionResult> GetPeriodicitesMachine()
+    [HttpGet("of/{execControleOfId:guid}/assemblage-documents")]
+    public async Task<IActionResult> GetDocumentsAssemblageStatus(Guid execControleOfId, [FromQuery, StringLength(10)] string? equipe = null)
     {
-        var periodes = await _verifMachineExecutionService.GetPeriodicitesMachineAsync();
-        return Ok(periodes);
+        return Ok(await _assemblageExecutionService.GetDocumentsAssemblageStatusAsync(execControleOfId, equipe));
+    }
+
+    [HttpPut("assemblage-documents/{statutId:guid}/terminer")]
+    public async Task<IActionResult> MarquerDocumentTermine(Guid statutId, [FromQuery, StringLength(20)] string? periodicite = null)
+    {
+        await _assemblageExecutionService.MarquerDocumentTermineAsync(statutId, User.GetMatricule(), periodicite);
+        return NoContent();
+    }
+
+    [HttpPut("assemblage-documents/{statutId:guid}/rouvrir")]
+    public async Task<IActionResult> RouvrirDocument(Guid statutId, [FromQuery, StringLength(20)] string? periodicite = null)
+    {
+        await _assemblageExecutionService.RouvrirDocumentAsync(statutId, User.GetMatricule(), periodicite);
+        return NoContent();
+    }
+
+    // ───────────────────────────── Vérification machine ─────────────────────────────
+
+    [HttpPost("of/{execControleOfId:guid}/verif-machine/init")]
+    public async Task<IActionResult> InitVerifMachine(Guid execControleOfId, [FromBody] InitVerifMachineRequest request)
+    {
+        var statutId = await _assemblageExecutionService.InitVerifMachineAsync(execControleOfId, request, User.GetMatricule());
+        return Ok(new { id = statutId });
     }
 
     [HttpGet("verif-machine/statut/{statutId:guid}")]
-    public async Task<IActionResult> GetAllExecVerifMachine(Guid statutId)
+    public async Task<IActionResult> GetExecVerifMachine(Guid statutId)
     {
-        var exec = await _verifMachineExecutionService.GetExecVerifMachineAsync(statutId, null);
-        return Ok(exec);
-    }
-
-    [HttpGet("verif-machine/statut/{statutId:guid}/periodicite/{periodiciteId:guid}")]
-    public async Task<IActionResult> GetExecVerifMachine(Guid statutId, Guid periodiciteId)
-    {
-        var exec = await _verifMachineExecutionService.GetExecVerifMachineAsync(statutId, periodiciteId);
-        return Ok(exec);
+        return Ok(await _verifMachineExecutionService.GetExecVerifMachineAsync(statutId));
     }
 
     [HttpPost("verif-machine/save")]
-    public async Task<IActionResult> SaveExecVerifMachine([FromBody] SopalTrace.Application.Dtos.VerifMachine.SaveExecVerifMachineRequest request)
+    public async Task<IActionResult> SaveExecVerifMachine([FromBody] SaveExecVerifMachineRequest request)
     {
-        try
-        {
-            var matricule = User.FindFirst("matricule")?.Value;
-            if (string.IsNullOrEmpty(request.MatriculeOperateur) && !string.IsNullOrEmpty(matricule)) 
-            {
-                request.MatriculeOperateur = matricule;
-            }
-
-            var result = await _verifMachineExecutionService.SaveExecVerifMachineAsync(request);
-            return Ok(new { success = result });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        request.MatriculeOperateur = User.GetMatricule();
+        await _verifMachineExecutionService.SaveExecVerifMachineAsync(request);
+        return NoContent();
     }
 
-    [HttpPut("of/{execControleOfId}/machine/{machineCode}/terminer-tout")]
-    public async Task<IActionResult> TerminerToutDocumentsMachine(Guid execControleOfId, string machineCode)
+    [HttpPut("of/{execControleOfId:guid}/machine/{machineCode}/terminer-tout")]
+    public async Task<IActionResult> TerminerToutDocumentsMachine(
+        Guid execControleOfId,
+        [FromRoute, RegularExpression(FormatsEntree.Code, ErrorMessage = FormatsEntree.MessageCodeInvalide)] string machineCode)
     {
-        try
-        {
-            var result = await _verifMachineExecutionService.TerminerToutDocumentsMachineAsync(execControleOfId, machineCode);
-            return Ok(new { success = result });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        await _verifMachineExecutionService.TerminerToutDocumentsMachineAsync(execControleOfId, machineCode);
+        return NoContent();
     }
 
-    [HttpPost("of/{execControleOfId}/verif-machine/cloturer-tous")]
-    public async Task<IActionResult> CloturerTousVerifMachine(Guid execControleOfId, [FromQuery] string posteCode)
+    [HttpPost("of/{execControleOfId:guid}/verif-machine/cloturer-tous")]
+    public async Task<IActionResult> CloturerTousVerifMachine(
+        Guid execControleOfId,
+        [FromQuery, Required, RegularExpression(FormatsEntree.Code, ErrorMessage = FormatsEntree.MessageCodeInvalide)] string posteCode)
     {
-        try
-        {
-            var result = await _verifMachineExecutionService.CloturerTousVerifMachineAsync(execControleOfId, posteCode);
-            return Ok(new { success = result });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        await _verifMachineExecutionService.CloturerTousVerifMachineAsync(execControleOfId, posteCode);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// OF d'assemblage : l'opérateur ne termine son poste (ou l'OF) que si les contrôles de fin sont faits sur
+    /// tous les postes ; un administrateur peut forcer la fin (supervision).
+    /// </summary>
+    private async Task VerifierFinAssemblageAsync(Guid execControleOfId, string mode)
+    {
+        if (!User.IsInRole(RolesApp.Admin))
+            await _avancementAssemblage.VerifierFinPossibleAsync(execControleOfId, mode);
     }
 }

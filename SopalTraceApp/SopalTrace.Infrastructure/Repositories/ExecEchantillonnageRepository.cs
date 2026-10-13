@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System.Threading.Tasks;
 using SopalTrace.Application.Interfaces.Repositories;
 using SopalTrace.Domain.Entities;
@@ -25,7 +26,7 @@ namespace SopalTrace.Infrastructure.Repositories
                 Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.Include(_context.Set<ExecEchantillonnage>(), x => x.CodeInstruments), 
                 x => x.ExecControleDocumentStatut.ExecControleOfId == execControleOfId 
                      && x.ExecControleDocumentStatut.PosteCode == posteCode
-                     && x.ExecControleDocumentStatut.TypeDocument == "ECHANTILLONNAGE");
+                     && x.ExecControleDocumentStatut.TypeDocument == TypesDocumentExecution.Echantillonnage);
         }
 
         public async Task<ExecEchantillonnage?> GetByIdAsync(Guid id)

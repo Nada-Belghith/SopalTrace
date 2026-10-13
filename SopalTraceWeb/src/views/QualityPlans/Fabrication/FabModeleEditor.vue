@@ -80,7 +80,6 @@
                     :is-read-only="isReadOnly"
                     :types-section="refStore.typesSection"
                     :periodicites="refStore.periodicites"
-                    :regles-echantillonnage="refStore.reglesEchantillonnage"
                     :types-controle="refStore.typesControle"
                     :moyens-controle="refStore.moyensControle"
                     :instruments="refStore.instruments"
@@ -178,9 +177,7 @@ const {
   sections, 
   ajouterSection: addSection, 
   supprimerSection: removeSection, 
-  mettreAJourSection: updateSection, 
-  supprimerLigneASection: removeLineFromSection, 
-  mettreAJourLigne: updateLine 
+  mettreAJourSection: updateSection
 } = useEditorSections();
 
 const groupes = sections;

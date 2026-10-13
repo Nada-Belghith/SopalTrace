@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces.Repositories;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 using System;
@@ -9,6 +10,10 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.Repositories;
 
+/// <summary>
+/// Plans de vérification machine : Document_Entete de type VERIF_MACHINE, lignes sans section,
+/// extensions Famille / Échéance / MatricePiece.
+/// </summary>
 public class DocumentVerifMachineEnteteRepository : IDocumentVerifMachineEnteteRepository
 {
     private readonly SopalTraceDbContext _context;
@@ -18,71 +23,62 @@ public class DocumentVerifMachineEnteteRepository : IDocumentVerifMachineEnteteR
         _context = context;
     }
 
-    public async Task<DocumentVerifMachineEntete?> GetByIdAsync(Guid id, bool includeRelations = true)
+    private IQueryable<DocumentEntete> Plans =>
+        _context.DocumentEntetes.Where(p => p.TypeDocumentCode == TypesDocument.VerifMachine);
+
+    private static IQueryable<DocumentEntete> AvecStructure(IQueryable<DocumentEntete> query) => query
+        .AsSplitQuery()
+        .Include(p => p.Formulaire)
+        .Include(p => p.DocumentVerifMachineFamilles)
+        .Include(p => p.DocumentLignes)
+            .ThenInclude(l => l.DocumentLigneExtraColonnes)
+        .Include(p => p.DocumentLignes)
+            .ThenInclude(l => l.DocumentVerifMachineEcheances)
+                .ThenInclude(e => e.DocumentVerifMachineMatricePieces);
+
+    public async Task<DocumentEntete?> GetByIdAsync(Guid id, bool includeRelations = true)
     {
-        var query = _context.DocumentVerifMachineEntetes.AsQueryable();
-
-        if (includeRelations)
-        {
-            query = query
-                .Include(p => p.Formulaire)
-                .Include(p => p.DocumentVerifMachineFamilles)
-                .Include(p => p.DocumentVerifMachineLignes).ThenInclude(l => l.DocumentVerifMachineLigneExtraColonnes).Include(p => p.DocumentVerifMachineLignes)
-                    .ThenInclude(l => l.DocumentVerifMachineEcheances)
-                        .ThenInclude(e => e.DocumentVerifMachineMatricePieces);
-        }
-
+        var query = includeRelations ? AvecStructure(Plans) : Plans;
         return await query.FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    public async Task<IEnumerable<DocumentVerifMachineEntete>> GetAllWithRelationsAsync()
+    public async Task<IEnumerable<DocumentEntete>> GetAllWithRelationsAsync()
     {
-        return await _context.DocumentVerifMachineEntetes
-            .Include(p => p.Formulaire)
-            .Include(p => p.DocumentVerifMachineFamilles)
-            .Include(p => p.DocumentVerifMachineLignes).ThenInclude(l => l.DocumentVerifMachineLigneExtraColonnes).Include(p => p.DocumentVerifMachineLignes)
-                .ThenInclude(l => l.DocumentVerifMachineEcheances)
-                    .ThenInclude(e => e.DocumentVerifMachineMatricePieces)
-            .ToListAsync();
+        return await AvecStructure(Plans).ToListAsync();
     }
 
-    public async Task<IEnumerable<DocumentVerifMachineEntete>> GetByMachineCodeAsync(string machineCode)
+    public async Task<IEnumerable<DocumentEntete>> GetByMachineCodeAsync(string machineCode)
     {
         var codeTrim = machineCode?.Trim();
-        var plans = await _context.DocumentVerifMachineEntetes
-            .Include(p => p.Formulaire)
-            .Include(p => p.DocumentVerifMachineFamilles)
-            .Include(p => p.DocumentVerifMachineLignes).ThenInclude(l => l.DocumentVerifMachineLigneExtraColonnes).Include(p => p.DocumentVerifMachineLignes)
-                .ThenInclude(l => l.DocumentVerifMachineEcheances)
-                    .ThenInclude(e => e.DocumentVerifMachineMatricePieces)
-            .Where(p => p.MachineCode != null && p.MachineCode.Trim() == codeTrim)
-            .ToListAsync();
-
-        return plans;
+        return await AvecStructure(Plans.Where(p => p.MachineCode == codeTrim)).ToListAsync();
     }
 
-    public async Task<IEnumerable<DocumentVerifMachineEntete>> GetByFormulaireIdAsync(Guid formulaireId)
+    public async Task<IEnumerable<DocumentEntete>> GetByFormulaireIdAsync(Guid formulaireId)
     {
-        return await _context.DocumentVerifMachineEntetes
+        return await Plans
             .Where(p => p.FormulaireId == formulaireId)
             .ToListAsync();
     }
 
-    public async Task AddAsync(DocumentVerifMachineEntete entity)
+    public async Task AddAsync(DocumentEntete entity)
     {
-        await _context.DocumentVerifMachineEntetes.AddAsync(entity);
+        entity.TypeDocumentCode = TypesDocument.VerifMachine;
+        entity.Portee = PorteesDocument.Generique;
+        await _context.DocumentEntetes.AddAsync(entity);
     }
 
-    public Task UpdateAsync(DocumentVerifMachineEntete entity)
+    public Task UpdateAsync(DocumentEntete entity)
     {
-        // Don't call _context.Update(entity) since it forces all child entities to Modified state, breaking in-place updates. 
-        // EF Core Change Tracker automatically detects changes for tracked entities.
+        // Pas de _context.Update(entity) : il passerait toutes les entités enfants en Modified.
+        // Le suivi des modifications d'EF Core détecte les changements des entités suivies.
         return Task.CompletedTask;
     }
 
-    public Task DeleteAsync(DocumentVerifMachineEntete entity)
+    public Task DeleteAsync(DocumentEntete entity)
     {
-        _context.DocumentVerifMachineEntetes.Remove(entity);
+        // Les lignes ne sont pas supprimées en cascade depuis l'entête (pas de section) : on les retire d'abord.
+        _context.DocumentLignes.RemoveRange(entity.DocumentLignes);
+        _context.DocumentEntetes.Remove(entity);
         return Task.CompletedTask;
     }
 
@@ -96,13 +92,13 @@ public class DocumentVerifMachineEnteteRepository : IDocumentVerifMachineEnteteR
         _context.DocumentVerifMachineFamilles.Add(famille);
     }
 
-    public void RemoveLigne(DocumentVerifMachineLigne ligne)
+    public void RemoveLigne(DocumentLigne ligne)
     {
-        _context.DocumentVerifMachineLignes.Remove(ligne);
+        _context.DocumentLignes.Remove(ligne);
     }
 
-    public void AddLigne(DocumentVerifMachineLigne ligne)
+    public void AddLigne(DocumentLigne ligne)
     {
-        _context.DocumentVerifMachineLignes.Add(ligne);
+        _context.DocumentLignes.Add(ligne);
     }
 }

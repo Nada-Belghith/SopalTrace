@@ -6,8 +6,7 @@ namespace SopalTrace.Application.DTOs.QualityPlans.Referentiels;
 public record CreatePieceReferenceDto(
     string Code,
     string TypePiece,
-    string? Designation,
-    string? FamilleDesc
+    string? Designation
 );
 
 public record ReferenceItemDto(
@@ -33,21 +32,20 @@ public record InstrumentDto(
 
 public record PeriodiciteDto(
     Guid Id,
-    string Code,
-    string Libelle,
-    int? FrequenceNum,
-    string? FrequenceUnite,
-    int OrdreAffichage,
+    int NbrPieces,
+    string Unite,
+    int? NbrHeures,
     bool Actif
-);
+)
+{
+    public string Libelle => SopalTrace.Application.Helpers.LibellesSection.Periodicite(NbrPieces, Unite, NbrHeures);
+}
 
 public record CreatePeriodiciteDto
 {
-    public required string Code { get; init; }
-    public required string Libelle { get; init; }
-    public int? FrequenceNum { get; init; }
-    public string? FrequenceUnite { get; init; }
-    public int OrdreAffichage { get; init; }
+    public int NbrPieces { get; init; }
+    public required string Unite { get; init; }
+    public int? NbrHeures { get; init; }
     public bool Actif { get; init; } = true;
 }
 
@@ -65,7 +63,8 @@ public record GammeDto(
 public record FamilleProduitDto(
     string Code,
     string Designation,
-    string TypeRobinetCode
+    string TypeRobinetCode,
+    bool PlanParPoste
 );
 
 public record ReferentielsResponseDto(
@@ -81,19 +80,17 @@ public record ReferentielsResponseDto(
     List<ReferenceItemDto> Postes,
     List<GammeDto> Gammes,
     List<ReferenceItemIntDto> Nqa,
-    List<ReferenceItemDto> Defautheque,
-    List<ReferenceItemDto> ReglesEchantillonnage,
     List<FamilleProduitDto> FamillesProduit
 )
 {
     public ReferentielsResponseDto()
-        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new()) 
+        : this(new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new(), new())
     {
     }
 }
 
 public record VerifMachineReferentielsDto(
-    List<ReferenceItemDto> Machines,
+    List<MachineVerifDto> Machines,
     List<PeriodiciteDto> Periodicites,
     List<PeriodiciteMachineDto> PeriodicitesMachine,
     List<PieceRefDto> PiecesReferences,
@@ -102,13 +99,32 @@ public record VerifMachineReferentielsDto(
     List<ReferenceItemDto> MoyensDetection
 );
 
-public record PeriodiciteMachineDto(Guid Id, string Code, string Libelle, int OrdreAffichage, bool Actif);
+/// <summary>
+/// Machine et présentation de son formulaire de vérification (lue en base, plus déduite du code machine).
+/// VerifModele : BEE, MAS, SER ou null (générique).
+/// </summary>
+public record MachineVerifDto(
+    string Code,
+    string Libelle,
+    bool Actif,
+    string? VerifModele,
+    bool SansConformite,
+    bool FuiteEtalon,
+    bool MoyenControleNumerote,
+    bool SansDeltaP,
+    bool SansPression,
+    bool TablesEtalonSeparees,
+    bool FuiteEnPa,
+    bool ColonnesParTableau
+);
+
+/// <summary>Périodicité machine ; ControlMoment (DEMARRAGE, APRES_PAUSE, FIN_POSTE ou null) est son moment de contrôle.</summary>
+public record PeriodiciteMachineDto(Guid Id, string Code, string Libelle, int OrdreAffichage, bool Actif, string? ControlMoment = null);
 
 public record PieceRefDto(
     Guid Id,
     string Code,
     string? Designation,
-    string? FamilleDesc,
     string? TypePiece  // PRC, PRNC, FEC, FENC
 );
 
@@ -129,7 +145,8 @@ public record MachinePosteDto(
 public record ControlePosteReferentielsDto(
     List<ReferenceItemDto> Postes,
     List<MachinePosteDto> Machines,
-    List<ReferenceItemDto> RisquesDefauts
+    List<ReferenceItemDto> RisquesDefauts,
+    List<FamilleProduitDto> FamillesProduit
 );
 
 public record FormulaireStructureDto(
@@ -148,8 +165,13 @@ public record FormulaireReferenceItemDto(
     string Role,
     int Version,
     string? ConfigurationStructureJson,
-    string Statut
+    string Statut,
+    // Champ d'application : poste et famille repris par les documents créés sur ce formulaire.
+    string? PosteCode = null,
+    string? FamilleProduitFiniCode = null
 );
+
+public record EquipeReferenceDto(string Code, string Libelle);
 
 public record UpdateFormulaireStructureDto(
     string? ConfigurationStructureJson,

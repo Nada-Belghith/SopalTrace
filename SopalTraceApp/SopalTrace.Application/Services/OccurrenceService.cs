@@ -14,8 +14,6 @@ public partial class OccurrenceService : IOccurrenceService
     private readonly SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.NotifsManagerContexte> _alerteManagerService;
     private readonly IUnitOfWork _unitOfWork;
 
-    public const double SimulationSpeedFactor = 1.0;
-
     public OccurrenceService(
         IOccurrenceRepository occurrenceRepository,
         SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.NotifsSuperviseurContexte> alerteSuperviseurService,

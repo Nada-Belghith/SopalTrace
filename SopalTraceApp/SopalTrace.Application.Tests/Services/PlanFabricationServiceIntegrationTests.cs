@@ -25,7 +25,7 @@ namespace SopalTrace.Application.Tests.Services
         public PlanFabricationServiceIntegrationTests()
         {
             // 1. Configuration de la base de données "In-Memory"
-            var options = new DbContextOptionsBuilder<SopalTraceDbContext>()
+            var options = RowVersionEnMemoire.Activer(new DbContextOptionsBuilder<SopalTraceDbContext>())
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Une BDD unique par test
                 .Options;
 
@@ -34,7 +34,7 @@ namespace SopalTrace.Application.Tests.Services
 
             // 2. Mock des services annexes (pour simuler l'utilisateur et le formulaire PRC)
             _currentUserServiceMock = new Mock<ICurrentUserService>();
-            _currentUserServiceMock.Setup(c => c.UserInfo).Returns("TestUser");
+            _currentUserServiceMock.Setup(c => c.MatriculeRequis).Returns("TestUser");
 
             var formId = Guid.NewGuid();
             _context.RefFormulaires.Add(new RefFormulaire { Id = formId, CodeReference = "FE-PRC", Version = 1, Role = "EN_COURS_DE_FABRICATION", Designation = "FE-PRC", Statut = "ACTIF" });
@@ -86,7 +86,7 @@ namespace SopalTrace.Application.Tests.Services
             Guid premierPlanId = await _planFabricationService.CreatePlanAsync(createReq);
 
             // Vérification intermédiaire
-            var premierPlanEnBase = await _context.PlanFabricationEntetes.FindAsync(premierPlanId);
+            var premierPlanEnBase = await _context.DocumentEntetes.FindAsync(premierPlanId);
             Assert.NotNull(premierPlanEnBase);
             Assert.Equal("ACTIF", premierPlanEnBase.Statut);
 
@@ -106,8 +106,8 @@ namespace SopalTrace.Application.Tests.Services
             // ==========================================
             
             // Recharger les entités depuis la base In-Memory
-            var ancienPlan = await _context.PlanFabricationEntetes.FindAsync(premierPlanId);
-            var nouveauPlan = await _context.PlanFabricationEntetes.FindAsync(deuxiemePlanId);
+            var ancienPlan = await _context.DocumentEntetes.FindAsync(premierPlanId);
+            var nouveauPlan = await _context.DocumentEntetes.FindAsync(deuxiemePlanId);
 
             Assert.NotNull(ancienPlan);
             Assert.NotNull(nouveauPlan);

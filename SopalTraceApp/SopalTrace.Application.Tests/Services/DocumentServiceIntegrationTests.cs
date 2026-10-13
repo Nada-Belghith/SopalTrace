@@ -26,7 +26,7 @@ namespace SopalTrace.Application.Tests.Services
 
         public DocumentServiceIntegrationTests()
         {
-            var options = new DbContextOptionsBuilder<SopalTraceDbContext>()
+            var options = RowVersionEnMemoire.Activer(new DbContextOptionsBuilder<SopalTraceDbContext>())
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
                 .Options;
 
@@ -34,7 +34,7 @@ namespace SopalTrace.Application.Tests.Services
             var unitOfWork = new UnitOfWork(_context);
 
             _currentUserServiceMock = new Mock<ICurrentUserService>();
-            _currentUserServiceMock.Setup(c => c.UserInfo).Returns("TestUser");
+            _currentUserServiceMock.Setup(c => c.MatriculeRequis).Returns("TestUser");
 
             _loggerMock = new Mock<ILogger<DocumentService>>();
 
@@ -62,7 +62,6 @@ namespace SopalTrace.Application.Tests.Services
         {
             // Arrange
             var typeSectionId = Guid.NewGuid();
-            var regleEchantillonnageId = Guid.NewGuid();
             var periodiciteId = Guid.NewGuid();
 
             var request = new CreateDocumentRequestDto
@@ -79,7 +78,6 @@ namespace SopalTrace.Application.Tests.Services
                         LibelleSection = "Contrôle Produit Fini par échantillonnage  (2 échantillons)",
                         TypeSectionId = typeSectionId,
                         PeriodiciteId = periodiciteId,
-                        RegleEchantillonnageId = regleEchantillonnageId,
                         Lignes = new List<CreateDocumentLigneDto>
                         {
                             new CreateDocumentLigneDto
@@ -144,8 +142,7 @@ namespace SopalTrace.Application.Tests.Services
             Assert.Equal(2, savedSection.OrdreAffiche);
             Assert.Equal(4, savedSection.DocumentLignes.Count);
             
-            // Vérification que les IDs de règle d'échantillonnage et de périodicité sont bien sauvegardés
-            Assert.Equal(regleEchantillonnageId, savedSection.RegleEchantillonnageId);
+            // Vérification que le type de section et la périodicité sont bien sauvegardés
             Assert.Equal(periodiciteId, savedSection.PeriodiciteId);
 
             // Vérification que l'OrdreAffiche correspond EXACTEMENT à ce qui a été envoyé par le Frontend (même s'il est désordonné)

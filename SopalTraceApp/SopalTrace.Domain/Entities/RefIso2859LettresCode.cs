@@ -14,4 +14,6 @@ public partial class RefIso2859LettresCode
     public string NiveauControle { get; set; } = null!;
 
     public string CodeLettre { get; set; } = null!;
+
+    public virtual InspectionLevel NiveauControleNavigation { get; set; } = null!;
 }

@@ -5,23 +5,24 @@ using SopalTrace.Domain.Entities;
 
 namespace SopalTrace.Application.Interfaces.Repositories;
 
+/// <summary>Modèles de fabrication : Document_Entete de type MODELE_FAB, portée GENERIQUE (Code = Nom).</summary>
 public interface IModeleFabricationEnteteRepository
 {
-    Task<ModeleFabricationEntete?> GetByIdAsync(Guid id, bool includeRelations = false);
-    Task<IEnumerable<ModeleFabricationEntete>> GetAllAsync(bool includeRelations = false);
-    Task AddAsync(ModeleFabricationEntete document);
-    Task UpdateAsync(ModeleFabricationEntete document);
-    Task DeleteAsync(ModeleFabricationEntete document);
+    Task<DocumentEntete?> GetByIdAsync(Guid id, bool includeRelations = false);
+    Task<IEnumerable<DocumentEntete>> GetAllAsync(bool includeRelations = false);
+    Task AddAsync(DocumentEntete document);
+    Task UpdateAsync(DocumentEntete document);
+    Task DeleteAsync(DocumentEntete document);
 
-    void RemoveSection(ModeleFabricationSection section);
-    void RemoveLigne(ModeleFabricationLigne ligne);
-    void RemoveExtraColonne(ModeleFabricationLigneExtraColonne extraColonne);
+    void RemoveSection(DocumentSection section);
+    void RemoveLigne(DocumentLigne ligne);
+    void RemoveExtraColonne(DocumentLigneExtraColonne extraColonne);
 
-    Task<IEnumerable<ModeleFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId);
+    Task<IEnumerable<DocumentEntete>> GetByFormulaireIdAsync(Guid formulaireId);
 
-    Task<ModeleFabricationEntete?> GetActifByReferenceAsync(string typeDocumentCode, string code, string? operationCode = null);
+    Task<DocumentEntete?> GetActifByReferenceAsync(string typeDocumentCode, string code, string? operationCode = null);
     
-    Task<IEnumerable<ModeleFabricationEntete>> GetByFiltersAsync(
+    Task<IEnumerable<DocumentEntete>> GetByFiltersAsync(
         string? natureComposantCode = null, 
         string? operationCode = null, 
         string? familleProduitCode = null,

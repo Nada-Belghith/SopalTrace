@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,7 +25,7 @@ public class ManagerNotifsAlerteDefinition : IAlerteDefinition<NotifsManagerCont
 
     public async Task<List<string>> ResoudreDestinatairesAsync(NotifsManagerContexte contexte)
     {
-        return await _erpService.GetEmailsByRoleAsync("MANAGER_PROD");
+        return await _erpService.GetEmailsByRoleAsync(CodesMetierErp.ManagerProduction);
     }
 
     public string ConstruireSujet(NotifsManagerContexte contexte)

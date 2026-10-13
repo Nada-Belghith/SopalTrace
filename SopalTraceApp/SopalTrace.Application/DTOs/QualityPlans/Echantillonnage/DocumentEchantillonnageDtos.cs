@@ -15,7 +15,7 @@ public record CreateDocumentEchantillonnageRequestDto
     
     // ✅ Seule la valeur directe est conservée (NqaId est définitivement supprimé)
     public int? NqaId { get; init; }
-    public double? ValeurNqa { get; init; }
+    public decimal? ValeurNqa { get; init; }
     
     public string CommentaireVersion { get; init; }
     public string Remarques { get; init; }
@@ -28,6 +28,9 @@ public record CreateDocumentEchantillonnageRequestDto
 
 public record CreateNewVersionDocumentEchantillonnageRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string RowVersion { get; init; }
+
     public Guid AncienId { get; init; }
     public string ModifiePar { get; init; }
     public string MotifModification { get; init; }
@@ -45,13 +48,16 @@ public record RestoreDocumentEchantillonnageRequestDto
 
 public record UpdateDocumentEchantillonnageRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string RowVersion { get; init; }
+
     public string NiveauControle { get; init; }
     public string TypePlan { get; init; }
     public string ModeControle { get; init; }
     
     // ✅ Suppression de NqaId ici aussi
     public int? NqaId { get; init; }
-    public double? ValeurNqa { get; init; }
+    public decimal? ValeurNqa { get; init; }
     
     public string Remarques { get; init; }
     public string LegendeMoyens { get; init; }
@@ -67,6 +73,9 @@ public record UpdateDocumentEchantillonnageRequestDto
 // ==========================================
 public record DocumentEchantillonnageResponseDto
 {
+    /// <summary>Version du document (RowVersion en base64), à renvoyer telle quelle lors de l'enregistrement.</summary>
+    public string RowVersion { get; init; }
+
     public Guid Id { get; init; }
     public string NiveauControle { get; init; }
     public string TypePlan { get; init; }
@@ -74,7 +83,7 @@ public record DocumentEchantillonnageResponseDto
     
     // ✅ Suppression de NqaId ici aussi
     public int NqaId { get; init; }
-    public double ValeurNqa { get; init; }
+    public decimal ValeurNqa { get; init; }
     
     public int Version { get; init; }
     public string Statut { get; init; }

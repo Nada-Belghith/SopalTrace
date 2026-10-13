@@ -79,21 +79,11 @@ public class ReferentielController : ControllerBase
     /// directement depuis le formulaire Verification Machine.
     /// </summary>
     [HttpPost("piece-reference")]
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> CreatePieceReference([FromBody] CreatePieceReferenceDto request)
     {
-        try
-        {
-            var result = await _referentielService.CreatePieceReferenceAsync(request);
-            return Ok(new { success = true, data = result });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { success = false, message = ex.Message });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { success = false, message = ex.Message });
-        }
+        var result = await _referentielService.CreatePieceReferenceAsync(request);
+        return Ok(new { success = true, data = result });
     }
 
     [HttpGet("formulaires/role/{role}")]
@@ -112,6 +102,12 @@ public class ReferentielController : ControllerBase
         return Ok(new { success = true, data = result });
     }
 
+    [HttpGet("equipes")]
+    public async Task<IActionResult> GetEquipes()
+    {
+        return Ok(new { success = true, data = await _formulaireService.GetEquipesReferenceAsync() });
+    }
+
     [HttpGet("formulaires/liste/{role}")]
     public async Task<IActionResult> GetFormulairesListByRole(string role)
     {
@@ -120,6 +116,7 @@ public class ReferentielController : ControllerBase
     }
 
     [HttpPut("formulaires/role/{role}")]
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> UpdateFormulaireStructure(string role, [FromBody] UpdateFormulaireStructureDto request)
     {
         var newId = await _formulaireService.UpdateFormulaireStructureAsync(role, request.ConfigurationStructureJson, null, request.VersionInitiale);
@@ -128,6 +125,7 @@ public class ReferentielController : ControllerBase
     }
 
     [HttpPost("formulaires/{id}/activer")]
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> ActiverFormulaire(Guid id)
     {
         var result = await _formulaireService.ActiverFormulaireAsync(id);
@@ -136,16 +134,10 @@ public class ReferentielController : ControllerBase
     }
 
     [HttpPost("periodicites")]
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> CreatePeriodicite([FromBody] CreatePeriodiciteDto request)
     {
-        try
-        {
-            var result = await _referentielService.CreatePeriodiciteAsync(request);
-            return Ok(new { success = true, data = result, id = result, periodiciteId = result });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { success = false, message = ex.Message });
-        }
+        var result = await _referentielService.CreatePeriodiciteAsync(request);
+        return Ok(new { success = true, data = result, id = result, periodiciteId = result });
     }
 }

@@ -8,7 +8,6 @@ namespace SopalTrace.Application.Services
     {
         Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, InitEchantillonnageRequest request);
         Task<ExecEchantillonnageDto?> GetPlanPourOfAsync(Guid execControleOfId, string? posteCode);
-        Task<ExecEchantillonnageDto> UpdatePlanAsync(Guid id, ExecEchantillonnageDto request);
         Task<bool> SourcePlanExistsAsync(Guid execControleOfId);
     }
 }

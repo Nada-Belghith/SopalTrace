@@ -10,6 +10,7 @@ import PrimeVue from 'primevue/config'
 import Aura from '@primevue/themes/aura'
 import ToastService from 'primevue/toastservice'
 import 'primeicons/primeicons.css'
+import 'remixicon/fonts/remixicon.css'
 
 // --- Import Tailwind ---
 import './assets/main.css' 

@@ -33,6 +33,36 @@ public class HubService : IHubService
         _context = context;
     }
 
+    private sealed record LigneStatistique(string Portee, string TypeDocumentCode, string Libelle, string Statut, int Nombre);
+
+    /// <summary>Une seule requête groupée : portée × type de document × statut.</summary>
+    public async Task<HubStatistiquesDto> GetStatistiquesAsync()
+    {
+        var lignes = await _context.DocumentEntetes
+            .AsNoTracking()
+            .GroupBy(d => new { d.Portee, d.TypeDocumentCode, Libelle = d.TypeDocumentCodeNavigation.Libelle, d.Statut })
+            .Select(g => new LigneStatistique(g.Key.Portee, g.Key.TypeDocumentCode, g.Key.Libelle, g.Key.Statut, g.Count()))
+            .ToListAsync();
+
+        static CompteStatutsDto Compter(IEnumerable<LigneStatistique> groupe)
+        {
+            var liste = groupe.ToList();
+            int Somme(string statut) => liste.Where(l => l.Statut == statut).Sum(l => l.Nombre);
+            return new CompteStatutsDto(Somme(StatutsPlan.Brouillon), Somme(StatutsPlan.Actif), Somme(StatutsPlan.Archive));
+        }
+
+        var parType = lignes
+            .GroupBy(l => new { l.TypeDocumentCode, l.Libelle, l.Portee })
+            .Select(g => new StatistiquesTypeDocumentDto(g.Key.TypeDocumentCode, g.Key.Libelle, g.Key.Portee, Compter(g)))
+            .OrderBy(t => t.Portee).ThenBy(t => t.Libelle)
+            .ToList();
+
+        return new HubStatistiquesDto(
+            Compter(lignes.Where(l => l.Portee == PorteesDocument.Generique)),
+            Compter(lignes.Where(l => l.Portee == PorteesDocument.Specifique)),
+            parType);
+    }
+
     public async Task<IReadOnlyList<HubModeleDto>> GetTousLesModelesAsync()
     {
         var result = new List<HubModeleDto>();
@@ -41,6 +71,8 @@ public class HubService : IHubService
             .AsNoTracking()
             .Include(d => d.Formulaire)
             .Include(d => d.TypeDocumentCodeNavigation)
+            .Where(d => d.TypeDocumentCode != TypesDocument.ModeleFabrication && d.TypeDocumentCode != TypesDocument.PlanFabrication
+                     && d.TypeDocumentCode != TypesDocument.VerifMachine && d.TypeDocumentCode != TypesDocument.PlanEchantillonnage)
             .Where(d => d.Statut == StatutsPlan.Actif || d.Statut == StatutsPlan.Archive || d.Statut == StatutsPlan.Brouillon)
             .ToListAsync();
 
@@ -63,9 +95,10 @@ public class HubService : IHubService
             ));
         }
 
-        var fabModeles = await _context.ModeleFabricationEntetes
+        var fabModeles = await _context.DocumentEntetes
             .AsNoTracking()
             .Include(d => d.Formulaire)
+            .Where(d => d.TypeDocumentCode == TypesDocument.ModeleFabrication)
             .Where(d => d.Statut == StatutsPlan.Actif || d.Statut == StatutsPlan.Archive || d.Statut == StatutsPlan.Brouillon)
             .ToListAsync();
 
@@ -74,23 +107,24 @@ public class HubService : IHubService
             result.Add(new HubModeleDto(
                 m.Id,
                 "FAB",
-                m.Libelle ?? m.Code ?? "Modèle de Fabrication",
+                m.Designation ?? m.Nom ?? "Modèle de Fabrication",
                 m.NatureArticleCode ?? "N/A",
                 m.FamilleProduitFiniCode ?? "GEN",
                 m.OperationCode ?? "N/A",
                 "N/A",
                 m.Version,
                 m.Statut ?? StatutsPlan.Actif,
-                m.Notes ?? "Modèle de Fabrication.",
+                m.Remarques ?? "Modèle de Fabrication.",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
                 m.Formulaire != null ? m.Formulaire.Version : (int?)null,
                 m.CreeLe
             ));
         }
 
-        var vmModeles = await _context.DocumentVerifMachineEntetes
+        var vmModeles = await _context.DocumentEntetes
             .AsNoTracking()
             .Include(v => v.Formulaire)
+            .Where(v => v.TypeDocumentCode == TypesDocument.VerifMachine)
             .Where(v => v.Statut == StatutsPlan.Actif || v.Statut == StatutsPlan.Archive || v.Statut == StatutsPlan.Brouillon)
             .ToListAsync();
 
@@ -104,8 +138,8 @@ public class HubService : IHubService
                 "N/A",
                 "N/A",
                 m.MachineCode ?? "N/A",
-                m.Version ?? 1,
-                m.Statut ?? StatutsPlan.Actif,
+                m.Version,
+                m.Statut,
                 m.Remarques ?? "Modèle de vérification machine",
                 m.Formulaire != null ? m.Formulaire.CodeReference : null,
                 m.Formulaire != null ? m.Formulaire.Version : (int?)null,
@@ -113,9 +147,10 @@ public class HubService : IHubService
             ));
         }
 
-        var echanModeles = await _context.DocumentEchantillonnageEntetes
+        var echanModeles = await _context.DocumentEntetes
             .AsNoTracking()
             .Include(v => v.Formulaire)
+            .Where(v => v.TypeDocumentCode == TypesDocument.PlanEchantillonnage)
             .Where(v => v.Statut == StatutsPlan.Actif || v.Statut == StatutsPlan.Archive || v.Statut == StatutsPlan.Brouillon)
             .ToListAsync();
 
@@ -145,9 +180,10 @@ public class HubService : IHubService
     {
         var result = new List<HubPlanDto>();
 
-        var fabPlans = await _context.PlanFabricationEntetes
+        var fabPlans = await _context.DocumentEntetes
             .AsNoTracking()
             .Include(d => d.Formulaire)
+            .Where(d => d.TypeDocumentCode == TypesDocument.PlanFabrication)
             .Where(d => d.Statut == StatutsPlan.Actif || d.Statut == StatutsPlan.Archive || d.Statut == StatutsPlan.Brouillon)
             .ToListAsync();
 
@@ -181,7 +217,7 @@ public class HubService : IHubService
 
         var prcStructures = await _context.RefFormulaires
             .AsNoTracking()
-            .Where(f => f.Role == "EN_COURS_DE_FABRICATION")
+            .Where(f => f.Role == RolesFormulaire.EnCoursDeFabrication)
             .Where(f => f.Statut == StatutsPlan.Actif || f.Statut == StatutsPlan.Archive)
             .Select(f => new HubPlanDto(
                 f.Id,
@@ -212,19 +248,19 @@ public class HubService : IHubService
         category = category?.ToUpperInvariant() ?? "";
         if (category == "FAB")
         {
-            var m = await _context.ModeleFabricationEntetes.FindAsync(id);
+            var m = await _context.DocumentEntetes.FirstOrDefaultAsync(d => d.Id == id && d.TypeDocumentCode == TypesDocument.ModeleFabrication);
             if (m is null) return false;
             m.Statut = statut;
         }
         else if (category == "VM")
         {
-            var m = await _context.DocumentVerifMachineEntetes.FindAsync(id);
+            var m = await _context.DocumentEntetes.FirstOrDefaultAsync(d => d.Id == id && d.TypeDocumentCode == TypesDocument.VerifMachine);
             if (m is null) return false;
             m.Statut = statut;
         }
         else if (category == "ECH")
         {
-            var m = await _context.DocumentEchantillonnageEntetes.FindAsync(id);
+            var m = await _context.DocumentEntetes.FirstOrDefaultAsync(d => d.Id == id && d.TypeDocumentCode == TypesDocument.PlanEchantillonnage);
             if (m is null) return false;
             m.Statut = statut;
         }
@@ -244,7 +280,7 @@ public class HubService : IHubService
         category = category?.ToUpperInvariant() ?? "";
         if (category == "FAB")
         {
-            var p = await _context.PlanFabricationEntetes.FindAsync(id);
+            var p = await _context.DocumentEntetes.FirstOrDefaultAsync(d => d.Id == id && d.TypeDocumentCode == TypesDocument.PlanFabrication);
             if (p is null) return false;
 
             if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
@@ -254,8 +290,9 @@ public class HubService : IHubService
 
             if (statut == StatutsPlan.Actif)
             {
-                var otherActivePlans = await _context.PlanFabricationEntetes
-                    .Where(x => x.CodeArticleSageVersionne == p.CodeArticleSageVersionne 
+                var otherActivePlans = await _context.DocumentEntetes
+                    .Where(x => x.TypeDocumentCode == TypesDocument.PlanFabrication
+                             && x.CodeArticleSageVersionne == p.CodeArticleSageVersionne 
                              && x.OperationCode == p.OperationCode 
                              && x.Statut == StatutsPlan.Actif 
                              && x.Id != p.Id)
@@ -270,7 +307,7 @@ public class HubService : IHubService
         }
         else if (category == "VM")
         {
-            var p = await _context.DocumentVerifMachineEntetes.FindAsync(id);
+            var p = await _context.DocumentEntetes.FirstOrDefaultAsync(d => d.Id == id && d.TypeDocumentCode == TypesDocument.VerifMachine);
             if (p is null) return false;
 
             if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
@@ -282,7 +319,7 @@ public class HubService : IHubService
         }
         else if (category == "ECH")
         {
-            var p = await _context.DocumentEchantillonnageEntetes.FindAsync(id);
+            var p = await _context.DocumentEntetes.FirstOrDefaultAsync(d => d.Id == id && d.TypeDocumentCode == TypesDocument.PlanEchantillonnage);
             if (p is null) return false;
 
             if (statut == StatutsPlan.Archive && p.Statut == StatutsPlan.Brouillon)
@@ -312,62 +349,38 @@ public class HubService : IHubService
     public async Task<bool> SupprimerBrouillonPlanAsync(string category, Guid id)
     {
         category = category?.ToUpperInvariant() ?? "";
-        if (category == "FAB")
+        // FAB : plans de fabrication stockés dans Document_* → traités par la branche générique.
+        if (category == "VM")
         {
-            var plan = await _context.PlanFabricationEntetes
-                .Include(p => p.PlanFabricationSections)
-                    .ThenInclude(s => s.PlanFabricationLignes)
-                        .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
-                .FirstOrDefaultAsync(p => p.Id == id);
-
-            if (plan is null) return false;
-            if (plan.Statut != StatutsPlan.Brouillon) return false;
-
-            foreach (var section in plan.PlanFabricationSections)
-            {
-                foreach (var ligne in section.PlanFabricationLignes)
-                {
-                    _context.Set<PlanFabricationLigneExtraColonne>().RemoveRange(ligne.PlanFabricationLigneExtraColonnes);
-                }
-                _context.PlanFabricationLignes.RemoveRange(section.PlanFabricationLignes);
-            }
-            _context.PlanFabricationSections.RemoveRange(plan.PlanFabricationSections);
-            _context.PlanFabricationEntetes.Remove(plan);
-
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        else if (category == "VM")
-        {
-            var plan = await _context.DocumentVerifMachineEntetes
-                .Include(v => v.DocumentVerifMachineLignes)
-                    .ThenInclude(l => l.DocumentVerifMachineLigneExtraColonnes)
+            var plan = await _context.DocumentEntetes
+                .Include(v => v.DocumentLignes)
+                    .ThenInclude(l => l.DocumentLigneExtraColonnes)
                 .Include(v => v.DocumentVerifMachineFamilles)
-                .FirstOrDefaultAsync(p => p.Id == id);
+                .FirstOrDefaultAsync(p => p.Id == id && p.TypeDocumentCode == TypesDocument.VerifMachine);
 
             if (plan is null) return false;
             if (plan.Statut != StatutsPlan.Brouillon) return false;
 
-            foreach (var ligne in plan.DocumentVerifMachineLignes)
+            foreach (var ligne in plan.DocumentLignes)
             {
-                _context.Set<DocumentVerifMachineLigneExtraColonne>().RemoveRange(ligne.DocumentVerifMachineLigneExtraColonnes);
+                _context.Set<DocumentLigneExtraColonne>().RemoveRange(ligne.DocumentLigneExtraColonnes);
             }
-            _context.DocumentVerifMachineLignes.RemoveRange(plan.DocumentVerifMachineLignes);
+            _context.DocumentLignes.RemoveRange(plan.DocumentLignes);
             _context.DocumentVerifMachineFamilles.RemoveRange(plan.DocumentVerifMachineFamilles);
-            _context.DocumentVerifMachineEntetes.Remove(plan);
+            _context.DocumentEntetes.Remove(plan);
 
             await _context.SaveChangesAsync();
             return true;
         }
         else if (category == "ECH")
         {
-            var plan = await _context.DocumentEchantillonnageEntetes
-                .FirstOrDefaultAsync(p => p.Id == id);
+            var plan = await _context.DocumentEntetes
+                .FirstOrDefaultAsync(p => p.Id == id && p.TypeDocumentCode == TypesDocument.PlanEchantillonnage);
 
             if (plan is null) return false;
             if (plan.Statut != StatutsPlan.Brouillon) return false;
 
-            _context.DocumentEchantillonnageEntetes.Remove(plan);
+            _context.DocumentEntetes.Remove(plan);
 
             await _context.SaveChangesAsync();
             return true;

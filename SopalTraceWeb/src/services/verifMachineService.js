@@ -26,9 +26,9 @@ export const verifMachineService = {
   },
 
   updateDocument(id, payload) {
-    // Le backend DocumentVerifMachineController renvoie 204 NoContent, donc on mock la réponse pour le store
-    return apiClient.put(`/DocumentVerifMachine/${id}`, payload).then(() => {
-      return { data: { id: id, version: payload.version } };
+    // L'API renvoie la nouvelle version du document (rowVersion), à conserver pour l'enregistrement suivant.
+    return apiClient.put(`/DocumentVerifMachine/${id}`, payload).then(response => {
+      return { data: { id: id, version: payload.version, rowVersion: response.data.rowVersion } };
     });
   },
 

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using SopalTrace.Infrastructure.Data;
 using SopalTrace.Infrastructure.Repositories;
 using SopalTrace.Application.Interfaces.Repositories;
@@ -82,39 +84,7 @@ public class UnitOfWork : IUnitOfWork
         }
         catch (DbUpdateException ex)
         {
-            // Log details to a file for diagnosis
-            try
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine($"[CommitAsync] DbUpdateException at {DateTime.UtcNow:O}");
-                sb.AppendLine($"  Type: {ex.GetType().FullName}");
-                sb.AppendLine($"  Message: {ex.Message}");
-                if (ex.InnerException != null)
-                    sb.AppendLine($"  InnerException: {ex.InnerException.Message}");
-                var entriesProperty = ex.GetType().GetProperty("Entries");
-                if (entriesProperty != null)
-                {
-                    var entries = entriesProperty.GetValue(ex) as System.Collections.IEnumerable;
-                    if (entries != null)
-                    {
-                        foreach (var entry in entries)
-                        {
-                            var entityProp = entry.GetType().GetProperty("Entity");
-                            var stateProp = entry.GetType().GetProperty("State");
-                            var entity = entityProp?.GetValue(entry);
-                            var state = stateProp?.GetValue(entry);
-                            // Try to get Id
-                            var idProp = entity?.GetType().GetProperty("Id");
-                            var id = idProp?.GetValue(entity);
-                            sb.AppendLine($"  Entry: {entity?.GetType().Name}, State={state}, Id={id}");
-                        }
-                    }
-                }
-                var logPath = @"c:\Users\LAPTOP\OneDrive - Ministere de l'Enseignement Superieur et de la Recherche Scientifique\Bureau\pfe\SopalTraceApp\SopalTraceApp\concurrency_debug.log";
-                System.IO.File.WriteAllText(logPath, sb.ToString());
-            }
-            catch { /* ignore logging errors */ }
-
+            // Le détail de l'exception est journalisé par ExceptionMiddleware.
             await RollbackAsync();
             throw ex.ToDomainExceptionOrSelf("Un enregistrement concurrent a déjà été validé.");
         }
@@ -165,6 +135,41 @@ public class UnitOfWork : IUnitOfWork
                 _transaction = null;
             }
         }
+    }
+
+    /// <inheritdoc/>
+    public void Ajouter(object entite)
+    {
+        // L'entité et ses enfants encore inconnus du suivi (valeurs de colonnes, image) sont inscrits comme ajoutés ;
+        // le parcours s'arrête aux entités déjà suivies (section ou entête existants), qui restent inchangées.
+        _context.ChangeTracker.TrackGraph(entite, noeud =>
+        {
+            if (noeud.Entry.State == EntityState.Detached)
+                noeud.Entry.State = EntityState.Added;
+        });
+    }
+
+    /// <inheritdoc/>
+    public void VerifierVersionDocument(DocumentEntete document, string? versionClient, bool obligatoire)
+    {
+        if (string.IsNullOrWhiteSpace(versionClient))
+        {
+            if (obligatoire)
+                throw new RegleMetierException("Version du document manquante : rechargez le document avant de l'enregistrer.");
+            return;
+        }
+
+        byte[] version;
+        try { version = Convert.FromBase64String(versionClient); }
+        catch (FormatException) { throw new RegleMetierException("Version du document illisible : rechargez le document."); }
+
+        if (!version.AsSpan().SequenceEqual(document.RowVersion))
+            throw new ConflitConcurrenceException("Ce document a été modifié par un autre utilisateur depuis son ouverture.");
+
+        var entree = _context.Entry(document);
+        entree.Property(d => d.RowVersion).OriginalValue = version;
+        // ModifieLe est renseigné par l'intercepteur : l'entête est réécrit, sa version contrôlée puis incrémentée.
+        entree.Property(d => d.ModifieLe).IsModified = true;
     }
 
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)

@@ -1,3 +1,4 @@
+import { periodiciteAvecLibelle } from '@/utils/frequencyUtils';
 import { prepareSectionsForBackend } from '@/utils/sectionUtils';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { useReferentielStore } from '@/stores/referentielStore';
@@ -52,7 +53,7 @@ export function usePlanActions(editorState, dependencies) {
       await prepareSectionsForBackend(editorState.sections.value, refStore.periodicites || [], async (payload) => {
         const res = await fabPlanService.createPeriodicite(payload);
         const resData = res?.data?.data || res?.data || res;
-        refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payload });
+        refStore.periodicites.push(periodiciteAvecLibelle({ id: resData.periodiciteId || resData.id, ...payload }));
         return res;
       });
 
@@ -69,7 +70,7 @@ export function usePlanActions(editorState, dependencies) {
         ? `${baseCode}.${editorState.codeArticleSuffix.value}` 
         : (editorState.plan.value?.codeArticleSageVersionne || baseCode);
 
-      await fabPlanService.updatePlanValues(
+      const nouvelleVersion = await fabPlanService.updatePlanValues(
         currentPlanId, 
         payloadData, 
         editorState.legendeMoyens.value, 
@@ -78,8 +79,11 @@ export function usePlanActions(editorState, dependencies) {
         codeVersionne, 
         'Admin', 
         editorState.plan.value?.codeArticleSage, 
-        codeVersionne
+        codeVersionne,
+        editorState.plan.value?.rowVersion
       );
+      // Nouvelle version du plan : les enregistrements suivants (dont l'auto-sauvegarde) la renvoient.
+      if (editorState.plan.value && nouvelleVersion) editorState.plan.value.rowVersion = nouvelleVersion;
 
       if (showToast) {
         toast.add({ severity: 'info', summary: 'Brouillon enregistré', detail: 'Vos données ont été sauvegardées.', life: 3000 });
@@ -97,7 +101,7 @@ export function usePlanActions(editorState, dependencies) {
         async (payloadFreq) => {
           const res = await fabPlanService.createPeriodicite(payloadFreq);
           const resData = res?.data?.data || res?.data || res;
-          refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+          refStore.periodicites.push(periodiciteAvecLibelle({ id: resData.periodiciteId || resData.id, ...payloadFreq }));
           return res;
         }
       );
@@ -115,7 +119,7 @@ export function usePlanActions(editorState, dependencies) {
         ? `${baseCode}.${editorState.codeArticleSuffix.value}` 
         : (editorState.plan.value?.codeArticleSageVersionne || baseCode);
         
-      await fabPlanService.updatePlanValues(
+      const nouvelleVersion = await fabPlanService.updatePlanValues(
         currentPlanId, 
         payloadData, 
         editorState.legendeMoyens.value, 
@@ -124,8 +128,11 @@ export function usePlanActions(editorState, dependencies) {
         codeVersionne, 
         'Admin', 
         editorState.plan.value?.codeArticleSage, 
-        codeVersionne
+        codeVersionne,
+        editorState.plan.value?.rowVersion
       );
+      // Nouvelle version du plan : les enregistrements suivants (dont l'auto-sauvegarde) la renvoient.
+      if (editorState.plan.value && nouvelleVersion) editorState.plan.value.rowVersion = nouvelleVersion;
 
       if (isActivating) {
         toast.add({ severity: 'success', summary: 'Plan Activated', detail: 'The plan is now in production.', life: 4000 });
@@ -164,7 +171,7 @@ export function usePlanActions(editorState, dependencies) {
           async (payloadFreq) => {
             const res = await fabPlanService.createPeriodicite(payloadFreq);
             const resData = res?.data?.data || res?.data || res;
-            refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+            refStore.periodicites.push(periodiciteAvecLibelle({ id: resData.periodiciteId || resData.id, ...payloadFreq }));
             return res;
           }
         );
@@ -232,7 +239,7 @@ export function usePlanActions(editorState, dependencies) {
         async (payloadFreq) => {
           const res = await fabPlanService.createPeriodicite(payloadFreq);
           const resData = res?.data?.data || res?.data || res;
-          refStore.periodicites.push({ id: resData.periodiciteId || resData.id, ...payloadFreq });
+          refStore.periodicites.push(periodiciteAvecLibelle({ id: resData.periodiciteId || resData.id, ...payloadFreq }));
           return res;
         }
       );
@@ -255,12 +262,12 @@ export function usePlanActions(editorState, dependencies) {
         posteCode: editorState.plan.value?.posteCode || editorState.wizard.posteCode.value,
         legendeMoyens: editorState.legendeMoyens.value,
         remarques: editorState.remarques.value,
-        libre1: editorState.plan.value.codeArticleSage,
         configurationColonnesJson: JSON.stringify(editorState.planConfigurationColonnes.value),
         refFormulaireCodeReference: editorState.plan.value.codeReferenceFormulaire,
         sections: payloadSections,
         codeArticleSageVersionne: codeVersionne,
-        statut: 'ACTIF'
+        statut: 'ACTIF',
+        rowVersion: editorState.plan.value?.rowVersion
       };
 
       await fabPlanService.newPlanVersion(reqPayload);

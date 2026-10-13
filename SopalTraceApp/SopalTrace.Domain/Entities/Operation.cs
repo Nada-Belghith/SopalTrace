@@ -9,9 +9,11 @@ public partial class Operation
 
     public string Libelle { get; set; } = null!;
 
-    public int OrdreProcess { get; set; }
-
     public bool Actif { get; set; }
+
+    public bool AvecMachine { get; set; }
+
+    public bool AvecCotesTronconnage { get; set; }
 
     public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
 
@@ -19,9 +21,5 @@ public partial class Operation
 
     public virtual ICollection<Machine> Machines { get; set; } = new List<Machine>();
 
-    public virtual ICollection<ModeleFabricationEntete> ModeleFabricationEntetes { get; set; } = new List<ModeleFabricationEntete>();
-
     public virtual ICollection<NatureArticleOperation> NatureArticleOperations { get; set; } = new List<NatureArticleOperation>();
-
-    public virtual ICollection<PlanFabricationEntete> PlanFabricationEntetes { get; set; } = new List<PlanFabricationEntete>();
 }

@@ -9,15 +9,17 @@ public partial class ExecRcPosteBilan
 
     public Guid ExecControleDocumentStatutId { get; set; }
 
-    public double TotalDefauts { get; set; }
+    public string? Equipe { get; set; }
 
-    public double TotalPiecesTestees { get; set; }
+    public int NbPiecesRebutees { get; set; }
 
-    public double TauxNc { get; set; }
+    public string? MatriculeOperateur { get; set; }
 
-    public double NbPiecesRebutees { get; set; }
+    public DateTime? DateSaisie { get; set; }
 
-    public double NbPieceConforme { get; set; }
+    public virtual Team? EquipeNavigation { get; set; }
 
     public virtual ExecControleDocumentStatut ExecControleDocumentStatut { get; set; } = null!;
+
+    public virtual Autili? MatriculeOperateurNavigation { get; set; }
 }

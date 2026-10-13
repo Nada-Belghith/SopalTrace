@@ -2,29 +2,28 @@
   <tr class="bg-[#f1f5f9] border-t-4 border-slate-300">
     <td colspan="100" class="p-3 px-4 relative">
       <div class="flex flex-col gap-3 pr-40">
-        
+
         <!-- LIGNE D'INPUTS -->
         <div class="flex items-center gap-3">
           <span class="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-1.5 rounded border border-blue-100 uppercase tracking-widest shrink-0 shadow-sm">
               {{ label }} {{ index + 1 }}
           </span>
-          
+
           <select v-model="localSection.typeSectionId" @change="verifierVariables" :disabled="isReadOnly" class="w-48 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
             <option value="" disabled>--{{ defaultTitle }}--</option>
             <option v-for="ts in (typesSection || [])" :key="ts.id || ts.Id" :value="ts.id || ts.Id">{{ ts.libelle || ts.Libelle }}</option>
           </select>
 
-          <input v-model="localSection.nom" 
+          <input v-if="!localSection.typeSectionId" v-model="localSection.nom"
                  @input="verifierVariables"
-                 :disabled="isReadOnly" 
-                 type="text" 
-                 placeholder="Nom / Suffixe (optionnel)..." 
+                 :disabled="isReadOnly"
+                 type="text"
+                 placeholder="Titre de la section..."
                  class="w-48 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 shadow-sm disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed animate-in fade-in slide-in-from-left-2" />
 
           <select v-model="localSection.modeFreq" @change="handleModeFreqChange" :disabled="isReadOnly" class="bg-slate-100 border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-600 outline-none cursor-pointer disabled:text-slate-500 disabled:cursor-not-allowed">
-            <option value="SANS">Sans fréquence</option>
+            <option value="SANS">Sans périodicité</option>
             <option value="VARIABLE">➕ Périodicité</option>
-            <option value="FIXE">➕ Règle d'échantillonnage</option>
           </select>
 
           <!-- SI VARIABLE -->
@@ -35,10 +34,10 @@
                     <i class="pi pi-check-circle text-[9px]"></i>
                     100% DES PIÈCES
                   </span>
-                  <button @click="switchToVariableManual" 
+                  <button @click="switchToVariableManual"
                           v-if="!isReadOnly"
-                          type="button" 
-                          class="text-slate-400 hover:text-blue-500 transition-colors ml-1 p-1 hover:bg-slate-50 rounded disabled:opacity-30 disabled:cursor-not-allowed" 
+                          type="button"
+                          class="text-slate-400 hover:text-blue-500 transition-colors ml-1 p-1 hover:bg-slate-50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Passer en saisie manuelle">
                     <i class="pi pi-pencil text-[10px]"></i>
                   </button>
@@ -47,7 +46,7 @@
               <template v-else>
                   <input type="number" v-model.number="localSection.freqNum" @change="verifierVariables" :disabled="isReadOnly" min="1" max="1000" class="w-12 text-blue-700 font-black text-center rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-xs disabled:text-slate-500 disabled:cursor-not-allowed" :class="isReadOnly ? 'bg-slate-100' : 'bg-slate-100'" />
                   <span class="text-[10px] font-bold text-slate-500 uppercase">Pièce(s)</span>
-                  
+
                   <select v-model="localSection.typeVariable" @change="verifierVariables" :disabled="isReadOnly" class="bg-transparent text-slate-700 font-bold outline-none cursor-pointer text-xs ml-1 border-l border-slate-200 pl-2 disabled:text-slate-400 disabled:cursor-not-allowed">
                     <option value="HEURE">/ Heure(s)</option>
                     <option value="SERIE">par Série</option>
@@ -61,7 +60,7 @@
                   </template>
 
                   <!-- BOUTON RACCOURCI 100% -->
-                  <button @click="set100Pourcent" 
+                  <button @click="set100Pourcent"
                           v-if="!isReadOnly"
                           type="button"
                           class="flex items-center ml-2 pl-2 border-l border-slate-200 transition-all hover:scale-110 active:scale-95 text-slate-300 hover:text-blue-400"
@@ -71,13 +70,6 @@
               </template>
           </div>
 
-          <!-- SI FIXE -->
-          <div v-if="localSection.modeFreq === 'FIXE'" class="flex items-center animate-in fade-in slide-in-from-left-4">
-              <select v-model="localSection.regleEchantillonnageId" @change="verifierVariables" :disabled="isReadOnly" class="w-80 bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
-                <option :value="null" disabled>Sélectionner la règle...</option>
-                <option v-for="r in (reglesEchantillonnage || [])" :key="r.id || r.Id" :value="r.id || r.Id">{{ (r.libelle || r.Libelle || '').substring(0, 45) }}{{ (r.libelle || r.Libelle || '').length > 45 ? '...' : '' }}</option>
-              </select>
-          </div>
         </div>
 
         <!-- BARRE D'APERÇU -->
@@ -101,7 +93,7 @@
 
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue';
-import { findTypeSection, normalizeTypeSectionId } from '@/utils/sectionTitleUtils';
+import { findTypeSection, normalizeTypeSectionId, titreSection } from '@/utils/sectionTitleUtils';
 
 function stableStringify(obj) {
   if (obj === undefined) return undefined;
@@ -121,8 +113,7 @@ const props = defineProps({
   hideRemove: { type: Boolean, default: false },
   isReadOnly: { type: Boolean, default: false },
   typesSection: { type: Array, default: () => [] },
-  periodicites: { type: Array, default: () => [] },
-  reglesEchantillonnage: { type: Array, default: () => [] }
+  periodicites: { type: Array, default: () => [] }
 });
 
 const emit = defineEmits(['add-ligne', 'remove', 'update:section']);
@@ -143,7 +134,7 @@ watch(() => props.section, (newSection) => {
         props.typesSection
       );
     }
-    
+
     // Auto-populate 'nom' from 'libelleSection' for custom sections
     if (!localSection.value.typeSectionId && !localSection.value.nom && localSection.value.libelleSection) {
       localSection.value.nom = localSection.value.libelleSection;
@@ -189,78 +180,35 @@ const est100Pourcent = computed(() => {
     if (p && (p.libelle || p.Libelle || '').toLowerCase().includes('100%')) return true;
   }
 
-  return localSection.value.freqNum === 100 && 
-         localSection.value.typeVariable === 'HEURE' && 
+  return localSection.value.freqNum === 100 &&
+         localSection.value.typeVariable === 'HEURE' &&
          (localSection.value.freqHours === 1 || !localSection.value.freqHours);
-});
-
-const titreCalcule = computed(() => {
-  const typeSec = findTypeSection(props.typesSection, localSection.value.typeSectionId);
-  let baseTitle = props.defaultTitle;
-  
-  if (typeSec) {
-    const typeSecLibelle = typeSec.libelle || typeSec.Libelle || '';
-    // Eviter la duplication si le typeSec.libelle inclut déjà le defaultTitle
-    if (typeSecLibelle.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
-      baseTitle = typeSecLibelle;
-    } else if (props.defaultTitle.toLowerCase().includes(typeSecLibelle.toLowerCase())) {
-      baseTitle = props.defaultTitle;
-    } else {
-      baseTitle = `${props.defaultTitle} ${typeSecLibelle}`;
-    }
-  }
-
-  // Le champ de saisie 'nom' (même vide) a toujours la priorité.
-  // On s'assure d'éliminer TOUTES les parenthèses accumulées à la fin (ex: (1 pièce / h) (2 pièces / h))
-  const currentNom = typeof localSection.value.nom === 'string' ? localSection.value.nom : '';
-  const cleanNom = currentNom.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
-
-  if (cleanNom) {
-    if (cleanNom.toLowerCase().includes(props.defaultTitle.toLowerCase())) {
-      return cleanNom;
-    }
-    return `${baseTitle} ${cleanNom}`;
-  }
-
-  // Si le champ de saisie est explicitement vide (typeof === string)
-  if (typeof localSection.value.nom === 'string') {
-    return baseTitle; 
-  }
-
-  // Fallback si la section vient d'être créée (nom === undefined)
-  // On nettoie aussi le libelleSection de TOUTES ses parenthèses de fréquence pour éviter l'accumulation
-  if (localSection.value.libelleSection) {
-      const cleanLib = localSection.value.libelleSection.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
-      return cleanLib || baseTitle;
-  }
-
-  return baseTitle;
 });
 
 const frequenceCalculee = computed(() => {
   if (localSection.value.modeFreq === 'VARIABLE') {
     if (est100Pourcent.value) {
-      const period100 = (props.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
+      const period100 = (props.periodicites || []).find(p => p.nbrPieces === 100 && p.unite === 'HEURE');
       return period100 ? period100.libelle : "100% des pièces/h";
-    } 
-    
+    }
+
     const freqNum = localSection.value.freqNum || 0;
     if (freqNum === 0 && localSection.value.frequenceLibelle) {
       return localSection.value.frequenceLibelle;
     }
-    
+
     const sP = freqNum > 1 ? 's' : '';
     if (localSection.value.typeVariable === 'HEURE') {
       const h = localSection.value.freqHours || 1;
       const sH = h > 1 ? 's' : '';
       return h === 1 ? `${freqNum || 1} pièce${sP} / heure` : `${freqNum || 1} pièce${sP} / ${h} heure${sH}`;
-    } 
+    }
     if (localSection.value.typeVariable === 'ECHANTILLON') {
       return `${freqNum || 1} échantillon${sP}`;
     }
     return `une série de ${freqNum || 1} pièces`;
-  } 
-  
+  }
+
   if (localSection.value.periodiciteId) {
     const period = (props.periodicites || []).find(p => {
       const pId = p.id || p.Id;
@@ -268,54 +216,12 @@ const frequenceCalculee = computed(() => {
     });
     if (period) return period.libelle || period.Libelle;
   }
-  
+
   return "";
 });
 
-const regleCalculee = computed(() => {
-  if (localSection.value.modeFreq === 'FIXE') {
-    if (localSection.value.regleEchantillonnageId) {
-      const regle = (props.reglesEchantillonnage || []).find(r => (r.id || r.Id) === localSection.value.regleEchantillonnageId);
-      if (regle) return regle.libelle || regle.Libelle;
-    }
-    return localSection.value.regleEchantillonnageLibelle || "";
-  }
-  return "";
-});
-
-const libelleSectionComplet = computed(() => {
-  const titre = titreCalcule.value;
-  const freq = frequenceCalculee.value;
-  const regle = regleCalculee.value;
-  
-  const complements = [];
-  if (freq) complements.push(freq);
-  if (regle && regle !== freq) complements.push(regle);
-  
-  const detail = complements.filter(c => {
-    if (!c) return false;
-    const normC = c.toLowerCase();
-    const normT = titre.toLowerCase();
-    
-    // Si le titre contient déjà "100%" ou "100 pièces", on exclut les compléments décrivant le 100% ou du 1 pièce/h
-    if ((normT.includes('100%') || normT.includes('100 pièces') || normT.includes('100 pieces')) &&
-        (normC.includes('100') || normC.includes('1 pièce') || normC.includes('1 piece'))) {
-      return false;
-    }
-    
-    // Si le titre contient déjà mot pour mot ce complément, on l'exclut
-    if (normT.includes(normC)) {
-      return false;
-    }
-    
-    return true;
-  }).join(" - ");
-  
-  if (detail) {
-    return `${titre} (${detail})`;
-  }
-  return titre;
-});
+// Règle unique du titre (utils/sectionTitleUtils.js → titreSection, identique à l'enregistrement côté serveur).
+const libelleSectionComplet = computed(() => titreSection(localSection.value, props.typesSection, props.periodicites));
 
 const apercu = computed(() => libelleSectionComplet.value);
 
@@ -325,18 +231,9 @@ const verifierVariables = (isUserAction = true) => {
   // If called from an event (like @change or @input), isUserAction is the Event object, which is truthy
   if (isUserAction) {
     localSection.value.isFromDb = false;
-    // Si l'utilisateur modifie manuellement les variables, on nettoie les champs de l'autre mode
-    if (localSection.value.modeFreq === 'VARIABLE') {
-        localSection.value.periodiciteId = null;
-        localSection.value.regleEchantillonnageId = null;
-        localSection.value.regleEchantillonnageLibelle = null;
-    } else if (localSection.value.modeFreq === 'FIXE') {
-        localSection.value.periodiciteId = null;
-        localSection.value.frequenceLibelle = null;
-    } else if (localSection.value.modeFreq === 'SANS') {
-        localSection.value.periodiciteId = null;
-        localSection.value.regleEchantillonnageId = null;
-        localSection.value.regleEchantillonnageLibelle = null;
+    // Saisie manuelle : la périodicité est recalculée à partir des valeurs saisies.
+    localSection.value.periodiciteId = null;
+    if (localSection.value.modeFreq === 'SANS') {
         localSection.value.frequenceLibelle = null;
     }
   }
@@ -345,7 +242,6 @@ const verifierVariables = (isUserAction = true) => {
 
   localSection.value.libelleSection = libelleSectionComplet.value;
   localSection.value.frequenceLibelle = frequenceCalculee.value;
-  localSection.value.regleEchantillonnageLibelle = regleCalculee.value;
 };
 
 const handleModeFreqChange = () => {
@@ -353,14 +249,7 @@ const handleModeFreqChange = () => {
     if (!localSection.value.freqNum) localSection.value.freqNum = 1;
     if (!localSection.value.typeVariable) localSection.value.typeVariable = 'HEURE';
     if (!localSection.value.freqHours) localSection.value.freqHours = 1;
-    localSection.value.regleEchantillonnageId = null;
-    localSection.value.regleEchantillonnageLibelle = null;
-  } else if (localSection.value.modeFreq === 'FIXE') {
-    localSection.value.periodiciteId = null;
-    localSection.value.frequenceLibelle = null;
   } else if (localSection.value.modeFreq === 'SANS') {
-    localSection.value.regleEchantillonnageId = null;
-    localSection.value.regleEchantillonnageLibelle = null;
     localSection.value.periodiciteId = null;
     localSection.value.frequenceLibelle = null;
   }
@@ -376,14 +265,14 @@ watch(() => localSection.value.typeSectionId, (newId) => {
   const typeSec = findTypeSection(props.typesSection, newId);
   const typeSecLibelle = typeSec ? (typeSec.libelle || typeSec.Libelle || '') : '';
   const typeSecCode = typeSec ? (typeSec.code || typeSec.Code || typeSecLibelle) : '';
-  
+
   // Clear stored nom & libelleSection so aperçu updates to the new section type title
   localSection.value.nom = '';
   localSection.value.libelleSection = '';
   if (typeSecCode) {
     localSection.value.sectionType = typeSecCode;
   }
-  
+
   if (typeSecLibelle.toUpperCase().includes('100%')) {
     localSection.value.modeFreq = 'VARIABLE';
     localSection.value.freqNum = 100;
@@ -405,13 +294,13 @@ const set100Pourcent = () => {
 const switchToVariableManual = () => {
   if (props.isReadOnly) return;
   localSection.value.modeFreq = 'VARIABLE';
-  localSection.value.freqNum = 2; 
+  localSection.value.freqNum = 2;
   localSection.value.typeVariable = 'HEURE';
   localSection.value.freqHours = 1;
-  
+
   localSection.value.frequenceLibelle = "";
   localSection.value.periodiciteId = null;
-  
+
   verifierVariables();
 };
 </script>

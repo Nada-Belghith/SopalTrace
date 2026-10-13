@@ -114,7 +114,7 @@
               <thead>
                 <tr class="bg-slate-100 border-b-2 border-slate-200">
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-16">N°</th>
-                  <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-48">Effectif du lot (Tranche)</th>
+                  <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-48">Effectif du lot</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 w-24">Lettre Code</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200 bg-emerald-50/30">Échantillon Global (A)</th>
                   <th class="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-r border-slate-200">Nb Postes (B)</th>
@@ -132,13 +132,13 @@
                     <span class="text-[10px] font-bold text-slate-400 italic uppercase tracking-wider">À remplir lors de la production</span>
                   </td>
 
-                  <td class="p-2 border-r border-slate-200">
+                  <td class="p-2 border-r border-slate-200" :rowspan="store.regles.length" v-if="idx === 0">
                     <input v-model="store.entete.critereAcceptationAc" type="number" :readonly="isReadOnly"
-                      class="w-full text-center py-2 text-sm font-black text-emerald-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-emerald-300">
+                      class="w-full text-center py-2 text-sm font-black text-emerald-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-emerald-300 h-full min-h-[40px]">
                   </td>
-                  <td class="p-2 border-r border-slate-200">
+                  <td class="p-2 border-r border-slate-200" :rowspan="store.regles.length" v-if="idx === 0">
                     <input v-model="store.entete.critereRejetRe" type="number" :readonly="isReadOnly"
-                      class="w-full text-center py-2 text-sm font-black text-rose-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-rose-300">
+                      class="w-full text-center py-2 text-sm font-black text-rose-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-rose-300 h-full min-h-[40px]">
                   </td>
 
                   <td v-if="!isReadOnly" class="p-2 text-center">
@@ -150,8 +150,30 @@
               </tbody>
             </table>
           </div>
-          <div v-if="store.regles.length === 0" class="p-20 text-center text-slate-400 bg-slate-50 italic text-sm">
-            Aucune règle n'est configurée.
+          <div v-if="store.regles.length === 0" class="border-t border-slate-200">
+            <table class="w-full text-left border-collapse min-w-[1000px]">
+              <tbody>
+                <tr class="hover:bg-emerald-50/30 transition-colors group">
+                  <td class="p-4 text-center font-black text-slate-400 text-xs bg-slate-50/30 border-r border-slate-200 w-16">-</td>
+                  
+                  <td colspan="5" class="p-4 text-center border-r border-slate-200 bg-slate-50/50">
+                    <span class="text-[10px] font-bold text-slate-400 italic uppercase tracking-wider">Aucune règle configurée, mais critères globaux éditables</span>
+                  </td>
+
+                  <td class="p-2 border-r border-slate-200">
+                    <input v-model="store.entete.critereAcceptationAc" type="number" :readonly="isReadOnly"
+                      class="w-full text-center py-2 text-sm font-black text-emerald-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-emerald-300">
+                  </td>
+                  <td class="p-2 border-r border-slate-200">
+                    <input v-model="store.entete.critereRejetRe" type="number" :readonly="isReadOnly"
+                      class="w-full text-center py-2 text-sm font-black text-rose-700 bg-transparent outline-none focus:bg-white rounded border border-transparent focus:border-rose-300">
+                  </td>
+
+                  <td v-if="!isReadOnly" class="p-2 text-center w-12">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -183,7 +205,6 @@
 import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
@@ -199,7 +220,6 @@ import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmati
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
-const confirm = useConfirm();
 const store = useDocumentEchantillonnageStore();
 const refStore = useReferentielStore();
 

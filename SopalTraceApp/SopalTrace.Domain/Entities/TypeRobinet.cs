@@ -12,6 +12,4 @@ public partial class TypeRobinet
     public bool Actif { get; set; }
 
     public virtual ICollection<FamilleProduitFini> FamilleProduitFinis { get; set; } = new List<FamilleProduitFini>();
-
-    public virtual ICollection<ProduitFini> ProduitFinis { get; set; } = new List<ProduitFini>();
 }

@@ -11,9 +11,11 @@ public partial class BomdNomenclature
 
     public int CodeAlternative { get; set; }
 
-    public double QuantiteRequise { get; set; }
+    public decimal QuantiteRequise { get; set; }
 
-    public virtual Article ArticleParentNavigation { get; set; } = null!;
+    public string ParentOrigin { get; set; } = null!;
+
+    public virtual Article Article { get; set; } = null!;
 
     public virtual Article CodeComposantNavigation { get; set; } = null!;
 }

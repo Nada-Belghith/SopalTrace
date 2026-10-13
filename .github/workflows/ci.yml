@@ -1,83 +1,248 @@
 name: CI SopalTrace
 
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-
 on:
   push:
-    # Ce pipeline se lance à chaque push sur TOUTES les branches (très utile en dev)
     branches: [ "**" ]
   pull_request:
-    # Et à chaque demande de fusion vers master
-    branches: [ "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # ==========================================
-  # JOB 1 : Vérification du Backend (.NET 8)
-  # ==========================================
-  build-and-test-backend:
-    name: Build, Test & Dockerize API
+  # ─────────────────────────── API (.NET 8) ───────────────────────────
+  backend:
+    name: API - build et tests
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./SopalTraceApp
     steps:
-      - name: 📥 Récupération du code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: ⚙️ Configuration de .NET 8
-        uses: actions/setup-dotnet@v4
+      # SDK fixé par global.json (SDK 10 : lit le format .slnx) ; les projets ciblent net8.0.
+      - uses: actions/setup-dotnet@v4
         with:
+          global-json-file: SopalTraceApp/global.json
           dotnet-version: 8.0.x
-          
-      - name: 📦 Restauration des packages
+
+      - name: Restauration
         run: dotnet restore ./SopalTraceApp.slnx
-        
-      - name: 🔨 Compilation du code
-        run: dotnet build ./SopalTraceApp.slnx --no-restore --configuration Release
-        
-      # ================== TES TESTS SONT ICI ==================
-      - name: 🧪 Exécution des Tests Unitaires & Intégration
-        # On teste toute la solution, y compris SopalTrace.Application.Tests (Unit & Intégration) et SopalTrace.Domain.Tests
-        run: dotnet test ./SopalTraceApp.slnx --no-build --configuration Release --verbosity normal
-      # ==========================================================
 
-      # ================= VERIF DOCKER BACKEND ==================
-      - name: 🐳 Test de création de l'image Docker (API)
-        # On vérifie que le Dockerfile de l'API compile bien
-        run: docker build -t sopal-api-test -f ./SopalTrace.Api/Dockerfile .
-      # ==========================================================
+      - name: Compilation (avertissements = erreurs)
+        run: dotnet build ./SopalTraceApp.slnx --no-restore -c Release -warnaserror
 
-  # ==========================================
-  # JOB 2 : Vérification du Frontend (Vue.js)
-  # ==========================================
-  build-and-test-frontend:
-    name: Build, Lint & Dockerize Web
+      - name: Tests unitaires et d'intégration
+        run: dotnet test ./SopalTraceApp.slnx --no-build -c Release --logger "trx;LogFileName=tests.trx"
+
+      - name: Paquets NuGet vulnérables
+        run: |
+          rapport=""
+          for p in SopalTrace.Api SopalTrace.Application SopalTrace.Infrastructure SopalTrace.Domain; do
+            rapport+=$(dotnet list "$p/$p.csproj" package --vulnerable --include-transitive)
+          done
+          echo "$rapport"
+          if echo "$rapport" | grep -q "has the following vulnerable packages"; then exit 1; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: resultats-tests-api
+          path: SopalTraceApp/**/TestResults/*.trx
+
+  # ─────────────────────────── Front (Vue 3) ───────────────────────────
+  frontend:
+    name: Front - lint, tests, build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./SopalTraceWeb
     steps:
-      - name: 📥 Récupération du code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: ⚙️ Configuration de Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          
-      - name: 📦 Installation des dépendances NPM
-        run: npm ci || npm install
-        
-      - name: 🔍 Analyse de la qualité du code (Linting)
-        run: npm run lint --if-present
-        
-      - name: 🔨 Compilation du projet Vue.js
+          cache: npm
+          cache-dependency-path: SopalTraceWeb/package-lock.json
+
+      - name: Dépendances (versions exactes du lockfile)
+        run: npm ci --no-fund
+
+      - name: Lint
+        run: npm run lint:check
+
+      - name: Tests unitaires
+        run: npm test
+
+      - name: Build
         run: npm run build
 
-      # ================= VERIF DOCKER FRONTEND ==================
-      - name: 🐳 Test de création de l'image Docker (Vue.js)
-        # On vérifie que le Dockerfile Nginx compile bien avec le dossier dist/
-        run: docker build -t sopal-web-test -f Dockerfile .
-      # ==========================================================
+      - name: Audit des dépendances de production
+        run: npm audit --omit=dev --audit-level=high
+
+  # ─────────────── Recette automatique : base neuve + API + suites E2E ───────────────
+  e2e:
+    name: Recette E2E (SQL Server + API)
+    runs-on: ubuntu-latest
+    needs: backend
+    env:
+      TZ: Africa/Tunis
+      SA_PASSWORD: E2e-Sopal-2026-Aa1
+      E2E_DB: SopalTraceDB_E2E
+      E2E_CONFIGURATION: Release
+      E2E_TMP: ${{ github.workspace }}/.e2e-tmp
+    defaults:
+      run:
+        working-directory: ./SopalTraceApp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: SopalTraceApp/global.json
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Base éphémère : le dépôt est monté au même chemin pour que sqlcmd (dans le conteneur) lise les scripts.
+      - name: SQL Server de recette
+        run: |
+          docker run -d --name sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SA_PASSWORD" -e TZ="$TZ" \
+            -p 1433:1433 -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+          for i in $(seq 1 40); do
+            docker exec sql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT 1" > /dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker logs sql; exit 1
+
+      - name: Compilation de l'API
+        run: dotnet build ./SopalTrace.Api/SopalTrace.Api.csproj -c Release
+
+      - name: Suites E2E
+        env:
+          E2E_SQLCMD: docker exec sql /opt/mssql-tools18/bin/sqlcmd -C -I -S localhost -U sa -P ${{ env.SA_PASSWORD }}
+          E2E_CONNECTION: Server=localhost,1433;Database=SopalTraceDB_E2E;User Id=sa;Password=${{ env.SA_PASSWORD }};TrustServerCertificate=True
+        run: python tests/e2e/run_e2e.py
+
+  # ─────────────────────────── Secrets dans le dépôt ───────────────────────────
+  secrets:
+    name: Recherche de secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ───────────── Recette Docker : la pile complète démarrée comme sur le serveur ─────────────
+  recette-docker:
+    name: Recette Docker (images + compose de production)
+    runs-on: ubuntu-latest
+    needs: [ backend, frontend ]
+    defaults:
+      run:
+        working-directory: ./SopalTraceApp/deploy
+    env:
+      SOPALTRACE_REGISTRY: local
+      SOPALTRACE_VERSION: ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construction des images
+        working-directory: .
+        run: |
+          docker build -t local/sopaltrace-api:ci -f SopalTraceApp/SopalTrace.Api/Dockerfile SopalTraceApp
+          docker build -t local/sopaltrace-web:ci --target production-stage SopalTraceWeb
+
+      - name: Configuration de recette
+        run: |
+          mkdir -p sql && cp ../SopalTrace.Infrastructure/ScriptsSQL/*.sql sql/
+          cp .env.prod.example .env
+          sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=Recette-Sopal-2026-Aa1/" .env
+          sed -i "s/^Jwt__Secret=.*/Jwt__Secret=CleDeRecetteCiUniquement_0123456789abcdef/" .env
+          sed -i "s/^SOPALTRACE_REGISTRY=.*/SOPALTRACE_REGISTRY=local/; s/^SOPALTRACE_VERSION=.*/SOPALTRACE_VERSION=ci/" .env
+          echo "INIT_SCRIPTS=01_Create_SopalTraceDB.sql 02_ReferenceData_SopalTraceDB.sql 03_SageMirrorData_SopalTraceDB.sql 04_DemoData_SopalTraceDB.sql" >> .env
+
+      - name: Initialisation de la base puis démarrage
+        run: |
+          docker compose -f docker-compose.prod.yml --profile init run --rm init-db
+          docker compose -f docker-compose.prod.yml up -d
+
+      - name: Test de bon fonctionnement (via nginx)
+        run: |
+          for i in $(seq 1 40); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/api/health)" = "200" ] && break; sleep 3
+          done
+          curl -sf http://localhost/api/health
+          curl -sf http://localhost/ | grep -q '<div id="app"'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost/api/Auth/login                    -H 'Content-Type: application/json' -d '{"matricule":"00000","motDePasse":"Faux1234"}')
+          echo "connexion refusée : $code"; [ "$code" = "401" ]
+
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml logs --tail 200
+
+  # ───────────── Publication des images (main et versions) ─────────────
+  publication:
+    name: Publication des images (GHCR)
+    runs-on: ubuntu-latest
+    needs: [ backend, frontend, e2e, recette-docker, secrets ]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nom du registre (minuscules)
+        run: echo "REGISTRE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Construction et envoi
+        run: |
+          version="${GITHUB_REF_NAME}"; [ "$GITHUB_REF" = "refs/heads/main" ] && version="latest"
+          court="${GITHUB_SHA::7}"
+          for img in api web; do
+            if [ "$img" = "api" ]; then
+              docker build -t "$REGISTRE/sopaltrace-api:$court" -f SopalTraceApp/SopalTrace.Api/Dockerfile SopalTraceApp
+            else
+              docker build -t "$REGISTRE/sopaltrace-web:$court" --target production-stage SopalTraceWeb
+            fi
+            docker tag "$REGISTRE/sopaltrace-$img:$court" "$REGISTRE/sopaltrace-$img:$version"
+            docker push "$REGISTRE/sopaltrace-$img:$court"
+            docker push "$REGISTRE/sopaltrace-$img:$version"
+          done
+
+  # ───────────── Livraison : paquet d'installation pour chaque version ─────────────
+  livraison:
+    name: Livraison (release)
+    runs-on: ubuntu-latest
+    needs: publication
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Paquet d'installation
+        run: |
+          mkdir -p livraison/sql
+          cp SopalTraceApp/deploy/docker-compose.prod.yml SopalTraceApp/deploy/docker-compose.https.yml SopalTraceApp/deploy/nginx-https.conf \n             SopalTraceApp/deploy/.env.prod.example SopalTraceApp/deploy/INSTALLATION.md livraison/
+          cp SopalTraceApp/SopalTrace.Infrastructure/ScriptsSQL/*.sql livraison/sql/
+          sed -i "s/^SOPALTRACE_VERSION=.*/SOPALTRACE_VERSION=${GITHUB_REF_NAME}/" livraison/.env.prod.example
+          (cd livraison && zip -r "../sopaltrace-${GITHUB_REF_NAME}.zip" .)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: sopaltrace-${{ github.ref_name }}.zip
+          generate_release_notes: true

@@ -10,7 +10,6 @@
     :types-controle="refStore.typesControle || []"
     :moyens-controle="refStore.moyensControle || []"
     :periodicites="refStore.periodicites || []"
-    :regles-echantillonnage="refStore.reglesEchantillonnage || []"
   />
 </template>
 

@@ -1,4 +1,6 @@
 using SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
+using SopalTrace.Domain.Constants;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Linq;
@@ -7,17 +9,18 @@ namespace SopalTrace.Application.Mappers;
 
 public static class DocumentVerifMachineMapper
 {
-    public static DocumentVerifMachineEntete ToEntity(CreateDocumentVerifMachineRequestDto dto, string user, Guid? formulaireId = null)
+    public static DocumentEntete ToEntity(CreateDocumentVerifMachineRequestDto dto, string user, Guid? formulaireId = null)
     {
-        var entete = new DocumentVerifMachineEntete
+        var entete = new DocumentEntete
         {
             Id = Guid.NewGuid(),
+            TypeDocumentCode = TypesDocument.VerifMachine,
             MachineCode = dto.MachineCode,
             Nom = dto.Nom,
             Version = dto.VersionInitiale ?? 1,
-            Statut = "BROUILLON",
+            Statut = DocumentStatuts.Brouillon,
             CreePar = user,
-            CreeLe = DateTime.UtcNow,
+            CreeLe = DateTime.Now,
             Remarques = dto.Remarques,
             LegendeMoyens = dto.LegendeMoyens,
             FormulaireId = formulaireId
@@ -33,7 +36,7 @@ public static class DocumentVerifMachineMapper
             entete.DocumentVerifMachineFamilles.Add(new DocumentVerifMachineFamille
             {
                 Id = newFamilleId,
-                PlanEnteteId = entete.Id,
+                EnteteId = entete.Id,
                 RefFamilleCorpsId = familleDto.RefFamilleCorpsId,
                 OrdreAffiche = familleDto.OrdreAffiche
             });
@@ -43,19 +46,19 @@ public static class DocumentVerifMachineMapper
 
         foreach (var ligneDto in allLignes)
         {
-            var ligne = new DocumentVerifMachineLigne
+            var ligne = new DocumentLigne
             {
                 Id = Guid.NewGuid(),
-                PlanEnteteId = entete.Id,
+                EnteteId = entete.Id,
                 OrdreAffiche = ligneDto.OrdreAffiche,
                 TypeLigne = ligneDto.TypeLigne,
-                LibelleRisque = ligneDto.LibelleRisque,
-                LibelleMethode = ligneDto.LibelleMethode
+                LibelleAffiche = ligneDto.LibelleRisque,
+                Instruction = ligneDto.LibelleMethode
             };
 
             foreach (var extraDto in ligneDto.ExtraColonnes)
             {
-                ligne.DocumentVerifMachineLigneExtraColonnes.Add(new DocumentVerifMachineLigneExtraColonne
+                ligne.DocumentLigneExtraColonnes.Add(new DocumentLigneExtraColonne
                 {
                     Id = Guid.NewGuid(),
                     LigneId = ligne.Id,
@@ -70,7 +73,7 @@ public static class DocumentVerifMachineMapper
                 var ech = new DocumentVerifMachineEcheance
                 {
                     Id = Guid.NewGuid(),
-                    PlanLigneId = ligne.Id,
+                    LigneId = ligne.Id,
                     OrdreAffiche = echDto.OrdreAffiche,
                     PeriodiciteMachineId = echDto.PeriodiciteMachineId,
                     RefMoyenDetectionId = echDto.RefMoyenDetectionId
@@ -93,18 +96,19 @@ public static class DocumentVerifMachineMapper
                 ligne.DocumentVerifMachineEcheances.Add(ech);
             }
 
-            entete.DocumentVerifMachineLignes.Add(ligne);
+            entete.DocumentLignes.Add(ligne);
         }
 
         return entete;
     }
 
-    public static DocumentVerifMachineEnteteDto ToDto(DocumentVerifMachineEntete entity)
+    public static DocumentVerifMachineEnteteDto ToDto(DocumentEntete entity)
     {
         return new DocumentVerifMachineEnteteDto
         {
             Id = entity.Id,
-            MachineCode = entity.MachineCode,
+            RowVersion = VersionsDocument.EnTexte(entity.RowVersion),
+            MachineCode = entity.MachineCode ?? string.Empty,
             Nom = entity.Nom,
             Version = entity.Version,
             Statut = entity.Statut,
@@ -113,13 +117,13 @@ public static class DocumentVerifMachineMapper
             FormulaireId = entity.FormulaireId,
             Remarques = entity.Remarques,
             LegendeMoyens = entity.LegendeMoyens,
-            AfficheConformite = entity.DocumentVerifMachineLignes.Any(l => l.TypeLigne == "CONFORMITE"),
+            AfficheConformite = entity.DocumentLignes.Any(l => l.TypeLigne == TypesLigneVerifMachine.Conformite),
             AfficheFamilles = entity.DocumentVerifMachineFamilles.Any(),
-            AfficheMoyenDetectionRisques = entity.DocumentVerifMachineLignes
-                .Where(l => l.TypeLigne == "RISQUE")
+            AfficheMoyenDetectionRisques = entity.DocumentLignes
+                .Where(l => l.TypeLigne == TypesLigneVerifMachine.Risque)
                 .SelectMany(l => l.DocumentVerifMachineEcheances)
                 .Any(e => e.RefMoyenDetectionId.HasValue),
-            AfficheFuiteEtalon = entity.DocumentVerifMachineLignes
+            AfficheFuiteEtalon = entity.DocumentLignes
                 .SelectMany(l => l.DocumentVerifMachineEcheances)
                 .SelectMany(e => e.DocumentVerifMachineMatricePieces)
                 .Any(m => m.RoleVerif == "FEC" || m.RoleVerif == "FENC"),
@@ -130,14 +134,14 @@ public static class DocumentVerifMachineMapper
                 RefFamilleCorpsId = f.RefFamilleCorpsId,
                 OrdreAffiche = f.OrdreAffiche
             }).ToList(),
-            Lignes = entity.DocumentVerifMachineLignes.Select(l => new DocumentVerifMachineLigneDto
+            Lignes = entity.DocumentLignes.Select(l => new DocumentVerifMachineLigneDto
             {
                 Id = l.Id,
                 OrdreAffiche = l.OrdreAffiche,
                 TypeLigne = l.TypeLigne ?? string.Empty,
-                LibelleRisque = l.LibelleRisque,
-                LibelleMethode = l.LibelleMethode,
-                ExtraColonnes = l.DocumentVerifMachineLigneExtraColonnes.Select(ec => new DocumentVerifMachineExtraColonneDto
+                LibelleRisque = l.LibelleAffiche ?? string.Empty,
+                LibelleMethode = l.Instruction,
+                ExtraColonnes = l.DocumentLigneExtraColonnes.Select(ec => new DocumentVerifMachineExtraColonneDto
                 {
                     Id = ec.Id,
                     CleColonne = ec.CleColonne,

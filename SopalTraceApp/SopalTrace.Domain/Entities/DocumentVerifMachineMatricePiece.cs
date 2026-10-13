@@ -20,4 +20,6 @@ public partial class DocumentVerifMachineMatricePiece
     public virtual DocumentVerifMachineFamille? Famille { get; set; }
 
     public virtual PieceReference? PieceRef { get; set; }
+
+    public virtual ReferencePieceRole? RoleVerifNavigation { get; set; }
 }

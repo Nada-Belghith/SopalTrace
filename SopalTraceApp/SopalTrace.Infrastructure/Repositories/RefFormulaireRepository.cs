@@ -4,6 +4,7 @@ using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.Repositories;
@@ -100,6 +101,7 @@ public class RefFormulaireRepository : IRefFormulaireRepository
     {
         return await _context.RefFormulaireColonneDefs
             .AsNoTracking()
+            .Include(c => c.ColumnAllowedValues)
             .Where(c => c.FormulaireId == formulaireId && c.Actif)
             .ToListAsync();
     }
@@ -142,7 +144,7 @@ public class RefFormulaireRepository : IRefFormulaireRepository
                 FormulaireId = formulaireId,
                 CleColonne = p.Key,
                 LabelAffiche = p.Label,
-                TypeValeur = string.IsNullOrWhiteSpace(p.Type) ? "TEXT" : p.Type,
+                TypeValeur = TypesValeurColonne.Normaliser(p.Type),
                 InsertAfter = p.InsertAfter,
                 TargetTable = p.TargetTable,
                 Actif = true
@@ -152,6 +154,7 @@ public class RefFormulaireRepository : IRefFormulaireRepository
         if (newCols.Any())
         {
             _context.RefFormulaireColonneDefs.AddRange(newCols);
+            await _context.SaveChangesAsync();
         }
 
         // 3. Mise à jour des colonnes existantes
@@ -159,7 +162,7 @@ public class RefFormulaireRepository : IRefFormulaireRepository
         {
             var existing = existingByKey[p.Key];
             var label = p.Label;
-            var type = string.IsNullOrWhiteSpace(p.Type) ? "TEXT" : p.Type;
+            var type = TypesValeurColonne.Normaliser(p.Type);
             var insertAfter = p.InsertAfter;
             var targetTable = p.TargetTable;
 
@@ -176,6 +179,60 @@ public class RefFormulaireRepository : IRefFormulaireRepository
                         .SetProperty(c => c.Actif, true));
             }
         }
+
+        // 4. Valeurs proposées des colonnes de type liste
+        await SyncValeursProposeesAsync(formulaireId, parsedCols);
+    }
+
+    /// <summary>
+    /// Aligne les valeurs proposées des colonnes LIST sur celles reçues : les nouvelles sont ajoutées,
+    /// les absentes désactivées (jamais supprimées, des lignes peuvent encore les utiliser).
+    /// </summary>
+    private async Task SyncValeursProposeesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.ColonneJsonDto> parsedCols)
+    {
+        // Sans suivi, comme le reste de la synchronisation : ne pas polluer l'unité de travail appelante.
+        var colonnesListe = await _context.RefFormulaireColonneDefs
+            .AsNoTracking()
+            .Include(c => c.ColumnAllowedValues)
+            .Where(c => c.FormulaireId == formulaireId && c.TypeValeur == TypesValeurColonne.Liste)
+            .ToListAsync();
+
+        var nouvelles = new System.Collections.Generic.List<ColumnAllowedValue>();
+        foreach (var colonne in colonnesListe)
+        {
+            var recue = parsedCols.FirstOrDefault(p => string.Equals(p.Key, colonne.CleColonne, StringComparison.OrdinalIgnoreCase));
+            if (recue == null) continue;
+
+            var options = recue.Options
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Select(o => o.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var existante in colonne.ColumnAllowedValues)
+            {
+                var index = options.FindIndex(o => string.Equals(o, existante.Value, StringComparison.OrdinalIgnoreCase));
+                var active = index >= 0;
+                var ordre = active ? index : existante.DisplayOrder;
+                if (existante.Active != active || existante.DisplayOrder != ordre)
+                {
+                    await _context.ColumnAllowedValues
+                        .Where(v => v.Id == existante.Id)
+                        .ExecuteUpdateAsync(u => u.SetProperty(v => v.Active, active).SetProperty(v => v.DisplayOrder, ordre));
+                }
+            }
+
+            nouvelles.AddRange(options
+                .Select((valeur, ordre) => (valeur, ordre))
+                .Where(o => !colonne.ColumnAllowedValues.Any(v => string.Equals(v.Value, o.valeur, StringComparison.OrdinalIgnoreCase)))
+                .Select(o => new ColumnAllowedValue { ColumnDefinitionId = colonne.Id, Value = o.valeur, DisplayOrder = o.ordre, Active = true }));
+        }
+
+        if (nouvelles.Count > 0)
+        {
+            _context.ColumnAllowedValues.AddRange(nouvelles);
+            await _context.SaveChangesAsync();
+        }
     }
 
     public async Task<System.Collections.Generic.List<RefFormulaireEquipe>> GetEquipesActivesByFormulaireIdAsync(Guid formulaireId)
@@ -187,67 +244,69 @@ public class RefFormulaireRepository : IRefFormulaireRepository
             .ToListAsync();
     }
 
+    public async Task<List<Team>> GetEquipesReferenceAsync()
+    {
+        return await _context.Teams.AsNoTracking().Where(t => t.Active).OrderBy(t => t.Code).ToListAsync();
+    }
+
     public async Task SyncEquipesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.EquipeJsonDto> parsedEquipes)
     {
         // AsNoTracking() is critical here: same reason as SyncColonnesAsync.
-        var existingEquipes = await _context.RefFormulaireEquipes
-            .AsNoTracking()
-            .Where(e => e.FormulaireId == formulaireId)
-            .ToListAsync();
+        var existingByName = (await _context.RefFormulaireEquipes
+                .AsNoTracking()
+                .Where(e => e.FormulaireId == formulaireId)
+                .ToListAsync())
+            .ToDictionary(e => e.NomEquipe, StringComparer.OrdinalIgnoreCase);
 
-        var parsedNames = parsedEquipes.Select(p => p.Nom).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var existingByName = existingEquipes.ToDictionary(e => e.NomEquipe, StringComparer.OrdinalIgnoreCase);
+        // La Nième équipe configurée (dans l'ordre reçu) correspond au code d'équipe EN.
+        var configurees = parsedEquipes.Where(p => !string.IsNullOrWhiteSpace(p.Nom)).ToList();
 
-        // 1. Soft-delete
-        var idsToSoftDelete = existingEquipes
-            .Where(e => !parsedNames.Contains(e.NomEquipe) && e.Actif)
-            .Select(e => e.Id)
-            .ToList();
+        // 1. Désactivation de toutes les équipes : les codes sont réattribués sans conflit
+        //    avec l'unicité (une seule équipe active par code et par formulaire).
+        await _context.RefFormulaireEquipes
+            .Where(e => e.FormulaireId == formulaireId && e.Actif)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.Actif, false));
 
-        if (idsToSoftDelete.Any())
+        var nouvelles = new System.Collections.Generic.List<RefFormulaireEquipe>();
+        for (var position = 0; position < configurees.Count; position++)
         {
-            await _context.RefFormulaireEquipes
-                .Where(e => idsToSoftDelete.Contains(e.Id))
-                .ExecuteUpdateAsync(s => s.SetProperty(e => e.Actif, false));
-        }
+            var p = configurees[position];
+            // Équipe choisie par le superviseur ; à défaut (ancien format), la Nième équipe est EN.
+            var codeEquipe = string.IsNullOrWhiteSpace(p.Code) ? Equipes.PourPosition(position) : p.Code.Trim().ToUpperInvariant();
 
-        // 2. Insert new
-        var newEquipes = parsedEquipes
-            .Where(p => !string.IsNullOrWhiteSpace(p.Nom) && !existingByName.ContainsKey(p.Nom))
-            .Select((p, idx) => new RefFormulaireEquipe
+            if (existingByName.TryGetValue(p.Nom, out var existante))
             {
-                Id = Guid.NewGuid(),
-                FormulaireId = formulaireId,
-                NomEquipe = p.Nom,
-                HeureDebut = p.Debut,
-                HeureFin = p.Fin,
-                OrdreAffiche = idx,
-                Actif = true
-            })
-            .ToList();
-
-        if (newEquipes.Any())
-        {
-            _context.RefFormulaireEquipes.AddRange(newEquipes);
-            await _context.SaveChangesAsync();
-        }
-
-        // 3. Update existing
-        int index = 0;
-        foreach (var p in parsedEquipes.Where(p => !string.IsNullOrWhiteSpace(p.Nom) && existingByName.ContainsKey(p.Nom)))
-        {
-            var existing = existingByName[p.Nom];
-            if (existing.HeureDebut != p.Debut || existing.HeureFin != p.Fin || existing.OrdreAffiche != index || !existing.Actif)
-            {
+                // 2. Réactivation des équipes conservées, avec leur position et leurs horaires
                 await _context.RefFormulaireEquipes
-                    .Where(e => e.Id == existing.Id)
+                    .Where(e => e.Id == existante.Id)
                     .ExecuteUpdateAsync(s => s
+                        .SetProperty(e => e.TeamCode, codeEquipe)
                         .SetProperty(e => e.HeureDebut, p.Debut)
                         .SetProperty(e => e.HeureFin, p.Fin)
-                        .SetProperty(e => e.OrdreAffiche, index)
+                        .SetProperty(e => e.OrdreAffiche, position)
                         .SetProperty(e => e.Actif, true));
             }
-            index++;
+            else
+            {
+                nouvelles.Add(new RefFormulaireEquipe
+                {
+                    Id = Guid.NewGuid(),
+                    FormulaireId = formulaireId,
+                    TeamCode = codeEquipe,
+                    NomEquipe = p.Nom,
+                    HeureDebut = p.Debut,
+                    HeureFin = p.Fin,
+                    OrdreAffiche = position,
+                    Actif = true
+                });
+            }
+        }
+
+        // 3. Ajout des nouvelles équipes
+        if (nouvelles.Count > 0)
+        {
+            _context.RefFormulaireEquipes.AddRange(nouvelles);
+            await _context.SaveChangesAsync();
         }
     }
 }

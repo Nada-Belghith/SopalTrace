@@ -1,7 +1,7 @@
 # Consultez https://aka.ms/customizecontainer pour savoir comment personnaliser votre conteneur de débogage et comment Visual Studio utilise ce Dockerfile pour générer vos images afin d’accélérer le débogage.
 
 # Cet index est utilisé lors de l’exécution à partir de VS en mode rapide (par défaut pour la configuration de débogage)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy AS base
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
@@ -9,7 +9,7 @@ EXPOSE 8081
 
 
 # Cette phase est utilisée pour générer le projet de service
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0-jammy AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["SopalTrace.Api/SopalTrace.Api.csproj", "SopalTrace.Api/"]
@@ -30,4 +30,8 @@ RUN dotnet publish "./SopalTrace.Api.csproj" -c $BUILD_CONFIGURATION -o /app/pub
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# Dossier des journaux (Serilog) appartenant à l'utilisateur non root de l'image : un volume monté ici en hérite.
+USER root
+RUN mkdir -p /app/logs && chown $APP_UID /app/logs
+USER $APP_UID
 ENTRYPOINT ["dotnet", "SopalTrace.Api.dll"]

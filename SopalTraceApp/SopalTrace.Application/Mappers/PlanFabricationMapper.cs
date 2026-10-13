@@ -1,5 +1,6 @@
 using SopalTrace.Application.DTOs.QualityPlans.Fabrication;
 using SopalTrace.Application.DTOs.QualityPlans.Documents;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -9,13 +10,14 @@ namespace SopalTrace.Application.Mappers;
 
 public static class PlanFabricationMapper
 {
-    public static PlanFabricationEnteteDto ToDto(PlanFabricationEntete plan, string? configJson = null)
+    public static PlanFabricationEnteteDto ToDto(DocumentEntete plan, string? configJson = null)
     {
         if (plan == null) return null!;
 
         return new PlanFabricationEnteteDto
         {
             Id = plan.Id,
+            RowVersion = VersionsDocument.EnTexte(plan.RowVersion),
             Nom = plan.Nom,
             CodeArticleSageVersionne = plan.CodeArticleSageVersionne,
             Designation = plan.Designation,
@@ -30,12 +32,12 @@ public static class PlanFabricationMapper
             ConfigurationColonnesJson = configJson,
             CreePar = plan.CreePar ?? "",
             CreeLe = plan.CreeLe,
-            ModeleSourceId = plan.ModeleSourceId,
-            Sections = plan.PlanFabricationSections?.Select(ToSectionDto).ToList() ?? new List<PlanFabricationSectionDto>()
+            ModeleSourceId = plan.DocumentSourceId,
+            Sections = plan.DocumentSections?.Select(ToSectionDto).ToList() ?? new List<PlanFabricationSectionDto>()
         };
     }
 
-    public static PlanFabricationSectionDto ToSectionDto(PlanFabricationSection s)
+    public static PlanFabricationSectionDto ToSectionDto(DocumentSection s)
     {
         return new PlanFabricationSectionDto
         {
@@ -44,12 +46,11 @@ public static class PlanFabricationMapper
             OrdreAffiche = s.OrdreAffiche,
             TypeSectionId = s.TypeSectionId,
             PeriodiciteId = s.PeriodiciteId,
-            RegleEchantillonnageId = s.RegleEchantillonnageId,
-            Lignes = s.PlanFabricationLignes?.Select(ToLigneDto).ToList() ?? new List<PlanFabricationLigneDto>()
+            Lignes = s.DocumentLignes?.Select(ToLigneDto).ToList() ?? new List<PlanFabricationLigneDto>()
         };
     }
 
-    public static PlanFabricationLigneDto ToLigneDto(PlanFabricationLigne l)
+    public static PlanFabricationLigneDto ToLigneDto(DocumentLigne l)
     {
         return new PlanFabricationLigneDto
         {
@@ -67,8 +68,8 @@ public static class PlanFabricationMapper
             EstCritique = l.EstCritique,
             Instruction = l.Instruction,
             Observations = l.Observations,
-            ImageBase64 = l.ImageBase64,
-            ExtraColonnes = l.PlanFabricationLigneExtraColonnes?.Select(c => new PlanFabricationLigneExtraColonneDto
+            ImageBase64 = l.EnDataUrl(),
+            ExtraColonnes = l.DocumentLigneExtraColonnes?.Select(c => new PlanFabricationLigneExtraColonneDto
             {
                 Id = c.Id,
                 CleColonne = c.CleColonne,
@@ -78,11 +79,12 @@ public static class PlanFabricationMapper
         };
     }
 
-    public static PlanFabricationEnteteDto ToSummaryDto(PlanFabricationEntete p)
+    public static PlanFabricationEnteteDto ToSummaryDto(DocumentEntete p)
     {
         return new PlanFabricationEnteteDto
         {
             Id = p.Id,
+            RowVersion = VersionsDocument.EnTexte(p.RowVersion),
             Nom = p.Nom,
             CodeArticleSageVersionne = p.CodeArticleSageVersionne,
             Designation = p.Designation ?? p.Remarques,
@@ -97,49 +99,48 @@ public static class PlanFabricationMapper
         };
     }
 
-    public static PlanFabricationSection ToSectionEntity(
+    public static DocumentSection ToSectionEntity(
         CreatePlanFabricationSectionDto s,
-        PlanFabricationEntete plan,
+        DocumentEntete plan,
         Guid? periodiciteId,
         List<RefFormulaireColonneDef>? activeCols)
     {
         var sectionId = Guid.NewGuid();
-        var planSec = new PlanFabricationSection
+        var planSec = new DocumentSection
         {
             Id = sectionId,
-            PlanEnteteId = plan.Id,
-            PlanEntete = plan,
+            EnteteId = plan.Id,
+            Entete = plan,
             LibelleSection = s.LibelleSection ?? "",
             OrdreAffiche = s.OrdreAffiche,
             TypeSectionId = s.TypeSectionId,
             PeriodiciteId = periodiciteId,
-            RegleEchantillonnageId = s.RegleEchantillonnageId,
-            PlanFabricationLignes = new List<PlanFabricationLigne>()
+            DocumentLignes = new List<DocumentLigne>()
         };
 
         if (s.Lignes != null)
         {
             foreach (var l in s.Lignes)
             {
-                planSec.PlanFabricationLignes.Add(ToLigneEntity(l, plan, planSec, activeCols));
+                planSec.DocumentLignes.Add(ToLigneEntity(l, plan, planSec, activeCols));
             }
         }
 
         return planSec;
     }
 
-    public static PlanFabricationLigne ToLigneEntity(
+    public static DocumentLigne ToLigneEntity(
         CreatePlanFabricationLigneDto l,
-        PlanFabricationEntete plan,
-        PlanFabricationSection section,
+        DocumentEntete plan,
+        DocumentSection section,
         List<RefFormulaireColonneDef>? activeCols)
     {
         var ligneId = Guid.NewGuid();
-        var planLigne = new PlanFabricationLigne
+        var planLigne = new DocumentLigne
         {
             Id = ligneId,
-            PlanEnteteId = plan.Id,
-            PlanEntete = plan,
+            EnteteId = plan.Id,
+            Entete = plan,
             SectionId = section.Id,
             Section = section,
             OrdreAffiche = l.OrdreAffiche,
@@ -155,8 +156,8 @@ public static class PlanFabricationMapper
             EstCritique = l.EstCritique,
             Instruction = l.Instruction,
             Observations = l.Observations,
-            ImageBase64 = l.ImageBase64,
-            PlanFabricationLigneExtraColonnes = new List<PlanFabricationLigneExtraColonne>()
+            DocumentLineImage = ImagesLigne.Creer(l.ImageBase64),
+            DocumentLigneExtraColonnes = new List<DocumentLigneExtraColonne>()
         };
 
         SopalTrace.Application.Utilities.LineCleanupHelper.CleanupPlanFabLine(planLigne);
@@ -166,7 +167,7 @@ public static class PlanFabricationMapper
             foreach (var colDef in activeCols)
             {
                 string? val = l.ExtraColonnes?.FirstOrDefault(c => c.CleColonne == colDef.CleColonne)?.ValeurColonne;
-                planLigne.PlanFabricationLigneExtraColonnes.Add(new PlanFabricationLigneExtraColonne
+                planLigne.DocumentLigneExtraColonnes.Add(new DocumentLigneExtraColonne
                 {
                     Id = Guid.NewGuid(),
                     LigneId = ligneId,
@@ -181,11 +182,11 @@ public static class PlanFabricationMapper
         return planLigne;
     }
 
-    public static CreatePlanFabricationRequestDto ToCreatePlanRequest(PlanFabricationEntete existingPlan, NouvelleVersionPlanFabricationRequestDto request)
+    public static CreatePlanFabricationRequestDto ToCreatePlanRequest(DocumentEntete existingPlan, NouvelleVersionPlanFabricationRequestDto request)
     {
         return new CreatePlanFabricationRequestDto
         {
-            Nom = !string.IsNullOrWhiteSpace(request.Nom) ? request.Nom : existingPlan.CodeArticleSageVersionne,
+            Nom = !string.IsNullOrWhiteSpace(request.Nom) ? request.Nom : existingPlan.CodeArticleSageVersionne ?? string.Empty,
             Designation = existingPlan.Designation,
             OperationCode = existingPlan.OperationCode,
             VersionInitiale = request.VersionInitiale,
@@ -193,15 +194,15 @@ public static class PlanFabricationMapper
             CodeArticleSageVersionne = request.CodeArticleSageVersionne,
             LegendeMoyens = request.LegendeMoyens ?? existingPlan.LegendeMoyens,
             RefFormulaireCodeReference = request.RefFormulaireCodeReference ?? existingPlan.Formulaire?.CodeReference,
-            ModeleSourceId = request.ModeleSourceId ?? existingPlan.ModeleSourceId,
+            ModeleSourceId = request.ModeleSourceId ?? existingPlan.DocumentSourceId,
             ConfigurationColonnesJson = request.ConfigurationColonnesJson,
             Sections = request.Sections != null && request.Sections.Any()
                 ? request.Sections
-                : existingPlan.PlanFabricationSections?.Select(ToCreateSectionDto).ToList() ?? new List<CreatePlanFabricationSectionDto>()
+                : existingPlan.DocumentSections?.Select(ToCreateSectionDto).ToList() ?? new List<CreatePlanFabricationSectionDto>()
         };
     }
 
-    public static CreatePlanFabricationRequestDto ToCreatePlanRequest(PlanFabricationEntete archivePlan, int newVersion)
+    public static CreatePlanFabricationRequestDto ToCreatePlanRequest(DocumentEntete archivePlan, int newVersion)
     {
         return new CreatePlanFabricationRequestDto
         {
@@ -211,12 +212,12 @@ public static class PlanFabricationMapper
             VersionInitiale = newVersion,
             LegendeMoyens = archivePlan.LegendeMoyens,
             RefFormulaireCodeReference = archivePlan.Formulaire?.CodeReference,
-            ModeleSourceId = archivePlan.ModeleSourceId,
-            Sections = archivePlan.PlanFabricationSections?.Select(ToCreateSectionDto).ToList() ?? new List<CreatePlanFabricationSectionDto>()
+            ModeleSourceId = archivePlan.DocumentSourceId,
+            Sections = archivePlan.DocumentSections?.Select(ToCreateSectionDto).ToList() ?? new List<CreatePlanFabricationSectionDto>()
         };
     }
 
-    public static CreatePlanFabricationSectionDto ToCreateSectionDto(PlanFabricationSection s)
+    public static CreatePlanFabricationSectionDto ToCreateSectionDto(DocumentSection s)
     {
         return new CreatePlanFabricationSectionDto
         {
@@ -224,12 +225,11 @@ public static class PlanFabricationMapper
             OrdreAffiche = s.OrdreAffiche,
             TypeSectionId = s.TypeSectionId,
             PeriodiciteId = s.PeriodiciteId,
-            RegleEchantillonnageId = s.RegleEchantillonnageId,
-            Lignes = s.PlanFabricationLignes?.Select(ToCreateLigneDto).ToList() ?? new List<CreatePlanFabricationLigneDto>()
+            Lignes = s.DocumentLignes?.Select(ToCreateLigneDto).ToList() ?? new List<CreatePlanFabricationLigneDto>()
         };
     }
 
-    public static CreatePlanFabricationLigneDto ToCreateLigneDto(PlanFabricationLigne l)
+    public static CreatePlanFabricationLigneDto ToCreateLigneDto(DocumentLigne l)
     {
         return new CreatePlanFabricationLigneDto
         {
@@ -246,8 +246,8 @@ public static class PlanFabricationMapper
             EstCritique = l.EstCritique,
             Instruction = l.Instruction,
             Observations = l.Observations,
-            ImageBase64 = l.ImageBase64,
-            ExtraColonnes = l.PlanFabricationLigneExtraColonnes?.Select(c => new CreatePlanFabricationExtraColonneDto
+            ImageBase64 = l.EnDataUrl(),
+            ExtraColonnes = l.DocumentLigneExtraColonnes?.Select(c => new CreatePlanFabricationExtraColonneDto
             {
                 CleColonne = c.CleColonne,
                 ValeurColonne = c.ValeurColonne
@@ -255,36 +255,34 @@ public static class PlanFabricationMapper
         };
     }
 
-    public static PlanFabricationSection CreateSection(CreatePlanFabricationSectionDto dto, Guid planId)
+    public static DocumentSection CreateSection(CreatePlanFabricationSectionDto dto, Guid planId)
     {
-        return new PlanFabricationSection
+        return new DocumentSection
         {
             Id = Guid.NewGuid(),
-            PlanEnteteId = planId,
+            EnteteId = planId,
             LibelleSection = dto.LibelleSection ?? "",
             OrdreAffiche = dto.OrdreAffiche,
             TypeSectionId = dto.TypeSectionId,
             PeriodiciteId = dto.PeriodiciteId,
-            RegleEchantillonnageId = dto.RegleEchantillonnageId,
-            PlanFabricationLignes = new List<PlanFabricationLigne>()
+            DocumentLignes = new List<DocumentLigne>()
         };
     }
 
-    public static void UpdateSection(PlanFabricationSection sec, CreatePlanFabricationSectionDto dto)
+    public static void UpdateSection(DocumentSection sec, CreatePlanFabricationSectionDto dto)
     {
         sec.OrdreAffiche = dto.OrdreAffiche;
         sec.LibelleSection = dto.LibelleSection ?? "";
         sec.TypeSectionId = dto.TypeSectionId;
         sec.PeriodiciteId = dto.PeriodiciteId;
-        sec.RegleEchantillonnageId = dto.RegleEchantillonnageId;
     }
 
-    public static PlanFabricationLigne CreateLigne(CreatePlanFabricationLigneDto dto, Guid planId, Guid sectionId)
+    public static DocumentLigne CreateLigne(CreatePlanFabricationLigneDto dto, Guid planId, Guid sectionId)
     {
-        var planLigne = new PlanFabricationLigne
+        var planLigne = new DocumentLigne
         {
             Id = Guid.NewGuid(),
-            PlanEnteteId = planId,
+            EnteteId = planId,
             SectionId = sectionId,
             OrdreAffiche = dto.OrdreAffiche,
             CaracteristiqueId = dto.CaracteristiqueId,
@@ -299,15 +297,15 @@ public static class PlanFabricationMapper
             EstCritique = dto.EstCritique,
             Instruction = dto.Instruction,
             Observations = dto.Observations,
-            ImageBase64 = dto.ImageBase64,
-            PlanFabricationLigneExtraColonnes = new List<PlanFabricationLigneExtraColonne>()
+            DocumentLineImage = ImagesLigne.Creer(dto.ImageBase64),
+            DocumentLigneExtraColonnes = new List<DocumentLigneExtraColonne>()
         };
 
         if (dto.ExtraColonnes != null)
         {
             foreach (var ec in dto.ExtraColonnes)
             {
-                planLigne.PlanFabricationLigneExtraColonnes.Add(new PlanFabricationLigneExtraColonne
+                planLigne.DocumentLigneExtraColonnes.Add(new DocumentLigneExtraColonne
                 {
                     Id = Guid.NewGuid(),
                     LigneId = planLigne.Id,
@@ -322,7 +320,7 @@ public static class PlanFabricationMapper
         return planLigne;
     }
 
-    public static void UpdateLigne(PlanFabricationLigne lig, CreatePlanFabricationLigneDto dto)
+    public static void UpdateLigne(DocumentLigne lig, CreatePlanFabricationLigneDto dto)
     {
         lig.OrdreAffiche = dto.OrdreAffiche;
         lig.CaracteristiqueId = dto.CaracteristiqueId;
@@ -337,19 +335,19 @@ public static class PlanFabricationMapper
         lig.EstCritique = dto.EstCritique;
         lig.Instruction = dto.Instruction;
         lig.Observations = dto.Observations;
-        lig.ImageBase64 = dto.ImageBase64;
+        lig.DefinirImage(dto.ImageBase64);
 
         SopalTrace.Application.Utilities.LineCleanupHelper.CleanupPlanFabLine(lig);
     }
 
-    public static void MergerExtraColonnes(PlanFabricationLigne lig, List<CreatePlanFabricationExtraColonneDto> incoming, SopalTrace.Application.Interfaces.IUnitOfWork unitOfWork)
+    public static void MergerExtraColonnes(DocumentLigne lig, List<CreatePlanFabricationExtraColonneDto> incoming, SopalTrace.Application.Interfaces.IUnitOfWork unitOfWork)
     {
-        var existing = lig.PlanFabricationLigneExtraColonnes.ToList();
+        var existing = lig.DocumentLigneExtraColonnes.ToList();
 
         foreach (var ec in existing.Where(e => !incoming.Any(i => i.CleColonne == e.CleColonne)))
         {
             unitOfWork.PlanFabricationEnteteRepository.RemoveExtraColonne(ec);
-            lig.PlanFabricationLigneExtraColonnes.Remove(ec);
+            lig.DocumentLigneExtraColonnes.Remove(ec);
         }
 
         foreach (var inc in incoming)
@@ -362,7 +360,7 @@ public static class PlanFabricationMapper
             }
             else
             {
-                lig.PlanFabricationLigneExtraColonnes.Add(new PlanFabricationLigneExtraColonne
+                var nouvelle = new DocumentLigneExtraColonne
                 {
                     Id = Guid.NewGuid(),
                     LigneId = lig.Id,
@@ -370,7 +368,9 @@ public static class PlanFabricationMapper
                     CleColonne = inc.CleColonne,
                     ValeurColonne = inc.ValeurColonne,
                     OrdreAffiche = 0
-                });
+                };
+                lig.DocumentLigneExtraColonnes.Add(nouvelle);
+                unitOfWork.Ajouter(nouvelle);
             }
         }
     }

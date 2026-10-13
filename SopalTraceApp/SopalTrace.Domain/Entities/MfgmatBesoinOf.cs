@@ -11,9 +11,9 @@ public partial class MfgmatBesoinOf
 
     public string CodeArticle { get; set; } = null!;
 
-    public double QuantiteRequise { get; set; }
+    public decimal QuantiteRequise { get; set; }
 
-    public double QuantiteSortie { get; set; }
+    public decimal QuantiteSortie { get; set; }
 
     public virtual Article CodeArticleNavigation { get; set; } = null!;
 

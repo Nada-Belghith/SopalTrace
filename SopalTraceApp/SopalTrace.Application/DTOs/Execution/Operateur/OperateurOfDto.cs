@@ -8,8 +8,8 @@ public class OperateurOfDto
     public string StatutOf { get; set; } = null!;
     public string CodeArticle { get; set; } = null!;
     public string DesignationArticle { get; set; } = null!;
-    public double QuantitePrevue { get; set; }
-    public double QuantiteLancee { get; set; }
+    public decimal QuantitePrevue { get; set; }
+    public decimal QuantiteLancee { get; set; }
     public DateTime? DateDebut { get; set; }
     
     public List<OperateurOperationDto> GammeOperatoire { get; set; } = new();
@@ -20,6 +20,10 @@ public class OperateurOperationDto
     public string OperationCode { get; set; } = null!;
     public string Libelle { get; set; } = null!;
     public string MachinePrevueCode { get; set; } = null!;
+    /// <summary>L'opération s'exécute sur une machine (à choisir au démarrage).</summary>
+    public bool AvecMachine { get; set; }
+    /// <summary>Longueur et diamètre nominaux à saisir au démarrage.</summary>
+    public bool AvecCotesTronconnage { get; set; }
 
     public Guid? ActiveExecControleOfId { get; set; }
     public string? ActiveExecStatut { get; set; }

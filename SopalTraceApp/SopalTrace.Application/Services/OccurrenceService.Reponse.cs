@@ -1,9 +1,11 @@
+using SopalTrace.Domain.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SopalTrace.Application.DTOs.Execution.Operateur;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 
 namespace SopalTrace.Application.Services;
 
@@ -38,6 +40,10 @@ public partial class OccurrenceService
                 }
 
                 string contexte = await _occurrenceRepository.GetContexteOccurrenceAsync(occurrence.SectionId);
+                
+                // Fallback for missing mapping
+                if (string.IsNullOrEmpty(contexte)) contexte = "LOT";
+
                 if (occurrence.TrancheHoraire.StartsWith("REGLAGE")) contexte = "REGLAGE";
 
                 await EnregistrerReponsesLignesAsync(occurrence, ofContext, request, contexte);
@@ -50,7 +56,7 @@ public partial class OccurrenceService
             await MettreAJourResultatTrancheAsync(ofContext.Id, trancheHoraire);
         }
 
-        if (ofContext?.EstEnReglage == true)
+        if (ofContext?.Statut == StatutsExecution.Reglage)
         {
             await TransitionnerReglageVersProductionAsync(ofContext);
         }
@@ -65,7 +71,8 @@ public partial class OccurrenceService
 
     private async Task NettoyerTranchesReponduesAsync(Guid execControleOfId)
     {
-        var all = await _occurrenceRepository.GetIntermediairesParOfAsync(execControleOfId);
+        // Contrôles planifiés (rattachés à une période) : les réponses restent (historique et numérotation).
+        var all = (await _occurrenceRepository.GetIntermediairesParOfAsync(execControleOfId)).Where(o => o.ProductionPeriodId == null).ToList();
         bool cleanedAny = false;
 
         foreach (var grp in all.Where(o => o.EstRepondu).GroupBy(o => o.TrancheHoraire.Split('|')[0]))
@@ -122,6 +129,7 @@ public partial class OccurrenceService
 
         if (tranche == null)
         {
+            var sessionId = await _occurrenceRepository.GetActiveSessionIdAsync(firstOcc.ExecControleOfid);
             _occurrenceRepository.AddTranche(new ExecControleTranche
             {
                 Id = Guid.NewGuid(),
@@ -131,7 +139,8 @@ public partial class OccurrenceService
                 HeureFin = occurrences.Max(o => o.HeureNotifPrevue).AddHours(1),
                 ResultatFinal = "REGLAGE",
                 MatriculeApprobateur = matriculeOperateur,
-                Remarques = remarqueHeure
+                Remarques = remarqueHeure,
+                SessionId = sessionId
             });
         }
         else
@@ -169,7 +178,7 @@ public partial class OccurrenceService
     {
         // Ne pas enregistrer le détail des lignes pour les contrôles en fréquence (échantillonnage/lot)
         // Les résultats globaux sont déjà enregistrés dans Exec_Prelevement_Intermediaire et Exec_ControleTranche
-        if (contexte == "LOT")
+        if (SectionTypes.EstEchantillonnage(contexte) || contexte == SectionTypes.LotPoste || contexte == SectionTypes.LotOf)
         {
             return;
         }
@@ -192,22 +201,22 @@ public partial class OccurrenceService
         }
         else
         {
-            var operateurId = await _occurrenceRepository.GetUtilisateurIdByMatriculeAsync(request.MatriculeOperateur ?? "");
-            if (operateurId == null)
-                throw new Exception($"Opérateur avec le matricule '{request.MatriculeOperateur}' introuvable. Veuillez vous reconnecter.");
+            if (string.IsNullOrWhiteSpace(request.MatriculeOperateur))
+                throw new RegleMetierException("Utilisateur connecté introuvable. Veuillez vous reconnecter.");
 
             _occurrenceRepository.AddLigneReponses(request.Lignes.Select(l => new ExecControleLigneReponse
             {
                 Id = Guid.NewGuid(),
                 ExecControleOfid = occurrence.ExecControleOfid,
-                DocumentLigneId = ofContext?.TypeOf == "ASS" ? l.LignePlanId : null,
+                // Plans FAB et ASS sont des Document_Ligne : la réponse vise toujours la ligne du plan.
+                DocumentLigneId = l.LignePlanId,
                 Contexte = contexte,
                 NumeroReglage = contexte == "REGLAGE" ? "REG" + occurrence.NumeroOccurrence : null,
                 ResultatType = l.Resultat == "C" ? "CONFORME" : l.Resultat == "NC" ? "NON_CONFORME" : "MESURE",
                 ValeurMesuree = (decimal?)l.ValeurMesuree,
                 DetailsNc = !string.IsNullOrWhiteSpace(l.Remarque) ? l.Remarque : null,
                 ActionsCorrection = !string.IsNullOrWhiteSpace(l.ActionCorrective) ? l.ActionCorrective : null,
-                OperateurId = operateurId.Value,
+                MatriculeOperateur = request.MatriculeOperateur,
                 DateSaisie = DateTime.Now
             }).ToList());
         }
@@ -220,6 +229,7 @@ public partial class OccurrenceService
 
         if (tranche == null)
         {
+            var sessionId = await _occurrenceRepository.GetActiveSessionIdAsync(occurrence.ExecControleOfid);
             var (debut, fin) = ParseHeureTranche(occurrence.TrancheHoraire, occurrence.HeureNotifPrevue);
             _occurrenceRepository.AddTranche(tranche = new ExecControleTranche
             {
@@ -228,7 +238,8 @@ public partial class OccurrenceService
                 TrancheHoraire = occurrence.TrancheHoraire,
                 HeureDebut = debut, HeureFin = fin,
                 ResultatFinal = null,
-                MatriculeApprobateur = request.MatriculeOperateur
+                MatriculeApprobateur = request.MatriculeOperateur,
+                SessionId = sessionId
             });
         }
         else if (string.IsNullOrEmpty(tranche.MatriculeApprobateur) && !string.IsNullOrEmpty(request.MatriculeOperateur))
@@ -297,14 +308,12 @@ public partial class OccurrenceService
             .Select(g => g.OrderByDescending(o => o.HeureNotifPrevue).First())
             .ToList();
 
-        if (!latestPerSection.All(o => o.Resultat == "C")) return;
+        if (!latestPerSection.All(o => o.Resultat == ResultatsControle.Conforme)) return;
 
-        ofContext.EstEnReglage = false;
-        ofContext.Statut = "EN_COURS";
-        ofContext.DateFin = null;
-        await AjusterDateDebutApresReglageAsync(ofContext.Id);
+        // Production reprise : la planification ouvre de nouvelles périodes (le calcul repart de zéro).
+        ofContext.Statut = StatutsExecution.EnCours;
+        ofContext.SuspendedAt = null;
 
         await _occurrenceRepository.SaveChangesAsync();
-        await GenererOccurrencesInitialesAsync(ofContext.Id);
     }
 }

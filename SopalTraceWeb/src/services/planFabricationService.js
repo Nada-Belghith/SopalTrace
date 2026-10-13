@@ -36,29 +36,25 @@ export const planFabricationService = {
     return { data: { planId: response.data.id } }; // Formatting to match frontend expectations
   },
 
-  async restorePlan(payload) {
-    let req = {
-      documentArchiveId: payload.documentArchiveId || payload.DocumentArchiveId || payload.documentId,
-      motifRestoration: payload.motifRestoration || 'Restoration'
-    };
-    const response = await apiClient.post(`/PlanFabrication/restaurer`, req);
-    return response.data;
-  },
-
-  async updatePlanValues(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage, codeArticleSageVersionne) {
+  /**
+   * Enregistre le plan en place. rowVersion = version reçue au chargement (refus 409 si le plan a changé entre-temps).
+   * @returns {Promise<string>} nouvelle version du plan, à conserver pour l'enregistrement suivant
+   */
+  async updatePlanValues(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage, codeArticleSageVersionne, rowVersion) {
     const payload = {
+      rowVersion,
       nom: nomPlan,
       codeArticleSageVersionne: codeArticleSageVersionne,
       legendeMoyens: legendeMoyens,
       remarques: remarques,
-      libre1: codeArticleSage,
       sections: payloadData.sections || payloadData,
       colonneDefs: payloadData.colonneDefs || []
     };
-    await apiClient.put(`/PlanFabrication/${planId}`, payload);
+    const response = await apiClient.put(`/PlanFabrication/${planId}`, payload);
     if (finaliser) {
       await apiClient.put(`/hub/plans/FAB/${planId}/statut?statut=ACTIF`);
     }
+    return response.data.rowVersion;
   },
 
   async verifyPlanState(articleCode, familleCode, natureCode, modeleId, operationCode = null, posteCode = null) {
@@ -110,7 +106,6 @@ export const planFabricationService = {
       natureArticleCode: payload.natureComposantCode,
       familleProduitFiniCode: payload.familleCode,
       posteCode: payload.posteCode,
-      libre1: payload.codeArticleSage,
       legendeMoyens: payload.legendeMoyens,
       remarques: payload.remarques,
       colonneDefs: payload.colonneDefs || [],
@@ -124,7 +119,6 @@ export const planFabricationService = {
         libelleSection: s.libelleSection || s.nom || '',
         typeSectionId: s.typeSectionId || null,
         periodiciteId: s.periodiciteId || null,
-        regleEchantillonnageId: s.regleEchantillonnageId || null,
         lignes: (s.lignes || []).map((l, lIdx) => ({
           ordreAffiche: l.ordreAffiche || lIdx + 1,
           libelleAffiche: l.libelleAffiche || '',
@@ -152,9 +146,7 @@ export const planFabricationService = {
         libelleSection: s.libelleSection,
         typeSectionId: s.typeSectionId,
         periodiciteId: s.periodiciteId,
-        regleEchantillonnageId: s.regleEchantillonnageId,
         notes: s.notes,
-        normeReference: s.normeReference,
         nqaId: s.nqaId,
         lignes: s.lignes.map(l => ({
           ordreAffiche: l.ordreAffiche,
@@ -170,7 +162,6 @@ export const planFabricationService = {
           estCritique: l.estCritique,
           instruction: l.instruction,
           observations: l.observations,
-          libre1: l.codeArticleSage,
           extraColonnes: l.extraColonnes || []
         }))
       }));
@@ -205,9 +196,7 @@ export const planFabricationService = {
         libelleSection: s.libelleSection,
         typeSectionId: s.typeSectionId,
         periodiciteId: s.periodiciteId,
-        regleEchantillonnageId: s.regleEchantillonnageId,
         notes: s.notes,
-        normeReference: s.normeReference,
         nqaId: s.nqaId,
         lignes: s.lignes.map(l => ({
           ordreAffiche: l.ordreAffiche,
@@ -224,12 +213,7 @@ export const planFabricationService = {
           instruction: l.instruction,
           observations: l.observations,
           machineCode: l.machineCode,
-          estVerifPresence: l.estVerifPresence,
-          defauthequeId: l.defauthequeId,
-          refPlanProduit: l.refPlanProduit,
-          machineCodeCtrlPoste: l.machineCodeCtrlPoste,
           risqueDefautId: l.risqueDefautId,
-          libre1: payload.nouveauCodeArticleSage,
           extraColonnes: l.extraColonnes || []
         }))
       }))

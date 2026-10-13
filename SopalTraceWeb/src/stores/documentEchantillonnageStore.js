@@ -93,13 +93,16 @@ export const useDocumentEchantillonnageStore = defineStore('documentEchantillonn
         ...this.entete,
         regles: this.regles
       };
+      // payload.rowVersion = version reçue au chargement : refus 409 si le plan a été modifié entre-temps.
       const res = await apiClient.put(`/documents-echantillonnage/${this.entete.id}`, payload);
       this.entete.statut = 'ACTIF';
+      this.entete.rowVersion = res.data.rowVersion ?? this.entete.rowVersion;
     },
 
     async createNewVersion(motif) {
       const payload = {
         ancienId: this.entete.id,
+        rowVersion: this.entete.rowVersion,
         modifiePar: 'ADMIN',
         motifModification: motif,
         donnees: {

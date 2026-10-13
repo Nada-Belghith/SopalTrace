@@ -1,0 +1,92 @@
+# =============================================================================
+# SopalTrace — déploiement à partir des images publiées (aucune compilation sur le serveur)
+#
+#   1. copier .env.prod.example en .env et le compléter
+#   2. docker compose -f docker-compose.prod.yml pull
+#   3. première installation uniquement : docker compose -f docker-compose.prod.yml --profile init run --rm init-db
+#   4. docker compose -f docker-compose.prod.yml up -d
+#
+# Mise à jour : changer SOPALTRACE_VERSION dans .env, puis étapes 2 et 4.
+# =============================================================================
+name: sopaltrace
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+    restart: unless-stopped
+    environment:
+      - TZ=Africa/Tunis
+      - ACCEPT_EULA=Y
+      # Express (gratuit, base ≤ 10 Go) ou Standard selon la licence de Sopal. Jamais Developer en production.
+      - MSSQL_PID=${MSSQL_PID:-Express}
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD:?DB_PASSWORD manquant dans .env}
+    volumes:
+      - donnees_sql:/var/opt/mssql
+      - ${SOPALTRACE_BACKUP_DIR:-./sauvegardes}:/var/opt/mssql/backup
+    # Aucun port publié : seule l'API joint la base.
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Création de la base (première installation) : schéma + données de référence.
+  # Ajouter 03 et 04 (INIT_SCRIPTS) uniquement sur une installation de démonstration.
+  init-db:
+    image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+    profiles: ["init"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
+      - INIT_SCRIPTS=${INIT_SCRIPTS:-01_Create_SopalTraceDB.sql 02_ReferenceData_SopalTraceDB.sql}
+    volumes:
+      - ./sql:/scripts:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        if /opt/mssql-tools18/bin/sqlcmd -C -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -h -1 -Q "SET NOCOUNT ON; SELECT DB_ID('SopalTraceDB')" | grep -q '[0-9]'; then
+          echo "La base SopalTraceDB existe déjà : aucune modification."; exit 0
+        fi
+        for f in $$INIT_SCRIPTS; do
+          echo "== $$f"
+          /opt/mssql-tools18/bin/sqlcmd -C -I -b -f 65001 -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -i "/scripts/$$f"
+        done
+        echo "Base SopalTraceDB créée."
+
+  sopaltrace.api:
+    image: ${SOPALTRACE_REGISTRY:-ghcr.io/nada-belghith}/sopaltrace-api:${SOPALTRACE_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=Africa/Tunis
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__SopalTraceConnection=Server=sqlserver,1433;Database=SopalTraceDB;User Id=${DB_USER:-sa};Password=${DB_APP_PASSWORD:-${DB_PASSWORD}};TrustServerCertificate=True;Encrypt=False;
+      - EmailSettings__SmtpServer=${SMTP_SERVER}
+      - EmailSettings__Port=${SMTP_PORT}
+      - EmailSettings__SmtpUsername=${SMTP_USERNAME}
+      - EmailSettings__SenderEmail=${EMAIL_SENDER}
+      - EmailSettings__AppPassword=${EMAIL_PASSWORD}
+      - EmailSettings__SenderName=SopalTrace
+    volumes:
+      - journaux_api:/app/logs
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  sopaltrace.web:
+    image: ${SOPALTRACE_REGISTRY:-ghcr.io/nada-belghith}/sopaltrace-web:${SOPALTRACE_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      - TZ=Africa/Tunis
+    ports:
+      - "${SOPALTRACE_HTTP_PORT:-80}:8080"
+    depends_on:
+      - sopaltrace.api
+
+volumes:
+  donnees_sql:
+  journaux_api:

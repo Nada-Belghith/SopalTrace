@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace SopalTrace.Domain.Entities;
@@ -13,11 +13,7 @@ public partial class ExecControleOf
 
     public string? MachineCodePrevu { get; set; }
 
-    public string? PosteCodePrevu { get; set; }
-
     public string? MachineCode { get; set; }
-
-    public string? PosteCode { get; set; }
 
     public Guid? PlanSourceId { get; set; }
 
@@ -25,13 +21,19 @@ public partial class ExecControleOf
 
     public string Statut { get; set; } = null!;
 
-    public bool EstEnReglage { get; set; }
-
     public DateTime DateDebut { get; set; }
 
     public DateTime? DateFin { get; set; }
 
+    public DateTime? SuspendedAt { get; set; }
+
     public double TempsPauseTotalMinutes { get; set; }
+
+    public decimal? LongueurNominale { get; set; }
+
+    public decimal? DiametreNominal { get; set; }
+
+    public byte[] RowVersion { get; set; } = null!;
 
     public virtual ICollection<ExecControleDocumentStatut> ExecControleDocumentStatuts { get; set; } = new List<ExecControleDocumentStatut>();
 
@@ -39,11 +41,15 @@ public partial class ExecControleOf
 
     public virtual ICollection<ExecControleOfPoste> ExecControleOfPostes { get; set; } = new List<ExecControleOfPoste>();
 
+    public virtual ICollection<ExecControleOfSession> ExecControleOfSessions { get; set; } = new List<ExecControleOfSession>();
+
     public virtual ICollection<ExecControleTranche> ExecControleTranches { get; set; } = new List<ExecControleTranche>();
 
     public virtual ICollection<ExecPieceType> ExecPieceTypes { get; set; } = new List<ExecPieceType>();
 
     public virtual ICollection<ExecPrelevementIntermediaire> ExecPrelevementIntermediaires { get; set; } = new List<ExecPrelevementIntermediaire>();
+
+    public virtual ICollection<ExecProductionPeriod> ExecProductionPeriods { get; set; } = new List<ExecProductionPeriod>();
 
     public virtual ICollection<ExecRegistreTracabilite> ExecRegistreTracabilites { get; set; } = new List<ExecRegistreTracabilite>();
 
@@ -55,7 +61,5 @@ public partial class ExecControleOf
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 
-    public virtual PosteTravail? PosteCodeNavigation { get; set; }
-
-    public virtual PosteTravail? PosteCodePrevuNavigation { get; set; }
+    public virtual DocumentEntete? PlanSource { get; set; }
 }

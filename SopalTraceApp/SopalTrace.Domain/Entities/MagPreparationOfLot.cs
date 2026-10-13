@@ -13,7 +13,11 @@ public partial class MagPreparationOfLot
 
     public string NumeroLotScanne { get; set; } = null!;
 
-    public double Quantite { get; set; }
+    public decimal? Quantite { get; set; }
+
+    public string? QualityControlReport { get; set; }
+
+    public string? ScannedContent { get; set; }
 
     public DateTime? DateScan { get; set; }
 

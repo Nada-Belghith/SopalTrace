@@ -28,7 +28,8 @@ public interface IDocumentService
         string? operationCode        = null,
         string? posteCode            = null,
         string? familleProduitCode   = null,
-        string? statut               = null);
+        string? statut               = null,
+        string? refFormulaireCodeReference = null);
 
     // ── Écriture ──────────────────────────────────────────────────────────────
 
@@ -50,7 +51,8 @@ public interface IDocumentService
     /// Correction mineure : modifie le document en place.
     /// Aucun changement de version, aucun archivage.
     /// </summary>
-    Task<bool> UpdateDocumentAsync(Guid id, UpdateDocumentRequestDto request);
+    /// <returns>Nouvelle version du document (RowVersion en base64), ou null si le document est introuvable.</returns>
+    Task<string?> UpdateDocumentAsync(Guid id, UpdateDocumentRequestDto request);
 
     /// <summary>
     /// Archive en cascade tous les documents liés à un formulaire donné.

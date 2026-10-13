@@ -63,8 +63,6 @@ namespace SopalTrace.Application.DTOs.QualityPlans.PlanRCCF
         public int OrdreAffiche { get; set; }
         public Guid? TypeSectionId { get; set; }
         public Guid? PeriodiciteId { get; set; }
-        public Guid? RegleEchantillonnageId { get; set; }
-        public string? RegleEchantillonnageLibelle { get; set; }
         public string? FrequenceLibelle { get; set; }
         public string? ModeFreq { get; set; }
         public int? FreqNum { get; set; }

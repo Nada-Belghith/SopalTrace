@@ -19,4 +19,7 @@ public interface IFormulaireStructureService
     Task<(Guid Id, int Version)?> UpdateFormulaireStructureAsync(string role, string? configurationStructureJson, string? codeReference = null, int? versionInitiale = null, bool isCorrectionMineure = false, bool forceNouvelleVersion = false);
     
     Task<bool> ActiverFormulaireAsync(Guid id);
+
+    /// <summary>Équipes de l'usine (E1, E2, E3…) pour définir les équipes d'un document.</summary>
+    Task<List<EquipeReferenceDto>> GetEquipesReferenceAsync();
 }

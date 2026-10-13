@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 
@@ -15,17 +16,7 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         _context = context;
     }
 
-    public async Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle)
-    {
-        return await _context.Periodicites
-            .FirstOrDefaultAsync(p => p.Libelle.ToLower() == libelle.ToLower());
-    }
 
-    public async Task<Periodicite?> GetPeriodiciteByCodeAsync(string code)
-    {
-        return await _context.Periodicites
-            .FirstOrDefaultAsync(p => p.Code == code);
-    }
 
     public Task AddPeriodiciteAsync(Periodicite entite)
     {
@@ -118,57 +109,6 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         return Task.CompletedTask;
     }
 
-    public async Task<RefRegleEchantillonnage?> GetRegleEchantillonnageByLibelleAsync(string libelle)
-    {
-        if (string.IsNullOrWhiteSpace(libelle)) return null;
-
-        var allRules = await _context.RefRegleEchantillonnages.ToListAsync();
-        
-        string NormalizeString(string input)
-        {
-            if (input == null) return string.Empty;
-            // Replace curly apostrophes with straight, normalize spaces
-            var str = input.Replace('\u00A0', ' ')
-                           .Replace('’', '\'')
-                           .Replace('´', '\'')
-                           .Trim()
-                           .ToLower();
-            str = System.Text.RegularExpressions.Regex.Replace(str, @"\s+", " ");
-            return str;
-        }
-
-        var normalizedSearch = NormalizeString(libelle);
-        Console.WriteLine($"[DEBUG-REGLE] Searching for: '{libelle}' -> Normalized: '{normalizedSearch}'");
-
-        // Exact match after normalization
-        var exactMatch = allRules.FirstOrDefault(r => {
-            var normDb = NormalizeString(r.Libelle);
-            Console.WriteLine($"[DEBUG-REGLE] DB Rule '{r.Id}' -> '{r.Libelle}' -> Normalized: '{normDb}'");
-            return normDb == normalizedSearch;
-        });
-        if (exactMatch != null) 
-        {
-            Console.WriteLine($"[DEBUG-REGLE] Exact Match Found: {exactMatch.Id}");
-            return exactMatch;
-        }
-
-        // Contains match as fallback
-        var containsMatch = allRules.FirstOrDefault(r => 
-        {
-            var normDb = NormalizeString(r.Libelle);
-            return normDb.Contains(normalizedSearch) || normalizedSearch.Contains(normDb);
-        });
-            
-        Console.WriteLine($"[DEBUG-REGLE] Contains Match Found: {(containsMatch != null ? containsMatch.Id.ToString() : "NULL")}");
-        return containsMatch;
-    }
-
-    public Task AddRegleEchantillonnageAsync(RefRegleEchantillonnage entite)
-    {
-        _context.RefRegleEchantillonnages.Add(entite);
-        return Task.CompletedTask;
-    }
-
     public async Task<PieceReference?> GetPieceReferenceByCodeAsync(string code)
     {
         var normalizedCode = code.Trim().ToUpper();
@@ -251,7 +191,10 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
         return Task.CompletedTask;
     }
     public async Task<System.Collections.Generic.List<TypeRobinet>> GetActiveTypeRobinetsAsync() => await _context.TypeRobinets.Where(x => x.Actif).ToListAsync();
-    public async Task<System.Collections.Generic.List<NatureArticle>> GetActiveNatureArticlesFabriqueAsync() => await _context.NatureArticles.Where(x => x.Actif && x.Origine == "FABRIQUE").ToListAsync();
+    // Natures fabriquées : celles qui regroupent au moins un article actif fabriqué (PF ou SF).
+    // L'origine est portée par l'article (Article.Origin), une nature peut mêler fabriqué et acheté.
+    public async Task<System.Collections.Generic.List<NatureArticle>> GetActiveNatureArticlesFabriqueAsync() => await _context.NatureArticles
+        .Where(x => x.Actif && x.Articles.Any(a => a.Actif && a.Origin == ArticleOrigins.Manufactured)).ToListAsync();
     public async Task<System.Collections.Generic.List<Operation>> GetActiveOperationsAsync() => await _context.Operations.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<NatureArticleOperation>> GetAllNatureArticleOperationsAsync() => await _context.NatureArticleOperations.ToListAsync();
     public async Task<System.Collections.Generic.List<TypeControle>> GetActiveTypeControlesAsync() => await _context.TypeControles.Where(x => x.Actif).ToListAsync();
@@ -264,8 +207,6 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
     public async Task<System.Collections.Generic.List<Instrument>> GetInstrumentsByCodesAsync(System.Collections.Generic.List<string> codes) => await _context.Instruments.Where(x => codes.Contains(x.CodeInstrument)).ToListAsync();
     public async Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync() => await _context.Nqas.ToListAsync();
     public async Task AddNqaAsync(Nqa entite) => await _context.Nqas.AddAsync(entite);
-    public async Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync() => await _context.Defautheques.Where(x => x.Actif).ToListAsync();
-    public async Task<System.Collections.Generic.List<RefRegleEchantillonnage>> GetActiveRegleEchantillonnagesAsync() => await _context.RefRegleEchantillonnages.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<FamilleProduitFini>> GetActiveFamilleProduitFinisAsync() => await _context.FamilleProduitFinis.Where(x => x.Actif).ToListAsync();
     public async Task<System.Collections.Generic.List<Machine>> GetAllMachinesAsync() => await _context.Machines.ToListAsync();
     public async Task<System.Collections.Generic.List<Machine>> GetActiveMachinesAsync() => await _context.Machines.Where(x => x.Actif).ToListAsync();
@@ -276,50 +217,34 @@ public class DictionnaireQualiteRepository : IDictionnaireQualiteRepository
     public async Task<Article?> GetArticleByCodeNormaliseAsync(string codeNormalise) => await _context.Articles.FirstOrDefaultAsync(x => x.CodeArticle == codeNormalise);
     public async Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise)
     {
-        var typeRobinet = await _context.ProduitFinis
-            .Where(x => x.CodeArticle == codeNormalise)
-            .Select(x => x.TypeRobinetCode)
+        // Le type de robinet est porté par la famille du produit fini.
+        var famille = await GetFamilleProduitCodeForArticleAsync(codeNormalise);
+        if (famille == null) return null;
+
+        return await _context.FamilleProduitFinis
+            .Where(f => f.Code == famille)
+            .Select(f => f.TypeRobinetCode)
             .FirstOrDefaultAsync();
-
-        if (string.IsNullOrEmpty(typeRobinet))
-        {
-            typeRobinet = await _context.BomdNomenclatures
-                .Where(n => n.CodeComposant == codeNormalise)
-                .Join(_context.ProduitFinis,
-                      n => n.ArticleParent,
-                      p => p.CodeArticle,
-                      (n, p) => p.TypeRobinetCode)
-                .FirstOrDefaultAsync();
-        }
-
-        return typeRobinet;
     }
 
     public async Task<string?> GetFamilleProduitCodeForArticleAsync(string codeNormalise)
     {
-        // Chercher d'abord si l'article est lui-même un ProduitFini
-        var familleDirect = await _context.ProduitFinis
-            .Where(x => x.CodeArticle == codeNormalise)
-            .Join(_context.FamilleProduitFinis,
-                  p => p.TypeRobinetCode,
-                  f => f.TypeRobinetCode,
-                  (p, f) => f.Code)
+        // Article produit fini : sa propre famille.
+        var familleDirecte = await _context.ProduitFinis
+            .Where(p => p.CodeArticle == codeNormalise)
+            .Select(p => p.FamilleProduitFiniCode)
             .FirstOrDefaultAsync();
 
-        if (!string.IsNullOrEmpty(familleDirect))
-            return familleDirect;
+        if (!string.IsNullOrEmpty(familleDirecte))
+            return familleDirecte;
 
-        // Sinon, chercher via la nomenclature (composant d'un PF)
+        // Composant : famille du produit fini qui l'utilise (nomenclature).
         return await _context.BomdNomenclatures
             .Where(n => n.CodeComposant == codeNormalise)
             .Join(_context.ProduitFinis,
                   n => n.ArticleParent,
                   p => p.CodeArticle,
-                  (n, p) => p)
-            .Join(_context.FamilleProduitFinis,
-                  p => p.TypeRobinetCode,
-                  f => f.TypeRobinetCode,
-                  (p, f) => f.Code)
+                  (n, p) => p.FamilleProduitFiniCode)
             .FirstOrDefaultAsync();
     }
 

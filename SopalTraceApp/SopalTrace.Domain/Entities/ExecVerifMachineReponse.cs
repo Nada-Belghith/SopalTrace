@@ -15,9 +15,9 @@ public partial class ExecVerifMachineReponse
 
     public string MatriculeOperateur { get; set; } = null!;
 
-    public double? PressionEntree { get; set; }
+    public decimal? PressionEntree { get; set; }
 
-    public double? FuiteAffichee { get; set; }
+    public decimal? FuiteAffichee { get; set; }
 
     public bool? Conforme { get; set; }
 
@@ -26,4 +26,6 @@ public partial class ExecVerifMachineReponse
     public virtual DocumentVerifMachineEcheance DocumentVerifMachineEcheance { get; set; } = null!;
 
     public virtual ExecControleDocumentStatut ExecControleDocumentStatut { get; set; } = null!;
+
+    public virtual Autili MatriculeOperateurNavigation { get; set; } = null!;
 }

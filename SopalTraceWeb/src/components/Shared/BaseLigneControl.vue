@@ -51,10 +51,16 @@
 
       <!-- 4. Moyen de contrôle -->
       <td v-else-if="col.key === 'moyen_controle'" class="p-2 border-r border-slate-200 align-top w-[12%]">
-        <select v-model="localLigne.moyenControleId" :disabled="isReadOnly" class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer disabled:opacity-60 disabled:bg-slate-50">
+        <select v-model="localLigne.moyenControleId" :disabled="isReadOnly"
+                @change="localLigne.moyenControleId && (localLigne.moyenTexteLibre = '')"
+                class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 cursor-pointer disabled:opacity-60 disabled:bg-slate-50">
           <option :value="null">-- Moyen --</option>
           <option v-for="mco in moyensControle" :key="mco.id" :value="mco.id">{{ mco.libelle }}</option>
         </select>
+        <!-- Moyen hors catalogue (souvent issu d'un import Excel) : conservé en texte libre. -->
+        <input v-if="!localLigne.moyenControleId" v-model="localLigne.moyenTexteLibre" type="text"
+               maxlength="100" placeholder="Autre moyen (texte libre)" :disabled="isReadOnly"
+               class="mt-1 w-full bg-white border border-slate-200 rounded px-2 py-1 text-[10px] text-slate-700 outline-none focus:border-blue-500 disabled:opacity-60 disabled:bg-slate-50">
       </td>
 
       <!-- 5. Code Instrument -->
@@ -84,12 +90,27 @@
 
       <!-- 7. Colonnes Dynamiques (Custom) -->
       <td v-else-if="col.isCustom" class="p-2 border-r border-slate-200 align-top">
-        <input v-if="localLigne.valeursColonnesSpecifiques"
-               v-model="localLigne.valeursColonnesSpecifiques[col.key]"
-               :type="col.type === 'Nombre' ? 'number' : 'text'"
-               :disabled="isReadOnly"
-               :placeholder="col.label"
-               :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none border', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-900 font-semibold cursor-not-allowed' : 'bg-white border-slate-200 text-slate-600 focus:border-blue-500']" />
+        <template v-if="localLigne.valeursColonnesSpecifiques">
+          <!-- Oui / Non et listes : choix parmi des valeurs connues (contrôlées aussi par la base) -->
+          <select v-if="typeColonne(col) === TYPES_COLONNE.OUI_NON || typeColonne(col) === TYPES_COLONNE.LISTE"
+                  v-model="localLigne.valeursColonnesSpecifiques[col.key]"
+                  :disabled="isReadOnly"
+                  :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none border', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-900 font-semibold cursor-not-allowed' : 'bg-white border-slate-200 text-slate-600 focus:border-blue-500']">
+            <option :value="null">—</option>
+            <template v-if="typeColonne(col) === TYPES_COLONNE.OUI_NON">
+              <option value="true">Oui</option>
+              <option value="false">Non</option>
+            </template>
+            <option v-else v-for="option in col.options || []" :key="option" :value="option">{{ option }}</option>
+          </select>
+          <input v-else
+                 v-model="localLigne.valeursColonnesSpecifiques[col.key]"
+                 :type="typeSaisie(col)"
+                 :step="typeColonne(col) === TYPES_COLONNE.NOMBRE ? 'any' : undefined"
+                 :disabled="isReadOnly"
+                 :placeholder="col.label"
+                 :class="['w-full rounded px-2 py-1.5 text-[11px] outline-none border', isReadOnly ? 'bg-slate-100 border-slate-200 text-slate-900 font-semibold cursor-not-allowed' : 'bg-white border-slate-200 text-slate-600 focus:border-blue-500']" />
+        </template>
       </td>
 
       <!-- 8. Actions (Supprimer) -->
@@ -105,6 +126,10 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { TYPES_COLONNE, normaliserTypeColonne } from '@/constants/columnTypes';
+
+const typeColonne = col => normaliserTypeColonne(col.type);
+const typeSaisie = col => ({ [TYPES_COLONNE.NOMBRE]: 'number', [TYPES_COLONNE.DATE]: 'date' })[typeColonne(col)] || 'text';
 
 const props = defineProps({
   ligne: {

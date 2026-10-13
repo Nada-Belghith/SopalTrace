@@ -25,7 +25,7 @@ public class SuperviseurNotifsAlerteDefinition : IAlerteDefinition<NotifsSupervi
 
     public async Task<List<string>> ResoudreDestinatairesAsync(NotifsSuperviseurContexte contexte)
     {
-        return await _erpService.GetEmailsByRoleAsync("SUPERVISEUR_PROD");
+        return await _erpService.GetEmailsByRoleAsync(CodesMetierErp.SuperviseurProduction);
     }
 
     public string ConstruireSujet(NotifsSuperviseurContexte contexte)

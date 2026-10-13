@@ -33,7 +33,6 @@ export function mapLigneForBackend(ligne, lIdx) {
     instrumentCode: ligne.instrumentCode || null,
     moyenTexteLibre: ligne.moyenTexteLibre || null,
     limiteSpecTexte: ligne.limiteSpecTexte || null,
-    defauthequeId: ligne.defauthequeId || null,
     instruction: ligne.instruction || null,
     observations: ligne.observations || null,
     estCritique: ligne.estCritique || false,
@@ -63,9 +62,7 @@ export function mapSectionForBackend(section, idx, periodicites = []) {
     typeSectionId: (section.typeSectionId && section.typeSectionId !== '') ? section.typeSectionId : null,
     libelleSection: section.libelleSection || section.nom || `Section ${idx + 1}`,
     periodiciteId: resolvedPeriodiciteId,
-    regleEchantillonnageId: section.regleEchantillonnageId || null,
-    regleEchantillonnageLibelle: section.regleEchantillonnageLibelle || null,
-    frequenceLibelle: section.frequenceLibelle || section.regleEchantillonnageLibelle || null,
+    frequenceLibelle: section.frequenceLibelle || null,
     notes: section.notes || null,
     lignes: (section.lignes || []).map((l, lIdx) => mapLigneForBackend(l, lIdx))
   };
@@ -96,23 +93,23 @@ export async function prepareSectionsForBackend(sections, periodicites, createPe
       }
 
       const perioExistante = (periodicites || []).find(
-        p => (p.libelle || p.Libelle || '').toLowerCase() === libelleFreq.toLowerCase()
+        p => (p.nbrPieces || p.NbrPieces) === g.freqNum && 
+             (p.unite || p.Unite) === g.typeVariable &&
+             (g.typeVariable === 'HEURE' ? (p.nbrHeures || p.NbrHeures) === g.freqHours : true)
       );
 
       if (perioExistante) {
         g.periodiciteId = perioExistante.id || perioExistante.Id;
       } else if (createPeriodiciteCallback) {
         const payloadFreq = {
-          code: codeFreq,
-          libelle: libelleFreq,
-          frequenceNum: g.freqNum,
-          frequenceUnite: g.typeVariable === 'HEURE'
-            ? `${g.freqHours}_HEURE`
-            : (g.typeVariable === 'ECHANTILLON' ? 'ECHANTILLON' : 'SERIE'),
-          ordreAffichage: 5
+          nbrPieces: g.freqNum,
+          unite: g.typeVariable,
+          nbrHeures: g.typeVariable === 'HEURE' ? g.freqHours : null,
+          actif: true
         };
         const res = await createPeriodiciteCallback(payloadFreq);
-        g.periodiciteId = res.data?.data || res.data?.periodiciteId || res.data?.id || res.data;
+        // Le callback retourne response.data déjà unwrappé : { success, data: "<guid>", id: "<guid>", periodiciteId: "<guid>" }
+        g.periodiciteId = res?.periodiciteId || res?.id || res?.data || res;
       }
     }
   }
@@ -123,24 +120,19 @@ export async function prepareSectionsForBackend(sections, periodicites, createPe
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. hydrateSectionFromBackend
 // ─────────────────────────────────────────────────────────────────────────────
-export function hydrateSectionFromBackend(section, periodicites = [], reglesEchantillonnage = []) {
+export function hydrateSectionFromBackend(section, periodicites = []) {
   const hydrated = { ...section, isFromDb: true };
 
-  if (section.regleEchantillonnageId) {
-    const regle = reglesEchantillonnage.find(r => (r.id || r.Id) === section.regleEchantillonnageId);
-    const libelle = regle ? (regle.libelle || regle.Libelle) : (section.regleEchantillonnageLibelle || '');
-    hydrated.modeFreq = 'FIXE';
-    hydrated.frequenceLibelle = libelle;
-    hydrated.regleEchantillonnageLibelle = libelle;
-  } else if (section.periodiciteId) {
-    const perio = periodicites.find(p => (p.id || p.Id) === section.periodiciteId);
+  if (section.periodiciteId) {
+    const sectionPerioId = String(section.periodiciteId).toLowerCase();
+    const perio = periodicites.find(p => p && (p.id || p.Id) && String(p.id || p.Id).toLowerCase() === sectionPerioId);
     if (perio) {
       const parsed = parseFrequenceLibelle(perio.libelle || perio.Libelle || '', periodicites);
       Object.assign(hydrated, {
         modeFreq: 'VARIABLE',
-        freqNum: parsed.freqNum || perio.frequenceNum || 1,
-        freqHours: parsed.freqHours || 1,
-        typeVariable: parsed.typeVariable || 'HEURE',
+        freqNum: perio.nbrPieces ?? perio.NbrPieces ?? parsed.freqNum ?? 1,
+        freqHours: perio.nbrHeures ?? perio.NbrHeures ?? parsed.freqHours ?? 1,
+        typeVariable: perio.unite || perio.Unite || parsed.typeVariable || 'HEURE',
         frequenceLibelle: perio.libelle || perio.Libelle || ''
       });
     } else {
@@ -148,7 +140,7 @@ export function hydrateSectionFromBackend(section, periodicites = [], reglesEcha
     }
   } else if (section.typeSectionId) {
     hydrated.modeFreq = section.modeFreq || 'SANS';
-    if (!section.periodiciteId && !section.regleEchantillonnageId && section.libelleSection?.includes('(')) {
+    if (!section.periodiciteId && section.libelleSection?.includes('(')) {
       const match = section.libelleSection.match(/\(([^)]+)\)\s*$/);
       if (match) {
         const parsingResult = parseFrequenceLibelle(match[1].trim(), periodicites);
@@ -185,25 +177,18 @@ export function hydrateSectionFromBackend(section, periodicites = [], reglesEcha
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. mapImportedSection
 // ─────────────────────────────────────────────────────────────────────────────
-export function mapImportedSection(sec, reglesEchantillonnage = []) {
+export function mapImportedSection(sec) {
   let modeFreq = sec.modeFreq || 'SANS';
-  let regleEchantillonnageId = sec.regleEchantillonnageId || null;
   let freqNum = sec.freqNum || 1;
   let typeVariable = sec.typeVariable || 'HEURE';
   let freqHours = sec.freqHours || 1;
 
-  if (regleEchantillonnageId) {
-    modeFreq = 'FIXE';
-  } else if (sec.frequenceLibelle) {
-    const perMatch = reglesEchantillonnage.find(p =>
-      (p.libelle || p.Libelle || '').toLowerCase().trim() === (sec.frequenceLibelle || '').toLowerCase().trim()
-    );
-    if (perMatch) {
-      modeFreq = 'FIXE';
-      regleEchantillonnageId = perMatch.id || perMatch.Id;
-    } else {
-      modeFreq = 'VARIABLE';
-      const libelle = sec.frequenceLibelle.toLowerCase();
+  // Une référence de norme (« selon ISO… ») est portée par le type de section : seule une fréquence
+  // reconnue (pièces / heure, série, échantillons) devient une périodicité.
+  if (sec.periodiciteId || modeFreq === 'VARIABLE') {
+    modeFreq = 'VARIABLE';
+    const libelle = (sec.frequenceLibelle || '').toLowerCase();
+    {
       if (libelle.includes('pièce') && libelle.includes('heure')) {
         typeVariable = 'HEURE';
         const match = libelle.match(/(\d+)\s*pièce.*\/\s*(\d+)\s*heure/);
@@ -233,10 +218,6 @@ export function mapImportedSection(sec, reglesEchantillonnage = []) {
     notes: sec.notes || '',
     modeFreq,
     periodiciteId: sec.periodiciteId || null,
-    regleEchantillonnageId,
-    regleEchantillonnageLibelle: regleEchantillonnageId
-      ? (sec.regleEchantillonnageLibelle || sec.frequenceLibelle || '')
-      : (sec.frequenceLibelle || ''),
     frequenceLibelle: sec.frequenceLibelle || '',
     freqNum,
     typeVariable,
@@ -247,6 +228,7 @@ export function mapImportedSection(sec, reglesEchantillonnage = []) {
       typeCaracteristiqueId: lig.typeCaracteristiqueId || null,
       typeControleId: lig.typeControleId || null,
       moyenControleId: lig.moyenControleId || null,
+      moyenTexteLibre: lig.moyenTexteLibre || '',
       instrumentCode: lig.instrumentCode || null,
       valeurNominale: lig.valeurNominale || null,
       toleranceSuperieure: lig.toleranceSuperieure || null,

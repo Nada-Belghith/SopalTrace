@@ -110,8 +110,9 @@
 </template>
 
 <script setup>
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { computed } from 'vue';
-import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
+import { titreSection } from '@/utils/sectionTitleUtils';
 
 const props = defineProps({
   sections:       { type: Array,  default: () => [] },
@@ -124,7 +125,6 @@ const props = defineProps({
   typesControle:       { type: Array, default: () => [] },
   moyensControle:      { type: Array, default: () => [] },
   periodicites:        { type: Array, default: () => [] },
-  reglesEchantillonnage: { type: Array, default: () => [] },
 });
 
 // ─── Colonnes Dynamiques ───
@@ -140,16 +140,16 @@ const baseModeleColumns = [
 const computedColumns = computed(() => {
   let cols = [...baseModeleColumns];
   let customCols = [];
-  
+
   if (typeof props.configurationColonnes === 'string') {
     try { customCols = JSON.parse(props.configurationColonnes); } catch { /* ignore */ }
   } else {
     customCols = props.configurationColonnes || [];
   }
-  
+
   customCols.forEach(cc => {
     const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
-    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', isCustom: true };
+    const newCol = { key: cc.key, label: cc.label, type: normaliserTypeColonne(cc.type), options: cc.options || [], width: 'w-[12%]', isCustom: true };
     if (insertIdx !== -1) {
       cols.splice(insertIdx + 1, 0, newCol);
     } else {
@@ -172,57 +172,8 @@ function resolveCustomValue(ligne, colKey) {
 
 // ─── Résolution des libellés ───
 
-function buildFreqLabel(section) {
-  // Si frequenceLibelle est directement disponible, on l'utilise
-  if (section.frequenceLibelle) return section.frequenceLibelle;
-  
-  if (section.regleEchantillonnageId && props.reglesEchantillonnage) {
-    const regle = props.reglesEchantillonnage.find(r => r.id === section.regleEchantillonnageId);
-    if (regle) return regle.libelle;
-  }
-  
-  if (section.regleEchantillonnageLibelle) return section.regleEchantillonnageLibelle;
-
-  // Sinon on reconstruit depuis les champs parsés
-  if (section.modeFreq === 'VARIABLE') {
-    const freqNum = section.freqNum || 1;
-    const sP = freqNum > 1 ? 's' : '';
-    if (section.typeVariable === 'HEURE') {
-      const h = section.freqHours || 1;
-      const sH = h > 1 ? 's' : '';
-      return h === 1 ? `${freqNum} pièce${sP} / heure` : `${freqNum} pièce${sP} / ${h} heure${sH}`;
-    }
-    if (section.typeVariable === 'ECHANTILLON') return `${freqNum} échantillon${sP}`;
-    return `une série de ${freqNum} pièces`;
-  }
-
-  if (section.modeFreq === 'FIXE' && section.periodiciteId) {
-    const period = (props.periodicites || []).find(p => {
-      const pId = p.id || p.Id;
-      return pId && typeof pId === 'string' && typeof section.periodiciteId === 'string' && pId.toLowerCase() === section.periodiciteId.toLowerCase();
-    });
-    if (period) return period.libelle || period.Libelle;
-  }
-
-  // Chercher dans periodicites par periodiciteId même sans modeFreq=FIXE
-  if (section.periodiciteId) {
-    const period = (props.periodicites || []).find(p => {
-      const pId = p.id || p.Id;
-      return pId && typeof pId === 'string' && typeof section.periodiciteId === 'string' && pId.toLowerCase() === section.periodiciteId.toLowerCase();
-    });
-    if (period) return period.libelle || period.Libelle;
-  }
-
-  return '';
-}
-
 function buildSectionTitle(section) {
-  const freqLabel = buildFreqLabel(section);
-  // On enrichit la section avec le frequenceLibelle calculé pour que resolveSectionDisplayTitle l'utilise
-  const enrichedSection = freqLabel
-    ? { ...section, frequenceLibelle: freqLabel }
-    : section;
-  return resolveSectionDisplayTitle(enrichedSection, props.typesSection);
+  return titreSection(section, props.typesSection, props.periodicites);
 }
 
 function resolveLibelle(ligne) {

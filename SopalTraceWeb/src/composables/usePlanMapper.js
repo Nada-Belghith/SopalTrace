@@ -67,22 +67,13 @@ export function usePlanMapper(store) {
       }
 
       let modeFreq = freqData.modeFreq;
-      let regleEchantillonnageId = sec.regleEchantillonnageId || null;
       let periodiciteId = sec.periodiciteId || freqData.periodiciteId;
       let freqNum = sec.freqNum || freqData.freqNum;
       let typeVariable = sec.typeVariable || freqData.typeVariable;
       let freqHours = sec.freqHours || freqData.freqHours;
 
-      if (regleEchantillonnageId) {
-        modeFreq = 'FIXE';
-      } else if (periodiciteId) {
+      if (periodiciteId) {
         modeFreq = 'VARIABLE';
-      } else if (texteParse) {
-        const regMatch = (refStore.reglesEchantillonnage || []).find(r => r.libelle === texteParse);
-        if (regMatch) {
-          modeFreq = 'FIXE';
-          regleEchantillonnageId = regMatch.id;
-        }
       }
 
       let typeSectionId = sec.typeSectionId || '';
@@ -111,21 +102,18 @@ export function usePlanMapper(store) {
       return {
         id: crypto.randomUUID(),
         isFromDb: false,
-        modeleSectionId: sec.id,
         typeSectionId,
         modeFreq,
         periodiciteId,
-        regleEchantillonnageId,
         freqNum,
         typeVariable,
         freqHours,
         isNewFreq: false,
         frequenceLibelle: sec.frequenceLibelle || '',
-        nom: cleanSectionName(sec.libelleSection, typeSectionId, sec.frequenceLibelle || '', sec.regleEchantillonnageLibelle || ''),
+        nom: cleanSectionName(sec.libelleSection, typeSectionId, sec.frequenceLibelle || '', ''),
         lignes: [...(sec.lignes || [])].filter(lig => lig != null).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0)).map(lig => ({
           id: crypto.randomUUID(),
           isFromDb: false,
-          modeleLigneSourceId: lig.id,
           typeCaracteristiqueId: lig.typeCaracteristiqueId,
           typeControleId: lig.typeControleId,
           moyenControleId: lig.moyenControleId,
@@ -162,7 +150,6 @@ export function usePlanMapper(store) {
       if (dbSec) {
         sec.id = dbSec.id;
         sec.isFromDb = true;
-        sec.modeleSectionId = dbSec.modeleSectionId;
 
         (sec.lignes || []).forEach((lig, lIdx) => {
           const dbLig = (dbSec.lignes || []).find(dl => dl.ordreAffiche === (lIdx + 1));
@@ -170,7 +157,6 @@ export function usePlanMapper(store) {
           if (dbLig) {
             lig.id = dbLig.id;
             lig.isFromDb = true;
-            lig.modeleLigneSourceId = dbLig.modeleLigneSourceId;
           } else {
             lig.isFromDb = false;
           }
@@ -216,7 +202,7 @@ export function usePlanMapper(store) {
       if (originalSection.modeFreq === 'VARIABLE') {
         const is100 = originalSection.freqNum === 100 && originalSection.typeVariable === 'HEURE';
         if (is100) {
-          const p100 = (refStore.periodicites || []).find(p => p.frequenceNum === 100 || p.code === '100PCT_1H');
+          const p100 = (refStore.periodicites || []).find(p => p.nbrPieces === 100 && p.unite === 'HEURE');
           finalFrequenceLibelle = p100 ? p100.libelle : "100% des pi\u00e8ces/h";
         } else {
           finalFrequenceLibelle = originalSection.frequenceLibelle || '';
@@ -229,25 +215,16 @@ export function usePlanMapper(store) {
         finalFrequenceLibelle = matchingPeriod ? (matchingPeriod.libelle || matchingPeriod.Libelle || '') : '';
       }
 
-      let regleEchLibelle = '';
-      const regleEchId = originalSection.regleEchantillonnageId;
-      if (regleEchId) {
-        regleEchLibelle = (refStore.reglesEchantillonnage || []).find(r => r.id === regleEchId)?.libelle || '';
-      }
-
       const typeSectionId = originalSection.typeSectionId;
 
       return {
         id: originalSection.isFromDb ? normalizeId(originalSection.id) : null,
-        modeleSectionId: originalSection.modeleSectionId,
         ordreAffiche: idx + 1,
         typeSectionId: (typeSectionId && typeSectionId !== "") ? typeSectionId : null,
         libelleSection: originalSection.nom || originalSection.libelleSection || 'SECTION SANS NOM',
         notes: originalSection.notes || '',
         frequenceLibelle: finalFrequenceLibelle,
-        regleEchantillonnageLibelle: regleEchLibelle,
         periodiciteId: (originalSection.periodiciteId && originalSection.periodiciteId !== "") ? originalSection.periodiciteId : null,
-        regleEchantillonnageId: (regleEchId && regleEchId !== "") ? regleEchId : null,
         lignes: (originalSection.lignes || []).map((l, lIdx) => {
           const caractMatch = (refStore.typesCaracteristique || []).find(c => c.id === l.typeCaracteristiqueId);
           const nomCaract = caractMatch?.libelle || '';
@@ -257,7 +234,6 @@ export function usePlanMapper(store) {
           
           return {
             id: l.isFromDb ? normalizeId(l.id) : null,
-            modeleLigneSourceId: l.modeleLigneSourceId,
             ordreAffiche: lIdx + 1,
             typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
             typeControleId: (l.typeControleId && l.typeControleId !== "") ? l.typeControleId : null,

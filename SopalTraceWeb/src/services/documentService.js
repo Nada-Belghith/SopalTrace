@@ -52,6 +52,8 @@ export const documentService = {
   /**
    * Correction mineure : modifie le document en place.
    * Aucun changement de version, aucun archivage.
+   * payload.rowVersion (version reçue au chargement) est obligatoire : refus 409 si le document a changé entre-temps.
+   * @returns {{ rowVersion: string }} nouvelle version, à conserver pour l'enregistrement suivant
    */
   async updateDocument(id, payload) {
     const response = await apiClient.put(`/Document/${id}`, payload)

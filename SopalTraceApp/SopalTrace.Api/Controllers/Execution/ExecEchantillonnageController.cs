@@ -1,14 +1,18 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SopalTrace.Api.Extensions;
+using SopalTrace.Application.DTOs.Execution;
 using SopalTrace.Application.Services;
+using SopalTrace.Domain.Constants;
 
 namespace SopalTrace.API.Controllers.Execution
 {
     [ApiController]
     [Route("api/[controller]")]
-    // [Authorize] // Uncomment if authentication is required globally
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.Operateur)]
     public class ExecEchantillonnageController : ControllerBase
     {
         private readonly IExecEchantillonnageService _execEchantillonnageService;
@@ -18,62 +22,29 @@ namespace SopalTrace.API.Controllers.Execution
             _execEchantillonnageService = execEchantillonnageService;
         }
 
-        [HttpPost("init/{execControleOfId}")]
-        public async Task<IActionResult> InitPlanPourOf([FromRoute] Guid execControleOfId, [FromBody] SopalTrace.Application.DTOs.Execution.InitEchantillonnageRequest request)
+        [HttpPost("init/{execControleOfId:guid}")]
+        public async Task<IActionResult> InitPlanPourOf([FromRoute] Guid execControleOfId, [FromBody] InitEchantillonnageRequest request)
         {
-            try
-            {
-                request.MatriculeOperateur = User.FindFirst("matricule")?.Value;
-                var result = await _execEchantillonnageService.InitPlanPourOfAsync(execControleOfId, request);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            request.MatriculeOperateur = User.GetMatricule();
+            return Ok(await _execEchantillonnageService.InitPlanPourOfAsync(execControleOfId, request));
         }
 
-        [HttpGet("{execControleOfId}")]
-        public async Task<IActionResult> GetPlanPourOf([FromRoute] Guid execControleOfId, [FromQuery] string? posteCode)
+        [HttpGet("{execControleOfId:guid}")]
+        public async Task<IActionResult> GetPlanPourOf(
+            [FromRoute] Guid execControleOfId,
+            [FromQuery, RegularExpression(FormatsEntree.Code, ErrorMessage = FormatsEntree.MessageCodeInvalide)] string? posteCode)
         {
-            try
-            {
-                var result = await _execEchantillonnageService.GetPlanPourOfAsync(execControleOfId, posteCode);
-                if (result == null) return NotFound("Plan non initialisé pour cet OF.");
-                return Ok(result); 
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var result = await _execEchantillonnageService.GetPlanPourOfAsync(execControleOfId, posteCode);
+            if (result == null) return NotFound(new { message = "Plan non initialisé pour cet OF." });
+            return Ok(result);
         }
 
-        [HttpGet("check-source/{execControleOfId}")]
+        [HttpGet("check-source/{execControleOfId:guid}")]
         public async Task<IActionResult> CheckSourcePlan([FromRoute] Guid execControleOfId)
         {
-            try
-            {
-                var exists = await _execEchantillonnageService.SourcePlanExistsAsync(execControleOfId);
-                return Ok(new { exists });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var exists = await _execEchantillonnageService.SourcePlanExistsAsync(execControleOfId);
+            return Ok(new { exists });
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePlan([FromRoute] Guid id, [FromBody] SopalTrace.Application.DTOs.Execution.ExecEchantillonnageDto request)
-        {
-            try
-            {
-                var result = await _execEchantillonnageService.UpdatePlanAsync(id, request);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
     }
 }

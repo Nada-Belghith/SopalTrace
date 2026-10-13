@@ -55,30 +55,8 @@ apiClient.interceptors.response.use(
     // Si on reçoit 401 et ce n'est pas déjà un retry ni un call auth
     if (error.response && error.response.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/')) {
 
-      // Vérifier si un OF est EN_COURS
-      let hasActiveOf = false;
-      try {
-        const { useOperateurStore } = await import('@/stores/execution/operateurStore');
-        const store = useOperateurStore();
-        if (store && store.ofs) {
-          hasActiveOf = store.ofs.some(of =>
-            of.gammeOperatoire && of.gammeOperatoire.some(op => op.activeExecStatut === 'EN_COURS')
-          );
-        }
-      } catch (e) {
-        console.warn("Impossible de vérifier le statut des OFs pour le refresh token", e);
-      }
+      // (La vérification hasActiveOf a été supprimée car elle empêchait le refresh token pour les utilisateurs normaux)
 
-      // S'il n'y a PAS d'OF en cours (càd en pause, clôturé, ou vide), on procède à la déconnexion normale
-      if (!hasActiveOf) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/forgot-password') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
 
       if (isRefreshing) {
         return new Promise(function (resolve, reject) {
@@ -101,6 +79,11 @@ apiClient.interceptors.response.use(
 
         const newToken = data.token;
         localStorage.setItem('token', newToken);
+        // Le rôle fait foi côté serveur : on garde la copie locale alignée (menus et gardes de route).
+        try {
+          const user = JSON.parse(localStorage.getItem('user') || 'null');
+          if (user && data.roleApp) localStorage.setItem('user', JSON.stringify({ ...user, role: data.roleApp, nom: data.nomComplet || user.nom }));
+        } catch { /* copie locale illisible : elle sera réécrite à la prochaine connexion */ }
 
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -132,12 +115,21 @@ apiClient.interceptors.response.use(
     };
 
     if (error.response) {
-      const data = error.response.data;
+      const data = error.response.data || {};
+      // Erreurs de validation ASP.NET (ProblemDetails) : { errors: { Champ: ["message"] } }
+      const premiereErreurValidation = data.errors ? Object.values(data.errors).flat()[0] : null;
       switch (apiError.status) {
         case 400:
-          apiError.message = data.error || data.message || "Données invalides.";
-          apiError.details = data.details || [];
+          // Erreurs FluentValidation : message générique + détail par règle → on affiche le détail.
+          apiError.message = (Array.isArray(data.details) && data.details.length ? data.details.join(' ') : null)
+            || data.error || data.message || premiereErreurValidation || "Données invalides.";
+          apiError.details = data.details || (data.errors ? Object.values(data.errors).flat() : []);
           logger.warn(`Validation échouée (${apiError.status})`, apiError.details);
+          break;
+        case 404:
+        case 409:
+          apiError.message = data.message || data.error || apiError.message;
+          logger.warn(`Erreur métier (${apiError.status})`, apiError.message);
           break;
         case 401:
           // Géré par le retry au-dessus, on n'arrive ici que si le refresh échoue
@@ -148,8 +140,13 @@ apiClient.interceptors.response.use(
           apiError.message = "Vous n'avez pas les droits nécessaires pour cette action.";
           logger.error("Accès refusé (403)");
           break;
+        case 429:
+          apiError.message = "Trop de requêtes. Patientez quelques instants puis réessayez.";
+          break;
         case 500:
-          apiError.message = "Erreur interne du serveur SopalTrace.";
+          apiError.message = data.traceId
+            ? `Erreur interne du serveur SopalTrace (trace ${data.traceId}).`
+            : "Erreur interne du serveur SopalTrace.";
           logger.error("Crash serveur (500)", data);
           break;
         default:
@@ -160,6 +157,10 @@ apiClient.interceptors.response.use(
       apiError.message = "Impossible de joindre le serveur. Vérifiez votre connexion réseau.";
       logger.error("Timeout ou serveur injoignable", error.request);
     }
+
+    // Forme compatible axios : les écrans qui lisent error.response.data.message reçoivent le message de l'API
+    // (règle métier, validation, conflit de version) au lieu de leur texte générique.
+    apiError.response = { status: apiError.status, data: { ...(error.response?.data || {}), message: apiError.message } };
 
     return Promise.reject(apiError);
   }

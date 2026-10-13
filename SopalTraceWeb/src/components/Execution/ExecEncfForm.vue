@@ -1,6 +1,11 @@
 <template>
   <div class="space-y-6 max-w-7xl mx-auto pb-12">
 
+    <button type="button" @click="router.back()"
+            class="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900">
+      <i class="pi pi-arrow-left"></i> Retour
+    </button>
+
     <!-- ═══════════════════════════════════════════
          LOADING STATE
     ═══════════════════════════════════════════ -->
@@ -335,11 +340,12 @@
 
 <script setup>
 import { computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useExecEncfStore } from '@/stores/execution/execEncfStore';
 import { useToast } from 'primevue/usetoast';
 
 const route  = useRoute();
+const router = useRouter();
 const store  = useExecEncfStore();
 const toast  = useToast();
 

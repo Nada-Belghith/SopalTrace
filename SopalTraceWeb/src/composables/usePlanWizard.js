@@ -338,14 +338,9 @@ export function usePlanWizard() {
   };
 
   // 🔥 LE WATCHER MAGIQUE : Lance l'API *uniquement* quand l'opération est sélectionnée
-  // Poste requis uniquement pour Auto avec Soupape
-  const requiertPoste = computed(() => {
-    const nat = String(natureComposantCode.value || '').trim().toUpperCase();
-    const type = String(typeRobinetCode.value || '').trim().toUpperCase();
-
-    // "je veux liste apparait que dans auto avec souape"
-    return type === 'AUTO' && nat === 'SOUPAPE';
-  });
+  // Poste requis pour les familles dont les plans sont propres à chaque poste (FamilleProduitFini.PlanParPoste)
+  const requiertPoste = computed(() =>
+    !!(refStore.famillesProduit || []).find(f => f.code === familleCode.value)?.planParPoste);
 
   const postesDisponibles = computed(() =>
     (refStore.postes || [])

@@ -20,13 +20,12 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
 import { useReferentielStore } from '@/stores/referentielStore';
 import DocumentControlePosteForm from '@/components/DocumentControlePoste/DocumentControlePosteForm.vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
-import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';
@@ -34,8 +33,6 @@ import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';
 const store = usedocumentControlePosteStore();
 const refStore = useReferentielStore();
 const route = useRoute();
-const router = useRouter();
-const toast = useToast();
 
 const { isReadOnly } = useDocumentHeaderMeta(route, store);
 

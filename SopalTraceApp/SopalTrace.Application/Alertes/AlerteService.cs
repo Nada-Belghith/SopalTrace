@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 using SopalTrace.Application.Interfaces;
@@ -72,7 +73,7 @@ public class AlerteService<TContexte>
         if (destinataires.Any())
         {
             var sujet = $"[Résolu] Alerte traitée ({alerte.TypeAlerte})";
-            var corps = $"<p>L'alerte de type <b>{alerte.TypeAlerte}</b> concernant <b>{alerte.CleEntite}</b> a été prise en charge et résolue par <b>{nomUtilisateurResoluteur}</b>.</p><p>Merci.</p>";
+            var corps = $"<p>L'alerte de type <b>{WebUtility.HtmlEncode(alerte.TypeAlerte)}</b> concernant <b>{WebUtility.HtmlEncode(alerte.CleEntite)}</b> a été prise en charge et résolue par <b>{WebUtility.HtmlEncode(nomUtilisateurResoluteur)}</b>.</p><p>Merci.</p>";
 
             foreach (var email in destinataires)
             {

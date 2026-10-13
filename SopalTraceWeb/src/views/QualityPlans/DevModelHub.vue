@@ -300,7 +300,7 @@ const chargerModeles = async () => {
 };
 
 const filteredPlans = computed(() => {
-  return modeles.value.filter(plan => {
+  const filtered = modeles.value.filter(plan => {
     // Si c'est le Hub Générique, exclure les modèles de Fabrication
     if (!isModeleFabRoute.value && plan.category === 'FAB') return false;
 

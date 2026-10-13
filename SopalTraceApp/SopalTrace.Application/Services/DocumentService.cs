@@ -6,6 +6,7 @@ using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -50,7 +51,7 @@ public class DocumentService : IDocumentService
     /// <inheritdoc/>
     public async Task<Guid> CreateDocumentAsync(CreateDocumentRequestDto request)
     {
-        var user = _currentUserService.UserInfo;
+        var user = _currentUserService.MatriculeRequis;
 
         // Calculer d'abord le formCodeRef effectif (même logique que ResolverFormulaireAsync)
         // afin de ne chercher les doublons que parmi les documents liés au MÊME formulaire.
@@ -83,11 +84,12 @@ public class DocumentService : IDocumentService
             forceNouvelleVersion: forceNouvelleVersion);
 
         var entite = BuildDocumentEntite(request, user, formulaireId, formVersion);
+        await AppliquerChampFormulaireAsync(entite, formulaireId);
         entite.Statut = formStatut;
         NommerAvecVersion(entite);
 
         await SyncExtraColonnesAsync(entite, formulaireId);
-        await AppliquerSmartDictionaryAsync(entite.DocumentSections);
+        await CompleterReferencesAsync(entite.DocumentSections);
         await PersisterNouveauDocumentAsync(entite);
 
         return entite.Id;
@@ -96,9 +98,10 @@ public class DocumentService : IDocumentService
     /// <inheritdoc/>
     public async Task<Guid> CreateNewVersionAsync(NouvelleVersionDocumentRequestDto request)
     {
-        var user = _currentUserService.UserInfo;
+        var user = _currentUserService.MatriculeRequis;
 
         var ancienDoc = await ChargerDocumentOuLeverAsync(request.AncienId);
+        _unitOfWork.VerifierVersionDocument(ancienDoc, request.RowVersion, obligatoire: false);
 
         // Le FormulaireStructureService gère l'archivage automatique des documents liés
         // lorsque le formulaire passe à une nouvelle version.
@@ -112,20 +115,22 @@ public class DocumentService : IDocumentService
             forceNouvelleVersion: true);
 
         var nouveauDoc = BuildDocumentEntite(request, user, formulaireId, formVersion);
+        await AppliquerChampFormulaireAsync(nouveauDoc, formulaireId);
         nouveauDoc.Statut = formStatut;
         NommerAvecVersion(nouveauDoc);
 
         await SyncExtraColonnesAsync(nouveauDoc, formulaireId);
-        await AppliquerSmartDictionaryAsync(nouveauDoc.DocumentSections);
+        await CompleterReferencesAsync(nouveauDoc.DocumentSections);
         await PersisterNouveauDocumentAsync(nouveauDoc);
 
         return nouveauDoc.Id;
     }
 
-    public async Task<bool> UpdateDocumentAsync(Guid id, UpdateDocumentRequestDto request)
+    public async Task<string?> UpdateDocumentAsync(Guid id, UpdateDocumentRequestDto request)
     {
         var doc = await _unitOfWork.DocumentEnteteRepository.GetByIdAsync(id, includeRelations: true);
-        if (doc == null) return false;
+        if (doc == null) return null;
+        _unitOfWork.VerifierVersionDocument(doc, request.RowVersion, obligatoire: true);
 
         DocumentMapper.UpdateEntityScalaires(doc, request);
         
@@ -136,13 +141,13 @@ public class DocumentService : IDocumentService
             request.ConfigurationColonnesJson, null, doc.Version,
             isCorrectionMineure: true);
 
-        AppliquerStrategieType(doc, request.ConfigurationColonnesJson);
         MergerSections(doc, request.Sections);
+        await CompleterReferencesAsync(doc.DocumentSections);
 
         await _unitOfWork.DocumentEnteteRepository.UpdateAsync(doc);
         await _unitOfWork.CommitAsync();
 
-        return true;
+        return VersionsDocument.EnTexte(doc.RowVersion) ?? string.Empty;
     }
 
     /// <inheritdoc/>
@@ -179,10 +184,11 @@ public class DocumentService : IDocumentService
         string? operationCode        = null,
         string? posteCode            = null,
         string? familleProduitCode   = null,
-        string? statut               = null)
+        string? statut               = null,
+        string? refFormulaireCodeReference = null)
     {
         var result = await _unitOfWork.DocumentEnteteRepository.GetByFiltersAsync(
-            typeDocumentCode, natureComposantCode, operationCode, posteCode, familleProduitCode, statut);
+            typeDocumentCode, natureComposantCode, operationCode, posteCode, familleProduitCode, statut, refFormulaireCodeReference);
 
         var dtos = new List<DocumentEnteteDto>();
         foreach (var doc in result)
@@ -237,7 +243,7 @@ public class DocumentService : IDocumentService
             return (null, null, version, statut);
 
         var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(formCodeRef);
-        string role = form?.Role ?? "UNKNOWN";
+        string role = form?.Role ?? RolesFormulaire.PourTypeDocument(typeCode);
 
         var colsJson = BuildColonnesJson(configColonnesJson, colonneDefs);
 
@@ -264,6 +270,14 @@ public class DocumentService : IDocumentService
             }
         }
 
+        // Les documents de ce service sont génériques (sans article) : ils n'ont pas de brouillon,
+        // ils sont actifs dès leur création puis archivés par une nouvelle version.
+        if (statut == DocumentStatuts.Brouillon)
+        {
+            if (formulaireId.HasValue) await _formulaireStructureService.ActiverFormulaireAsync(formulaireId.Value);
+            statut = DocumentStatuts.Actif;
+        }
+
         return (formulaireId, formCodeRef, version, statut);
     }
 
@@ -279,6 +293,33 @@ public class DocumentService : IDocumentService
     /// Construit une entité DocumentEntete à partir du DTO.
     /// Toujours ACTIF, version passée en paramètre.
     /// </summary>
+    /// <summary>
+    /// Champ d'application du formulaire : le document reprend son poste et, si elle est renseignée, sa famille
+    /// (ex. « PAS71 soupape » : PAS71, famille RBGFA_SOUPAPE). Un poste ou une famille contraires sont refusés.
+    /// </summary>
+    private async Task AppliquerChampFormulaireAsync(DocumentEntete document, Guid? formulaireId)
+    {
+        if (!formulaireId.HasValue) return;
+        var formulaire = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(formulaireId.Value);
+        if (formulaire == null) return;
+
+        if (!string.IsNullOrEmpty(formulaire.PosteCode))
+        {
+            if (!string.IsNullOrEmpty(document.PosteCode) && !string.Equals(document.PosteCode, formulaire.PosteCode, StringComparison.OrdinalIgnoreCase))
+                throw new RegleMetierException(
+                    $"Le formulaire {formulaire.CodeReference} est celui du poste {formulaire.PosteCode} : il ne peut pas servir au poste {document.PosteCode}.");
+            document.PosteCode = formulaire.PosteCode;
+        }
+        if (!string.IsNullOrEmpty(formulaire.FamilleProduitFiniCode))
+        {
+            if (!string.IsNullOrEmpty(document.FamilleProduitFiniCode) &&
+                !string.Equals(document.FamilleProduitFiniCode, formulaire.FamilleProduitFiniCode, StringComparison.OrdinalIgnoreCase))
+                throw new RegleMetierException(
+                    $"Le formulaire {formulaire.CodeReference} est celui de la famille {formulaire.FamilleProduitFiniCode} : il ne peut pas servir à la famille {document.FamilleProduitFiniCode}.");
+            document.FamilleProduitFiniCode = formulaire.FamilleProduitFiniCode;
+        }
+    }
+
     private static DocumentEntete BuildDocumentEntite(
         CreateDocumentRequestDto request,
         string user,
@@ -341,22 +382,9 @@ public class DocumentService : IDocumentService
         }
     }
 
-    /// <summary>Applique le Smart Dictionary sur les libellés des lignes.</summary>
-    private async Task AppliquerSmartDictionaryAsync(ICollection<DocumentSection> sections)
-    {
-        await GenericSmartDictionaryService.ExecuteSmartDictionaryPassAsync(
-            sections,
-            _unitOfWork.DictionnaireQualiteRepository,
-            s => s.DocumentLignes,
-            l => (
-                l.LibelleAffiche,
-                (id) => { l.TypeCaracteristiqueId = id; },
-                l.MoyenTexteLibre,
-                (id) => { l.MoyenControleId = id; },
-                l.InstrumentCode
-            ),
-            null);
-    }
+    /// <summary>Rattache ou crée les référentiels des lignes (caractéristiques, moyens, instruments).</summary>
+    private Task CompleterReferencesAsync(ICollection<DocumentSection> sections)
+        => ReferencesLignesQualite.CompleterAsync(sections, _unitOfWork.DictionnaireQualiteRepository);
 
     /// <summary>Ajoute l'entité en base et commite.</summary>
     private async Task PersisterNouveauDocumentAsync(DocumentEntete entite)
@@ -371,13 +399,6 @@ public class DocumentService : IDocumentService
         var doc = await _unitOfWork.DocumentEnteteRepository.GetByIdAsync(id, includeRelations: true);
         if (doc == null) throw new Exception($"Document introuvable (Id={id}).");
         return doc;
-    }
-
-    /// <summary>Applique les propriétés personnalisées selon la stratégie du type de document.</summary>
-    private void AppliquerStrategieType(DocumentEntete doc, string? configColonnesJson)
-    {
-        var strategy = _strategies.FirstOrDefault(s => s.DocumentTypeCode == doc.TypeDocumentCode);
-        strategy?.ApplyCustomProperties(doc, configColonnesJson);
     }
 
     /// <summary>Fusionne les sections (ajout, mise à jour, suppression) sur un document existant.</summary>
@@ -401,8 +422,8 @@ public class DocumentService : IDocumentService
             {
                 DocumentMapper.UpdateLigne(lig, dto);
                 MergerExtraColonnes(lig, dto.ExtraColonnes ?? new());
-            }
-        );
+            },
+            ajouter: _unitOfWork.Ajouter);
     }
 
     /// <summary>Fusionne les colonnes extra d'une ligne (ajout, mise à jour, suppression).</summary>
@@ -426,14 +447,16 @@ public class DocumentService : IDocumentService
             }
             else
             {
-                lig.DocumentLigneExtraColonnes.Add(new DocumentLigneExtraColonne
+                var nouvelle = new DocumentLigneExtraColonne
                 {
                     Id            = Guid.NewGuid(),
                     LigneId       = lig.Id,
                     CleColonne    = inc.CleColonne,
                     ValeurColonne = inc.ValeurColonne,
                     OrdreAffiche  = inc.OrdreAffiche
-                });
+                };
+                lig.DocumentLigneExtraColonnes.Add(nouvelle);
+                _unitOfWork.Ajouter(nouvelle);
             }
         }
     }

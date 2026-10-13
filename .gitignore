@@ -368,3 +368,19 @@ FodyWeavers.xsd
 .env.*
 **/.env
 **/.env.*
+# Le modèle de configuration (sans secret) reste versionné
+!**/.env.example
+
+# Journaux applicatifs et fichiers temporaires
+**/logs/
+**/*_logs*.txt
+**/temp_*
+
+# Scripts SQL préparés par les tests E2E
+.e2e-tmp/
+**/tests/e2e/__pycache__/
+
+# Certificats et configuration de déploiement locaux
+**/deploy/certs/
+**/deploy/.env
+**/deploy/sql/

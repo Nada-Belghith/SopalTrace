@@ -20,6 +20,10 @@ public class HubController : ControllerBase
         _service = service;
     }
 
+    /// <summary>Compteurs du tableau de bord superviseur : documents génériques / spécifiques par statut et par type.</summary>
+    [HttpGet("statistiques")]
+    public async Task<IActionResult> GetStatistiques() => Ok(await _service.GetStatistiquesAsync());
+
     [HttpGet("modeles")]
     public async Task<IActionResult> GetTousLesModeles()
     {

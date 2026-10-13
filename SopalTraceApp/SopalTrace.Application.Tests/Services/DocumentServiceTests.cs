@@ -28,7 +28,7 @@ namespace SopalTrace.Application.Tests.Services
             _mockFormulaireStructureService = new Mock<IFormulaireStructureService>();
 
             // Setup current user
-            _mockCurrentUserService.Setup(c => c.UserInfo)
+            _mockCurrentUserService.Setup(c => c.MatriculeRequis)
                 .Returns("TestUser");
 
             // Init service
@@ -69,7 +69,7 @@ namespace SopalTrace.Application.Tests.Services
 
             _mockUnitOfWork.Setup(u => u.DocumentEnteteRepository.GetLatestVersionAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), 
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid?>()))
                 .ReturnsAsync(1); // latest version is 1
 
             // Setup void methods
@@ -123,7 +123,7 @@ namespace SopalTrace.Application.Tests.Services
 
             _mockUnitOfWork.Setup(u => u.DocumentEnteteRepository.GetLatestVersionAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), 
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid?>()))
                 .ReturnsAsync(1); 
 
             // Act

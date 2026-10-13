@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace SopalTrace.Application.DTOs.Execution.Operateur;
 
@@ -53,25 +55,37 @@ public class TrancheAlertesDto
 
 public class RepondreOccurrenceRequest
 {
-    public string Resultat { get; set; } = null!; // "C", "NC", ou "REGLAGE"
-    public string? MatriculeOperateur { get; set; } // Opérateur qui a fait le contrôle
-    public string? Raison { get; set; } // Motif d'ignorance ou de pause
-    public List<RepondreOccurrenceLigneDto> Lignes { get; set; } = new();
-    public List<Guid>? AssociatedIds { get; set; }
-}
+    [Required, RegularExpression("^(C|NC|REGLAGE|IGNORE)$", ErrorMessage = "Résultat invalide.")]
+    public string Resultat { get; set; } = null!;
 
-public class IgnorerOccurrencesRequest
-{
-    public List<Guid> OccurrenceIds { get; set; } = new();
-    public string MatriculeOperateur { get; set; } = null!;
-    public string Raison { get; set; } = null!;
+    /// <summary>Renseigné côté serveur à partir du jeton JWT, jamais lu depuis la requête.</summary>
+    [JsonIgnore]
+    public string? MatriculeOperateur { get; set; }
+
+    /// <summary>Motif d'ignorance ou de pause.</summary>
+    [StringLength(500)]
+    public string? Raison { get; set; }
+
+    [MaxLength(500)]
+    public List<RepondreOccurrenceLigneDto> Lignes { get; set; } = new();
+
+    [MaxLength(500)]
+    public List<Guid>? AssociatedIds { get; set; }
 }
 
 public class RepondreOccurrenceLigneDto
 {
     public Guid LignePlanId { get; set; }
-    public string Resultat { get; set; } = null!; // "C" ou "NC"
+
+    [Required, StringLength(20)]
+    public string Resultat { get; set; } = null!;
+
     public double? ValeurMesuree { get; set; }
-    public string? Remarque { get; set; } // Utilisé pour les détails de Non-Conformité
+
+    /// <summary>Détail de la non-conformité.</summary>
+    [StringLength(500)]
+    public string? Remarque { get; set; }
+
+    [StringLength(500)]
     public string? ActionCorrective { get; set; }
 }

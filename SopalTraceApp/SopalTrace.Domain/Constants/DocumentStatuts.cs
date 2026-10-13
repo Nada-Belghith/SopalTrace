@@ -3,7 +3,7 @@ namespace SopalTrace.Domain.Constants;
 /// <summary>
 /// Constantes des statuts possibles d'un DocumentEntete.
 /// Seuls ACTIF et ARCHIVE sont valides pour les types de documents centralisés.
-/// Le statut BROUILLON est réservé aux plans de fabrication (PlanFabricationService).
+/// Le statut BROUILLON est réservé aux plans de fabrication (type PLAN_FAB).
 /// </summary>
 public static class DocumentStatuts
 {
@@ -12,4 +12,7 @@ public static class DocumentStatuts
 
     /// <summary>Document archivé — conservé pour historique uniquement.</summary>
     public const string Archive = "ARCHIVE";
+
+    /// <summary>Brouillon — réservé aux plans de fabrication en cours de rédaction.</summary>
+    public const string Brouillon = "BROUILLON";
 }

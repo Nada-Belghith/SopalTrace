@@ -47,14 +47,15 @@ public class DocumentController : ControllerBase
         [FromQuery] string? operationCode        = null,
         [FromQuery] string? posteCode            = null,
         [FromQuery] string? familleProduitCode   = null,
-        [FromQuery] string? statut               = null)
+        [FromQuery] string? statut               = null,
+        [FromQuery] string? refFormulaireCodeReference = null)
     {
         if (string.IsNullOrWhiteSpace(typeDocumentCode))
             return BadRequest(new { message = "Le paramètre typeDocumentCode est requis." });
 
         var documents = await _documentService.GetDocumentsByFiltersAsync(
             typeDocumentCode, natureComposantCode, operationCode,
-            posteCode, familleProduitCode, statut);
+            posteCode, familleProduitCode, statut, refFormulaireCodeReference);
 
         return Ok(documents);
     }
@@ -100,9 +101,9 @@ public class DocumentController : ControllerBase
         Guid id,
         [FromBody] UpdateDocumentRequestDto request)
     {
-        var success = await _documentService.UpdateDocumentAsync(id, request);
-        if (!success)
+        var rowVersion = await _documentService.UpdateDocumentAsync(id, request);
+        if (rowVersion == null)
             return NotFound(new { message = "Document introuvable." });
-        return NoContent();
+        return Ok(new { rowVersion });
     }
 }

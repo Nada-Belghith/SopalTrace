@@ -10,11 +10,9 @@ public static class PeriodiciteMapper
         return new Periodicite
         {
             Id = Guid.NewGuid(),
-            Code = dto.Code,
-            Libelle = dto.Libelle,
-            FrequenceNum = dto.FrequenceNum,
-            FrequenceUnite = dto.FrequenceUnite,
-            OrdreAffichage = dto.OrdreAffichage,
+            NbrPieces = dto.NbrPieces,
+            Unite = dto.Unite,
+            NbrHeures = dto.NbrHeures,
             Actif = dto.Actif
         };
     }

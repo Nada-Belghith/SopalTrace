@@ -8,8 +8,9 @@ public interface IDocumentEchantillonnageService
 {
     Task<DocumentEchantillonnageResponseDto?> GetActiveDocumentAsync();
     Task<DocumentEchantillonnageResponseDto?> GetDocumentByIdAsync(Guid id);
-    Task<Guid> CreateDocumentAsync(CreateDocumentEchantillonnageRequestDto request, string creePar);
-    Task UpdateDocumentAsync(Guid id, UpdateDocumentEchantillonnageRequestDto request);
-    Task ActivateDocumentAsync(Guid id, string modifiePar);
+    Task<Guid> CreateDocumentAsync(CreateDocumentEchantillonnageRequestDto request);
+    /// <returns>Nouvelle version du document (RowVersion en base64).</returns>
+    Task<string> UpdateDocumentAsync(Guid id, UpdateDocumentEchantillonnageRequestDto request);
+    Task ActivateDocumentAsync(Guid id);
     Task<Guid> CreateNewVersionAsync(CreateNewVersionDocumentEchantillonnageRequestDto request);
 }

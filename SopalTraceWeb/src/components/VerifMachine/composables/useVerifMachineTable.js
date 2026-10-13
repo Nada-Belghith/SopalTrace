@@ -1,17 +1,13 @@
 import { computed } from 'vue';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
-import { MachineStrategyFactory } from '../strategies/MachineStrategyFactory';
+import { MachineStrategy } from '../strategies/MachineStrategy';
 
 export function useVerifMachineTable() {
     const store = useVerifMachineStore();
     
-    const strategy = computed(() => MachineStrategyFactory.getStrategy(store.entete.machineCode, store));
-
-    const isMachineSansConformite = computed(() => {
-        const code = (store.entete.machineCode || '').toUpperCase();
-        return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || 
-               code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
-    });
+    // Présentation propre à la machine : lue dans le référentiel (table Machine), plus déduite de son code.
+    const strategy = computed(() => new MachineStrategy(store, store.machineConfig));
+    const isMachineSansConformite = computed(() => strategy.value.sansConformite);
 
     const hasFamilleHeaders = computed(() => store.entete.afficheFamilles && store.familles.length > 0);
     const hasSubHeaders = computed(() => strategy.value.hasSubHeaders);

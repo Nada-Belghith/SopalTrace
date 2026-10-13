@@ -1,8 +1,7 @@
-// AuthController
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SopalTrace.Application.DTOs.Auth;
 using SopalTrace.Application.Interfaces;
 using System.Security.Claims;
@@ -11,8 +10,11 @@ namespace SopalTrace.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[EnableRateLimiting(PolitiquesDebit.Authentification)]
 public class AuthController : ControllerBase
 {
+    private const string CookieRefresh = "refreshToken";
+
     private readonly IAuthService _authService;
 
     public AuthController(IAuthService authService)
@@ -29,11 +31,17 @@ public class AuthController : ControllerBase
             return BadRequest(new { erreurs = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        var (response, refreshToken) = await _authService.RegisterAsync(request);
-        if (!string.IsNullOrEmpty(refreshToken))
-            SetRefreshTokenCookie(refreshToken);
+        await _authService.RegisterAsync(request);
 
-        return Ok(response);
+        // Réponse identique dans tous les cas : elle ne confirme ni le matricule, ni l'existence d'un compte.
+        return Ok(new { message = "Votre demande a été transmise. Si le matricule et l'e-mail correspondent à votre fiche employé, vous recevrez un e-mail : soit votre lien d'activation, soit la confirmation que votre demande attend la validation d'un administrateur." });
+    }
+
+    [HttpPost("setup-password")]
+    public async Task<IActionResult> SetupPassword([FromBody] SetupPasswordDto request)
+    {
+        await _authService.SetupPasswordAsync(request);
+        return Ok(new { message = "Mot de passe défini avec succès. Vous pouvez maintenant vous connecter." });
     }
 
     [HttpPost("login")]
@@ -46,30 +54,20 @@ public class AuthController : ControllerBase
         }
 
         var (response, refreshToken) = await _authService.LoginAsync(request);
-
         SetRefreshTokenCookie(refreshToken);
-
         return Ok(response);
     }
 
+    /// <summary>Le jeton de rafraîchissement est lu dans le cookie HttpOnly ; le corps de la requête n'est pas utilisé.</summary>
     [HttpPost("refresh")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto request, [FromServices] IValidator<RefreshTokenRequestDto> validator)
+    public async Task<IActionResult> RefreshToken()
     {
-        var validationResult = await validator.ValidateAsync(request);
-        if (!validationResult.IsValid)
-        {
-            return BadRequest(new { erreurs = validationResult.Errors.Select(e => e.ErrorMessage) });
-        }
-
-        var refreshToken = Request.Cookies["refreshToken"];
-
+        var refreshToken = Request.Cookies[CookieRefresh];
         if (string.IsNullOrEmpty(refreshToken))
-            return Unauthorized(new { error = "Refresh Token manquant dans les cookies." });
+            return Unauthorized(new { message = "Session expirée. Veuillez vous reconnecter." });
 
-        var (response, newRefreshToken) = await _authService.RefreshTokenAsync(request.Token, refreshToken);
-
+        var (response, newRefreshToken) = await _authService.RefreshTokenAsync(refreshToken);
         SetRefreshTokenCookie(newRefreshToken);
-
         return Ok(response);
     }
 
@@ -99,34 +97,29 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Mot de passe modifié avec succès." });
     }
 
-    private void SetRefreshTokenCookie(string refreshToken)
-    {
-        var cookieOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            Expires = DateTime.UtcNow.AddDays(7),
-            Secure = true,
-            SameSite = SameSiteMode.Strict
-        };
-        Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
-    }
-
+    /// <summary>
+    /// Accessible sans jeton d'accès valide : la session est retrouvée par le cookie de rafraîchissement,
+    /// ce qui permet de se déconnecter proprement même après l'expiration du jeton d'accès.
+    /// </summary>
     [HttpPost("logout")]
-    [AllowAnonymous] // On permet le logout même si le token est expiré pour éviter les 401 inutiles
+    [AllowAnonymous]
     public async Task<IActionResult> Logout()
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var matricule = User.FindFirst("matricule")?.Value;
+        Guid? userId = Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
+        await _authService.LogoutAsync(Request.Cookies[CookieRefresh], userId, User.FindFirst("matricule")?.Value);
 
-        if (Guid.TryParse(userIdString, out Guid userId))
-        {
-            await _authService.RevokeUserTokensAsync(userId, matricule);
-        }
-
-        // On nettoie quand même le cookie de refresh token
-        Response.Cookies.Delete("refreshToken");
-
+        Response.Cookies.Delete(CookieRefresh);
         return Ok(new { message = "Déconnexion réussie." });
     }
 
+    private void SetRefreshTokenCookie(string refreshToken)
+    {
+        Response.Cookies.Append(CookieRefresh, refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Expires = DateTimeOffset.Now.AddDays(7),
+            Secure = true,
+            SameSite = SameSiteMode.Strict
+        });
+    }
 }

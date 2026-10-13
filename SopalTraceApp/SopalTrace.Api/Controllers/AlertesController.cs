@@ -27,13 +27,10 @@ public class AlertesController : ControllerBase
     [HttpPost("plan-manquant")]
     public async Task<IActionResult> SignalerPlanManquant([FromBody] PlanManquantContexte request)
     {
-        if (string.IsNullOrWhiteSpace(request.PosteCode))
-        {
-            return BadRequest("Le poste est obligatoire.");
-        }
+        // L'identité du déclarant provient toujours du jeton, jamais de la requête.
+        request.NomOperateur = "Opérateur Inconnu";
+        request.EmailOperateur = null;
 
-        // Toujours récupérer les infos de l'opérateur connecté depuis la base de données
-        // via le claim "matricule" présent dans le token JWT
         var matricule = User.FindFirst("matricule")?.Value;
         if (!string.IsNullOrEmpty(matricule))
         {
@@ -45,19 +42,8 @@ public class AlertesController : ControllerBase
             }
         }
 
-        // Fallback si l'utilisateur est introuvable
-        if (string.IsNullOrWhiteSpace(request.NomOperateur))
-            request.NomOperateur = "Opérateur Inconnu";
-
-        try
-        {
-            await _alertePlanManquantService.DeclencherAsync(request);
-            return Ok(new { message = "L'alerte de plan manquant a été déclenchée avec succès." });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await _alertePlanManquantService.DeclencherAsync(request);
+        return Ok(new { message = "L'alerte de plan manquant a été déclenchée avec succès." });
     }
 
     [HttpPost("{id:guid}/resoudre")]

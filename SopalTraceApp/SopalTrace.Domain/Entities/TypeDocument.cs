@@ -9,9 +9,9 @@ public partial class TypeDocument
 
     public string Libelle { get; set; } = null!;
 
-    public string? DescriptionChamps { get; set; }
-
     public bool Actif { get; set; }
 
     public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
+
+    public virtual ICollection<ExecutionDocumentType> ExecutionDocumentTypes { get; set; } = new List<ExecutionDocumentType>();
 }

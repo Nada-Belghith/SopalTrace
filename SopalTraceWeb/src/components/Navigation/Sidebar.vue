@@ -16,7 +16,7 @@
       <template v-if="hasAdvancedAccess">
         
         <!-- CATEGORIE: DOCUMENTS ET MODELES -->
-        <div class="menu-category" v-if="isSuperviseurOrAdmin || isResponsableOrAdmin">
+        <div class="menu-category" v-if="isSuperviseurOrAdmin || isResponsableDIOrAdmin">
           <div v-show="!isCollapsed" class="category-header">
             DOCUMENTS ET MODELES
           </div>
@@ -40,7 +40,7 @@
             </div>
           </div>
 
-          <div class="menu-item-wrapper" v-if="isResponsableOrAdmin">
+          <div class="menu-item-wrapper" v-if="isResponsableDIOrAdmin">
             <div class="menu-group">
               <div class="menu-item-group-title">
                 <i class="pi pi-cog text-amber-500"></i>
@@ -61,7 +61,7 @@
         </div>
 
         <!-- CATEGORIE: PRODUCTION -->
-        <div class="menu-category" v-if="isResponsableOrAdmin">
+        <div class="menu-category" v-if="isResponsableDIOrAdmin">
           <div v-show="!isCollapsed" class="category-header">
             PRODUCTION
           </div>
@@ -92,7 +92,14 @@
             ANALYSES
           </div>
           <div class="menu-item-wrapper">
-            <RouterLink to="/traces" class="menu-item" :class="{ active: isActive('/traces') }">
+            <!-- Lien Traçabilité Totale (nouveau) pour Responsable Qualité / Admin -->
+            <RouterLink to="/qualite/tracabilite" class="menu-item" :class="{ active: isActive('/qualite/tracabilite') }" v-if="isResponsableQualiteOrAdmin">
+              <i class="pi pi-chart-line text-emerald-400"></i>
+              <span v-show="!isCollapsed" class="menu-label">Dashboard & Traçabilité</span>
+            </RouterLink>
+            
+            <!-- Lien Traces (ancien) pour les autres (Superviseur, DI) -->
+            <RouterLink to="/traces" class="menu-item" :class="{ active: isActive('/traces') }" v-else>
               <i class="pi pi-chart-line text-emerald-400"></i>
               <span v-show="!isCollapsed" class="menu-label">Dashboard & Tracabilite</span>
             </RouterLink>
@@ -163,24 +170,30 @@ const showUserMenu = ref(false)
 
 const userName = computed(() => authStore.userName)
 const userRoleLabel = computed(() => {
-  const role = (authStore.userRole || '').toUpperCase();
-  if (role.includes('RESPONSABLE')) return 'Responsable Qualite';
+  const role = (authStore.userRole || '').trim().toUpperCase();
+  if (role === 'RESPONSABLE_QUALITE') return 'Responsable Qualité';
+  if (role === 'RESPONSABLE_DI') return 'Responsable DI';
   if (role.includes('ADMIN')) return 'Administrateur';
   return role;
 })
 
 const isSuperviseurOrAdmin = computed(() => {
-  const role = (authStore.userRole || '').toUpperCase();
+  const role = (authStore.userRole || '').trim().toUpperCase();
   return role.includes('SUPERVISEUR') || role.includes('ADMIN');
 });
 
-const isResponsableOrAdmin = computed(() => {
-  const role = (authStore.userRole || '').toUpperCase();
-  return role.includes('RESPONSABLE') || role.includes('ADMIN');
+const isResponsableDIOrAdmin = computed(() => {
+  const role = (authStore.userRole || '').trim().toUpperCase();
+  return role === 'RESPONSABLE_DI' || role.includes('ADMIN');
+});
+
+const isResponsableQualiteOrAdmin = computed(() => {
+  const role = (authStore.userRole || '').trim().toUpperCase();
+  return role === 'RESPONSABLE_QUALITE' || role.includes('ADMIN');
 });
 
 const hasAdvancedAccess = computed(() => {
-  return isSuperviseurOrAdmin.value || isResponsableOrAdmin.value;
+  return isSuperviseurOrAdmin.value || isResponsableDIOrAdmin.value || isResponsableQualiteOrAdmin.value;
 });
 
 const userMenu = [

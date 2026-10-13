@@ -28,7 +28,7 @@ namespace SopalTrace.Application.Tests.Services
             _mockLogger = new Mock<ILogger<DocumentVerifMachineService>>();
             _mockFormulaireStructureService = new Mock<IFormulaireStructureService>();
 
-            _mockCurrentUserService.Setup(c => c.UserInfo)
+            _mockCurrentUserService.Setup(c => c.MatriculeRequis)
                 .Returns("TestUser");
 
             _service = new DocumentVerifMachineService(
@@ -44,7 +44,7 @@ namespace SopalTrace.Application.Tests.Services
         {
             // Arrange
             var planId = Guid.NewGuid();
-            var existingDoc = new DocumentVerifMachineEntete
+            var existingDoc = new DocumentEntete
             {
                 Id = planId,
                 MachineCode = "MAC-01",
@@ -64,9 +64,9 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.GetByIdAsync(planId, true))
                 .ReturnsAsync(existingDoc); 
 
-            _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.DeleteAsync(It.IsAny<DocumentVerifMachineEntete>()))
+            _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.DeleteAsync(It.IsAny<DocumentEntete>()))
                 .Returns(Task.CompletedTask);
-            _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.IsAny<DocumentVerifMachineEntete>()))
+            _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()))
                 .Returns(Task.CompletedTask);
             _mockUnitOfWork.Setup(u => u.CommitAsync())
                 .ReturnsAsync(1);
@@ -100,19 +100,19 @@ namespace SopalTrace.Application.Tests.Services
             };
 
             _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync("MAC-02"))
-                .ReturnsAsync(new List<DocumentVerifMachineEntete>()); 
+                .ReturnsAsync(new List<DocumentEntete>()); 
 
             _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync("REF-MAC-02"))
                 .ReturnsAsync(formResult);
 
             _mockFormulaireStructureService.Setup(s => s.UpdateFormulaireStructureAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), false, false))
                 .ReturnsAsync(new (Guid Id, int Version)?((formResultId, 3)));
 
             _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formResultId))
                 .ReturnsAsync(formResult); 
 
-            _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.IsAny<DocumentVerifMachineEntete>()))
+            _mockUnitOfWork.Setup(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()))
                 .Returns(Task.CompletedTask);
             _mockUnitOfWork.Setup(u => u.CommitAsync())
                 .ReturnsAsync(1);
@@ -121,7 +121,7 @@ namespace SopalTrace.Application.Tests.Services
             var result = await _service.CreateDocumentAsync(request);
 
             // Assert
-            _mockUnitOfWork.Verify(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.Is<DocumentVerifMachineEntete>(d => 
+            _mockUnitOfWork.Verify(u => u.DocumentVerifMachineEnteteRepository.AddAsync(It.Is<DocumentEntete>(d => 
                 d.FormulaireId == formResultId &&
                 d.Version == 3 && 
                 d.Statut == "ACTIF" 

@@ -25,5 +25,13 @@ public partial class ExecControleTranche
 
     public string? Remarques { get; set; }
 
+    public Guid? SessionId { get; set; }
+
+    public byte[] RowVersion { get; set; } = null!;
+
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
+
+    public virtual Autili? MatriculeApprobateurNavigation { get; set; }
+
+    public virtual ExecControleOfSession? Session { get; set; }
 }

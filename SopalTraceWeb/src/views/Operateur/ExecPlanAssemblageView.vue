@@ -1,1672 +1,329 @@
 <template>
-  <div class="exec-assemblage-container">
+  <div class="p-4 md:p-6 w-full space-y-5">
     <!-- En-tête -->
-    <!-- En-tête COMME IMAGE 2 -->
-    <div v-if="!embedded" class="mb-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-      <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
-        <button @click="goBack" class="text-blue-600 hover:text-blue-800 hover:underline text-sm flex items-center transition-colors font-semibold border-0 bg-transparent cursor-pointer p-0">
-          <i class="pi pi-arrow-left mr-2"></i> Retour aux documents
+    <header class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+      <div class="flex justify-between items-center gap-3 mb-3">
+        <button type="button" @click="retour"
+                class="min-h-[40px] text-blue-700 hover:text-blue-900 text-sm font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center">
+          <i class="pi pi-arrow-left mr-2"></i> Retour à l'assistant
         </button>
-        <button @click="loadData" class="text-slate-500 hover:text-slate-700 hover:underline text-sm flex items-center transition-colors font-semibold border-0 bg-transparent cursor-pointer p-0" :disabled="isLoading">
-          <i class="pi pi-refresh mr-2" :class="{'pi-spin': isLoading}"></i> Rafraîchir les contrôles
+        <button v-if="!estProduction" type="button" @click="charger" :disabled="isLoading"
+                class="min-h-[40px] text-slate-500 hover:text-slate-700 text-sm font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center">
+          <i class="pi pi-refresh mr-2" :class="{ 'pi-spin': isLoading }"></i> Rafraîchir
+        </button>
+      </div>
+      <h2 class="m-0 text-2xl font-black text-slate-800">{{ titre }}</h2>
+      <p class="m-0 mt-1 text-sm text-slate-500">
+        OF <strong class="text-slate-700">{{ execution?.numeroOf || '—' }}</strong>
+        <span class="mx-2 text-slate-300">|</span> Article <strong class="text-slate-700">{{ execution?.codeArticle || '—' }}</strong>
+        <span class="mx-2 text-slate-300">|</span> Poste <strong class="text-slate-700">{{ posteCode }}</strong>
+        <template v-if="execution?.libellePlan">
+          <span class="mx-2 text-slate-300">|</span> {{ execution.libellePlan }}
+        </template>
+      </p>
+    </header>
+
+    <!-- Production : contrôles ECHANTILLONNAGE_2859 dus selon leur périodicité -->
+    <section v-if="estProduction" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <AlerteControle :execControleOfId="String(execControleOfId)" :posteCode="posteCode" :equipe="equipe" :aDesControlesReglage="false" :showHeader="false" />
+    </section>
+
+    <div v-else-if="isLoading" class="py-16 text-center text-slate-500">
+      <i class="pi pi-spin pi-spinner text-3xl"></i>
+    </div>
+
+    <div v-else-if="errorMessage" class="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+      <i class="pi pi-exclamation-triangle text-3xl text-red-500"></i>
+      <p class="m-0 mt-2 font-bold text-red-800">Impossible de charger le plan d'assemblage</p>
+      <p class="m-0 mt-1 text-sm text-red-700">{{ errorMessage }}</p>
+      <button type="button" @click="charger" class="mt-4 min-h-[44px] px-5 rounded-xl bg-red-600 text-white font-bold border-0 cursor-pointer">Réessayer</button>
+    </div>
+
+    <!-- Première / dernière pièce : sections de lot attendues maintenant -->
+    <section v-else-if="execution" class="space-y-3">
+      <!-- Réglage : les contrôles de production du poste s'arrêtent jusqu'à un réglage conforme sur tous les critères -->
+      <div v-if="estReglage && sectionsAttendues.length" class="rounded-2xl border p-4 flex flex-wrap items-center gap-3"
+           :class="reglageEnCours ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'">
+        <i class="pi pi-wrench text-xl" :class="reglageEnCours ? 'text-amber-700' : 'text-slate-500'"></i>
+        <p class="m-0 flex-1 min-w-[220px] text-sm" :class="reglageEnCours ? 'text-amber-900' : 'text-slate-600'">
+          <template v-if="reglageEnCours">
+            <strong>Réglage en cours.</strong> Les contrôles de production du poste sont suspendus : ils reprennent, avec un nouveau calcul,
+            dès qu'un contrôle de réglage est conforme sur tous les critères.
+          </template>
+          <template v-else>
+            Commencez le réglage avant d'intervenir : les contrôles de production du poste s'arrêtent jusqu'à un réglage conforme.
+          </template>
+        </p>
+        <button v-if="!reglageEnCours" type="button" @click="demarrerReglage" :disabled="actionReglage"
+                class="min-h-[48px] px-5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold border-0 cursor-pointer disabled:opacity-60">
+          Commencer le réglage
+        </button>
+        <button v-else type="button" @click="annulerReglage" :disabled="actionReglage"
+                class="min-h-[48px] px-5 rounded-xl bg-white hover:bg-amber-100 text-amber-800 font-bold border border-amber-300 cursor-pointer disabled:opacity-60">
+          Annuler le réglage
         </button>
       </div>
 
-      <div class="flex justify-between items-start flex-wrap gap-4">
-        <div>
-          <h2 class="text-2xl font-black text-slate-800 m-0">OF: {{ execution?.numeroOf || '—' }} <span class="text-lg text-slate-500 font-normal">({{ execution?.codeArticle || '—' }})</span></h2>
-          <p class="text-gray-500 m-0 mt-1.5 text-sm">Atelier: <span class="font-bold text-slate-700">{{ execution?.atelier || 'ASSEMBLAGE' }}</span> | Échantillonnage: <span class="font-bold text-slate-700">{{ execution?.effectifEchantillonParHeure || 4 }} p/h (Postes A/B)</span></p>
-          <p class="text-gray-500 m-0 mt-1 text-sm">Statut: <span class="font-semibold text-green-600">{{ execution?.statut || 'EN_COURS' }}</span></p>
-        </div>
-        
-        <div class="flex items-center gap-2 flex-wrap">
-          <button @click="mettreEnReglageOf" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-cog"></i> Aux Réglages
-          </button>
+      <p v-if="sectionsAttendues.length === 0" class="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 m-0">
+        {{ messageAucuneSection }}
+      </p>
 
-          <button v-if="execution?.statut === 'EN_PAUSE'" @click="reprendreOf" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-play"></i> Reprendre la production
-          </button>
-          <button v-else @click="mettreEnPauseOf" class="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-lg shadow-sm transition border-0 cursor-pointer flex items-center gap-1.5 text-sm">
-            <i class="pi pi-pause"></i> Pause
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Chargement -->
-    <div v-if="isLoading" class="loading-state">
-      <i class="pi pi-spin pi-spinner" style="font-size: 2.5rem; color: var(--primary-color);"></i>
-      <p>Chargement du document d'assemblage et des résultats en cours...</p>
-    </div>
-
-    <!-- Erreur -->
-    <div v-else-if="errorMessage" class="error-card">
-      <i class="pi pi-exclamation-triangle error-icon"></i>
-      <div class="error-content">
-        <h3>Impossible de charger le document d'assemblage</h3>
-        <p>{{ errorMessage }}</p>
-        <button class="retry-btn" @click="loadData"><i class="pi pi-refresh"></i> Réessayer</button>
-      </div>
-    </div>
-
-    <!-- Alerte : Documents dédiés au poste manquants ─ bloque le contrôle -->
-    <div v-else-if="execution && execution.hasDocumentsManquants" class="rounded-xl border-2 border-red-300 bg-red-50 p-6 shadow-sm">
-      <div class="flex items-start gap-4">
-        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-          <i class="pi pi-exclamation-triangle text-red-600 text-2xl"></i>
-        </div>
-        <div class="flex-1">
-          <h3 class="text-lg font-bold text-red-800 mb-1">Documents qualité manquants pour ce poste</h3>
-          <p class="text-red-700 text-sm mb-4">
-            Le contrôle du Plan d'Assemblage ne peut pas démarrer car les documents dédiés à ce poste n'ont pas encore été créés dans le back-office Qualité.
-            Veuillez contacter votre responsable qualité pour qu'il crée les documents suivants :
+      <article v-for="sec in sectionsAttendues" :key="sec.id"
+               class="flex items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm"
+               :class="controle(sec).fait ? 'border-emerald-200' : 'border-amber-200'">
+        <span class="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center text-xl"
+              :class="controle(sec).fait ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-700'">
+          <i :class="controle(sec).fait ? 'pi pi-check' : 'pi pi-flag'"></i>
+        </span>
+        <div class="flex-1 min-w-0">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">{{ libelleMoment(sec) }}</span>
+          <h3 class="m-0 text-base font-bold text-slate-800">{{ sec.libelle }}</h3>
+          <p class="m-0 mt-1 text-sm text-slate-500">
+            {{ sec.lignesPlan.length }} caractéristique(s)
+            <template v-if="estALaDemande && sec.nombreControlesEquipe"> · {{ sec.nombreControlesEquipe }} saisie(s) par l'équipe</template>
+            <template v-if="controle(sec).fait">
+              · <strong :class="controle(sec).resultat === RESULTATS_CONTROLE.NON_CONFORME ? 'text-red-600' : 'text-emerald-700'">
+                {{ controle(sec).resultat === RESULTATS_CONTROLE.NON_CONFORME ? 'Non conforme' : 'Conforme' }}
+              </strong>
+              à {{ heure(controle(sec).dateSaisie) }}<template v-if="controle(sec).equipe"> ({{ controle(sec).equipe }})</template>
+            </template>
           </p>
-          <ul class="space-y-2">
-            <li
-              v-for="(doc, idx) in execution.documentsManquants"
-              :key="idx"
-              class="flex items-center gap-2 text-sm font-semibold text-red-900 bg-red-100 rounded-lg px-4 py-2 border border-red-200"
-            >
-              <i class="pi pi-file-edit text-red-500"></i>
-              {{ doc }}
-            </li>
-          </ul>
-          <div class="mt-5 flex gap-3 flex-wrap">
-            <button @click="loadData" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-sm transition text-sm flex items-center gap-1.5 border-0 cursor-pointer">
-              <i class="pi pi-refresh"></i> Vérifier à nouveau
-            </button>
-            <button
-              v-if="!docSignale"
-              @click="signalerDocsManquants"
-              :disabled="isSignaling"
-              class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg shadow-sm transition text-sm flex items-center gap-1.5 border-0 cursor-pointer disabled:opacity-60"
-            >
-              <i :class="isSignaling ? 'pi pi-spin pi-spinner' : 'pi pi-bell'"></i>
-              {{ isSignaling ? 'Envoi en cours...' : 'Signaler au Superviseur' }}
-            </button>
-            <span v-else class="px-4 py-2 bg-green-100 text-green-800 font-semibold rounded-lg text-sm border border-green-300 flex items-center gap-1.5">
-              <i class="pi pi-check-circle text-green-600"></i> Signalement envoyé au superviseur
-            </span>
-          </div>
         </div>
-      </div>
-    </div>
+        <button type="button" @click="ouvrirSaisie(sec)" :disabled="sec.lignesPlan.length === 0"
+                class="shrink-0 min-h-[48px] px-5 rounded-xl font-bold text-sm border-0 cursor-pointer disabled:opacity-50"
+                :class="controle(sec).fait ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-blue-600 hover:bg-blue-700 text-white'">
+          {{ estALaDemande ? 'Saisir un contrôle' : controle(sec).fait ? 'Ressaisir' : 'Saisir le contrôle' }}
+        </button>
+      </article>
+    </section>
 
-    <!-- Liste des sections COMME IMAGE 2 -->
-    <div v-else-if="execution && execution.sections" class="bg-white border rounded-lg p-6 shadow-sm relative">
-      <!-- En-tête de la carte COMME IMAGE 2 -->
-      <div class="flex justify-between items-center mb-6 border-b pb-4 flex-wrap gap-2">
-        <h3 class="text-xl font-bold text-gray-800 m-0">Alertes de Contrôle Actives</h3>
-        <div class="text-base font-mono bg-gray-100 px-3.5 py-1.5 rounded-lg text-gray-700 font-semibold border border-gray-300 shadow-2xs">
-          Date et Heure actuelle : {{ dateHeureActuelle }}
-        </div>
-      </div>
-      
-      <!-- Section Contrôles en cours de production : géré en temps réel par AlerteControle -->
-      <div v-if="!isFinPoste && (isProdActive || isDemarrageDone || execution?.estDemarrageTermine)" class="mb-8">
-        <h4 class="text-lg font-bold text-blue-600 mb-4 flex items-center">
-          <i class="pi pi-clock mr-2 text-xl"></i>
-          Contrôles en cours de production (Saisie des Tranches & Occurrences)
-        </h4>
-        <AlerteControle
-          :execControleOfId="String(execControleOfId)"
-          :aDesControlesReglage="reglageSections.length > 0"
-          :showHeader="false"
-          @occurrence-submitted="loadData"
-        />
-      </div>
-
-      <!-- Sections LOT_POSTE / AUTRE -->
-      <div v-for="sec in visibleSections" :key="sec.id" class="mb-8 last:mb-0">
-        <div v-if="execution?.statut !== 'EN_PAUSE'">
-          <h4 class="text-lg font-bold text-blue-600 mb-4 flex items-center">
-            <i class="pi pi-check-circle mr-2"></i>
-            {{ formatTypeSection(sec.typeSection) }} — {{ sec.libelle }}
-          </h4>
-
-          <div v-if="!isFinPoste && getGroupedTranches(sec).length > 0">
-            <div v-for="trancheGroup in getGroupedTranches(sec)" :key="trancheGroup.trancheLabel" class="mb-6 border rounded overflow-hidden shadow-sm">
-              <div class="bg-slate-100 p-3 font-bold border-b text-slate-800 flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                  <span class="text-base">Tranche : {{ trancheGroup.trancheLabel }}</span>
-                </div>
-                <div class="flex gap-2" v-if="trancheGroup.resultats.some(res => res.statutNotif !== 'A_VENIR' && !isLocallyUpcoming(res))">
-                  <button @click="declarerTrancheReglage(trancheGroup)" class="text-xs bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-1.5 rounded hover:bg-yellow-100 transition-colors flex items-center shadow-xs font-semibold cursor-pointer">
-                    ⚙️ Déclarer comme Réglage
-                  </button>
-                  <button @click="ignorerTranche(trancheGroup)" class="text-xs bg-red-50 border border-red-200 text-red-600 px-3 py-1.5 rounded hover:bg-red-100 transition-colors flex items-center shadow-xs font-semibold cursor-pointer">
-                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    Ignorer la tranche
-                  </button>
-                </div>
-              </div>
-              
-              <div class="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 bg-gray-50">
-                <div 
-                  v-for="res in trancheGroup.resultats" 
-                  :key="res.id" 
-                  class="p-5 rounded-xl border bg-white shadow-sm flex flex-col justify-between transition-all hover:shadow-md"
-                  :class="getCardBorderClass(res)"
-                >
-                  <div>
-                    <div class="font-bold flex items-center mb-3">
-                      <span v-if="res.statutNotif === 'EN_RETARD' || isLocallyOverdue(res)" class="text-red-600 bg-red-100 px-2.5 py-1 rounded text-xs border border-red-200 font-bold uppercase tracking-wider">⚠️ EN RETARD</span>
-                      <span v-else-if="res.statutNotif === 'A_VENIR' || isLocallyUpcoming(res)" class="text-blue-600 bg-blue-100 px-2.5 py-1 rounded text-xs border border-blue-200 font-bold uppercase tracking-wider">⏳ À VENIR</span>
-                      <span v-else class="text-yellow-700 bg-yellow-100 px-2.5 py-1 rounded text-xs border border-yellow-300 font-bold uppercase tracking-wider">🔔 MAINTENANT</span>
-                    </div>
-                    <div class="text-gray-800 font-bold text-lg leading-snug">{{ res.frequence || sec.libelle }}</div>
-                    <div class="text-sm font-medium text-gray-500 mt-2 flex items-center gap-1.5">
-                      <i class="pi pi-clock text-gray-400"></i> Prévue à : <span class="font-semibold text-gray-700">{{ formatHeure(res.heurePrevue) }}</span>
-                    </div>
-                  </div>
-
-                  <button 
-                    @click="openSaisirDialog(res, sec)" 
-                    :disabled="res.statutNotif === 'A_VENIR' || isLocallyUpcoming(res)"
-                    :class="[
-                      'mt-5 w-full px-4 py-2.5 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 border-0',
-                      (res.statutNotif === 'A_VENIR' || isLocallyUpcoming(res)) ? 'bg-gray-400 cursor-not-allowed opacity-75' : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 cursor-pointer shadow-sm hover:shadow'
-                    ]"
-                  >
-                    <i v-if="res.statutNotif !== 'A_VENIR' && !isLocallyUpcoming(res)" class="pi pi-check-square"></i>
-                    {{ (res.statutNotif === 'A_VENIR' || isLocallyUpcoming(res)) ? 'Bientôt disponible' : 'Exécuter le contrôle' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-else-if="!isFinPoste && ((sec.resultats && sec.resultats.length > 0 && sec.resultats.every(r => r.resultat)) || sec.estTermine || sec.estDemarrageTermine)" class="col-span-full text-center py-10 bg-green-50 border border-green-200 rounded-2xl text-green-800 my-2 shadow-sm">
-            <i class="pi pi-check-circle text-4xl text-green-600 mb-3 block"></i>
-            <span class="font-bold text-lg block">Toutes les occurrences de contrôle pour cette section ont été effectuées !</span>
-            <span class="text-sm text-green-700 mt-1 block">La section est à jour et complète.</span>
-          </div>
-          <div v-else-if="(isFinPoste || (!sec.resultats || sec.resultats.length === 0)) && (sec.lignesPlan?.length > 0 || sec.lignesResultat?.length > 0)" class="p-5 rounded-xl border-2 border-orange-300 bg-orange-50/50 shadow-sm hover:shadow-md transition-all text-center col-span-full md:col-span-1 md:max-w-md mx-auto my-4">
-            <div class="font-bold flex items-center justify-center mb-3">
-               <span class="text-orange-700 bg-orange-100 px-3 py-1 rounded-full text-xs border border-orange-300 font-bold uppercase tracking-wider">
-                 <i class="pi pi-flag mr-1"></i> CONTRÔLE FIN DE POSTE
-               </span>
-            </div>
-            <div class="text-gray-800 font-bold text-lg leading-snug mb-2">{{ sec.libelle }}</div>
-            <div class="text-sm font-medium text-gray-500 mt-2 flex items-center justify-center gap-1.5 mb-5">
-              <i class="pi pi-list text-gray-400"></i> {{ (sec.lignesPlan?.length || 0) + (sec.lignesResultat?.length || 0) }} caractéristique(s)
-            </div>
-            <button 
-              @click="openSaisirDialog(null, sec)" 
-              class="w-full px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0 transition-colors"
-            >
-              <i class="pi pi-check-square"></i> Saisir le contrôle (Fin Poste)
-            </button>
-          </div>
-          <div v-else-if="!sec.resultats || sec.resultats.length === 0" class="col-span-full text-center py-6 text-gray-500 text-sm">
-            Aucune occurrence ou tranche horaire initialisée pour cette section.
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modale Configuration des Horaires -->
-    <div v-if="showConfigDialog" class="modal-overlay" @click.self="showConfigDialog = false">
-      <div class="modal-card config-modal">
-        <div class="modal-header">
-          <h3><i class="pi pi-clock"></i> Configurer Horaires & Postes (FE0591)</h3>
-          <button class="close-btn" @click="showConfigDialog = false"><i class="pi pi-times"></i></button>
-        </div>
-        <div class="modal-body">
-          <p class="modal-intro">
-            Renseignez les horaires du poste actuel ou des équipes pour générer automatiquement les fréquences de contrôle par heure ainsi que le contrôle de la première et dernière pièce (niveau lot).
-          </p>
-
-          <div v-for="(p, idx) in postesConfig" :key="idx" class="poste-config-row">
-            <div class="form-group">
-              <label>Nom du Poste / Équipe</label>
-              <input type="text" v-model="p.posteCode" placeholder="ex: Poste 1 (Matin)" class="form-input" />
-            </div>
-            <div class="form-group">
-              <label>Heure Début</label>
-              <input type="time" v-model="p.heureDebut" class="form-input" />
-            </div>
-            <div class="form-group">
-              <label>Heure Fin</label>
-              <input type="time" v-model="p.heureFin" class="form-input" />
-            </div>
-            <button v-if="postesConfig.length > 1" class="btn-remove-poste" @click="removePosteRow(idx)">
-              <i class="pi pi-trash"></i>
-            </button>
-          </div>
-
-          <button class="btn-add-poste" @click="addPosteRow">
-            <i class="pi pi-plus"></i> Ajouter une autre équipe / poste
-          </button>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="showConfigDialog = false">Annuler</button>
-          <button class="btn-save" @click="saveHorairesConfig" :disabled="isConfiguring">
-            <i class="pi pi-check" v-if="!isConfiguring"></i>
-            <i class="pi pi-spin pi-spinner" v-else></i>
-            Valider et Générer le Plan
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modale Aux Réglages -->
-    <div v-if="showReglagesModal" class="modal-overlay" @click.self="showReglagesModal = false">
-      <div class="modal-card" style="width: 850px; max-width: 95vw; max-height: 90vh; overflow-y: auto;">
-        <div class="modal-header">
-          <h3><i class="pi pi-cog"></i> Contrôles de Réglage Obligatoires (Démarrage)</h3>
-          <button class="close-btn" @click="showReglagesModal = false"><i class="pi pi-times"></i></button>
-        </div>
-        <div class="modal-body p-4">
-          <p class="modal-intro mb-4 text-sm text-gray-600">
-            Exécutez et validez ci-dessous les contrôles de réglage pour le Plan d'assemblage et pour le Résultat en cours d'assemblage (affichés l'un sous l'autre).
-          </p>
-
-          <div v-if="reglageSections.length === 0" class="text-center py-8 text-gray-500 font-semibold">
-            Aucun contrôle de réglage requis pour ce document.
-          </div>
-
-          <div v-for="(sec, idx) in reglageSections" :key="sec.id" class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-200 shadow-sm">
-            <div class="bg-yellow-100 p-2.5 font-bold border-b border-yellow-200 text-yellow-800 flex justify-between items-center rounded-t">
-              <span class="flex items-center gap-2 font-bold text-base">
-                <i class="pi pi-bookmark text-yellow-700"></i>
-                {{ idx === 0 ? 'Plan d\'assemblage en cours' : 'Résultat de contrôle en cours' }} — {{ sec.libelle || 'Réglage Initial' }}
-              </span>
-              <span class="text-xs px-2.5 py-0.5 rounded font-bold" :class="isReglageTermine ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-amber-100 text-amber-800 border border-amber-300'">
-                {{ isReglageTermine ? '✔ Validé' : '⏳ En attente de validation' }}
-              </span>
-            </div>
-            
-            <div class="p-4 bg-white border border-yellow-300 rounded-b">
-              <div class="font-bold flex items-center mb-2">
-                <span class="text-red-600 bg-red-100 px-2 py-0.5 rounded text-xs border border-red-200 font-semibold">⚠️ REQUIS AVANT PRODUCTION</span>
-              </div>
-              <div class="text-gray-800 font-bold text-lg">{{ sec.libelle || 'Caractéristiques à contrôler aux réglages' }}</div>
-              <div class="text-sm text-gray-500 mt-1">{{ sec.lignesPlan?.length || 0 }} caractéristique(s) à contrôler (Série de {{ execution.effectifEchantillonParHeure || 4 }} pièces)</div>
-              
-              <button 
-                @click="openSaisirDialog(sec.resultats?.[0] || null, sec); showReglagesModal = false" 
-                class="mt-4 w-full px-4 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold rounded-lg shadow transition-colors cursor-pointer flex items-center justify-center gap-2 border-0"
-              >
-                <i class="pi pi-check-square"></i> Exécuter le contrôle de réglage
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="showReglagesModal = false">Fermer</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modale Saisie Résultat (COMME IMAGE 2 - Estompage) -->
-    <div v-if="showSaisieDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
-        
-        <!-- Header Modal (COMME IMAGE 2) -->
-        <div class="bg-slate-800 text-white p-4 flex justify-between items-center">
+    <!-- Saisie d'une section -->
+    <div v-if="saisie.section.value" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="bg-slate-800 text-white p-4 flex justify-between items-center gap-3">
           <div>
-            <h2 class="text-xl font-bold">Plan de Contrôle - {{ selectedRow?.frequence || selectedSection?.libelle }}</h2>
-            <p class="text-slate-300 text-sm mt-1">Heure prévue : {{ formatHeure(selectedRow?.heurePrevue || new Date()) }} | Tranche : {{ formatTypeSection(selectedSection?.typeSection) }}</p>
+            <p class="m-0 text-xs font-bold uppercase tracking-wider text-slate-300">{{ libelleMoment(saisie.section.value) }}</p>
+            <h2 class="m-0 text-lg font-bold">{{ saisie.section.value.libelle }}</h2>
           </div>
-          <button @click="showSaisieDialog = false" class="text-slate-300 hover:text-white font-bold text-2xl px-2">&times;</button>
+          <button type="button" @click="saisie.fermer" aria-label="Fermer"
+                  class="min-w-[44px] min-h-[44px] text-slate-300 hover:text-white text-2xl bg-transparent border-0 cursor-pointer">&times;</button>
         </div>
 
-        <!-- Informations Plan (Légende / Remarques) -->
-        <div v-if="execution?.legendeMoyens || execution?.remarques" class="bg-blue-50 border-b border-blue-100 p-4 text-sm text-blue-900">
-          <div v-if="execution?.legendeMoyens" class="mb-2"><strong class="font-bold">Légende des moyens :</strong> {{ execution.legendeMoyens }}</div>
-          <div v-if="execution?.remarques"><strong class="font-bold">Remarques / Observations :</strong> {{ execution.remarques }}</div>
-        </div>
-        <div v-else class="bg-blue-50 border-b border-blue-100 p-3 text-sm text-blue-900">
-          <strong class="font-bold">Légende des moyens :</strong> M : Manuel ; EXC-... : Calibre spécial
-        </div>
-
-        <!-- Body Modal (COMME IMAGE 2) -->
         <div class="p-4 overflow-y-auto flex-1 bg-gray-50">
-          
-          <!-- Tableau 1 : Consultation du Plan d'Assemblage (Aucune saisie) -->
-          <div v-if="selectedSection?.lignesPlan && selectedSection.lignesPlan.length > 0" class="bg-white border rounded-lg overflow-hidden shadow-sm mb-6">
-            <table class="w-full text-sm text-left">
-              <thead class="text-xs text-white bg-slate-800 border-b">
+          <div class="bg-white border rounded-lg overflow-x-auto shadow-sm">
+            <table class="w-full text-sm text-left min-w-[1100px]">
+              <thead class="text-xs text-white bg-slate-800">
                 <tr>
-                  <th class="px-3 py-3">Caractéristique contrôlée</th>
-                  <th class="px-3 py-3 w-32">Limite de spécification</th>
-                  <th class="px-3 py-3 w-32">Type de contrôle</th>
-                  <th class="px-3 py-3 w-32">Moyen de contrôle</th>
-                  <th class="px-3 py-3 w-32">Code instrument de contrôle</th>
-                  <th class="px-3 py-3">Observations</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="bg-blue-100 border-b border-blue-200">
-                  <td colspan="6" class="px-3 py-2 text-center font-bold text-blue-900 shadow-sm">
-                    {{ selectedSection?.libelle }}
-                  </td>
-                </tr>
-                <tr v-for="lp in selectedSection.lignesPlan" :key="lp.id" class="border-b last:border-b-0 hover:bg-gray-50 transition-colors">
-                  <td class="px-3 py-3 font-semibold text-gray-900">
-                    <span class="text-xs text-gray-400 font-mono mr-1.5">{{ lp.numero }}.</span>
-                    {{ lp.caracteristique }}
-                  </td>
-                  <td class="px-3 py-3 text-gray-600 font-mono bg-gray-50 font-medium">{{ lp.limiteSpecTexte || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-600 text-xs uppercase">{{ lp.typeControle || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-600 text-xs">{{ lp.moyenControle || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-600 text-xs font-mono">{{ lp.instrument || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-600 text-xs">{{ lp.observations || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Tableau 2 : Saisie des Résultats (COMME IMAGE 2 - Bas) -->
-          <div v-if="saisieForm.lignesControle && saisieForm.lignesControle.length > 0" class="bg-white border rounded-lg overflow-hidden shadow-sm">
-            <table class="w-full text-sm text-left">
-              <thead class="text-xs text-white bg-slate-800 border-b uppercase">
-                <tr>
-                  <th class="px-3 py-3">Caractéristiques contrôlées</th>
-                  <th class="px-3 py-3 w-44 text-center">
-                    <div>Résultat (C / NC)</div>
-                    <div class="inline-flex rounded shadow-xs mt-1" role="group">
-                      <button type="button" @click="setAllLignesResult('C')" class="px-2 py-0.5 text-[10px] uppercase font-bold border-0 rounded-l bg-green-500 text-white hover:bg-green-600 cursor-pointer transition-colors" title="Tout Conforme">Tout C</button>
-                      <button type="button" @click="setAllLignesResult('NC')" class="px-2 py-0.5 text-[10px] uppercase font-bold border-0 rounded-r bg-red-500 text-white hover:bg-red-600 cursor-pointer transition-colors" title="Tout Non-Conforme">Tout NC</button>
+                  <th class="px-3 py-3 w-64">Caractéristique contrôlée</th>
+                  <th v-for="col in colonnesSupplementaires" :key="col" class="px-3 py-3 w-32 uppercase tracking-wider">{{ col }}</th>
+                  <th class="px-3 py-3 w-28">Limite</th>
+                  <th class="px-3 py-3 w-24">Type</th>
+                  <th class="px-3 py-3 w-32">Moyen</th>
+                  <th class="px-3 py-3 w-24">Instrument</th>
+                  <th class="px-3 py-3 w-36 text-center">
+                    <div>Résultat</div>
+                    <div class="inline-flex mt-1">
+                      <button type="button" @click="saisie.setTous(RESULTATS_CONTROLE.CONFORME)" class="px-2 py-1 text-[10px] uppercase font-bold border-0 rounded-l bg-green-500 text-white cursor-pointer">Tout C</button>
+                      <button type="button" @click="saisie.setTous(RESULTATS_CONTROLE.NON_CONFORME)" class="px-2 py-1 text-[10px] uppercase font-bold border-0 rounded-r bg-red-500 text-white cursor-pointer">Tout NC</button>
                     </div>
                   </th>
-                  <th class="px-3 py-3 w-56 text-center">Non-conformité</th>
-                  <th class="px-3 py-3 w-56 text-center">Actions de correction</th>
+                  <th class="px-3 py-3 w-44">Détail NC</th>
+                  <th class="px-3 py-3 w-44">Action corrective</th>
                 </tr>
               </thead>
               <tbody>
-                <tr class="bg-blue-100 border-b border-blue-200">
-                  <td colspan="4" class="px-3 py-2 text-center font-extrabold text-blue-950 shadow-sm uppercase text-sm tracking-wide">
-                    {{ selectedSection?.libelle }}
+                <tr v-for="(lc, idx) in saisie.lignes.value" :key="lc.ligneId" class="border-b"
+                    :class="lc.resultat === RESULTATS_CONTROLE.NON_CONFORME ? 'bg-red-50/60' : !lc.resultat ? 'bg-amber-50/60' : ''">
+                  <td class="px-3 py-3 font-semibold text-gray-900">{{ lc.caracteristique }}</td>
+                  <td v-for="col in colonnesSupplementaires" :key="col" class="px-3 py-3 text-gray-700 text-xs font-mono">
+                    {{ lignePlan(idx)?.extraColonnes?.[col] || '-' }}
                   </td>
-                </tr>
-                <tr v-for="lc in saisieForm.lignesControle" :key="lc.ligneId" class="border-b last:border-b-0 hover:bg-blue-50 transition-colors" :class="lc.resultat === 'NC' ? 'bg-red-50/60' : ''">
-                  <td class="px-3 py-3 font-semibold text-gray-900">
-                    <span class="text-xs text-gray-400 font-mono mr-1.5">{{ lc.numero }}.</span>
-                    {{ lc.caracteristique }}
-                  </td>
+                  <td class="px-3 py-3 text-gray-600 font-mono text-xs">{{ lignePlan(idx)?.limiteSpecTexte || '-' }}</td>
+                  <td class="px-3 py-3 text-gray-600 text-xs uppercase">{{ lignePlan(idx)?.typeControle || '-' }}</td>
+                  <td class="px-3 py-3 text-gray-600 text-xs">{{ lignePlan(idx)?.moyenControle || '-' }}</td>
+                  <td class="px-3 py-3 text-gray-600 text-xs font-mono">{{ lignePlan(idx)?.instrument || '-' }}</td>
                   <td class="px-3 py-3 text-center">
-                    <div class="inline-flex rounded-md shadow-sm" role="group">
-                      <button type="button" 
-                              @click="setLigneResultat(lc, 'C')"
-                              :class="lc.resultat === 'C' ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
-                              class="px-4 py-1.5 text-sm font-bold border rounded-l-lg transition-colors cursor-pointer">
-                        C
-                      </button>
-                      <button type="button" 
-                              @click="setLigneResultat(lc, 'NC')"
-                              :class="lc.resultat === 'NC' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
-                              class="px-4 py-1.5 text-sm font-bold border-t border-b border-r rounded-r-lg transition-colors cursor-pointer">
-                        NC
-                      </button>
+                    <div class="inline-flex">
+                      <button type="button" @click="saisie.setResultat(lc, RESULTATS_CONTROLE.CONFORME)"
+                              :class="lc.resultat === RESULTATS_CONTROLE.CONFORME ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-700'"
+                              class="min-w-[48px] min-h-[40px] text-sm font-bold border cursor-pointer rounded-l-lg">C</button>
+                      <button type="button" @click="saisie.setResultat(lc, RESULTATS_CONTROLE.NON_CONFORME)"
+                              :class="lc.resultat === RESULTATS_CONTROLE.NON_CONFORME ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-700'"
+                              class="min-w-[48px] min-h-[40px] text-sm font-bold border-t border-b border-r cursor-pointer rounded-r-lg">NC</button>
                     </div>
                   </td>
-                  <td class="px-3 py-3 text-center">
-                    <input v-if="lc.resultat === 'NC'" type="text" v-model="lc.nc" placeholder="Précisez la non-conformité..." class="w-full border border-red-300 rounded p-1.5 text-xs bg-white focus:ring-red-500 focus:border-red-500" />
-                    <span v-else class="text-gray-400">-</span>
+                  <td class="px-3 py-3">
+                    <input v-if="lc.resultat === RESULTATS_CONTROLE.NON_CONFORME" v-model="lc.nc" type="text" maxlength="500"
+                           placeholder="Obligatoire" class="w-full border rounded p-2 text-xs bg-white" :class="!lc.nc?.trim() ? 'border-red-400' : ''" />
                   </td>
-                  <td class="px-3 py-3 text-center">
-                    <input v-if="lc.resultat === 'NC'" type="text" v-model="lc.actionCorrective" placeholder="Action corrective..." class="w-full border border-amber-300 rounded p-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500" />
-                    <span v-else class="text-gray-400">-</span>
+                  <td class="px-3 py-3">
+                    <input v-if="lc.resultat === RESULTATS_CONTROLE.NON_CONFORME" v-model="lc.actionCorrective" type="text" maxlength="500"
+                           placeholder="Facultatif" class="w-full border rounded p-2 text-xs bg-white" />
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
-
         </div>
 
-        <!-- Footer Modal (COMME IMAGE 2) -->
-        <div class="border-t p-4 bg-white flex justify-end gap-3">
-          <button @click="showSaisieDialog = false" class="px-4 py-2 border text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors">
-            Annuler
-          </button>
-          
-          <button @click="submitResultat" 
-                  :disabled="isSavingResult || !isFormValid"
-                  class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
-            <i class="pi pi-save" v-if="!isSavingResult"></i>
-            <i class="pi pi-spin pi-spinner" v-else></i>
-            Valider et Enregistrer
-          </button>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Modal Motif Pause / Ignorer Optionnel -->
-    <div v-if="raisonModalConfig.show" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
-      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl animate-fade-in-up">
-        <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center">
-          <svg class="w-6 h-6 mr-2 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-          {{ raisonModalConfig.titre }}
-        </h3>
-        <p class="text-sm text-gray-600 mb-4">{{ raisonModalConfig.description }}</p>
-        <textarea v-model="raisonModalConfig.texte" 
-                  rows="3" 
-                  class="w-full border border-gray-300 rounded-lg shadow-sm focus:border-yellow-500 focus:ring-yellow-500 p-3 mb-4 text-sm" 
-                  placeholder="Saisissez le motif (Optionnel, ex: Panne machine, pause déjeuner)..."
-                  @keyup.enter="confirmerRaison"
-                  autofocus></textarea>
-        <div class="flex justify-end gap-3">
-          <button @click="annulerRaison" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Annuler</button>
-          <button @click="confirmerRaison" 
-                  class="px-4 py-2 bg-yellow-600 text-white hover:bg-yellow-700 rounded-lg font-medium shadow-sm transition-colors">
-            Confirmer
+        <div class="border-t p-4 bg-white flex items-center justify-end gap-3">
+          <span class="mr-auto text-sm font-semibold" :class="saisie.estValide.value ? 'text-emerald-700' : 'text-amber-700'">
+            {{ saisie.renseignees.value }} / {{ saisie.lignes.value.length }} caractéristique(s) renseignée(s)
+          </span>
+          <button type="button" @click="saisie.fermer" class="min-h-[48px] px-5 border text-gray-600 font-bold rounded-xl bg-white cursor-pointer">Annuler</button>
+          <button type="button" @click="saisie.enregistrer" :disabled="saisie.isSaving.value || !saisie.estValide.value"
+                  class="min-h-[48px] px-6 bg-blue-600 text-white font-bold rounded-xl border-0 cursor-pointer flex items-center gap-2 disabled:opacity-60">
+            <i class="pi" :class="saisie.isSaving.value ? 'pi-spin pi-spinner' : 'pi-save'"></i> Valider
           </button>
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
 import { useAppToast } from '@/composables/useAppToast'
-import execAssemblageService from '@/services/execAssemblageService'
-import operateurService from '@/services/operateurService'
+import { useRoute, useRouter } from 'vue-router'
 import AlerteControle from '@/components/Operateur/AlerteControle.vue'
-import { useAuthStore } from '@/stores/authStore'
-import Swal from 'sweetalert2'
-import apiClient from '@/services/apiClient'
-
-const authStore = useAuthStore()
-
-const props = defineProps({
-  embedded: {
-    type: Boolean,
-    default: false
-  },
-  execControleOfId: {
-    type: [String, Number],
-    default: null
-  },
-  selectedPoste: {
-    type: String,
-    default: null
-  }
-})
-
-const emit = defineEmits(['back', 'reprendre'])
+import execAssemblageService from '@/services/execAssemblageService'
+import { useSaisieControleLot } from '@/composables/Operateur/assemblage/useSaisieControleLot'
+import { logger } from '@/utils/logger'
+import { MOMENTS_LOT, RESULTATS_CONTROLE } from '@/constants/execution'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useAppToast()
 
-const execControleOfId = ref(props.execControleOfId || route.params.execControleOfId)
-const posteCode = ref(props.selectedPoste || route.query.posteCode || 'Poste 1')
-const isDemarrageDone = ref(route.query.isDemarrageDone === 'true')
-
-watch(() => props.execControleOfId, (newId) => {
-  if (newId && newId !== execControleOfId.value) {
-    execControleOfId.value = newId
-    loadData()
-  }
-})
-
-watch(() => props.selectedPoste, (newPoste) => {
-  if (newPoste && newPoste !== posteCode.value) {
-    posteCode.value = newPoste
-    loadData()
-  }
-})
+const execControleOfId = ref(route.params.execControleOfId)
+const posteCode = ref(route.query.posteCode || '')
+/** Équipe de la tablette (URL, sinon mémorisée par l'assistant pour cet OF). */
+const lireEquipeMemorisee = () => {
+  try { return sessionStorage.getItem(`equipeAssemblage_${route.params.execControleOfId}`) } catch { return null }
+}
+const equipe = ref(route.query.equipe || lireEquipeMemorisee() || null)
+/** PREMIERE_PIECE, DERNIERE_PIECE, REGLAGE, 100PCT ou PRODUCTION (choisi par l'assistant). */
+const moment = computed(() => route.query.moment || MOMENTS_LOT.PREMIERE_PIECE)
+const estProduction = computed(() => moment.value === 'PRODUCTION')
+const estDernierePiece = computed(() => moment.value === MOMENTS_LOT.DERNIERE_PIECE)
+const estReglage = computed(() => moment.value === MOMENTS_LOT.REGLAGE)
+/** Réglage ou toutes les pièces : l'opérateur saisit quand il le juge nécessaire, autant de fois que voulu. */
+const estALaDemande = computed(() => [MOMENTS_LOT.REGLAGE, MOMENTS_LOT.TOUTES_PIECES].includes(moment.value))
 
 const execution = ref(null)
-const isLoading = ref(true)
+const isLoading = ref(false)
 const errorMessage = ref('')
-const isSignaling = ref(false)
-const docSignale = ref(false)
 
-const signalerDocsManquants = async () => {
-  if (!execution.value?.documentsManquants?.length) return
-  isSignaling.value = true
-  try {
-    await apiClient.post('/Alertes/plan-manquant', {
-      operationCode: 'ASS',
-      posteCode: posteCode.value,
-      numeroOf: execution.value.numeroOf,
-      articleCode: execution.value.codeArticle,
-      designationArticle: execution.value.designationArticle,
-      nomOperateur: authStore.user?.nom || authStore.user?.matricule || 'Opérateur Inconnu',
-      descriptionProbleme: `Documents qualité manquants pour le poste ${posteCode.value} : ${execution.value.documentsManquants.join(' | ')}`
-    })
-    docSignale.value = true
-    toast.success('Signalement envoyé', 'Le superviseur a été notifié des documents manquants pour ce poste.')
-  } catch {
-    toast.error('Erreur', "Impossible d'envoyer le signalement.")
-  } finally {
-    isSignaling.value = false
-  }
+const titre = computed(() => {
+  if (estProduction.value) return 'Contrôles de production'
+  if (moment.value === MOMENTS_LOT.REGLAGE) return 'Contrôle aux réglages'
+  if (moment.value === MOMENTS_LOT.TOUTES_PIECES) return 'Contrôle de toutes les pièces'
+  return estDernierePiece.value ? 'Contrôle de la dernière pièce' : 'Contrôle de la première pièce'
+})
+
+const controle = (sec) => {
+  if (estALaDemande.value) return sec.dernierControle
+  return estDernierePiece.value ? sec.dernierePiece : sec.premierePiece
+}
+const sectionsAttendues = computed(() => estALaDemande.value
+  ? (execution.value?.sectionsALaDemande ?? []).filter(s => s.contexte === moment.value)
+  : (execution.value?.sections ?? []).filter(s => controle(s).requis))
+
+const libelleMoment = (sec) => {
+  if (!sec) return ''
+  if (estALaDemande.value) return moment.value === MOMENTS_LOT.REGLAGE ? 'Aux réglages' : 'Toutes les pièces'
+  const debut = sec.typeSection === 'LOT_OF' ? 'Début d\'OF' : 'Début de poste'
+  const fin = sec.typeSection === 'LOT_OF' ? 'Fin d\'OF' : 'Fin de poste'
+  return estDernierePiece.value ? `${fin} — dernière pièce` : `${debut} — première pièce`
 }
 
-const isFinPoste = computed(() => route.query.finPoste === 'true')
+const messageAucuneSection = computed(() => estALaDemande.value
+  ? "Le plan de ce poste n'a pas de section pour ce contrôle."
+  : "Aucun contrôle de lot n'est attendu à ce moment dans le plan de ce poste.")
 
-const isProdActive = computed(() => {
-  if (!execution.value) return false;
-  return execution.value.estDemarrageTermine || isDemarrageDone.value || execution.value.sections?.some(s => s.typeSection === 'ECHANTILLONNAGE' && s.resultats?.length > 0);
-})
+const heure = (date) => (date ? new Date(date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '')
 
-const visibleSections = computed(() => {
-  if (!execution.value || !execution.value.sections) return [];
-
-  return execution.value.sections.filter(sec => {
-    // Si c'est l'étape 4 (Fin de Poste), on n'affiche QUE les périmètres OF et POSTE
-    if (isFinPoste.value) {
-      return sec.typeSection === 'LOT_OF' || sec.typeSection === 'LOT_POSTE';
-    }
-
-    if (sec.typeSection === 'REGLAGE' || sec.typeSection === 'REGLAGE_PROD' || sec.typeSection === 'ECHANTILLONNAGE') {
-      return false;
-    }
-
-    // Masquer les sections de périmètre (LOT_OF et LOT_POSTE) en phase de production (Étape 3)
-    if (isProdActive.value && (sec.typeSection === 'LOT_OF' || sec.typeSection === 'LOT_POSTE')) {
-      return false;
-    }
-
-    return true;
-  });
-})
-
-// Config Horaires
-const showConfigDialog = ref(false)
-const showReglagesModal = ref(false)
-const isConfiguring = ref(false)
-const postesConfig = ref([
-  { posteCode: 'Poste 1', heureDebut: '08:00', heureFin: '14:00' }
-])
-
-// Saisie Résultat
-const showSaisieDialog = ref(false)
-const isSavingResult = ref(false)
-const selectedRow = ref(null)
-const selectedSection = ref(null)
-const activePieceIndex = ref(0)
-const saisieForm = ref({
-  trancheId: '',
-  resultat: 'CONFORME',
-  nonConformite: '',
-  actionCorrective: '',
-  approbation: '',
-  remarques: '',
-  piecesEchantillon: [],
-  lignesControle: []
-})
-
-const raisonModalConfig = ref({
-  show: false,
-  texte: '',
-  titre: '',
-  description: '',
-  action: null,
-  payload: null
-})
-
-const demanderRaison = (titre, description, actionCallback, payload = null) => {
-  raisonModalConfig.value = {
-    show: true,
-    texte: '',
-    titre,
-    description,
-    action: actionCallback,
-    payload
-  }
-}
-
-const annulerRaison = () => {
-  raisonModalConfig.value.show = false
-}
-
-const confirmerRaison = () => {
-  const { action, texte, payload } = raisonModalConfig.value
-  raisonModalConfig.value.show = false
-  if (action) {
-    action(texte, payload)
-  }
-}
-
-const isCloturing = ref(false)
-
-const reglageSections = computed(() => {
-  if (!execution.value?.sections) return []
-  return execution.value.sections.filter(s => s.typeSection === 'REGLAGE' || s.typeSection === 'REGLAGE_PROD')
-})
-
-const isReglageTermine = computed(() => {
-  if (reglageSections.value.length === 0) return true
-  return reglageSections.value.every(sec => 
-    sec.resultats && sec.resultats.length > 0 && sec.resultats.every(r => r.resultat === 'CONFORME' || r.resultat === 'NON_CONFORME')
-  )
-})
-
-const dateHeureActuelle = ref('')
-let timerInterval = null
-
-onMounted(async () => {
-  dateHeureActuelle.value = new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  timerInterval = setInterval(() => {
-    dateHeureActuelle.value = new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  }, 1000)
-  await loadData()
-})
-
-onUnmounted(() => {
-  if (timerInterval) clearInterval(timerInterval)
-})
-
-const loadData = async () => {
-  if (!execControleOfId.value) return
+/** En-tête (OF, article, plan) pour tous les moments ; les sections ne servent qu'aux contrôles de lot. */
+const charger = async () => {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const res = await execAssemblageService.getExecution(execControleOfId.value, posteCode.value)
-    execution.value = res.data
-    
-    // Si des postes sont configurés, on les préremplit
-    if (execution.value.postesConfigures && execution.value.postesConfigures.length > 0) {
-      postesConfig.value = execution.value.postesConfigures.map(p => ({
-        posteCode: p.posteCode,
-        heureDebut: p.heureDebut,
-        heureFin: p.heureFin
-      }))
-    }
-
-    // Auto-déduire isDemarrageDone depuis les données si pas encore défini par le query param
-    // isDemarrageDone = true dès que les sections de démarrage sont toutes terminées
-    if (!isDemarrageDone.value && execution.value?.sections) {
-      const demarrageTermine = execution.value.sections
-        .filter(s => s.typeSection === 'LOT_OF' || s.typeSection === 'LOT_POSTE' || s.typeSection === 'REGLAGE')
-        .every(s => s.estDemarrageTermine || s.estTermine)
-      if (demarrageTermine || execution.value.sections.length === 0) {
-        isDemarrageDone.value = true
-      }
-    }
-    // Si le query param dit isDemarrageDone=true, toujours l'honorer
-    if (route.query.isDemarrageDone === 'true') {
-      isDemarrageDone.value = true
-    }
-
-    // Auto-ouverture de la 1ère occurrence 100% pièces si demandé
-    if (route.query.autoOpen100pct === 'true' && execution.value?.sections) {
-      const sec100 = execution.value.sections.find(s =>
-        s.libelle && (s.libelle.toLowerCase().includes('100%') || s.libelle.toLowerCase().includes('cent pour cent'))
-      )
-      if (sec100 && sec100.resultats && sec100.resultats.length > 0) {
-        const pendingRes = sec100.resultats.find(r => !r.resultat || r.resultat === 'EN_ATTENTE' || r.resultat === 'EN_RETARD')
-        if (pendingRes) {
-          openSaisirDialog(pendingRes, sec100)
-        }
-      }
-    }
-    // Auto-ouverture de la 1ère occurrence en retard si demandé (échantillonnage horaire)
-    else if (route.query.autoOpen1stPending === 'true' && execution.value?.sections) {
-      let opened = false;
-      for (const sec of execution.value.sections) {
-        if (sec.resultats && sec.resultats.length > 0) {
-          const pendingRes = sec.resultats.find(r => !r.resultat || r.resultat === 'EN_ATTENTE' || r.resultat === 'EN_RETARD')
-          if (pendingRes) {
-            openSaisirDialog(pendingRes, sec)
-            opened = true;
-            break
-          }
-        }
-      }
-      if (opened) {
-        const query = { ...route.query };
-        delete query.autoOpen1stPending;
-        router.replace({ query });
-      }
-    }
+    execution.value = (await execAssemblageService.getExecution(execControleOfId.value, posteCode.value)).data
   } catch (err) {
-    console.error('Erreur chargement plan assemblage:', err)
-    errorMessage.value = err.response?.data?.message || err.message || 'Erreur inconnue'
+    logger.error('Erreur chargement plan assemblage', err)
+    errorMessage.value = err.message || 'Erreur inconnue'
   } finally {
     isLoading.value = false
   }
 }
 
-const navigateAway = () => {
-  router.push({
-    name: 'operateur-of-fini',
-    query: {
-      execControleOfId: execControleOfId.value,
-      posteCode: posteCode.value,
-      finPoste: isFinPoste.value ? 'true' : undefined
-    }
-  })
-}
+// ──────────── Réglage : état tenu par le serveur (contrôles de production suspendus) ────────────
+const reglageEnCours = ref(false)
+const actionReglage = ref(false)
 
-const goBack = () => {
-  navigateAway()
-}
-
-const addPosteRow = () => {
-  postesConfig.value.push({
-    posteCode: `Poste ${postesConfig.value.length + 1}`,
-    heureDebut: '14:00',
-    heureFin: '20:00'
-  })
-}
-
-const removePosteRow = (idx) => {
-  if (postesConfig.value.length > 1) {
-    postesConfig.value.splice(idx, 1)
-  }
-}
-
-const saveHorairesConfig = async () => {
-  isConfiguring.value = true
+const chargerEtatReglage = async () => {
+  if (!estReglage.value) return
   try {
-    const res = await execAssemblageService.configurerHoraires(execControleOfId.value, {
-      postes: postesConfig.value
-    })
-    execution.value = res.data
-    showConfigDialog.value = false
-    toast.success('Horaires configurés et contrôles générés avec succès !')
+    reglageEnCours.value = !!(await execAssemblageService.getAvancement(execControleOfId.value, posteCode.value, equipe.value)).data?.reglageEnCours
   } catch (err) {
-    console.error('Erreur config horaires:', err)
-    toast.error(err.response?.data?.message || 'Erreur lors de la configuration des horaires')
+    logger.error('Erreur lecture état du réglage', err)
+  }
+}
+
+const actionSurReglage = async (action, message) => {
+  actionReglage.value = true
+  try {
+    await action()
+    await chargerEtatReglage()
+    toast.success(message)
+  } catch (err) {
+    toast.error(err.message || 'Action impossible', 'Réglage')
   } finally {
-    isConfiguring.value = false
+    actionReglage.value = false
   }
 }
+const demarrerReglage = () => actionSurReglage(
+  () => execAssemblageService.demarrerReglage(execControleOfId.value, posteCode.value),
+  'Réglage commencé : contrôles de production suspendus.')
+const annulerReglage = () => actionSurReglage(
+  () => execAssemblageService.annulerReglage(execControleOfId.value, posteCode.value),
+  'Réglage annulé : la production reprend.')
 
-const openReglagesModalDirect = () => {
-  if (reglageSections.value && reglageSections.value.length > 0) {
-    const sec = reglageSections.value[0]
-    openSaisirDialog(sec.resultats?.[0], sec)
-  } else {
-    showReglagesModal.value = true
-  }
+/** Après une saisie : rechargement, et pour un réglage, annonce de la reprise ou non des contrôles. */
+const apresSaisie = async () => {
+  await charger()
+  if (!estReglage.value) return
+  await chargerEtatReglage()
+  if (reglageEnCours.value) toast.warn('Corrigez puis refaites le contrôle : les contrôles de production restent suspendus.', 'Réglage non conforme')
+  else toast.success('Les contrôles de production reprennent.', 'Réglage conforme')
 }
 
+const saisie = useSaisieControleLot(execControleOfId, posteCode, moment, apresSaisie)
 
-const setAllLignesResult = (res) => {
-  if (saisieForm.value.lignesControle) {
-    saisieForm.value.lignesControle.forEach(lc => {
-      lc.resultat = res
-      if (res === 'C') {
-        lc.nc = ''
-        lc.actionCorrective = ''
-      }
-    })
-  }
-}
+/**
+ * Ressaisie d'un contrôle de lot : on repart des dernières réponses de chaque ligne. Un contrôle à la demande
+ * (réglage, toutes les pièces) est une nouvelle mesure : il part vide.
+ */
+const ouvrirSaisie = (sec) => saisie.ouvrir(sec, estALaDemande.value ? [] : (controle(sec)?.lignes ?? []))
 
-const setLigneResultat = (lc, res) => {
-  lc.resultat = res
-  if (res === 'C') {
-    lc.nc = ''
-    lc.actionCorrective = ''
-  }
-}
-
-const hasAnyNonConformite = computed(() => {
-  return saisieForm.value.lignesControle?.some(l => l.resultat === 'NC')
+const lignePlan = (idx) => saisie.section.value?.lignesPlan?.[idx]
+const colonnesSupplementaires = computed(() => {
+  const cols = new Set()
+  ;(saisie.section.value?.lignesPlan || []).forEach(l => Object.keys(l.extraColonnes || {}).forEach(k => cols.add(k)))
+  return [...cols]
 })
 
-const openSaisirDialog = (res, sec) => {
-  const targetRow = res || { id: 'reglage', frequence: sec.libelle || 'Démarrage (Réglage Initial)' }
-  selectedRow.value = targetRow
-  selectedSection.value = sec
-  activePieceIndex.value = 0
-
-  const isLotPoste = sec.typeSection === 'LOT_POSTE'
-  const isLotSection = isLotPoste || sec.typeSection === 'LOT_OF'
-  const sourceLignes = (isLotPoste && sec.lignesPlan && sec.lignesPlan.length > 0)
-    ? sec.lignesPlan
-    : (sec.lignesResultat || [])
-
-  const lignesCtrl = sourceLignes.map(l => ({
-    ligneId: l.id,
-    numero: l.numero,
-    caracteristique: l.caracteristique,
-    spec: l.limiteSpecTexte,
-    instrument: l.instrument,
-    resultat: 'C',
-    nc: '',
-    actionCorrective: ''
-  }))
-
-  saisieForm.value = {
-    trancheId: res?.id || '00000000-0000-0000-0000-000000000000',
-    contexte: isLotSection ? 'LOT' : null,
-    resultat: res?.resultat || 'C',
-    nonConformite: res?.nonConformite || '',
-    actionCorrective: res?.actionCorrective || '',
-    approbation: authStore.user?.matricule || res?.approbation || '',
-    remarques: res?.remarques || '',
-    lignesControle: lignesCtrl
-  }
-  showSaisieDialog.value = true
-}
-
-const isFormValid = computed(() => {
-  if (hasAnyNonConformite.value) {
-    const ncLignesWithoutComment = saisieForm.value.lignesControle?.some(l => l.resultat === 'NC' && !l.nc?.trim())
-    if (ncLignesWithoutComment) return false
-  }
-  return true
+const retour = () => router.push({
+  name: 'operateur-of-fini',
+  query: { execControleOfId: execControleOfId.value, posteCode: posteCode.value || undefined, equipe: equipe.value || undefined }
 })
 
-const submitResultat = async () => {
-  if (!isFormValid.value) return
-  isSavingResult.value = true
-  try {
-    const ncLignes = saisieForm.value.lignesControle?.filter(l => l.resultat === 'NC') || []
-    if (ncLignes.length > 0) {
-      saisieForm.value.resultat = 'NC'
-      const ncText = ncLignes.map(l => `[Ligne ${l.numero} - ${l.caracteristique}]: ${l.nc || 'Non Conforme'}`).join(' ; ')
-      const acText = ncLignes.filter(l => l.actionCorrective).map(l => `[Ligne ${l.numero}]: ${l.actionCorrective}`).join(' ; ')
-      saisieForm.value.nonConformite = ncText
-      saisieForm.value.actionCorrective = acText
-    } else {
-      saisieForm.value.resultat = 'C'
-      saisieForm.value.nonConformite = ''
-      saisieForm.value.actionCorrective = ''
-    }
-    const isFinPoste = route.query.finPoste === 'true'
-    saisieForm.value.periodicite = isFinPoste ? 'FIN_POSTE' : 'demarrage'
-
-    await execAssemblageService.saveResultat(execControleOfId.value, saisieForm.value)
-    toast.success('Résultat enregistré avec succès')
-    showSaisieDialog.value = false
-    await loadData()
-    // Retour automatique à l'exécution d'assemblage
-    navigateAway()
-  } catch (err) {
-    console.error('Erreur saisie résultat:', err)
-    toast.error(err.response?.data?.message || 'Erreur lors de l\'enregistrement')
-  } finally {
-    isSavingResult.value = false
+onMounted(() => {
+  if (!posteCode.value) {
+    retour()
+    return
   }
-}
-
-const cloturerDoc = async () => {
-  if (!confirm('Êtes-vous sûr de vouloir clôturer et valider définitivement ce document d\'assemblage ?')) return
-  isCloturing.value = true
-  try {
-    await execAssemblageService.cloturerExecution(execControleOfId.value)
-    toast.success('Document d\'assemblage clôturé !')
-    goBack()
-  } catch (err) {
-    console.error('Erreur clôture:', err)
-    toast.error(err.response?.data?.message || 'Erreur lors de la clôture')
-  } finally {
-    isCloturing.value = false
-  }
-}
-
-const mettreEnPauseOf = async () => {
-  demanderRaison(
-    'Mettre la production en Pause ?',
-    'Voulez-vous vraiment mettre l\'OF en pause ? (Motif Optionnel) :',
-    async (raison) => {
-      try {
-        const r = raison?.trim() || 'Pause'
-        await operateurService.mettreEnPause(execControleOfId.value, r)
-        toast.success('Production en Pause', 'L\'OF est maintenant en pause.')
-        if (execution.value) execution.value.statut = 'EN_PAUSE'
-        await loadData()
-      } catch (error) {
-        console.error(error)
-        toast.error('Erreur', 'Impossible de mettre en pause.')
-      }
-    }
-  )
-}
-
-const reprendreOf = async () => {
-  try {
-    await operateurService.reprendreDepuisPause(execControleOfId.value)
-    toast.success('Reprise', 'La production a repris. Veuillez effectuer la vérification machine après pause.')
-    if (execution.value) execution.value.statut = 'EN_COURS'
-    
-    if (props.embedded) {
-      emit('reprendre')
-    } else {
-      router.push({
-        name: 'operateur-of-fini',
-        query: { 
-          execControleOfId: execControleOfId.value,
-          posteCode: posteCode.value,
-          triggerApresPause: 'true' 
-        }
-      })
-    }
-  } catch (error) {
-    console.error(error)
-    toast.error('Erreur', error.response?.data?.message || 'Impossible de reprendre la production.')
-  }
-}
-
-const mettreEnReglageOf = async () => {
-  try {
-    await operateurService.mettreEnReglage(execControleOfId.value)
-    toast.success('Mode Réglage', 'Production en mode réglage. Procédez aux contrôles au démarrage.')
-    if (execution.value) execution.value.statut = 'REGLAGE'
-    await loadData()
-  } catch (error) {
-    console.error(error)
-    toast.error('Erreur', 'Impossible de mettre en réglage.')
-  }
-}
-
-const cloturerOf = async () => {
-  const result = await Swal.fire({
-    title: 'Clôturer l\'OF d\'assemblage ?',
-    text: 'Êtes-vous sûr de vouloir clôturer définitivement cet ordre de fabrication ?',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Oui, clôturer',
-    cancelButtonText: 'Annuler'
-  })
-
-  if (result.isConfirmed) {
-    try {
-      await operateurService.cloturerOf(execControleOfId.value)
-      toast.success('Succès', 'L\'OF a été clôturé.')
-      goBack()
-    } catch (error) {
-      console.error(error)
-      toast.error('Erreur', 'Impossible de clôturer l\'OF.')
-    }
-  }
-}
-
-// Utilitaires de formatage
-const formatTypeSection = (ts) => {
-  if (ts === 'REGLAGE') return 'Réglages'
-  if (ts === 'ECHANTILLONNAGE') return 'En Cours / Échantillonnage'
-  if (ts === 'LOT_POSTE') return 'Niveau du Lot (OF)'
-  return 'Standard'
-}
-
-const formatHeure = (dtStr) => {
-  if (!dtStr) return '-'
-  const date = new Date(dtStr)
-  if (isNaN(date.getTime())) return '-'
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-const isLocallyUpcoming = (res) => {
-  if (res.statutNotif === 'A_VENIR') return true
-  if (!res.heurePrevue) return false
-  const now = new Date()
-  const prevue = new Date(res.heurePrevue)
-  return prevue > new Date(now.getTime() + 60000)
-}
-
-const isLocallyOverdue = (res) => {
-  if (res.statutNotif === 'EN_RETARD') return true
-  if (!res.heurePrevue) return false
-  const now = new Date()
-  const prevue = new Date(res.heurePrevue)
-  return prevue < new Date(now.getTime() - 15 * 60000) && res.statutNotif !== 'A_VENIR' && !isLocallyUpcoming(res)
-}
-
-const getCardBorderClass = (res) => {
-  if (res.statutNotif === 'EN_RETARD' || isLocallyOverdue(res)) return 'border-red-300 hover:border-red-400'
-  if (res.statutNotif === 'A_VENIR' || isLocallyUpcoming(res)) return 'border-blue-300 hover:border-blue-400'
-  return 'border-yellow-300 hover:border-yellow-400'
-}
-
-const getGroupedTranches = (sec) => {
-  if (!sec || !sec.resultats) return []
-  
-  const pending = sec.resultats.filter(r => !r.resultat)
-  if (pending.length === 0) return []
-
-  pending.sort((a, b) => new Date(a.heurePrevue) - new Date(b.heurePrevue))
-
-  const now = new Date()
-  const nowPlus1Min = new Date(now.getTime() + 60000)
-  
-  const dueOrOverdue = pending.filter(r => new Date(r.heurePrevue) <= nowPlus1Min)
-  const future = pending.filter(r => new Date(r.heurePrevue) > nowPlus1Min)
-
-  const visible = [...dueOrOverdue]
-  
-  if (future.length > 0) {
-    const firstFutureTime = new Date(future[0].heurePrevue)
-    const nextGroup = future.filter(r => Math.abs(new Date(r.heurePrevue) - firstFutureTime) < 3600000 && visible.length < 4)
-    if (dueOrOverdue.length > 0) {
-      visible.push(future[0])
-    } else {
-      visible.push(...nextGroup)
-    }
-  }
-
-  const groupsMap = new Map()
-  
-  for (const res of visible) {
-    const d = new Date(res.heurePrevue)
-    const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
-    const hStart = d.getHours().toString().padStart(2, '0') + ':00'
-    const hEnd = ((d.getHours() + 1) % 24).toString().padStart(2, '0') + ':00'
-    const trancheKey = `${dateStr} | ${hStart} - ${hEnd}`
-    
-    if (!groupsMap.has(trancheKey)) {
-      groupsMap.set(trancheKey, {
-        trancheLabel: trancheKey,
-        resultats: []
-      })
-    }
-    groupsMap.get(trancheKey).resultats.push(res)
-  }
-
-  return Array.from(groupsMap.values())
-}
-
-const declarerTrancheReglage = async (trancheGroup) => {
-  const result = await Swal.fire({
-    title: 'Déclarer comme Réglage ?',
-    text: `Voulez-vous vraiment déclarer tous les contrôles de la tranche ${trancheGroup.trancheLabel} comme Réglage ?`,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonColor: '#eab308',
-    cancelButtonColor: '#64748b',
-    confirmButtonText: 'Oui, déclarer',
-    cancelButtonText: 'Annuler'
-  })
-
-  if (!result.isConfirmed) return
-
-  try {
-    const isFinPoste = route.query.finPoste === 'true'
-    for (const res of trancheGroup.resultats) {
-      await execAssemblageService.saveResultat(execControleOfId.value, {
-        trancheId: res.id,
-        resultat: 'REGLAGE',
-        periodicite: isFinPoste ? 'FIN_POSTE' : 'demarrage'
-      })
-    }
-    toast.success('Succès', 'Tranche déclarée comme réglage.')
-    await loadData()
-  } catch (error) {
-    console.error(error)
-    toast.error('Erreur', error.response?.data?.message || 'Erreur lors de la déclaration.')
-  }
-}
-
-const ignorerTranche = async (trancheGroup) => {
-  demanderRaison(
-    'Ignorer la tranche ?',
-    `Voulez-vous vraiment ignorer tous les contrôles de la tranche ${trancheGroup.trancheLabel} ? (Motif Optionnel) :`,
-    async (raison) => {
-      try {
-        const r = raison?.trim() || 'Ignoré'
-        const isFinPoste = route.query.finPoste === 'true'
-        for (const res of trancheGroup.resultats) {
-          await execAssemblageService.saveResultat(execControleOfId.value, {
-            trancheId: res.id,
-            resultat: 'IGNORE',
-            remarques: r,
-            periodicite: isFinPoste ? 'FIN_POSTE' : 'demarrage'
-          })
-        }
-        toast.success('Succès', 'Tranche ignorée.')
-        await loadData()
-      } catch (error) {
-        console.error(error)
-        toast.error('Erreur', error.response?.data?.message || 'Erreur lors de l\'ignorance de la tranche.')
-      }
-    }
-  )
-}
+  charger()
+  chargerEtatReglage()
+})
 </script>
-
-<style scoped>
-.exec-assemblage-container {
-  padding: 1.5rem;
-  max-width: 1400px;
-  margin: 0 auto;
-  font-family: 'Inter', system-ui, sans-serif;
-  color: #1e293b;
-}
-
-/* En-tête */
-.header-card {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  color: white;
-  border-radius: 16px;
-  padding: 1.5rem 2rem;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
-  margin-bottom: 2rem;
-}
-.header-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-.back-btn {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 0.6rem 1.2rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.2s;
-}
-.back-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-.header-actions {
-  display: flex;
-  gap: 1rem;
-}
-.config-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.config-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
-}
-.cloture-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-  transition: transform 0.15s;
-}
-.cloture-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.of-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.2rem;
-}
-.detail-badge {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 0.6rem 1rem;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-}
-.detail-badge .label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #94a3b8;
-  margin-bottom: 0.2rem;
-}
-.detail-badge .val {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-/* Loading & Error */
-.loading-state, .error-card {
-  text-align: center;
-  padding: 4rem 2rem;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-}
-.error-icon {
-  font-size: 3rem;
-  color: #ef4444;
-  margin-bottom: 1rem;
-}
-.retry-btn {
-  margin-top: 1rem;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 0.6rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* Sections */
-.sections-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2.5rem;
-}
-.section-card {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e2e8f0;
-  overflow: hidden;
-  transition: box-shadow 0.2s;
-}
-.section-card:hover {
-  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.12);
-}
-.section-header {
-  background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
-  padding: 1.25rem 1.75rem;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-.sec-num {
-  background: #3b82f6;
-  color: white;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 1rem;
-}
-.section-title h3 {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-.sec-type-tag {
-  padding: 0.3rem 0.8rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.sec-type-tag.reglage { background: #fee2e2; color: #991b1b; }
-.sec-type-tag.echantillonnage { background: #dbeafe; color: #1e40af; }
-.sec-type-tag.lot_poste { background: #fef3c7; color: #92400e; }
-
-/* Sous-blocs */
-.sub-block {
-  padding: 1.5rem 1.75rem;
-}
-.plan-block {
-  border-bottom: 2px dashed #cbd5e1;
-  background: #fafcfd;
-}
-.result-block {
-  background: #ffffff;
-}
-.sub-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-.sub-title i {
-  font-size: 1.25rem;
-  color: #3b82f6;
-}
-.result-title i {
-  color: #10b981;
-}
-.sub-title h4 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #334155;
-}
-.notif-hint {
-  margin-left: auto;
-  font-size: 0.85rem;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: #f1f5f9;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-}
-
-/* Tables */
-.table-responsive {
-  overflow-x: auto;
-}
-.data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 0.95rem;
-}
-.data-table th {
-  background: #f8fafc;
-  color: #475569;
-  font-weight: 600;
-  text-align: left;
-  padding: 0.85rem 1rem;
-  border-bottom: 2px solid #e2e8f0;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.5px;
-}
-.data-table td {
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
-}
-.plan-table tbody tr:hover {
-  background: #f8fafc;
-}
-
-/* Badges de Lignes Plan */
-.spec-badge {
-  background: #eff6ff;
-  color: #1d4ed8;
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-.type-badge {
-  background: #f1f5f9;
-  color: #475569;
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-.obs-cell {
-  font-style: italic;
-  color: #64748b;
-  max-width: 250px;
-}
-
-/* Badges de Résultat & Notification */
-.notif-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-.notif-badge.fait { background: #d1fae5; color: #065f46; }
-.notif-badge.en_retard { 
-  background: #fee2e2; 
-  color: #991b1b; 
-  animation: pulse-red 2s infinite; 
-}
-.notif-badge.a_faire { background: #fef3c7; color: #92400e; }
-.notif-badge.a_venir { background: #e0f2fe; color: #0369a1; }
-
-@keyframes pulse-red {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-}
-
-.res-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.8rem;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-.res-badge.conforme { background: #d1fae5; color: #065f46; }
-.res-badge.non-conforme { background: #fee2e2; color: #991b1b; }
-.res-badge.pending { background: #f1f5f9; color: #94a3b8; }
-
-.row-retard { background-color: #fff5f5 !important; }
-.row-afaire { background-color: #fffbeb !important; }
-.row-pause { background-color: #eff6ff !important; }
-.row-reglage { background-color: #fef3c7 !important; }
-.row-nc { background-color: #fef2f2 !important; font-weight: 600; }
-
-.nc-text { color: #dc2626; font-weight: 600; }
-.ac-text { color: #2563eb; }
-.mat-badge { background: #f1f5f9; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem; }
-
-.action-btn {
-  background: white;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  padding: 0.45rem 0.85rem;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.action-btn:hover {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-}
-
-.empty-cell {
-  text-align: center;
-  color: #94a3b8;
-  padding: 2.5rem !important;
-  font-style: italic;
-}
-
-/* Modales */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 1rem;
-}
-.modal-card {
-  background: white;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 600px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  max-height: 90vh;
-}
-.modal-header {
-  background: #f8fafc;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  color: #0f172a;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-.close-btn {
-  background: none; border: none; font-size: 1.25rem; color: #64748b; cursor: pointer;
-}
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-.modal-footer {
-  padding: 1rem 1.5rem;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-}
-
-/* Formulaires dans Modales */
-.modal-intro {
-  color: #475569;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  margin: 0;
-  background: #eff6ff;
-  padding: 0.85rem 1rem;
-  border-radius: 8px;
-  border-left: 4px solid #3b82f6;
-}
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.form-group label {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #334155;
-}
-.req { color: #ef4444; }
-.form-input {
-  padding: 0.65rem 0.85rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  transition: border-color 0.15s;
-}
-.form-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.poste-config-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr auto;
-  gap: 0.75rem;
-  align-items: end;
-  background: #f8fafc;
-  padding: 0.85rem;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-.btn-remove-poste {
-  background: #fee2e2;
-  color: #dc2626;
-  border: none;
-  width: 38px; height: 38px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.btn-add-poste {
-  background: #f1f5f9;
-  color: #3b82f6;
-  border: 1px dashed #3b82f6;
-  padding: 0.75rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.btn-add-poste:hover {
-  background: #eff6ff;
-}
-
-/* Saisie boutons décision */
-.decision-group {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-.decision-btn {
-  padding: 1rem;
-  border-radius: 12px;
-  border: 2px solid #e2e8f0;
-  background: white;
-  font-weight: 700;
-  font-size: 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  transition: all 0.2s;
-}
-.conforme-btn:hover, .conforme-btn.active {
-  border-color: #10b981;
-  background: #ecfdf5;
-  color: #065f46;
-}
-.non-conforme-btn:hover, .non-conforme-btn.active {
-  border-color: #ef4444;
-  background: #fef2f2;
-  color: #991b1b;
-}
-
-.btn-cancel {
-  background: white;
-  border: 1px solid #cbd5e1;
-  padding: 0.65rem 1.25rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-save {
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 0.65rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.btn-save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.saisie-section-info {
-  background: #f1f5f9;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  color: #475569;
-}
-</style>

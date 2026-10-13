@@ -17,14 +17,14 @@
           <div class="min-w-max flex flex-col w-full">
             <!-- Table 1 : Test de conformité -->
             <VerifMachineTableConformite 
-              v-if="store.entete.afficheConformite && !isMachineSansConformite"
+              v-if="store.entete.afficheConformite && !machineStrategy.sansConformite"
               :isReadOnly="props.isReadOnly"
               :showEtalonColumns="false"
               @add-piece="openAddPieceModalFromEvent"
             />
 
-            <!-- Pour MAS22 : Affichage en 2 tables distinctes pour Risques Normaux et Risques Étalon (Table 2 & Table 3) -->
-            <template v-if="isMAS22">
+            <!-- Machines à tableaux étalon séparés : affichage en 2 tables distinctes pour Risques Normaux et Risques Étalon (Table 2 & Table 3) -->
+            <template v-if="machineStrategy.tablesEtalonSeparees">
               <!-- Table 2 : Section Risques & Défauts (sans fuite) -->
               <VerifMachineTableRisques 
                 :isReadOnly="props.isReadOnly"
@@ -88,7 +88,7 @@
       v-model:visible="showColumnModal"
       v-model="store.entete.configurationColonnes"
       :baseColumns="vmBaseColumns"
-      :showTargetTable="isMAS26"
+      :showTargetTable="machineStrategy.colonnesParTableau"
   >
       <!-- GESTION DES FAMILLES DE CORPS -->
       <template #extra-configuration>
@@ -131,7 +131,7 @@
       <template #preview="{ previewColumns, previewTarget }">
         <div class="flex flex-col gap-6">
           <!-- Aperçu Conformité -->
-          <div v-if="(store.entete.afficheConformite && !isMachineSansConformite) && (!isMAS26 || previewTarget === 'conformite')" class="border border-slate-300 rounded overflow-hidden">
+          <div v-if="(store.entete.afficheConformite && !machineStrategy.sansConformite) && (!machineStrategy.colonnesParTableau || previewTarget === 'conformite')" class="border border-slate-300 rounded overflow-hidden">
             <div class="bg-[#0f172a] text-slate-200 border-l-4 border-emerald-500 text-[10px] font-bold uppercase p-2">Section Conformité</div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs whitespace-nowrap">
@@ -139,28 +139,28 @@
                   <tr>
                     <template v-for="cCol in previewColumns" :key="cCol.key">
                       <th v-if="cCol.key === 'risque'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">Test de conformité</th>
-                      <th v-else-if="cCol.key === 'methode'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ isBEEMachine ? 'Méthode de controle' : 'Moyen/ Méthode de contrôle' }}</th>
+                      <th v-else-if="cCol.key === 'methode'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ machineStrategy.methodeControleLabel }}</th>
                       <th v-else-if="cCol.key === 'periodicite'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">Périodicité</th>
                       <th v-else-if="cCol.key === 'moyen_detection'" v-show="store.entete.afficheMoyenDetectionRisques" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">
-                        {{ (isArchitectureA || isBEEMachine || isMAS19 || isSER05) ? 'Moyen de contrôle' : 'Moyen de détection' }}
+                        {{ machineStrategy.moyenDetectionLabel }}
                       </th>
                       <template v-else-if="cCol.key === 'piece_reference'">
                         <template v-if="hasFamilleHeaders">
                           <th :colspan="store.familles.length" class="p-2 border-b border-r border-slate-600 bg-slate-700">
-                            {{ (isBEEMachine || isMAS19) ? 'Numéro du moyen de contrôle' : ((isArchitectureA || isSER05) ? 'N° moyen de contrôle' : 'Numéro de la pièce référence') }}
+                            {{ machineStrategy.pieceReferenceLabel }}
                           </th>
                         </template>
                         <th v-else :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">
-                          {{ (isBEEMachine || isMAS19) ? 'Numéro du moyen de contrôle' : ((isArchitectureA || isSER05) ? 'N° moyen de contrôle' : 'Numéro de la pièce référence') }}
+                          {{ machineStrategy.pieceReferenceLabel }}
                         </th>
                       </template>
-                      <th v-else-if="cCol.key === 'fuite_etalon'" v-show="store.entete.afficheFuiteEtalon || isBEEMachine" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">
-                        {{ isBEEMachine ? 'Numéro du fuite étalon' : 'Fuite Étalon' }}
+                      <th v-else-if="cCol.key === 'fuite_etalon'" v-show="machineStrategy.showFuiteEtalon" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">
+                        {{ machineStrategy.fuiteEtalonLabel }}
                       </th>
-                      <th v-else-if="cCol.key === 'pression_entree'" v-show="!hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">Pression d'entrée affichée (en bar)</th>
-                      <th v-else-if="cCol.key === 'dp_affichee'" v-show="!isMAS19 && !hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">{{ store.entete.machineCode?.includes('BEE47') ? 'Fuite affichée (en Pa)' : 'ΔP affichée (en Pa)' }}</th>
+                      <th v-else-if="cCol.key === 'pression_entree'" v-show="!machineStrategy.hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">Pression d'entrée affichée (en bar)</th>
+                      <th v-else-if="cCol.key === 'dp_affichee'" v-show="!machineStrategy.hideDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">{{ machineStrategy.dpAfficheeLabel }}</th>
                       <th v-else-if="cCol.key === 'resultat'" :colspan="hasSubHeaders ? 2 : 1" :rowspan="1" class="p-2 border-r border-slate-600 w-20">Résultats</th>
-                      <th v-else-if="cCol.key === 'observation'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ isSER05 ? 'Action en cas de non-conformité' : 'Observation en cas de non-conformité' }}</th>
+                      <th v-else-if="cCol.key === 'observation'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ machineStrategy.observationLabel }}</th>
                       <th v-else :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24 text-amber-400 bg-slate-700/50">
                         {{ cCol.label }}
                       </th>
@@ -187,9 +187,9 @@
                         </template>
                         <td v-else class="p-2 border-r border-slate-200">PRC...</td>
                       </template>
-                      <td v-else-if="cCol.key === 'fuite_etalon'" v-show="store.entete.afficheFuiteEtalon || isBEEMachine" class="p-2 border-r border-slate-200 text-blue-600 font-bold">FE...</td>
-                      <td v-else-if="cCol.key === 'pression_entree'" v-show="!hidePressionAndDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
-                      <td v-else-if="cCol.key === 'dp_affichee'" v-show="!isMAS19 && !hidePressionAndDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
+                      <td v-else-if="cCol.key === 'fuite_etalon'" v-show="machineStrategy.showFuiteEtalon" class="p-2 border-r border-slate-200 text-blue-600 font-bold">FE...</td>
+                      <td v-else-if="cCol.key === 'pression_entree'" v-show="!machineStrategy.hidePressionAndDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
+                      <td v-else-if="cCol.key === 'dp_affichee'" v-show="!machineStrategy.hideDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
                       <template v-else-if="cCol.key === 'resultat'">
                         <template v-if="hasSubHeaders">
                            <td class="p-2 border-r border-slate-200"></td>
@@ -209,7 +209,7 @@
           </div>
 
           <!-- Aperçu Risques -->
-          <div v-if="!isMAS26 || previewTarget === 'risques'" class="border border-slate-300 rounded overflow-hidden">
+          <div v-if="!machineStrategy.colonnesParTableau || previewTarget === 'risques'" class="border border-slate-300 rounded overflow-hidden">
             <div class="bg-[#0f172a] text-slate-200 border-l-4 border-rose-500 text-[10px] font-bold uppercase p-2">Section Risques & Défauts</div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs whitespace-nowrap">
@@ -218,28 +218,28 @@
                   <tr>
                     <template v-for="cCol in previewColumns" :key="cCol.key">
                       <th v-if="cCol.key === 'risque'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">Risque/ Défaut</th>
-                      <th v-else-if="cCol.key === 'methode'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ isBEEMachine ? 'Méthode de controle' : 'Moyen/ Méthode de contrôle' }}</th>
+                      <th v-else-if="cCol.key === 'methode'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ machineStrategy.methodeControleLabel }}</th>
                       <th v-else-if="cCol.key === 'periodicite'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">Périodicité</th>
                       <th v-else-if="cCol.key === 'moyen_detection'" v-show="store.entete.afficheMoyenDetectionRisques" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">
-                        {{ (isArchitectureA || isBEEMachine || isMAS19 || isSER05) ? 'Moyen de contrôle' : 'Moyen de détection' }}
+                        {{ machineStrategy.moyenDetectionLabel }}
                       </th>
                       <template v-else-if="cCol.key === 'piece_reference'">
                         <template v-if="hasFamilleHeaders">
                           <th :colspan="store.familles.length" class="p-2 border-b border-r border-slate-600 bg-slate-700">
-                            {{ (isBEEMachine || isMAS19) ? 'Numéro du moyen de contrôle' : ((isArchitectureA || isSER05) ? 'N° moyen de contrôle' : 'Numéro de la pièce référence') }}
+                            {{ machineStrategy.pieceReferenceLabel }}
                           </th>
                         </template>
                         <th v-else :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">
-                          {{ (isBEEMachine || isMAS19) ? 'Numéro du moyen de contrôle' : ((isArchitectureA || isSER05) ? 'N° moyen de contrôle' : 'Numéro de la pièce référence') }}
+                          {{ machineStrategy.pieceReferenceLabel }}
                         </th>
                       </template>
-                      <th v-else-if="cCol.key === 'fuite_etalon'" v-show="store.entete.afficheFuiteEtalon || isBEEMachine" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">
-                        {{ isBEEMachine ? 'Numéro du fuite étalon' : 'Fuite Étalon' }}
+                      <th v-else-if="cCol.key === 'fuite_etalon'" v-show="machineStrategy.showFuiteEtalon" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24">
+                        {{ machineStrategy.fuiteEtalonLabel }}
                       </th>
-                      <th v-else-if="cCol.key === 'pression_entree'" v-show="!hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">Pression d'entrée affichée (en bar)</th>
-                      <th v-else-if="cCol.key === 'dp_affichee'" v-show="!isMAS19 && !hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">{{ store.entete.machineCode?.includes('BEE47') ? 'Fuite affichée (en Pa)' : 'ΔP affichée (en Pa)' }}</th>
+                      <th v-else-if="cCol.key === 'pression_entree'" v-show="!machineStrategy.hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">Pression d'entrée affichée (en bar)</th>
+                      <th v-else-if="cCol.key === 'dp_affichee'" v-show="!machineStrategy.hideDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-20">{{ machineStrategy.dpAfficheeLabel }}</th>
                       <th v-else-if="cCol.key === 'resultat'" :colspan="hasSubHeaders ? 2 : 1" :rowspan="1" class="p-2 border-r border-slate-600 w-20">Résultats</th>
-                      <th v-else-if="cCol.key === 'observation'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ isSER05 ? 'Action en cas de non-conformité' : 'Observation en cas de non-conformité' }}</th>
+                      <th v-else-if="cCol.key === 'observation'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-32">{{ machineStrategy.observationLabel }}</th>
                       <th v-else :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-600 w-24 text-amber-400 bg-slate-700/50">
                         {{ cCol.label }}
                       </th>
@@ -266,9 +266,9 @@
                         </template>
                         <td v-else class="p-2 border-r border-slate-200">PRC...</td>
                       </template>
-                      <td v-else-if="cCol.key === 'fuite_etalon'" v-show="store.entete.afficheFuiteEtalon || isBEEMachine" class="p-2 border-r border-slate-200 text-blue-600 font-bold">FE...</td>
-                      <td v-else-if="cCol.key === 'pression_entree'" v-show="!hidePressionAndDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
-                      <td v-else-if="cCol.key === 'dp_affichee'" v-show="!isMAS19 && !hidePressionAndDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
+                      <td v-else-if="cCol.key === 'fuite_etalon'" v-show="machineStrategy.showFuiteEtalon" class="p-2 border-r border-slate-200 text-blue-600 font-bold">FE...</td>
+                      <td v-else-if="cCol.key === 'pression_entree'" v-show="!machineStrategy.hidePressionAndDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
+                      <td v-else-if="cCol.key === 'dp_affichee'" v-show="!machineStrategy.hideDp" class="p-2 border-r border-slate-200 text-slate-400 italic">Saisi...</td>
                       <template v-else-if="cCol.key === 'resultat'">
                         <template v-if="hasSubHeaders">
                            <td class="p-2 border-r border-slate-200"></td>
@@ -314,7 +314,7 @@ import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import AutoComplete from 'primevue/autocomplete';
 import { parseDesignation } from '@/utils/designationParser';
-import { MachineStrategyFactory } from './strategies/MachineStrategyFactory';
+import { MachineStrategy } from './strategies/MachineStrategy';
 import VerifMachineHeader from './partials/VerifMachineHeader.vue';
 import VerifMachineTableConformite from './partials/VerifMachineTableConformite.vue';
 import VerifMachineTableRisques from './partials/VerifMachineTableRisques.vue';
@@ -423,30 +423,15 @@ watch(() => store.entete.machineCode, (newVal) => {
   selectedMachineCode.value = newVal || '';
 }, { immediate: true });
 
-const isMachineSansConformite = computed(() => {
-  if (!store.entete.machineCode) return false;
-  const code = store.entete.machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-  return code.includes('BEE46') || code.includes('BEE47') || 
-         code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
-});
+// Présentation propre à la machine : lue dans le référentiel (table Machine), plus déduite de son code.
+const machineStrategy = computed(() => new MachineStrategy(store, store.machineConfig));
 
-watch(isMachineSansConformite, (newVal) => {
-  if (newVal) {
+watch(() => machineStrategy.value.sansConformite, (sansConformite) => {
+  if (sansConformite) {
     store.entete.afficheConformite = false;
     store.lignesConformite = [];
   }
 }, { immediate: true });
-
-const machineStrategy = computed(() => MachineStrategyFactory.getStrategy(store.entete.machineCode, store));
-
-const isArchitectureA = computed(() => machineStrategy.value.isArchitectureA);
-const isBEEMachine = computed(() => machineStrategy.value.role === 'BEE');
-const isMAS26 = computed(() => machineStrategy.value.isMAS26);
-const isMAS19 = computed(() => machineStrategy.value.isMAS19);
-const isMAS22 = computed(() => machineStrategy.value.isMAS22);
-const isSER05 = computed(() => machineStrategy.value.isSER05);
-const hidePressionAndDp = computed(() => machineStrategy.value.hidePressionAndDp);
-
 
 const vmBaseColumns = computed(() => {
   const cols = [
@@ -456,26 +441,26 @@ const vmBaseColumns = computed(() => {
       labelConformite: 'TEST DE CONFORMITÉ',
       labelRisques: 'RISQUE/ DÉFAUT'
     },
-    { key: 'methode', label: isBEEMachine.value ? 'MÉTHODE DE CONTRÔLE' : 'MOYEN/ MÉTHODE DE CONTRÔLE' },
+    { key: 'methode', label: machineStrategy.value.methodeControleLabel.toUpperCase() },
     { key: 'periodicite', label: 'PÉRIODICITÉ' }
   ];
   if (store.entete.afficheMoyenDetectionRisques) {
-    cols.push({ 
-      key: 'moyen_detection', 
-      label: (isArchitectureA.value || isBEEMachine.value || isMAS19.value || isSER05.value) ? 'MOYEN DE CONTRÔLE' : 'MOYEN DE DÉTECTION',
-      hiddenInRisques: isMAS26.value
+    cols.push({
+      key: 'moyen_detection',
+      label: machineStrategy.value.moyenDetectionLabel.toUpperCase(),
+      hiddenInRisques: machineStrategy.value.colonnesParTableau
     });
   }
-  cols.push({ key: 'piece_reference', label: (isBEEMachine.value || isMAS19.value) ? 'NUMÉRO DU MOYEN DE CONTRÔLE' : ((isArchitectureA.value || isSER05.value) ? 'N° MOYEN DE CONTRÔLE' : 'NUMÉRO DE LA PIÈCE RÉFÉRENCE') });
-  if (store.entete.afficheFuiteEtalon || isBEEMachine.value) {
-    cols.push({ key: 'fuite_etalon', label: isBEEMachine.value ? 'NUMÉRO DU FUITE ÉTALON' : 'FUITE ÉTALON' });
+  cols.push({ key: 'piece_reference', label: machineStrategy.value.pieceReferenceLabel.toUpperCase() });
+  if (machineStrategy.value.showFuiteEtalon) {
+    cols.push({ key: 'fuite_etalon', label: machineStrategy.value.fuiteEtalonLabel.toUpperCase() });
   }
   cols.push({ key: 'pression_entree', label: "PRESSION D'ENTRÉE AFFICHÉE (EN BAR)" });
-  if (!isMAS19.value) {
-    cols.push({ key: 'dp_affichee', label: store.entete.machineCode?.includes('BEE47') ? 'FUITE AFFICHÉE (EN PA)' : 'ΔP AFFICHÉE (EN PA)' });
+  if (!machineStrategy.value.hideDp) {
+    cols.push({ key: 'dp_affichee', label: machineStrategy.value.dpAfficheeLabel.toUpperCase() });
   }
   cols.push({ key: 'resultat', label: 'RÉSULTAT (C/NC)' });
-  cols.push({ key: 'observation', label: isSER05.value ? 'ACTION EN CAS DE NON-CONFORMITÉ' : 'OBSERVATION EN CAS DE NON-CONFORMITÉ' });
+  cols.push({ key: 'observation', label: machineStrategy.value.observationLabel.toUpperCase() });
   return cols;
 });
 

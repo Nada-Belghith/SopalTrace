@@ -1,3 +1,5 @@
+using SopalTrace.Application.Services.Execution;
+using SopalTrace.Domain.Exceptions;
 using SopalTrace.Domain.Constants;
 using System;
 using System.Collections.Generic;
@@ -91,7 +93,9 @@ public class FormulaireStructureService : IFormulaireStructureService
                 f.Role?.Trim() ?? string.Empty,
                 f.Version,
                 ColonneJsonMapper.Serialize(cols, equipes),
-                f.Statut?.Trim() ?? string.Empty
+                f.Statut?.Trim() ?? string.Empty,
+                f.PosteCode,
+                f.FamilleProduitFiniCode
             ));
         }
         return dtos;
@@ -124,6 +128,7 @@ public class FormulaireStructureService : IFormulaireStructureService
         }
 
         var parsedRoot = ColonneJsonMapper.DeserializeRoot(configurationStructureJson);
+        await ValiderEquipesAsync(parsedRoot.Equipes);
 
         if (formulaireActuel != null)
         {
@@ -233,6 +238,9 @@ public class FormulaireStructureService : IFormulaireStructureService
                     Statut = StatutsPlan.Actif,
                     CreeLe = DateTime.UtcNow,
                     Role = role,
+                    // Une nouvelle version garde le champ d'application du formulaire.
+                    PosteCode = formulaireActuel.PosteCode,
+                    FamilleProduitFiniCode = formulaireActuel.FamilleProduitFiniCode
                 };
 
                 await _formulaireRepository.AddAsync(nouveauFormulaire);
@@ -268,6 +276,25 @@ public class FormulaireStructureService : IFormulaireStructureService
 
             return (nouveauFormulaire.Id, 0);
         }
+    }
+
+    public async Task<List<EquipeReferenceDto>> GetEquipesReferenceAsync() =>
+        (await _formulaireRepository.GetEquipesReferenceAsync()).Select(t => new EquipeReferenceDto(t.Code, t.Label)).ToList();
+
+    /// <summary>
+    /// Équipes d'un document (contrôle au poste) : chacune rattachée à une équipe connue, horaires valides,
+    /// aucune heure couverte par deux équipes (chaque tranche horaire n'a qu'une équipe qui la saisit).
+    /// </summary>
+    private async Task ValiderEquipesAsync(List<EquipeJsonDto> equipes)
+    {
+        var configurees = equipes.Where(e => !string.IsNullOrWhiteSpace(e.Nom)).ToList();
+        if (configurees.Count == 0) return;
+        var codes = (await _formulaireRepository.GetEquipesReferenceAsync()).Select(t => t.Code).ToList();
+        var erreur = EquipesControlePoste.Erreur(
+            configurees.Select((e, i) => new EquipePoste(
+                string.IsNullOrWhiteSpace(e.Code) ? Equipes.PourPosition(i) : e.Code.Trim().ToUpperInvariant(), e.Nom, e.Debut, e.Fin, i)).ToList(),
+            codes);
+        if (erreur != null) throw new RegleMetierException(erreur);
     }
 
     public async Task<bool> ActiverFormulaireAsync(Guid id)

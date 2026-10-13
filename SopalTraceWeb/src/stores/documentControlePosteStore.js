@@ -1,3 +1,5 @@
+import { EQUIPES_CONTROLE_POSTE_PAR_DEFAUT } from '@/constants/execution'
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { documentControlePosteService } from '@/services/documentControlePosteService';
@@ -18,6 +20,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
   const entete = ref({
     id: null,
     posteCode: '',
+    familleProduitFiniCode: null,
     nom: '',
     version: null,
     versionInitiale: null,
@@ -28,10 +31,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
     formulaireCodeReference: null, // ex: 'FE-RC-PAS71_SOUPAPE' - passé au backend pour éviter le lookup EF
     isModeleTemplate: false, // flag to know if we are editing a template
     configurationColonnes: {
-      equipes: [
-        { nom: 'Equipe 1', debut: 6, fin: 14 },
-        { nom: 'Equipe 2', debut: 14, fin: 22 }
-      ],
+      equipes: EQUIPES_CONTROLE_POSTE_PAR_DEFAUT.map(e => ({ ...e })),
       customCols: []
     }
   });
@@ -67,9 +67,8 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
       .filter(l => l.machineCode || l.risqueDefautId || l._libelleDefautBrut)
       .map((l, idx) => ({
         Id: l.id || undefined,
-        // Architecture: MachineCodeCtrlPoste is the correct field for CTRL_POSTE machine
-        MachineCodeCtrlPoste: l.machineCode || null,
-        MachineCode: null,
+        // Machine contrôlée par la ligne (Document_Ligne.MachineCode)
+        MachineCode: l.machineCode || null,
         RisqueDefautId: l.risqueDefautId || null,
         // LibelleAffiche stores the defaut designation text
         LibelleAffiche: resoudreLibelleDefaut(l) || null,
@@ -78,6 +77,8 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
 
     return {
       Id: entete.value.id || undefined,
+      // Version reçue au chargement : refus 409 si le document a été modifié entre-temps
+      RowVersion: entete.value.rowVersion,
       TypeDocumentCode: 'CTRL_POSTE',
       PosteCode: entete.value.posteCode,
       FamilleProduitFiniCode: entete.value.familleProduitFiniCode || null,
@@ -156,10 +157,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
 
       // Parse configuration des colonnes/équipes
       let configColonnes = {
-        equipes: [
-          { nom: 'Equipe 1', debut: 6, fin: 14 },
-          { nom: 'Equipe 2', debut: 14, fin: 22 }
-        ],
+        equipes: EQUIPES_CONTROLE_POSTE_PAR_DEFAUT.map(e => ({ ...e })),
         customCols: []
       };
 
@@ -178,14 +176,17 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
         configColonnes.customCols = data.colonneDefs.map(c => ({
           key: c.cleColonne,
           label: c.labelAffiche || c.titre,
-          type: c.typeValeur || 'Texte',
+          type: normaliserTypeColonne(c.typeValeur),
+          options: c.options || [],
           insertAfter: c.insertAfter || 'col_designation'
         }));
       }
 
       entete.value = {
         id: data.id,
+        rowVersion: data.rowVersion,
         posteCode: data.posteCode,
+        familleProduitFiniCode: data.familleProduitFiniCode || null,
         nom: data.nom,
         version: data.version,
         statut: data.statut,
@@ -230,6 +231,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
     entete.value = {
       id: null,
       posteCode,
+      familleProduitFiniCode: null,
       nom: `Résultat DocumentControlePoste_${p?.libelle || posteCode}`,
       version: null,
       versionInitiale: null,
@@ -240,10 +242,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
       formulaireCodeReference: formulaireCodeReference,
       isModeleTemplate: false,
       configurationColonnes: configurationColonnes || {
-        equipes: [
-          { nom: 'Equipe 1', debut: 6, fin: 14 },
-          { nom: 'Equipe 2', debut: 14, fin: 22 }
-        ],
+        equipes: EQUIPES_CONTROLE_POSTE_PAR_DEFAUT.map(e => ({ ...e })),
         customCols: []
       }
     };
@@ -313,6 +312,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
           } else {
             // Mode Edition -> Correction mineure ou update Brouillon
             const res = await documentControlePosteService.updateDocumentControlePoste(entete.value.id, payload);
+            entete.value.rowVersion = res?.rowVersion ?? entete.value.rowVersion;
             prendreSnapshot();
             return { success: true, planId: entete.value.id, message: "Plan mis à jour avec succès" };
           }
@@ -340,25 +340,11 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
   };
   const creerNouvelleVersion = createNewVersion;
 
-  const restaurerPlan = async (motif = "Restauration d'une ancienne version") => {
-    isLoading.value = true;
-    try {
-      const payload = {
-        AncienId: entete.value.id,
-        ModifiePar: "ADMIN",
-        MotifModification: motif
-      };
-      const res = await documentControlePosteService.restore(payload);
-      return res.data;
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
   const resetState = () => {
     entete.value = {
       id: null,
       posteCode: '',
+      familleProduitFiniCode: null,
       nom: '',
       version: null,
       versionInitiale: null,
@@ -369,10 +355,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
       formulaireCodeReference: null,
       isModeleTemplate: false,
       configurationColonnes: {
-        equipes: [
-          { nom: 'Equipe 1', debut: 6, fin: 14 },
-          { nom: 'Equipe 2', debut: 14, fin: 22 }
-        ],
+        equipes: EQUIPES_CONTROLE_POSTE_PAR_DEFAUT.map(e => ({ ...e })),
         customCols: []
       }
     };
@@ -454,7 +437,6 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
     postes, machines, risquesDefauts, isDicosLoaded, formulairesReferences,
     entete, lignes, isLoading, planInitialise, plansExistants,
     fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, initialiserNouveauPlan, chargerdocumentControlePoste,
-    ajouterLigne, supprimerLigne, sauvegarderPlan, createNewVersion, creerNouvelleVersion, aDesModifications, restaurerPlan,
-    resetState, importerDepuisExcel
+    ajouterLigne, supprimerLigne, sauvegarderPlan, createNewVersion, creerNouvelleVersion, aDesModifications, resetState, importerDepuisExcel
   };
 });

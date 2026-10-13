@@ -9,11 +9,11 @@ public partial class MfgheadOrdreFabrication
 
     public string CodeArticle { get; set; } = null!;
 
-    public double QuantitePrevue { get; set; }
+    public decimal QuantitePrevue { get; set; }
 
-    public double QuantiteLancee { get; set; }
+    public decimal QuantiteLancee { get; set; }
 
-    public double QuantiteReelle { get; set; }
+    public decimal QuantiteReelle { get; set; }
 
     public string StatutOf { get; set; } = null!;
 
@@ -28,8 +28,6 @@ public partial class MfgheadOrdreFabrication
     public virtual ICollection<MagExpeditionBlScanOf> MagExpeditionBlScanOfs { get; set; } = new List<MagExpeditionBlScanOf>();
 
     public virtual ICollection<MagPreparationOf> MagPreparationOfs { get; set; } = new List<MagPreparationOf>();
-
-    public virtual ICollection<MagQuickControlRapport> MagQuickControlRapports { get; set; } = new List<MagQuickControlRapport>();
 
     public virtual ICollection<MfgmatBesoinOf> MfgmatBesoinOfs { get; set; } = new List<MfgmatBesoinOf>();
 }

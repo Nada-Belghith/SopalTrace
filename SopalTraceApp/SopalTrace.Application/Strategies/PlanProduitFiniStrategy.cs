@@ -16,12 +16,6 @@ public class PlanProduitFiniStrategy : IDocumentTypeStrategy
         return string.Empty;
     }
 
-    public string GetDefaultFormRole() => "UNKNOWN";
-
-    public void ApplyCustomProperties(DocumentEntete document, string? configurationColonnesJson)
-    {
-        // PLAN_PF does not store configurationColonnesJson on the document entity itself.
-    }
 
     public Task PopulateDtoAsync(DocumentEntete document, SopalTrace.Application.DTOs.QualityPlans.Documents.DocumentEnteteDto dto)
     {

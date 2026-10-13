@@ -20,7 +20,8 @@ namespace SopalTrace.Application.Utilities
             Func<TSection, ICollection<TLine>> getLines,
             Func<TSectionDto, IEnumerable<TLineDto>> getLineDtos,
             Func<TLineDto, TSection, TLine> createLine,
-            Action<TLine, TLineDto> updateLine)
+            Action<TLine, TLineDto> updateLine,
+            Action<object>? ajouter = null)
             where TSection : class
             where TLine : class
             where TSectionDto : class
@@ -50,6 +51,7 @@ namespace SopalTrace.Application.Utilities
                 {
                     existingSection = createSection(sectionDto);
                     existingSections.Add(existingSection);
+                    ajouter?.Invoke(existingSection);
                 }
 
                 var existingLines = getLines(existingSection);
@@ -79,6 +81,7 @@ namespace SopalTrace.Application.Utilities
                     {
                         var newLine = createLine(lineDto, existingSection);
                         existingLines.Add(newLine);
+                        ajouter?.Invoke(newLine);
                     }
                 }
             }

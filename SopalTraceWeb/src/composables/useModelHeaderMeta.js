@@ -26,8 +26,7 @@ export function useModelHeaderMeta(store, ctx) {
         title += ` - ${famille}`;
       }
       const famObject = store.famillesProduit?.find(f => f.code === famille);
-      const isSoupape = famObject?.libelle?.toLowerCase().includes('soupape');
-      if (isSoupape && poste) {
+      if (famObject?.planParPoste && poste) {
         title += ` - Poste ${poste}`;
       }
       return title;

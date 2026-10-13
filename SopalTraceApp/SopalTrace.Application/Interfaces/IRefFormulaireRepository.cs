@@ -17,5 +17,7 @@ public interface IRefFormulaireRepository
     Task SyncColonnesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.ColonneJsonDto> parsedCols);
     Task<System.Collections.Generic.List<RefFormulaireColonneDef>> GetColonnesActivesByFormulaireIdAsync(Guid formulaireId);
     Task<System.Collections.Generic.List<RefFormulaireEquipe>> GetEquipesActivesByFormulaireIdAsync(Guid formulaireId);
+    /// <summary>Équipes de l'usine (E1, E2, E3…) actives.</summary>
+    Task<System.Collections.Generic.List<Team>> GetEquipesReferenceAsync();
     Task SyncEquipesAsync(Guid formulaireId, System.Collections.Generic.List<SopalTrace.Application.Helpers.EquipeJsonDto> parsedEquipes);
 }

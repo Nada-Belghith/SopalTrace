@@ -63,7 +63,7 @@
         </select>
       </div>
 
-      <!-- POSTE (Visible UNIQUEMENT si Famille=soupape ET Article=PF) -->
+      <!-- POSTE (visible uniquement si la famille a des plans par poste ET Article=PF) -->
       <div v-if="afficherPoste">
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Poste</label>
         <select 
@@ -187,17 +187,15 @@ const onLibelleBlur = () => {
 };
 
 // =========================================================================
-// LOGIQUE PRINCIPALE : AFFICHER POSTE SI FAMILLE=SOUPAPE ET ARTICLE=PF
+// LOGIQUE PRINCIPALE : AFFICHER POSTE SI LA FAMILLE A DES PLANS PAR POSTE ET ARTICLE=PF
 // =========================================================================
 
 const afficherPoste = computed(() => {
-  const famille = String(store.entete.familleProduitCode || '').trim().toLowerCase();
+  const famille = (refStore.famillesProduit || []).find(f => f.code === store.entete.familleProduitCode);
   const article = String(store.entete.natureComposantCode || '').trim().toUpperCase();
 
-  // Afficher Poste UNIQUEMENT si :
-  // 1. Famille contient "soupape"
-  // 2. ET Article = "PF"
-  return famille.includes('soupape') && article === 'PF';
+  // Famille dont les plans sont propres à chaque poste (FamilleProduitFini.PlanParPoste)
+  return !!famille?.planParPoste && article === 'PF';
 });
 
 // =========================================================================
@@ -296,7 +294,7 @@ watch(() => store.entete.natureComposantCode, (newVal, oldVal) => {
   }
 });
 
-// Si condition Poste change (soupape check) → Réinitialise Poste
+// Si condition Poste change → Réinitialise Poste
 watch(afficherPoste, (val) => {
   if (!val) {
     store.entete.posteCode = '';

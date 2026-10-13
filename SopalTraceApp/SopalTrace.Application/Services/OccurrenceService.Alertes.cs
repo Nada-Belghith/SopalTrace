@@ -3,23 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SopalTrace.Application.DTOs.Execution.Operateur;
+using SopalTrace.Domain.Constants;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Domain.Entities;
 
 namespace SopalTrace.Application.Services;
 
 public partial class OccurrenceService
 {
-    public async Task<List<TrancheAlertesDto>> GetAlertesActivesAsync(Guid execControleOfId, string? posteCode = null)
+    public async Task<List<TrancheAlertesDto>> GetAlertesActivesAsync(Guid execControleOfId, string? posteCode = null, string? equipe = null)
     {
-        await GenererOccurrencesInitialesAsync(execControleOfId);
-
         var of = await _occurrenceRepository.GetExecControleOfWithIntermediairesAsync(execControleOfId);
         if (of == null) return new List<TrancheAlertesDto>();
 
         var occurrences = (await _occurrenceRepository.GetIntermediairesActifsAsync(execControleOfId))
             .OrderBy(o => o.HeureNotifPrevue).ToList();
 
-        bool isAssOf = of.TypeOf == "ASS";
+        bool isAssOf = of.TypeOf == TypesOf.Assemblage;
 
         var docSectionsForLabels = isAssOf
             ? (!string.IsNullOrEmpty(posteCode)
@@ -27,32 +27,34 @@ public partial class OccurrenceService
                 : await _occurrenceRepository.GetDocumentSectionsActivesAsync(execControleOfId))
             : new List<DocumentSection>();
 
-        // Si posteCode est fourni pour un OF d'assemblage, ne conserver que les occurrences associées aux sections de ce poste
-        if (isAssOf && !string.IsNullOrEmpty(posteCode) && docSectionsForLabels.Any())
+        // Assemblage : contrôles de l'équipe (par défaut celle qui a la main) sur le poste, planifiés par le serveur.
+        if (isAssOf)
         {
-            var posteSectionIds = docSectionsForLabels.Select(s => s.Id).ToHashSet();
-            occurrences = occurrences.Where(o => posteSectionIds.Contains(o.SectionId)).ToList();
+            var sessionId = string.IsNullOrWhiteSpace(equipe)
+                ? await _occurrenceRepository.GetActiveSessionIdAsync(execControleOfId)
+                : of.ExecControleOfSessions?
+                    .Where(s => s.Statut != StatutsSession.Termine && string.Equals(s.Equipe, equipe, StringComparison.OrdinalIgnoreCase))
+                    .Select(s => (Guid?)s.Id)
+                    .FirstOrDefault();
+            occurrences = occurrences
+                .Where(o => o.PosteCode != null && o.SessionId == sessionId &&
+                            (string.IsNullOrEmpty(posteCode) || o.PosteCode == posteCode))
+                .ToList();
         }
 
-        if (of.EstEnReglage || of.Statut == "REGLAGE")
+        if (of.Statut == StatutsExecution.Reglage)
         {
             occurrences = occurrences.Where(o => o.TrancheHoraire.StartsWith("REGLAGE") || o.EstRepondu).ToList();
         }
 
-        bool isPaused = of.Statut == "EN_PAUSE";
-        DateTime pauseStart = of.DateFin ?? DateTime.Now;
+        bool isPaused = of.Statut == StatutsExecution.EnPause;
+        DateTime pauseStart = of.SuspendedAt ?? DateTime.Now;
 
         var sectionsActives = of.PlanSourceId.HasValue
             ? await _occurrenceRepository.GetSectionsActivesAsync(of.PlanSourceId.Value)
-            : new List<PlanFabricationSection>();
+            : new List<DocumentSection>();
 
-        var sectionIntervals = await ChargerIntervallesAsync(of, sectionsActives, execControleOfId);
-
-        if (MettreAJourRetards(occurrences, sectionIntervals, isPaused, pauseStart))
-            await _occurrenceRepository.SaveChangesAsync();
-
-        if (of.Statut == "EN_COURS")
-            await DeclencherAlerteEscaladeAsync(of, occurrences);
+        // Retards et escalade : tenus par la planification (tâche de fond et synchronisation avant lecture).
 
         var alertesVisibles = FiltrerOccurrencesVisibles(occurrences, isPaused, pauseStart);
 
@@ -87,59 +89,12 @@ public partial class OccurrenceService
 
 
 
-    private async Task<Dictionary<Guid, double>> ChargerIntervallesAsync(
-        ExecControleOf of, List<PlanFabricationSection> sectionsActives, Guid execControleOfId)
+    public async Task VerifierEscaladeAsync(Guid execControleOfId)
     {
-        var intervals = new Dictionary<Guid, double>();
-
-        foreach (var s in sectionsActives.Where(s => s.Periodicite != null))
-        {
-            double? simulatedMinutes = CalculerIntervalleMinutes(s.Periodicite);
-            if (simulatedMinutes.HasValue)
-                intervals[s.Id] = simulatedMinutes.Value / SimulationSpeedFactor;
-        }
-
-        if (of.TypeOf == "ASS")
-        {
-            var assSections = await _occurrenceRepository.GetDocumentSectionsEchantillonnageAsync(execControleOfId);
-            int? effectifParHeure = await _occurrenceRepository.GetEffectifEchantillonnageAsync(execControleOfId);
-            double intervalParDefaut = effectifParHeure.HasValue && effectifParHeure.Value > 0
-                ? 60.0 / effectifParHeure.Value
-                : 60.0;
-
-            foreach (var s in assSections)
-            {
-                double? simulatedMinutes = s.Periodicite != null ? CalculerIntervalleMinutes(s.Periodicite, defaultFreq: 4) : null;
-                if (!simulatedMinutes.HasValue || simulatedMinutes.Value <= 0)
-                    simulatedMinutes = intervalParDefaut;
-                intervals[s.Id] = simulatedMinutes.Value / SimulationSpeedFactor;
-            }
-        }
-
-        return intervals;
-    }
-
-    private bool MettreAJourRetards(
-        List<ExecPrelevementIntermediaire> occurrences,
-        Dictionary<Guid, double> sectionIntervals,
-        bool isPaused, DateTime pauseStart)
-    {
-        bool hasChanges = false;
-        DateTime refTime = isPaused ? pauseStart : DateTime.Now;
-
-        foreach (var occ in occurrences.Where(o => !o.EstEnRetard))
-        {
-            double grace = sectionIntervals.GetValueOrDefault(occ.SectionId, 1.0);
-            var next = occurrences.FirstOrDefault(o => o.SectionId == occ.SectionId && o.NumeroOccurrence == occ.NumeroOccurrence + 1);
-
-            bool isLate = next != null
-                ? next.HeureNotifPrevue <= refTime
-                : occ.HeureNotifPrevue.AddMinutes(grace) <= refTime;
-
-            if (isLate) { occ.EstEnRetard = true; hasChanges = true; }
-        }
-
-        return hasChanges;
+        var of = await _occurrenceRepository.GetExecControleOfWithIntermediairesAsync(execControleOfId);
+        if (of == null) return;
+        var occurrences = await _occurrenceRepository.GetIntermediairesParOfAsync(execControleOfId);
+        await DeclencherAlerteEscaladeAsync(of, occurrences);
     }
 
     private async Task DeclencherAlerteEscaladeAsync(ExecControleOf of, List<ExecPrelevementIntermediaire> occurrences)
@@ -205,10 +160,10 @@ public partial class OccurrenceService
         return visible.Take(50).ToList();
     }
 
-    private async Task<(Dictionary<Guid, List<PlanFabricationLigne>> fab, Dictionary<Guid, List<DocumentLigne>> ass)>
+    private async Task<(Dictionary<Guid, List<DocumentLigne>> fab, Dictionary<Guid, List<DocumentLigne>> ass)>
         ChargerLignesParSectionAsync(List<Guid> sectionIds, bool isAssOf)
     {
-        var fab = new Dictionary<Guid, List<PlanFabricationLigne>>();
+        var fab = new Dictionary<Guid, List<DocumentLigne>>();
         var ass = new Dictionary<Guid, List<DocumentLigne>>();
 
         foreach (var sid in sectionIds)
@@ -244,7 +199,7 @@ public partial class OccurrenceService
         }
         else if (isAssOf)
         {
-            var stat = of.ExecControleDocumentStatuts?.FirstOrDefault(s => s.TypeDocument == "PLAN_ASSEMBLAGE");
+            var stat = of.ExecControleDocumentStatuts?.FirstOrDefault(s => s.TypeDocument == TypesDocumentExecution.PlanAssemblage);
             if (stat?.DocId.HasValue == true)
             {
                 var doc = await _unitOfWork.DocumentEnteteRepository.GetByIdAsync(stat.DocId.Value);
@@ -266,16 +221,14 @@ public partial class OccurrenceService
         IGrouping<string, ExecPrelevementIntermediaire> timeGroup,
         ExecControleOf of,
         bool isAssOf,
-        List<PlanFabricationSection> sectionsActives,
-        (Dictionary<Guid, List<PlanFabricationLigne>> fab, Dictionary<Guid, List<DocumentLigne>> ass) lignesPerSection,
+        List<DocumentSection> sectionsActives,
+        (Dictionary<Guid, List<DocumentLigne>> fab, Dictionary<Guid, List<DocumentLigne>> ass) lignesPerSection,
         List<DocumentSection> docSectionsForLabels,
         Dictionary<string, string> colDefsMap)
     {
         var firstOcc = timeGroup.First();
         var numeros = timeGroup.Where(x => x.NumeroOccurrence > 0).Select(x => x.NumeroOccurrence).Distinct().ToList();
         string titreCombine = numeros.Count > 0 ? "Occurrence #" + numeros.Max() : "Occurrence #" + firstOcc.NumeroOccurrence;
-        DateTime virtualDateDebut = of.DateDebut.AddMinutes(of.TempsPauseTotalMinutes);
-        DateTime heureLogique = virtualDateDebut.AddMinutes((firstOcc.HeureNotifPrevue - virtualDateDebut).TotalMinutes * SimulationSpeedFactor);
 
         return new OccurrenceDto
         {
@@ -286,20 +239,21 @@ public partial class OccurrenceService
             NumeroOccurrence = firstOcc.NumeroOccurrence,
             TitreCombine = titreCombine,
             HeureNotifPrevue = firstOcc.HeureNotifPrevue,
-            HeureSimulee = heureLogique,
+            HeureSimulee = firstOcc.HeureNotifPrevue,
             EstEnRetard = timeGroup.Any(x => x.EstEnRetard),
             Resultat = firstOcc.Resultat,
             Caracteristiques = isAssOf
                 ? MapperCaracteristiquesAss(timeGroup, lignesPerSection.ass, docSectionsForLabels, colDefsMap)
-                : MapperCaracteristiquesFab(timeGroup, lignesPerSection.fab, sectionsActives, colDefsMap)
+                : MapperCaracteristiquesFab(timeGroup, lignesPerSection.fab, sectionsActives, colDefsMap, of)
         };
     }
 
     private List<CaracteristiqueARepondreDto> MapperCaracteristiquesFab(
         IEnumerable<ExecPrelevementIntermediaire> timeGroup,
-        Dictionary<Guid, List<PlanFabricationLigne>> lignesPerSection,
-        List<PlanFabricationSection> sectionsActives,
-        Dictionary<string, string> colDefsMap)
+        Dictionary<Guid, List<DocumentLigne>> lignesPerSection,
+        List<DocumentSection> sectionsActives,
+        Dictionary<string, string> colDefsMap,
+        ExecControleOf of)
     {
         return timeGroup.SelectMany(x =>
         {
@@ -310,11 +264,12 @@ public partial class OccurrenceService
             return lignes.Select(l => new CaracteristiqueARepondreDto
             {
                 SectionId = x.SectionId, SectionLibelle = libelle, LignePlanId = l.Id,
-                Libelle = l.LibelleAffiche ?? "", LimiteSpecTexte = l.LimiteSpecTexte,
+                // Cotes de tronçonnage saisies au démarrage de l'OF (le plan garde sa propre valeur).
+                Libelle = CotesTronconnage.Appliquer(l.LibelleAffiche ?? "", of.LongueurNominale, of.DiametreNominal), LimiteSpecTexte = l.LimiteSpecTexte,
                 Observations = l.Observations, TypeControle = l.TypeControle?.Code ?? "N/A",
                 MoyenControle = l.MoyenControle?.Libelle, Instrument = l.InstrumentCode,
-                ImageBase64 = l.ImageBase64,
-                ExtraColonnes = l.PlanFabricationLigneExtraColonnes?.Select(ec => new CaracteristiqueExtraColonneDto
+                ImageBase64 = l.EnDataUrl(),
+                ExtraColonnes = l.DocumentLigneExtraColonnes?.Select(ec => new CaracteristiqueExtraColonneDto
                 {
                     CleColonne = ec.CleColonne,
                     LabelAffiche = colDefsMap.TryGetValue(ec.CleColonne, out var lbl) ? lbl : ec.CleColonne,
@@ -339,9 +294,9 @@ public partial class OccurrenceService
             if (sec?.Entete != null)
             {
                 string typeCode = (sec.Entete.TypeDocumentCode ?? "").ToUpper();
-                if (typeCode is "RESULTAT_CF" or "RCCF" or "CTRL_POSTE" or "RESULTAT_CONTROLE_POSTE")
+                if (typeCode is TypesDocument.ResultatCF or TypesDocument.ControlePoste)
                     docPrefix = "[Contrôle CF] ";
-                else if (typeCode is "PLAN_ASS" or "PLAN_ASSEMBLAGE")
+                else if (typeCode is TypesDocument.PlanAssemblage)
                     docPrefix = "[Plan d'Assemblage] ";
             }
             string libelle = docPrefix + baseLibelle;
@@ -352,7 +307,7 @@ public partial class OccurrenceService
                 Libelle = l.LibelleAffiche ?? l.Caracteristique?.Libelle ?? "", LimiteSpecTexte = l.LimiteSpecTexte,
                 Observations = l.Observations, TypeControle = l.TypeControle?.Code ?? "N/A",
                 MoyenControle = l.MoyenControle?.Libelle, Instrument = l.InstrumentCode,
-                ImageBase64 = l.ImageBase64,
+                ImageBase64 = l.EnDataUrl(),
                 ExtraColonnes = l.DocumentLigneExtraColonnes?.Select(ec => new CaracteristiqueExtraColonneDto
                 {
                     CleColonne = ec.CleColonne,

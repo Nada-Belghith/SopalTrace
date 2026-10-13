@@ -70,6 +70,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
         // Restore entete
         this.entete = {
           id: data.id,
+          rowVersion: data.rowVersion,
           posteCode: data.posteCode,
           nom: data.nom,
           remarques: data.remarques,
@@ -86,7 +87,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
         // Restore sections from Document generic structure
         if (data.sections && data.sections.length > 0) {
           this.sections = data.sections.map(s => {
-            const hydrated = hydrateSectionFromBackend(s, refStore.periodicites, refStore.reglesEchantillonnage);
+            const hydrated = hydrateSectionFromBackend(s, refStore.periodicites);
             return {
               ...hydrated,
               sectionType: s.notes || hydrated.sectionType || s.libelleSection,
@@ -124,6 +125,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
         // Build document payload
         const payload = {
           TypeDocumentCode: 'RESULTAT_CF',
+          RowVersion: this.entete.rowVersion,
           PosteCode: this.entete.posteCode,
           FormulaireId: this.entete.formulaireId,
           RefFormulaireCodeReference: this.entete.formulaireCodeReference,
@@ -205,6 +207,7 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
         const payload = {
           TypeDocumentCode: 'RESULTAT_CF',
           ancienId: this.entete.id,
+          RowVersion: this.entete.rowVersion,
           PosteCode: this.entete.posteCode,
           FormulaireId: this.entete.formulaireId,
           RefFormulaireCodeReference: this.entete.formulaireCodeReference,
@@ -243,13 +246,12 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
         if (importedSections && importedSections.length > 0) {
           const refStore = useReferentielStore();
           importedSections.forEach(importedSec => {
-            const mapped = mapImportedSection(importedSec, refStore.reglesEchantillonnage);
+            const mapped = mapImportedSection(importedSec);
             const existSection = this.sections.find(s => s.sectionType === importedSec.sectionType || s.sectionType === importedSec.notes);
             if (existSection) {
               Object.assign(existSection, {
                 typeSectionId: mapped.typeSectionId || existSection.typeSectionId,
                 periodiciteId: mapped.periodiciteId || existSection.periodiciteId,
-                regleEchantillonnageId: mapped.regleEchantillonnageId || existSection.regleEchantillonnageId,
                 modeFreq: mapped.modeFreq || existSection.modeFreq,
                 freqNum: mapped.freqNum || existSection.freqNum,
                 typeVariable: mapped.typeVariable || existSection.typeVariable,

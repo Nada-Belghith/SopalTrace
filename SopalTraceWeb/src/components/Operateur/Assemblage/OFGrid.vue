@@ -1,5 +1,5 @@
 <script setup>
-import { defineProps, defineEmits } from 'vue'
+import { STATUTS_EXECUTION } from '@/constants/execution'
 
 defineProps({
   ofsStatut: {
@@ -24,37 +24,16 @@ const formatDate = (dateString) => {
   }).format(date)
 }
 
-const getStatutClass = (statut) => {
-  switch (statut) {
-    case 'REGLAGE':
-      return 'bg-amber-100 text-amber-700'
-    case 'EN_COURS':
-      return 'bg-green-50 text-green-600'
-    case 'EN_PAUSE':
-      return 'bg-blue-100 text-blue-700'
-    case 'CLOTURE':
-    case 'TERMINE':
-      return 'bg-slate-200 text-slate-700'
-    default:
-      return 'bg-gray-100 text-gray-500'
-  }
+const AFFICHAGE_STATUTS = {
+  [STATUTS_EXECUTION.REGLAGE]: { classe: 'bg-amber-100 text-amber-700', libelle: 'EN RÉGLAGE' },
+  [STATUTS_EXECUTION.EN_COURS]: { classe: 'bg-green-50 text-green-600', libelle: 'EN COURS' },
+  [STATUTS_EXECUTION.EN_PAUSE]: { classe: 'bg-blue-100 text-blue-700', libelle: 'EN PAUSE' },
+  [STATUTS_EXECUTION.CLOTURE]: { classe: 'bg-slate-200 text-slate-700', libelle: 'CLÔTURÉ' }
 }
+const NON_COMMENCE = { classe: 'bg-gray-100 text-gray-500', libelle: 'NON COMMENCÉ' }
 
-const formatStatutLabel = (statut) => {
-  switch (statut) {
-    case 'REGLAGE':
-      return 'EN RÉGLAGE'
-    case 'EN_COURS':
-      return 'EN COURS'
-    case 'EN_PAUSE':
-      return 'EN PAUSE'
-    case 'CLOTURE':
-    case 'TERMINE':
-      return 'CLÔTURÉ'
-    default:
-      return 'NON COMMENCÉ'
-  }
-}
+const getStatutClass = (statut) => (AFFICHAGE_STATUTS[statut] ?? NON_COMMENCE).classe
+const formatStatutLabel = (statut) => (AFFICHAGE_STATUTS[statut] ?? NON_COMMENCE).libelle
 </script>
 
 <template>
@@ -85,6 +64,14 @@ const formatStatutLabel = (statut) => {
         <div class="mb-4">
           <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1">{{ of.designationArticle }}</h3>
           <p class="text-sm text-slate-400 font-medium">{{ of.codeArticle }}</p>
+        </div>
+
+        <!-- Équipes : celle qui a la main et celles en pause (elles reprendront leur étape à leur retour) -->
+        <div v-if="of.equipeActuelle || of.equipesEnPause?.length" class="mb-3 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+          <span v-if="of.equipeActuelle && !of.equipesEnPause?.includes(of.equipeActuelle)"
+                class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">En production : {{ of.equipeActuelle }}</span>
+          <span v-for="eq in of.equipesEnPause" :key="eq"
+                class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-100">En pause : {{ eq }}</span>
         </div>
 
         <!-- Postes (si EN COURS) -->

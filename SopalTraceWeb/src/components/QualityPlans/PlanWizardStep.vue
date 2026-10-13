@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 mt-6 animate-in fade-in duration-300">
+  <div class="w-full bg-white rounded-2xl shadow-md border border-slate-200 mt-6 animate-in fade-in duration-300">
     <!-- HEADER -->
     <div class="bg-slate-900 px-8 py-6 text-white relative overflow-hidden rounded-t-2xl">
       <div class="absolute -right-6 -top-6 text-white/5">
@@ -353,7 +353,7 @@
 </template>
 
 <script setup>
-import { nextTick, watch, ref, computed, onMounted } from 'vue';
+import { watch, ref, computed, onMounted } from 'vue';
 import AutoComplete from 'primevue/autocomplete';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
 import { useReferentielStore } from '@/stores/referentielStore';
@@ -368,7 +368,7 @@ const wizard = props.wizard;
 const store = useFabModeleStore();
 const refStore = useReferentielStore();
 const excelFileInput = ref(null);
-const emit = defineEmits(['load-model', 'excel-selected']);
+defineEmits(['load-model', 'excel-selected']);
 
 const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || []);
 

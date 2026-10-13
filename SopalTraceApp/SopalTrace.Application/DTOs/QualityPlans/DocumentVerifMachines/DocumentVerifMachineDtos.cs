@@ -27,6 +27,9 @@ public class CreateDocumentVerifMachineRequestDto
 
 public class UpdateDocumentVerifMachineRequestDto : CreateDocumentVerifMachineRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string? RowVersion { get; set; }
+
 }
 
 public class NouvelleVersionDocumentVerifMachineRequestDto : CreateDocumentVerifMachineRequestDto
@@ -84,6 +87,9 @@ public class CreateDocumentVerifMachineMatricePieceDto
 
 public class DocumentVerifMachineEnteteDto
 {
+    /// <summary>Version du document (RowVersion en base64), à renvoyer telle quelle lors de l'enregistrement.</summary>
+    public string? RowVersion { get; set; }
+
     public Guid Id { get; set; }
     public string MachineCode { get; set; } = string.Empty;
     public string Nom { get; set; } = string.Empty;
@@ -152,6 +158,9 @@ public class DocumentVerifMachineMatricePieceDto
 
 public class NouvelleVersionVerifMachineRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string? RowVersion { get; set; }
+
     public Guid AncienId { get; set; }
     public string ModifiePar { get; set; } = string.Empty;
     public string MotifModification { get; set; } = string.Empty;

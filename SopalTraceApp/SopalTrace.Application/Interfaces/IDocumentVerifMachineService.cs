@@ -11,7 +11,8 @@ public interface IDocumentVerifMachineService
     Task<DocumentVerifMachineEnteteDto> GetDocumentByIdAsync(Guid id);
     Task<IEnumerable<DocumentVerifMachineEnteteDto>> GetAllDocumentsAsync();
     Task<IEnumerable<DocumentVerifMachineEnteteDto>> GetDocumentsByMachineCodeAsync(string machineCode);
-    Task UpdateDocumentAsync(Guid id, UpdateDocumentVerifMachineRequestDto request);
+    /// <returns>Nouvelle version du document (RowVersion en base64).</returns>
+    Task<string> UpdateDocumentAsync(Guid id, UpdateDocumentVerifMachineRequestDto request);
     Task<Guid> CreateNewVersionAsync(NouvelleVersionVerifMachineRequestDto request);
     Task ArchiveDocumentsByFormulaireAsync(Guid formulaireId);
 }

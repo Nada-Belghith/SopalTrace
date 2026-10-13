@@ -1,12 +1,6 @@
 <template>
   <div class="p-6">
     <Toast position="top-right" />
-    <VersioningDialog :visible="showVersioningDialog"
-                      :mode="versioningMode"
-                      :is-loading="isRestoring"
-                      @confirm="onVersioningConfirm"
-                      @cancel="showVersioningDialog = false"
-                      @update:visible="showVersioningDialog = $event" />
 
     <PlanHeader 
       v-if="store.entete"
@@ -18,7 +12,6 @@
       :is-read-only="isReadOnly"
       :version="store.entete.version"
       :statut="store.entete.statut"
-      :is-restoring="isRestoring"
       :showRestaurerBtn="false"
     />
     <VerifMachineForm :isReadOnly="isReadOnly" @saved="onSaved" />
@@ -27,11 +20,10 @@
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router';
-import { onMounted, computed, ref } from 'vue';
+import { onMounted } from 'vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import { useAppToast } from '@/composables/useAppToast';
 import Toast from 'primevue/toast';
-import VersioningDialog from '@/components/Shared/VersioningDialog.vue';
 import VerifMachineForm from '@/components/VerifMachine/VerifMachineForm.vue';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import { useReferentielStore } from '@/stores/referentielStore';
@@ -44,9 +36,6 @@ const store = useVerifMachineStore();
 const refStore = useReferentielStore();
 
 const { isReadOnly } = useDocumentHeaderMeta(route, store);
-const showVersioningDialog = ref(false);
-const versioningMode = ref('new-version');
-const isRestoring = ref(false);
 
 onMounted(async () => {
   if (!refStore.isDicosVerifMachineLoaded) {
@@ -86,29 +75,5 @@ const onSaved = (result) => {
   }, 1500);
 };
 
-const onRestaurerClick = () => {
-  versioningMode.value = 'restore';
-  showVersioningDialog.value = true;
-};
 
-const onVersioningConfirm = async (payload) => {
-  isRestoring.value = true;
-  showVersioningDialog.value = false;
-  try {
-    if (versioningMode.value === 'restore') {
-      const res = await store.restoreDocument(store.entete.id, payload); // payload est le motif
-      if (res.success) {
-        toast.success('Modèle restauré avec succès.', 'Succès');
-        if (res.planId) {
-            router.replace('/dev/hub');
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[VerificationMachineEditor] Exception lors de onVersioningConfirm :', err);
-    toast.error('Échec de l\'opération', 'Erreur');
-  } finally {
-    isRestoring.value = false;
-  }
-};
 </script>

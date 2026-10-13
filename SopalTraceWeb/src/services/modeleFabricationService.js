@@ -1,5 +1,47 @@
 import apiClient from './apiClient'
 
+/**
+ * Convertit l'état de l'éditeur (nom, désignation…) au format attendu par l'API (code, libellé…).
+ * Utilisé par la création, la correction et la nouvelle version.
+ */
+const versRequeteModele = (payload) => ({
+  code: payload.nom,
+  libelle: payload.designation,
+  typeRobinetCode: "",
+  natureComposantCode: payload.natureArticleCode || payload.natureComposantCode || "",
+  operationCode: payload.operationCode,
+  posteCode: payload.posteCode,
+  familleProduitCode: payload.familleProduitFiniCode,
+  versionInitiale: payload.versionInitiale || 1,
+  legendeMoyens: payload.legendeMoyens,
+  notes: payload.notes || payload.designation,
+  refFormulaireCodeReference: payload.refFormulaireCodeReference || 'PRC',
+  sections: payload.sections ? payload.sections.map(s => ({
+    id: s.id || undefined,
+    libelleSection: s.libelleSection,
+    ordreAffiche: s.ordreAffiche,
+    typeSectionId: s.typeSectionId,
+    periodiciteId: s.periodiciteId,
+    lignes: s.lignes ? s.lignes.map(l => ({
+      id: l.id || undefined,
+      ordreAffiche: l.ordreAffiche,
+      typeCaracteristiqueId: l.typeCaracteristiqueId,
+      libelleAffiche: l.libelleAffiche,
+      typeControleId: l.typeControleId,
+      moyenControleId: l.moyenControleId,
+      moyenTexteLibre: l.moyenTexteLibre,
+      instrumentCode: l.instrumentCode,
+      periodiciteId: l.periodiciteId,
+      limiteSpecTexte: l.limiteSpecTexte,
+      estCritique: l.estCritique,
+      instruction: l.instruction,
+      observations: l.observations,
+      imageBase64: l.imageBase64,
+      extraColonnes: l.extraColonnes || []
+    })) : []
+  })) : []
+});
+
 export const modeleFabricationService = {
   async getModelsByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null) {
     let params;
@@ -24,50 +66,17 @@ export const modeleFabricationService = {
   },
 
   async createModel(payload) {
-    const req = {
-      code: payload.nom,
-      libelle: payload.designation,
-      typeRobinetCode: "",
-      natureComposantCode: payload.natureArticleCode || payload.natureComposantCode || "",
-      operationCode: payload.operationCode,
-      posteCode: payload.posteCode,
-      familleProduitCode: payload.familleProduitFiniCode,
-      versionInitiale: payload.versionInitiale || 1,
-      legendeMoyens: payload.legendeMoyens,
-      notes: payload.notes || payload.designation,
-      refFormulaireCodeReference: payload.refFormulaireCodeReference || 'PRC',
-      sections: payload.sections ? payload.sections.map(s => ({
-        libelleSection: s.libelleSection,
-        ordreAffiche: s.ordreAffiche,
-        typeSectionId: s.typeSectionId,
-        periodiciteId: s.periodiciteId,
-        regleEchantillonnageId: s.regleEchantillonnageId,
-        lignes: s.lignes ? s.lignes.map(l => ({
-          ordreAffiche: l.ordreAffiche,
-          typeCaracteristiqueId: l.typeCaracteristiqueId,
-          libelleAffiche: l.libelleAffiche,
-          typeControleId: l.typeControleId,
-          moyenControleId: l.moyenControleId,
-          moyenTexteLibre: l.moyenTexteLibre,
-          instrumentCode: l.instrumentCode,
-          periodiciteId: l.periodiciteId,
-          limiteSpecTexte: l.limiteSpecTexte,
-          estCritique: l.estCritique,
-          instruction: l.instruction,
-          observations: l.observations,
-          imageBase64: l.imageBase64,
-          extraColonnes: l.extraColonnes || []
-        })) : []
-      })) : []
-    };
-
+    const req = versRequeteModele(payload);
     const response = await apiClient.post(`/ModeleFabrication`, req);
     return { data: { modeleId: response.data.id, version: 1 } };
   },
 
   async createNewVersion(payload) {
     const req = {
-      ...payload
+      ...versRequeteModele(payload),
+      ancienId: payload.ancienId,
+      motifModification: payload.motifModification,
+      rowVersion: payload.rowVersion
     };
     const response = await apiClient.post(`/ModeleFabrication/nouvelle-version`, req);
     return { data: { modeleId: response.data.id } };
@@ -79,22 +88,12 @@ export const modeleFabricationService = {
   },
 
   async updateModel(id, payload) {
-    const response = await apiClient.put(`/ModeleFabrication/${id}`, payload);
-    return { data: { success: true } };
+    const response = await apiClient.put(`/ModeleFabrication/${id}`, { ...versRequeteModele(payload), rowVersion: payload.rowVersion });
+    return { data: { success: true, rowVersion: response.data.rowVersion } };
   },
 
   async activerModele(id) {
     return Promise.resolve({ data: { success: true } });
-  },
-
-  async restoreModel(payload) {
-    const req = {
-      modeleArchiveId: payload.documentArchiveId || payload.DocumentArchiveId || payload.documentId,
-      motifRestoration: payload.motifRestoration || 'Restoration',
-      restaurePar: payload.creePar || 'SYSTEM'
-    };
-    const response = await apiClient.post(`/ModeleFabrication/restaurer`, req);
-    return response.data;
   },
 
   async importExcel(formData) {

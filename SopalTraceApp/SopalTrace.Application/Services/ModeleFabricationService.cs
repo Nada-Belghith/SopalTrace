@@ -1,7 +1,9 @@
+using SopalTrace.Domain.Constants;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Mappers;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -41,7 +43,7 @@ public class ModeleFabricationService : IModeleFabricationService
         return dto;
     }
 
-    private async Task FallbackToActiveFormColumnsIfMissingAsync(ModeleResponseDto dto, ModeleFabricationEntete modele)
+    private async Task FallbackToActiveFormColumnsIfMissingAsync(ModeleResponseDto dto, DocumentEntete modele)
     {
         // Ne pas écraser la structure si elle a déjà été figée (ex: Modèles archivés)
         if (!string.IsNullOrWhiteSpace(dto.ConfigurationColonnesJson))
@@ -65,7 +67,7 @@ public class ModeleFabricationService : IModeleFabricationService
 
     public async Task<Guid> CreateModelAsync(CreateModeleRequestDto request)
     {
-        var user = _currentUserService.UserInfo ?? "";
+        var user = _currentUserService.MatriculeRequis;
         var formStruct = await GetFormStructOrThrowAsync();
 
         await ArchiveActiveModelsForCodeAsync(request.NatureComposantCode, request.OperationCode, request.FamilleProduitCode, request.Code);
@@ -74,9 +76,10 @@ public class ModeleFabricationService : IModeleFabricationService
         var modele = ModeleFabricationMapper.ToEntity(request, user, formStruct.Id);
         modele.Version = formStruct.Version; 
         
-        modele.Libelle = await ResolveModelSuffixAsync(modele.Libelle ?? "", request.NatureComposantCode, request.OperationCode, request.FamilleProduitCode, request.Code, formStruct.Version);
+        modele.Designation = await ResolveModelSuffixAsync(modele.Designation ?? "", request.NatureComposantCode, request.OperationCode, request.FamilleProduitCode, request.Code, formStruct.Version);
 
         await SyncExtraColumnsAsync(modele, formStruct.Id);
+        await ReferencesLignesQualite.CompleterAsync(modele.DocumentSections, _unitOfWork.DictionnaireQualiteRepository);
 
         await _unitOfWork.ModeleFabricationEnteteRepository.AddAsync(modele);
         await _unitOfWork.CommitAsync();
@@ -87,19 +90,20 @@ public class ModeleFabricationService : IModeleFabricationService
     public async Task<Guid> CreateNewVersionAsync(NouvelleVersionModeleRequestDto request)
     {
         var existingModele = await _unitOfWork.ModeleFabricationEnteteRepository.GetByIdAsync(request.AncienId, includeRelations: true);
-        if (existingModele == null) throw new Exception("Ancien modèle introuvable.");
+        if (existingModele == null) throw new RessourceIntrouvableException("Ancien modèle introuvable.");
+        _unitOfWork.VerifierVersionDocument(existingModele, request.RowVersion, obligatoire: false);
 
         var createReq = new CreateModeleRequestDto
         {
-            Code = !string.IsNullOrWhiteSpace(request.Code) ? request.Code : existingModele.Code,
-            Libelle = !string.IsNullOrWhiteSpace(request.Libelle) ? request.Libelle : existingModele.Libelle,
+            Code = !string.IsNullOrWhiteSpace(request.Code) ? request.Code : existingModele.Nom,
+            Libelle = !string.IsNullOrWhiteSpace(request.Libelle) ? request.Libelle : (existingModele.Designation ?? ""),
             TypeRobinetCode = request.TypeRobinetCode ?? "",
             NatureComposantCode = !string.IsNullOrWhiteSpace(request.NatureComposantCode) ? request.NatureComposantCode : (existingModele.NatureArticleCode ?? ""),
             FamilleProduitCode = request.FamilleProduitCode ?? existingModele.FamilleProduitFiniCode,
             OperationCode = !string.IsNullOrWhiteSpace(request.OperationCode) ? request.OperationCode : (existingModele.OperationCode ?? ""),
             VersionInitiale = request.VersionInitiale,
             LegendeMoyens = request.LegendeMoyens ?? existingModele.LegendeMoyens,
-            Notes = request.Notes ?? existingModele.Notes,
+            Notes = request.Notes ?? existingModele.Remarques,
             RefFormulaireCodeReference = request.RefFormulaireCodeReference ?? existingModele.Formulaire?.CodeReference,
             ConfigurationColonnesJson = request.ConfigurationColonnesJson,
             Sections = request.Sections != null && request.Sections.Any() 
@@ -110,21 +114,22 @@ public class ModeleFabricationService : IModeleFabricationService
         return await CreateModelAsync(createReq);
     }
 
-    public async Task<bool> UpdateModelAsync(Guid id, CreateModeleRequestDto request)
+    public async Task<string?> UpdateModelAsync(Guid id, CreateModeleRequestDto request)
     {
         var modele = await _unitOfWork.ModeleFabricationEnteteRepository.GetByIdAsync(id, includeRelations: true);
-        if (modele == null) return false;
+        if (modele == null) return null;
+        _unitOfWork.VerifierVersionDocument(modele, request.RowVersion, obligatoire: true);
 
         // RÈGLE MÉTIER STRICTE : On n'écrase jamais un modèle ACTIF.
-        if (modele.Statut == "ACTIF")
+        if (modele.Statut == DocumentStatuts.Actif)
         {
-            throw new InvalidOperationException("Écrasement interdit : Un modèle ACTIF ne peut pas être mis à jour sur place. Une nouvelle version doit être créée.");
+            throw new RegleMetierException("Écrasement interdit : Un modèle ACTIF ne peut pas être mis à jour sur place. Une nouvelle version doit être créée.");
         }
 
         var formStruct = await GetFormStructOrThrowAsync();
         await EnsureFrequenciesResolvedAsync(request.Sections);
 
-        var newEntityData = ModeleFabricationMapper.ToEntity(request, _currentUserService.UserInfo ?? "", formStruct.Id);
+        var newEntityData = ModeleFabricationMapper.ToEntity(request, _currentUserService.MatriculeRequis, formStruct.Id);
 
         if (formStruct.Version > modele.Version)
         {
@@ -133,25 +138,27 @@ public class ModeleFabricationService : IModeleFabricationService
         else
         {
             await HandleInPlaceUpdateAsync(modele, newEntityData, request, formStruct);
+            await ReferencesLignesQualite.CompleterAsync(modele.DocumentSections, _unitOfWork.DictionnaireQualiteRepository);
         }
 
         await _unitOfWork.CommitAsync();
-        return true;
+        return VersionsDocument.EnTexte(modele.RowVersion) ?? string.Empty;
     }
 
-    private async Task HandleVersionUpgradeAsync(ModeleFabricationEntete existingModele, ModeleFabricationEntete newEntityData, FormulaireStructureDto formStruct)
+    private async Task HandleVersionUpgradeAsync(DocumentEntete existingModele, DocumentEntete newEntityData, FormulaireStructureDto formStruct)
     {
-        existingModele.Statut = "ARCHIVE";
+        existingModele.Statut = DocumentStatuts.Archive;
         await _unitOfWork.ModeleFabricationEnteteRepository.UpdateAsync(existingModele);
 
         newEntityData.Version = formStruct.Version; 
-        newEntityData.Libelle = await ResolveModelSuffixAsync(newEntityData.Libelle ?? "", existingModele.NatureArticleCode, existingModele.OperationCode, existingModele.FamilleProduitFiniCode, existingModele.Code, formStruct.Version);
+        newEntityData.Designation = await ResolveModelSuffixAsync(newEntityData.Designation ?? "", existingModele.NatureArticleCode, existingModele.OperationCode, existingModele.FamilleProduitFiniCode, existingModele.Nom, formStruct.Version);
         await SyncExtraColumnsAsync(newEntityData, formStruct.Id);
-        
+        await ReferencesLignesQualite.CompleterAsync(newEntityData.DocumentSections, _unitOfWork.DictionnaireQualiteRepository);
+
         await _unitOfWork.ModeleFabricationEnteteRepository.AddAsync(newEntityData);
     }
 
-    private async Task HandleInPlaceUpdateAsync(ModeleFabricationEntete existingModele, ModeleFabricationEntete newEntityData, CreateModeleRequestDto request, FormulaireStructureDto formStruct)
+    private async Task HandleInPlaceUpdateAsync(DocumentEntete existingModele, DocumentEntete newEntityData, CreateModeleRequestDto request, FormulaireStructureDto formStruct)
     {
         UpdateModelInPlace(existingModele, request);
         await SyncExtraColumnsAsync(existingModele, formStruct.Id);
@@ -162,9 +169,9 @@ public class ModeleFabricationService : IModeleFabricationService
     public async Task ArchiveModelsByFormulaireAsync(Guid formulaireId)
     {
         var modelesFabrication = await _unitOfWork.ModeleFabricationEnteteRepository.GetByFormulaireIdAsync(formulaireId);
-        foreach (var modele in modelesFabrication.Where(m => m.Statut == "ACTIF"))
+        foreach (var modele in modelesFabrication.Where(m => m.Statut == DocumentStatuts.Actif))
         {
-            modele.Statut = "ARCHIVE";
+            modele.Statut = DocumentStatuts.Archive;
             await _unitOfWork.ModeleFabricationEnteteRepository.UpdateAsync(modele);
         }
     }
@@ -175,19 +182,19 @@ public class ModeleFabricationService : IModeleFabricationService
 
     private async Task<FormulaireStructureDto> GetFormStructOrThrowAsync()
     {
-        var formStruct = await _formulaireStructureService.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION");
-        if (formStruct == null) throw new Exception("Formulaire PRC introuvable.");
+        var formStruct = await _formulaireStructureService.GetFormulaireByRoleAsync(RolesFormulaire.EnCoursDeFabrication);
+        if (formStruct == null) throw new RegleMetierException("Aucun formulaire actif pour les plans en cours de fabrication (PRC).");
         return formStruct;
     }
 
     private async Task ArchiveActiveModelsForCodeAsync(string? natureCode, string? operationCode, string? familleCode, string code)
     {
         var existingDocs = await _unitOfWork.ModeleFabricationEnteteRepository.GetByFiltersAsync(natureCode, operationCode, familleCode);
-        var activeDocs = existingDocs.Where(d => d.Code == code && d.Statut == "ACTIF").ToList();
+        var activeDocs = existingDocs.Where(d => d.Nom == code && d.Statut == DocumentStatuts.Actif).ToList();
         
         foreach (var act in activeDocs)
         {
-            act.Statut = "ARCHIVE";
+            act.Statut = DocumentStatuts.Archive;
             await _unitOfWork.ModeleFabricationEnteteRepository.UpdateAsync(act);
         }
     }
@@ -195,7 +202,7 @@ public class ModeleFabricationService : IModeleFabricationService
     private async Task<string> ResolveModelSuffixAsync(string libelle, string? natureCode, string? operationCode, string? familleCode, string code, int formulaireVersion)
     {
         var existingDocs = await _unitOfWork.ModeleFabricationEnteteRepository.GetByFiltersAsync(natureCode, operationCode, familleCode);
-        var iterCount = existingDocs.Count(d => d.Code == code && ((d.Formulaire != null && d.Formulaire.Version == formulaireVersion) || d.Version == formulaireVersion));
+        var iterCount = existingDocs.Count(d => d.Nom == code && ((d.Formulaire != null && d.Formulaire.Version == formulaireVersion) || d.Version == formulaireVersion));
 
         var baseLibelle = System.Text.RegularExpressions.Regex.Replace(libelle, @"\s+V\d+(\.\d+)?$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         if (string.IsNullOrWhiteSpace(baseLibelle))
@@ -219,7 +226,7 @@ public class ModeleFabricationService : IModeleFabricationService
         }
     }
 
-    private async Task SyncExtraColumnsAsync(ModeleFabricationEntete modele, Guid formulaireId)
+    private async Task SyncExtraColumnsAsync(DocumentEntete modele, Guid formulaireId)
     {
         var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(formulaireId);
         if (form == null) return;
@@ -227,23 +234,23 @@ public class ModeleFabricationService : IModeleFabricationService
         var activeCols = (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id))?.ToList();
         if (activeCols == null || !activeCols.Any()) return;
 
-        foreach (var sec in modele.ModeleFabricationSections)
+        foreach (var sec in modele.DocumentSections)
         {
-            foreach (var lig in sec.ModeleFabricationLignes)
+            foreach (var lig in sec.DocumentLignes)
             {
-                var existingKeys = lig.ModeleFabricationLigneExtraColonnes.Select(c => c.CleColonne).ToList();
+                var existingKeys = lig.DocumentLigneExtraColonnes.Select(c => c.CleColonne).ToList();
                 foreach (var colDef in activeCols)
                 {
                     if (!existingKeys.Contains(colDef.CleColonne))
                     {
-                        lig.ModeleFabricationLigneExtraColonnes.Add(new ModeleFabricationLigneExtraColonne
+                        lig.DocumentLigneExtraColonnes.Add(new DocumentLigneExtraColonne
                         {
                             Id = Guid.NewGuid(),
                             LigneId = lig.Id,
                             Ligne = lig,
                             CleColonne = colDef.CleColonne,
                             ValeurColonne = null,
-                            OrdreAffiche = lig.ModeleFabricationLigneExtraColonnes.Count + 1
+                            OrdreAffiche = lig.DocumentLigneExtraColonnes.Count + 1
                         });
                         existingKeys.Add(colDef.CleColonne);
                     }
@@ -252,21 +259,21 @@ public class ModeleFabricationService : IModeleFabricationService
         }
     }
 
-    private void UpdateModelInPlace(ModeleFabricationEntete modele, CreateModeleRequestDto request)
+    private void UpdateModelInPlace(DocumentEntete modele, CreateModeleRequestDto request)
     {
-        modele.Notes = request.Notes;
+        modele.Remarques = request.Notes;
         modele.LegendeMoyens = request.LegendeMoyens;
         modele.OperationCode = request.OperationCode ?? modele.OperationCode;
 
         if (request.Sections != null)
         {
-            if (modele.ModeleFabricationSections == null)
+            if (modele.DocumentSections == null)
             {
-                modele.ModeleFabricationSections = new List<ModeleFabricationSection>();
+                modele.DocumentSections = new List<DocumentSection>();
             }
 
             SopalTrace.Application.Utilities.SectionUpdateHelper.UpdateSections(
-                modele.ModeleFabricationSections,
+                modele.DocumentSections,
                 request.Sections,
                 sec => _unitOfWork.ModeleFabricationEnteteRepository.RemoveSection(sec),
                 lig => _unitOfWork.ModeleFabricationEnteteRepository.RemoveLigne(lig),
@@ -276,15 +283,15 @@ public class ModeleFabricationService : IModeleFabricationService
                 lig => lig.Id,
                 dto => ModeleFabricationMapper.CreateSection(dto, modele.Id),
                 (sec, dto) => ModeleFabricationMapper.UpdateSection(sec, dto),
-                sec => sec.ModeleFabricationLignes,
+                sec => sec.DocumentLignes,
                 dto => dto.Lignes,
                 (dto, sec) => ModeleFabricationMapper.CreateLigne(dto, modele.Id, sec.Id),
                 (lig, dto) => 
                 {
                     ModeleFabricationMapper.UpdateLigne(lig, dto);
                     ModeleFabricationMapper.MergerExtraColonnes(lig, dto.ExtraColonnes ?? new(), _unitOfWork);
-                }
-            );
+                },
+            ajouter: _unitOfWork.Ajouter);
         }
     }
 

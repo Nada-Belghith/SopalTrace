@@ -13,13 +13,23 @@ export const authService = {
   },
 
   /**
-   * Inscription d'un nouvel utilisateur
+   * Demande d'accès : réponse identique dans tous les cas (le serveur ne confirme pas l'existence du matricule)
    */
-  async register(matricule, email, motDePasse) {
+  async register(matricule, email) {
     const response = await apiClient.post('/auth/register', {
       matricule,
-      email,
-      motDePasse
+      email
+    });
+    return response.data;
+  },
+
+  /**
+   * Activation du compte : jeton du lien reçu par e-mail (usage unique) et mot de passe choisi
+   */
+  async setupPassword(token, nouveauMotDePasse) {
+    const response = await apiClient.post('/auth/setup-password', {
+      token,
+      nouveauMotDePasse
     });
     return response.data;
   },

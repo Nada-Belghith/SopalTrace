@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using SopalTrace.Application.DTOs.QualityPlans.ImportExcel;
 using SopalTrace.Application.Interfaces;
-using SopalTrace.Domain.Interfaces;
 
 namespace SopalTrace.Infrastructure.Services
 {
@@ -15,127 +14,67 @@ namespace SopalTrace.Infrastructure.Services
             _unitOfWork = unitOfWork;
         }
 
+        /// <summary>
+        /// Précision entre parenthèses d'un titre de section. Une référence de norme ou de procédure
+        /// (« selon ISO 2859-1… », « Selon FE0591… », « 1ère et dernière pièce ») relève du type de section :
+        /// elle reste dans le libellé, sans périodicité. Sinon, la périodicité est reconnue si possible.
+        /// </summary>
         public async Task ParseFrequencyAsync(ImportExcelSectionDto section, string parenthesesContent)
         {
             if (string.IsNullOrEmpty(parenthesesContent))
                 return;
 
             string contentLower = parenthesesContent.ToLower();
+            section.FrequenceLibelle = parenthesesContent;
 
-            // 1. Check if it's a known rule
-            var regleMatch = await _unitOfWork.DictionnaireQualiteRepository.GetRegleEchantillonnageByLibelleAsync(parenthesesContent);
+            if (EstReferenceDeNorme(contentLower))
+                return;
 
-            bool isRule = regleMatch != null || 
-                          contentLower.Contains("selon") || contentLower.Contains("iso") ||
-                          contentLower.Contains("nqa") || contentLower.Contains("effectif") ||
-                          contentLower.Contains("tableau") || contentLower.Contains("première") || 
-                          contentLower.Contains("dernière") || contentLower.Contains("contrôle renforcé") ||
-                          contentLower.Contains("plan d'échantillonnage");
+            bool isFrequency = contentLower.Contains("pièce") || contentLower.Contains("piece") ||
+                               contentLower.Contains("p/h") || contentLower.Contains("p/") ||
+                               contentLower.Contains("série") || contentLower.Contains("serie") ||
+                               contentLower.Contains("lot") || contentLower.Contains("%") ||
+                               contentLower.Contains("échantillon") || contentLower.Contains("echantillon");
+            if (!isFrequency)
+                return;
 
-            bool isFrequency = !isRule && (contentLower.Contains("pièce") || contentLower.Contains("piece") ||
-                                           contentLower.Contains("p/h") || contentLower.Contains("p/") ||
-                                           contentLower.Contains("série") || contentLower.Contains("serie") ||
-                                           contentLower.Contains("lot") || contentLower.Contains("%") ||
-                                           contentLower.Contains("échantillon") || contentLower.Contains("echantillon"));
-
-            if (isRule)
+            if (contentLower.Contains("100%"))
             {
-                var regle = await _unitOfWork.DictionnaireQualiteRepository.GetRegleEchantillonnageByLibelleAsync(parenthesesContent);
-                string finalFreqLib = parenthesesContent;
-                if (regle != null)
-                {
-                    section.RegleEchantillonnageId = regle.Id;
-                    finalFreqLib = regle.Libelle;
-                }
-                
-                section.ModeFreq = "FIXE";
-                section.FrequenceLibelle = finalFreqLib;
-                section.RegleEchantillonnageLibelle = finalFreqLib;
-                
-                section.LibelleSection += $" ({finalFreqLib})";
+                section.ModeFreq = "SANS";
+                section.PeriodiciteId = null;
+                var tousPiecesTs = (await _unitOfWork.DictionnaireQualiteRepository.GetAllTypeSectionsAsync())
+                                    .FirstOrDefault(t => t.TypeNormalise == SopalTrace.Domain.Constants.SectionTypes.TousPieces);
+                if (tousPiecesTs != null)
+                    section.TypeSectionId = tousPiecesTs.Id;
+                return;
             }
-            else if (isFrequency)
+
+            var perioId = await ResolveOrCreatePeriodiciteFromTextAsync(parenthesesContent);
+            if (perioId.HasValue)
             {
-                section.FrequenceLibelle = parenthesesContent;
-                section.RegleEchantillonnageLibelle = parenthesesContent;
-
-                var perioId = await ResolveOrCreatePeriodiciteFromTextAsync(parenthesesContent);
-                if (perioId.HasValue)
-                {
-                    section.PeriodiciteId = perioId.Value;
-                    var perio = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync(parenthesesContent);
-                    if (perio == null)
-                    {
-                        var allPerios = await _unitOfWork.DictionnaireQualiteRepository.GetAllPeriodicitesAsync();
-                        perio = allPerios.FirstOrDefault(p => p.Id == perioId.Value);
-                    }
-
-                    if (perio != null)
-                    {
-                        section.ModeFreq = "VARIABLE";
-                        section.FrequenceLibelle = perio.Libelle;
-                        section.FreqNum = perio.FrequenceNum ?? 1;
-
-                        if (perio.FrequenceUnite == "1_HEURE" || perio.FrequenceUnite == "PCT_HEURE" || perio.FrequenceUnite == "4_HEURE" || (perio.FrequenceUnite != null && perio.FrequenceUnite.EndsWith("_HEURE")))
-                        {
-                            section.TypeVariable = "HEURE";
-                            if (perio.FrequenceUnite != null && perio.FrequenceUnite.Contains("_HEURE") && int.TryParse(perio.FrequenceUnite.Split('_')[0], out int h))
-                            {
-                                section.FreqHours = h;
-                            }
-                            else
-                            {
-                                section.FreqHours = (perio.FrequenceUnite == "4_HEURE") ? 4 : 1;
-                            }
-                        }
-                        else if (perio.FrequenceUnite == "SERIE")
-                        {
-                            section.TypeVariable = "SERIE";
-                        }
-                        else if (perio.FrequenceUnite == "ECHANTILLON")
-                        {
-                            section.TypeVariable = "ECHANTILLON";
-                        }
-                    }
-                }
-                else
+                section.PeriodiciteId = perioId.Value;
+                var perio = (await _unitOfWork.DictionnaireQualiteRepository.GetAllPeriodicitesAsync())
+                    .FirstOrDefault(p => p.Id == perioId.Value);
+                if (perio != null)
                 {
                     section.ModeFreq = "VARIABLE";
-                    
-                    if ((contentLower.Contains("pièce") || contentLower.Contains("piece") || contentLower.Contains("p/h") || contentLower.Contains("p/")) &&
-                        (contentLower.Contains("heure") || contentLower.Contains("h")))
-                    {
-                        section.TypeVariable = "HEURE";
-                        var m = Regex.Match(contentLower, @"(\d+)(?:%)?.*?(?:pièce|piece).*?/\s*(?:(\d+)\s*)?(?:heure|h\b)", RegexOptions.IgnoreCase);
-                        if (m.Success)
-                        {
-                            section.FreqNum = int.Parse(m.Groups[1].Value);
-                            section.FreqHours = string.IsNullOrEmpty(m.Groups[2].Value) ? 1 : int.Parse(m.Groups[2].Value);
-                        }
-                    }
-                    else if (contentLower.Contains("série") || contentLower.Contains("serie") || contentLower.Contains("lot"))
-                    {
-                        section.TypeVariable = "SERIE";
-                        var mS = Regex.Match(contentLower, @"(?:série|serie|lot).*?(\d+)\s*(?:pièce|piece|p)?", RegexOptions.IgnoreCase);
-                        if (!mS.Success) mS = Regex.Match(contentLower, @"(\d+)\s*(?:pièce|piece|p)", RegexOptions.IgnoreCase);
-                        if (mS.Success) section.FreqNum = int.Parse(mS.Groups[1].Value);
-                    }
-                    else if (contentLower.Contains("échantillon") || contentLower.Contains("echantillon"))
-                    {
-                        section.TypeVariable = "ECHANTILLON";
-                        var mE = Regex.Match(contentLower, @"(?:échantillons|echantillons|échantillon|echantillon).*?(\d+)", RegexOptions.IgnoreCase);
-                        if (!mE.Success) mE = Regex.Match(contentLower, @"(\d+)\s*(?:échantillons|echantillons|échantillon|echantillon)", RegexOptions.IgnoreCase);
-                        if (mE.Success) section.FreqNum = int.Parse(mE.Groups[1].Value);
-                    }
+                    section.FrequenceLibelle = perio.Unite == "HEURE"
+                        ? $"{perio.NbrPieces} pièce(s) / {perio.NbrHeures} heure(s)"
+                        : perio.Unite == "SERIE" ? $"une série de {perio.NbrPieces} pièce(s)" : $"{perio.NbrPieces} échantillon(s)";
+                    section.FreqNum = perio.NbrPieces;
+                    section.TypeVariable = perio.Unite;
+                    section.FreqHours = perio.NbrHeures ?? 1;
                 }
-                
-                section.LibelleSection += $" ({parenthesesContent})";
-            }
-            else
-            {
-                section.LibelleSection += $" ({parenthesesContent})";
             }
         }
+
+        /// <summary>Texte décrivant une règle de contrôle (norme, procédure, lot) et non une fréquence.</summary>
+        private static bool EstReferenceDeNorme(string contentLower) =>
+            contentLower.Contains("selon") || contentLower.Contains("iso") ||
+            contentLower.Contains("nqa") || contentLower.Contains("effectif") ||
+            contentLower.Contains("tableau") || contentLower.Contains("première") ||
+            contentLower.Contains("dernière") || contentLower.Contains("contrôle renforcé") ||
+            contentLower.Contains("plan d'échantillonnage");
 
         public async Task<System.Guid?> ResolveOrCreatePeriodiciteFromTextAsync(string text)
         {
@@ -151,28 +90,13 @@ namespace SopalTrace.Infrastructure.Services
 
             string contentLower = contentToParse.ToLower();
 
-            // 2. Check if it's a rule (ISO, NQA, etc.)
-            var regleMatch = await _unitOfWork.DictionnaireQualiteRepository.GetRegleEchantillonnageByLibelleAsync(contentToParse);
-            bool isRule = regleMatch != null || 
-                          contentLower.Contains("selon") || contentLower.Contains("iso") ||
-                          contentLower.Contains("nqa") || contentLower.Contains("effectif") ||
-                          contentLower.Contains("tableau") || contentLower.Contains("première") || 
-                          contentLower.Contains("dernière") || contentLower.Contains("contrôle renforcé") ||
-                          contentLower.Contains("plan d'échantillonnage");
-
-            if (isRule)
+            // 2. Référence de norme ou 100 % : pas de périodicité
+            if (EstReferenceDeNorme(contentLower) || contentLower.Contains("100%"))
             {
                 return null;
             }
 
-            // 3. Check if it exists as-is in the database
-            var perio = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync(contentToParse);
-            if (perio != null)
-            {
-                return perio.Id;
-            }
-
-            // 4. Try parsing frequency details
+            // 3. Try parsing frequency details
             bool isFrequency = contentLower.Contains("pièce") || contentLower.Contains("piece") ||
                                contentLower.Contains("p/h") || contentLower.Contains("p/") ||
                                contentLower.Contains("série") || contentLower.Contains("serie") ||
@@ -218,56 +142,11 @@ namespace SopalTrace.Infrastructure.Services
                 return null;
             }
 
-            // Build standardized Code and Libelle
-            string code = "";
-            string libelle = "";
-            string frequenceUnite = "";
+            int? parsedNbrHeures = typeVariable == "HEURE" ? freqHours : null;
 
-            if (typeVariable == "HEURE")
-            {
-                if (freqNum == 100)
-                {
-                    code = "100PCT_1H";
-                    libelle = "100% des pièces/h";
-                    frequenceUnite = "PCT_HEURE";
-                }
-                else
-                {
-                    code = $"{freqNum}P_{freqHours}H";
-                    string pluralP = freqNum > 1 ? "s" : "";
-                    if (freqHours == 1)
-                    {
-                        libelle = $"{freqNum} pièce{pluralP} / heure";
-                        frequenceUnite = "1_HEURE";
-                    }
-                    else
-                    {
-                        string pluralH = freqHours > 1 ? "s" : "";
-                        libelle = $"{freqNum} pièce{pluralP} / {freqHours} heure{pluralH}";
-                        frequenceUnite = $"{freqHours}_HEURE";
-                    }
-                }
-            }
-            else if (typeVariable == "SERIE")
-            {
-                code = $"SERIE_{freqNum}P";
-                libelle = $"une série de {freqNum} pièces";
-                frequenceUnite = "SERIE";
-            }
-            else if (typeVariable == "ECHANTILLON")
-            {
-                code = $"ECH_{freqNum}";
-                string pluralE = freqNum > 1 ? "s" : "";
-                libelle = $"{freqNum} échantillon{pluralE}";
-                frequenceUnite = "ECHANTILLON";
-            }
-
-            // Look up by Code/Libelle again to avoid duplication
-            var existingPerio = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByCodeAsync(code);
-            if (existingPerio == null)
-            {
-                existingPerio = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync(libelle);
-            }
+            // 4. Look up by new properties to avoid duplication
+            var allPerios = await _unitOfWork.DictionnaireQualiteRepository.GetAllPeriodicitesAsync();
+            var existingPerio = allPerios.FirstOrDefault(p => p.NbrPieces == freqNum && p.Unite == typeVariable && p.NbrHeures == parsedNbrHeures);
 
             if (existingPerio != null)
             {
@@ -278,11 +157,9 @@ namespace SopalTrace.Infrastructure.Services
             var newPerio = new SopalTrace.Domain.Entities.Periodicite
             {
                 Id = System.Guid.NewGuid(),
-                Code = code,
-                Libelle = libelle,
-                FrequenceNum = freqNum,
-                FrequenceUnite = frequenceUnite,
-                OrdreAffichage = 5,
+                NbrPieces = freqNum,
+                Unite = typeVariable,
+                NbrHeures = parsedNbrHeures,
                 Actif = true
             };
 

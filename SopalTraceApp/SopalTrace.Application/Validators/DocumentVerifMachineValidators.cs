@@ -1,69 +1,62 @@
 using FluentValidation;
 using SopalTrace.Application.DTOs.QualityPlans.DocumentVerifMachines;
+using SopalTrace.Domain.Constants;
 
 namespace SopalTrace.Application.Validators.QualityPlans;
 
-// ============================================================
-// Validator principal : CreateDocumentVerifMachineRequestDto
-// Validé à la création ET à la mise à jour (PUT)
-// ============================================================
+/// <summary>
+/// Plan de vérification machine (création, mise à jour, nouvelle version).
+/// Les règles reflètent les contraintes de la base : un message clair au lieu d'un refus technique.
+/// </summary>
 public class CreateDocumentVerifMachineRequestDtoValidator : AbstractValidator<CreateDocumentVerifMachineRequestDto>
 {
     public CreateDocumentVerifMachineRequestDtoValidator()
     {
-        // --- Entête ---
         RuleFor(x => x.MachineCode)
-            .NotEmpty().WithMessage("Le code machine est obligatoire.");
+            .NotEmpty().WithMessage("Le code machine est obligatoire.")
+            .MaximumLength(30).WithMessage("Le code machine ne peut pas dépasser 30 caractères.");
 
         RuleFor(x => x.Nom)
             .NotEmpty().WithMessage("Le nom du plan est obligatoire.")
-            .MinimumLength(2).WithMessage("Le nom du plan doit contenir au moins 2 caractères.");
+            .MaximumLength(140).WithMessage("Le nom du plan ne peut pas dépasser 140 caractères.");
 
-        // --- Lignes Risques : au moins 1 obligatoire ---
-        RuleFor(x => x.LignesRisques)
-            .NotEmpty().WithMessage("Au moins un risque/défaut est obligatoire.");
-
-        // --- Validation de chaque ligne risque ---
         RuleForEach(x => x.LignesRisques)
-            .SetValidator(new CreateDocumentVerifMachineLigneDtoValidator("Risque"));
+            .SetValidator(new CreateDocumentVerifMachineLigneDtoValidator("Risque", TypesLigneVerifMachine.Risque));
 
-        // --- Validation de chaque ligne conformité (si présentes) ---
         RuleForEach(x => x.LignesConformite)
-            .SetValidator(new CreateDocumentVerifMachineLigneDtoValidator("Conformité"));
+            .SetValidator(new CreateDocumentVerifMachineLigneDtoValidator("Conformité", TypesLigneVerifMachine.Conformite));
     }
 }
 
-// ============================================================
-// Validator d'une ligne (Risque ou Conformité)
-// ============================================================
-public class CreateDocumentVerifMachineLigneDtoValidator : AbstractValidator<CreateDocumentVerifMachineLigneDto>
+/// <summary>Ligne de risque ou de conformité.</summary>
+internal sealed class CreateDocumentVerifMachineLigneDtoValidator : AbstractValidator<CreateDocumentVerifMachineLigneDto>
 {
-    public CreateDocumentVerifMachineLigneDtoValidator(string sectionName = "Ligne")
+    public CreateDocumentVerifMachineLigneDtoValidator(string section, string typeAttendu)
     {
+        RuleFor(x => x.TypeLigne)
+            .Equal(typeAttendu).WithMessage($"{section} : type de ligne attendu {typeAttendu}.");
+
         RuleFor(x => x.LibelleRisque)
-            .NotEmpty().WithMessage($"{sectionName} : Le libellé Test/Risque est obligatoire.")
-            .MaximumLength(500).WithMessage($"{sectionName} : Le libellé ne peut pas dépasser 500 caractères.");
-
-        RuleFor(x => x.LibelleMethode)
-            .NotEmpty().WithMessage($"{sectionName} : Le Moyen/Méthode de contrôle est obligatoire.")
-            .MaximumLength(500).WithMessage($"{sectionName} : La méthode ne peut pas dépasser 500 caractères.");
-
-        RuleFor(x => x.Echeances)
-            .NotEmpty().WithMessage($"{sectionName} : Au moins une périodicité est obligatoire.");
+            .NotEmpty().WithMessage($"{section} : le libellé est obligatoire.")
+            .MaximumLength(250).WithMessage($"{section} : le libellé ne peut pas dépasser 250 caractères.");
 
         RuleForEach(x => x.Echeances)
-            .SetValidator(new CreateDocumentVerifMachineEcheanceDtoValidator(sectionName));
+            .SetValidator(new CreateDocumentVerifMachineEcheanceDtoValidator(section));
     }
 }
 
-// ============================================================
-// Validator d'une échéance (périodicité + moyen)
-// ============================================================
-public class CreateDocumentVerifMachineEcheanceDtoValidator : AbstractValidator<CreateDocumentVerifMachineEcheanceDto>
+/// <summary>Échéance (périodicité) et ses pièces de référence.</summary>
+internal sealed class CreateDocumentVerifMachineEcheanceDtoValidator : AbstractValidator<CreateDocumentVerifMachineEcheanceDto>
 {
-    public CreateDocumentVerifMachineEcheanceDtoValidator(string sectionName = "Ligne")
+    private static readonly string[] RolesPiece = { "PRC", "PRNC", "FEC", "FENC" };
+
+    public CreateDocumentVerifMachineEcheanceDtoValidator(string section)
     {
         RuleFor(x => x.PeriodiciteMachineId)
-            .NotEmpty().WithMessage("La périodicité est obligatoire.");
+            .NotEmpty().WithMessage($"{section} : la périodicité est obligatoire.");
+
+        RuleForEach(x => x.MatricePieces)
+            .Must(m => System.Array.IndexOf(RolesPiece, m.RoleVerif) >= 0)
+            .WithMessage($"{section} : rôle de pièce de référence inconnu (PRC, PRNC, FEC ou FENC attendu).");
     }
 }

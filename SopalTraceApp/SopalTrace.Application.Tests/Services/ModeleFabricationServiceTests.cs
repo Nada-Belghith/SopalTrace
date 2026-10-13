@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SopalTrace.Application.Services;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.DTOs.QualityPlans.Modeles;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -29,7 +30,7 @@ namespace SopalTrace.Application.Tests.Services
             _mockFormulaireStructureService = new Mock<IFormulaireStructureService>();
             _mockFrequencyParserService = new Mock<IFrequencyParserService>();
 
-            _mockCurrentUserService.Setup(s => s.UserInfo).Returns("USER123");
+            _mockCurrentUserService.Setup(s => s.MatriculeRequis).Returns("USER123");
 
             _service = new ModeleFabricationService(
                 _mockUnitOfWork.Object,
@@ -53,10 +54,11 @@ namespace SopalTrace.Application.Tests.Services
                 VersionInitiale = 3 // Demande version 3
             };
 
-            var existingDoc = new ModeleFabricationEntete
+            var existingDoc = new DocumentEntete
             {
                 Id = Guid.NewGuid(),
-                Code = "MOD001",
+                TypeDocumentCode = TypesDocument.ModeleFabrication,
+                Nom = "MOD001",
                 NatureArticleCode = "NAT",
                 FamilleProduitFiniCode = "FAM",
                 OperationCode = "OP1",
@@ -64,17 +66,17 @@ namespace SopalTrace.Application.Tests.Services
                 Statut = "ACTIF"
             };
 
-            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.GetByFiltersAsync("NAT", "OP1", "FAM"))
-                .ReturnsAsync(new List<ModeleFabricationEntete> { existingDoc });
+            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.GetByFiltersAsync("NAT", "OP1", "FAM", null))
+                .ReturnsAsync(new List<DocumentEntete> { existingDoc });
 
             // Simuler formulaire inactif (pas de formulaire trouvé => formId null)
             var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_001", "Desig", null, "EN_COURS_DE_FABRICATION", 3);
             _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync(It.IsAny<string>()))
                 .ReturnsAsync(formStruct);
 
-            ModeleFabricationEntete? savedModele = null;
-            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<ModeleFabricationEntete>()))
-                .Callback<ModeleFabricationEntete>(e => savedModele = e);
+            DocumentEntete? savedModele = null;
+            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()))
+                .Callback<DocumentEntete>(e => savedModele = e);
 
             // Act
             var resultId = await _service.CreateModelAsync(request);
@@ -83,7 +85,7 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Verify(u => u.ModeleFabricationEnteteRepository.UpdateAsync(existingDoc), Times.Once); // Ancien modèle doit être mis à jour (ARCHIVE)
             Assert.Equal("ARCHIVE", existingDoc.Statut);
 
-            _mockUnitOfWork.Verify(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<ModeleFabricationEntete>()), Times.Once); // Nouveau ajouté
+            _mockUnitOfWork.Verify(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()), Times.Once); // Nouveau ajouté
             Assert.NotNull(savedModele);
             Assert.Equal(3, savedModele.Version); // VersionInitiale a pris le relais (3 > 2)
             Assert.Equal("ACTIF", savedModele.Statut); // Actif par défaut car pas de formulaire parent
@@ -102,10 +104,11 @@ namespace SopalTrace.Application.Tests.Services
                 OperationCode = "OP1"
             };
 
-            var existingDoc = new ModeleFabricationEntete
+            var existingDoc = new DocumentEntete
             {
                 Id = Guid.NewGuid(),
-                Code = "MOD001",
+                TypeDocumentCode = TypesDocument.ModeleFabrication,
+                Nom = "MOD001",
                 NatureArticleCode = "NAT",
                 FamilleProduitFiniCode = "FAM",
                 OperationCode = "OP1",
@@ -113,8 +116,8 @@ namespace SopalTrace.Application.Tests.Services
                 Statut = "ACTIF"
             };
 
-            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.GetByFiltersAsync("NAT", "OP1", "FAM"))
-                .ReturnsAsync(new List<ModeleFabricationEntete> { existingDoc });
+            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.GetByFiltersAsync("NAT", "OP1", "FAM", null))
+                .ReturnsAsync(new List<DocumentEntete> { existingDoc });
 
             var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_001", "Desig", null, "EN_COURS_DE_FABRICATION", 5);
             _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION"))
@@ -124,9 +127,9 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formStruct.Id))
                 .ReturnsAsync(formDetails);
 
-            ModeleFabricationEntete? savedModele = null;
-            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<ModeleFabricationEntete>()))
-                .Callback<ModeleFabricationEntete>(e => savedModele = e);
+            DocumentEntete? savedModele = null;
+            _mockUnitOfWork.Setup(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()))
+                .Callback<DocumentEntete>(e => savedModele = e);
 
             // Act
             var resultId = await _service.CreateModelAsync(request);

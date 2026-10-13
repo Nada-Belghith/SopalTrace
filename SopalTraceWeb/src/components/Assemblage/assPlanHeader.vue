@@ -67,7 +67,7 @@
         </select>
       </div>
 
-      <!-- POSTE (Visible UNIQUEMENT si Famille=soupape ET Article=PF) -->
+      <!-- POSTE (visible uniquement si la famille a des plans par poste ET Article=PF) -->
       <div v-if="afficherPoste">
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Poste</label>
         <select 
@@ -83,7 +83,7 @@
 
       <!-- LIBELLÉ -->
       <div>
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du Gabarit *</label>
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du plan *</label>
         <input 
           v-model="store.entete.libelle" 
           @blur="onLibelleBlur"
@@ -190,10 +190,11 @@ const onLibelleBlur = () => {
 };
 
 const afficherPoste = computed(() => {
-  const famille = String(store.entete.familleProduitCode || '').trim().toLowerCase();
+  const famille = (refStore.famillesProduit || []).find(f => f.code === store.entete.familleProduitCode);
   const article = String(store.entete.natureComposantCode || '').trim().toUpperCase();
 
-  return famille.includes('soupape') && article === 'PF';
+  // Famille dont les plans sont propres à chaque poste (FamilleProduitFini.PlanParPoste)
+  return !!famille?.planParPoste && article === 'PF';
 });
 
 const isPiston = computed(() => {
@@ -312,7 +313,7 @@ watch(() => store.entete.natureComposantCode, (newVal, oldVal) => {
   }
 });
 
-// Si condition Poste change (soupape check) → Réinitialise Poste
+// Si condition Poste change → Réinitialise Poste
 watch(afficherPoste, (val) => {
   if (!val) {
     store.entete.posteCode = '';

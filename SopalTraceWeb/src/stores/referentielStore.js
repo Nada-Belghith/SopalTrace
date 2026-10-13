@@ -11,7 +11,6 @@ export const useReferentielStore = defineStore('referentiel', () => {
   const typesControle = ref([]);
   const moyensControle = ref([]);
   const periodicites = ref([]);
-  const reglesEchantillonnage = ref([]);
   const typesSection = ref([]);
   const instruments = ref([]);
   const postes = ref([]); // Postes (génériques)
@@ -51,9 +50,10 @@ export const useReferentielStore = defineStore('referentiel', () => {
     const existing = [...refVar.value];
     for (const item of newData) {
       const key = item.id || item.Id || item.code || item.Code;
-      if (!existing.find(e => (e.id || e.Id || e.code || e.Code) === key)) {
-        existing.push(item);
-      }
+      const index = existing.findIndex(e => (e.id || e.Id || e.code || e.Code) === key);
+      // Un même élément peut venir de plusieurs référentiels : on complète ses champs (ex. configuration machine).
+      if (index === -1) existing.push(item);
+      else existing[index] = { ...existing[index], ...item };
     }
     refVar.value = existing;
   };
@@ -76,7 +76,6 @@ export const useReferentielStore = defineStore('referentiel', () => {
         mergeDict(typesControle, data.typesControle);
         mergeDict(moyensControle, data.moyensControle);
         mergeDict(periodicites, data.periodicites);
-        mergeDict(reglesEchantillonnage, data.reglesEchantillonnage);
         mergeDict(typesSection, data.typesSection || data.typesSections);
         mergeDict(instruments, data.instruments);
         mergeDict(postes, data.postes);
@@ -84,7 +83,8 @@ export const useReferentielStore = defineStore('referentiel', () => {
         const fpMapped = (data.famillesProduit || []).map(f => ({
           code: f.code,
           libelle: f.designation || f.libelle || '',
-          typeRobinetCode: f.typeRobinetCode
+          typeRobinetCode: f.typeRobinetCode,
+          planParPoste: !!f.planParPoste
         }));
         mergeDict(famillesProduit, fpMapped);
 
@@ -128,6 +128,12 @@ export const useReferentielStore = defineStore('referentiel', () => {
 
         mergeDict(postesTravail, data.postes || data.postesTravail);
         mergeDict(risquesDefauts, data.risquesDefauts);
+        mergeDict(famillesProduit, (data.famillesProduit || []).map(f => ({
+          code: f.code,
+          libelle: f.designation || f.libelle || '',
+          typeRobinetCode: f.typeRobinetCode,
+          planParPoste: !!f.planParPoste
+        })));
         mergeDict(periodicites, data.periodicites);
         mergeDict(instruments, data.instruments);
         mergeDict(typesCaracteristique, data.typesCaracteristique);
@@ -169,7 +175,6 @@ export const useReferentielStore = defineStore('referentiel', () => {
     typesControle,
     moyensControle,
     periodicites,
-    reglesEchantillonnage,
     typesSection,
     instruments,
     postes,

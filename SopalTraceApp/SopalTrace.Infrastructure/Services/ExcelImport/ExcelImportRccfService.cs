@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using OfficeOpenXml;
+using ClosedXML.Excel;
 using SopalTrace.Application.DTOs.QualityPlans.PlanRCCF;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 
 namespace SopalTrace.Infrastructure.Services.ExcelImport
@@ -35,17 +36,18 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
             var result = new ImportRccfResultDto();
             var sectionsDict = new Dictionary<string, CreatePlanRccfSectionRequest>();
 
-            using (var package = new ExcelPackage(stream))
+            using (var workbook = new XLWorkbook(stream))
             {
-                var worksheet = package.Workbook.Worksheets[0];
-                int rowCount = worksheet.Dimension.Rows;
+                var worksheet = workbook.Worksheets.FirstOrDefault()
+                    ?? throw new Domain.Exceptions.RegleMetierException("Le fichier Excel ne contient aucune feuille.");
+                int rowCount = worksheet.LastRowUsed()?.RowNumber() ?? 0;
 
                 int currentOrdre = 1;
                 string currentSectionKey = "REGLAGE";
 
                 for (int row = 1; row <= rowCount; row++)
                 {
-                    var cellValue = worksheet.Cells[row, 1].Text;
+                    var cellValue = Texte(worksheet, row, 1);
                     if (string.IsNullOrWhiteSpace(cellValue)) continue;
 
                     var lowerValue = cellValue.ToLower().Trim();
@@ -78,20 +80,20 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                     if (!sectionsDict.ContainsKey(currentSectionKey))
                     {
                         string libelle = "";
-                        string searchLibelle = "";
+                        string typeNormalise = "";
                         Guid? typeSectionId = null;
                         Guid? periodiciteId = null;
-                        Guid? regleId = null;
                         string modeFreq = "SANS";
                         int? freqNum = null;
                         string? typeVar = null;
                         int? freqHours = null;
-                        string? regleLibelle = null;
+                        // Précision affichée avec le titre : la règle de contrôle est portée par le type de section.
+                        string? precision = null;
 
                         if (currentSectionKey == "REGLAGE")
                         {
                             libelle = "Caractéristiques à contrôler aux réglages (une série de 04 pièces)";
-                            searchLibelle = "aux réglages";
+                            typeNormalise = SectionTypes.Reglage;
                             modeFreq = "VARIABLE";
                             freqNum = 4;
                             typeVar = "SERIE";
@@ -100,33 +102,27 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                         else if (currentSectionKey == "TRANCHES")
                         {
                             libelle = "Caractéristiques à contrôler par échantillonnage en cours de production";
-                            searchLibelle = "par échantillonnage";
-                            modeFreq = "FIXE";
-                            regleLibelle = "Selon FE0591 : Effectif de l’échantillon /poste (A/B) (p/h)";
+                            typeNormalise = SectionTypes.Echantillonnage2859;
+                            precision = "Selon FE0591 : Effectif de l’échantillon /poste (A/B) (p/h)";
                         }
                         else if (currentSectionKey == "LOT_POSTE")
                         {
                             libelle = "Caractéristiques à contrôler au niveau du POSTE";
-                            searchLibelle = "au niveau du poste";
-                            modeFreq = "FIXE";
-                            regleLibelle = "Caractéristiques à contrôler au niveau du POSTE";
+                            typeNormalise = SectionTypes.LotPoste;
                         }
 
-                        // Résoudre TypeSectionId depuis la DB
-                        var ts = await _unitOfWork.DictionnaireQualiteRepository.GetTypeSectionByLibelleAsync(searchLibelle);
+                        // Résoudre TypeSectionId depuis la DB par TypeNormalise
+                        var allTs = await _unitOfWork.DictionnaireQualiteRepository.GetAllTypeSectionsAsync();
+                        var ts = allTs.FirstOrDefault(t => t.TypeNormalise == typeNormalise);
                         if (ts != null) typeSectionId = ts.Id;
 
-                        // Résoudre PeriodiciteId ou RegleEchantillonnageId
+                        // Résoudre PeriodiciteId
                         if (modeFreq == "VARIABLE")
                         {
-                            var per = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync("une série de 4 pièces");
-                            if (per == null) per = await _unitOfWork.DictionnaireQualiteRepository.GetPeriodiciteByLibelleAsync("une série de 5 pièces");
+                            var allPerios = await _unitOfWork.DictionnaireQualiteRepository.GetAllPeriodicitesAsync();
+                            var per = allPerios.FirstOrDefault(p => p.NbrPieces == 4 && p.Unite == "SERIE");
+                            if (per == null) per = allPerios.FirstOrDefault(p => p.NbrPieces == 5 && p.Unite == "SERIE");
                             if (per != null) periodiciteId = per.Id;
-                        }
-                        else if (modeFreq == "FIXE" && !string.IsNullOrEmpty(regleLibelle))
-                        {
-                            var reg = await _unitOfWork.DictionnaireQualiteRepository.GetRegleEchantillonnageByLibelleAsync(regleLibelle);
-                            if (reg != null) regleId = reg.Id;
                         }
 
                         sectionsDict[currentSectionKey] = new CreatePlanRccfSectionRequest
@@ -138,9 +134,7 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                             OrdreAffiche = sectionsDict.Count + 1,
                             TypeSectionId = typeSectionId,
                             PeriodiciteId = periodiciteId,
-                            RegleEchantillonnageId = regleId,
-                            RegleEchantillonnageLibelle = regleLibelle,
-                            FrequenceLibelle = regleLibelle,
+                            FrequenceLibelle = precision,
                             ModeFreq = modeFreq,
                             FreqNum = freqNum,
                             TypeVariable = typeVar,
@@ -156,13 +150,13 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                     }
 
                     // Lire les colonnes
-                    var limite = worksheet.Cells[row, 2].Text?.Trim() ?? "";
-                    var typeCtrl = worksheet.Cells[row, 3].Text?.Trim() ?? "";
-                    var moyenCtrl = worksheet.Cells[row, 4].Text?.Trim() ?? "";
+                    var limite = Texte(worksheet, row, 2);
+                    var typeCtrl = Texte(worksheet, row, 3);
+                    var moyenCtrl = Texte(worksheet, row, 4);
 
-                    var obs = worksheet.Cells[row, 6].Text?.Trim() ?? "";
-                    if (string.IsNullOrWhiteSpace(obs)) obs = worksheet.Cells[row, 7].Text?.Trim() ?? "";
-                    if (string.IsNullOrWhiteSpace(obs)) obs = worksheet.Cells[row, 8].Text?.Trim() ?? "";
+                    var obs = Texte(worksheet, row, 6);
+                    if (string.IsNullOrWhiteSpace(obs)) obs = Texte(worksheet, row, 7);
+                    if (string.IsNullOrWhiteSpace(obs)) obs = Texte(worksheet, row, 8);
 
                     // Détecter si c'est une remarque ou une note
                     if (lowerValue.StartsWith("nb") || lowerValue.StartsWith("remarque") || lowerValue.StartsWith("note") || lowerValue.StartsWith("observation"))
@@ -186,7 +180,7 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                         var tc = await _unitOfWork.DictionnaireQualiteRepository.GetTypeCaracteristiqueByLibelleAsync(caracName);
                         if (tc == null)
                         {
-                            tc = new TypeCaracteristique { Id = Guid.NewGuid(), Code = caracName.Length > 20 ? caracName.Substring(0, 20).ToUpper() : caracName.ToUpper(), Libelle = caracName, Actif = true };
+                            tc = new TypeCaracteristique { Id = Guid.NewGuid(), Code = CodeImporte(), Libelle = caracName, Actif = true };
                             await _unitOfWork.DictionnaireQualiteRepository.AddTypeCaracteristiqueAsync(tc);
                             await _unitOfWork.CommitAsync();
                         }
@@ -199,7 +193,7 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                         var tctrl = await _unitOfWork.DictionnaireQualiteRepository.GetTypeControleByLibelleAsync(typeCtrl);
                         if (tctrl == null)
                         {
-                            tctrl = new TypeControle { Id = Guid.NewGuid(), Code = typeCtrl.Length > 20 ? typeCtrl.Substring(0, 20).ToUpper() : typeCtrl.ToUpper(), Libelle = typeCtrl, Actif = true };
+                            tctrl = new TypeControle { Id = Guid.NewGuid(), Code = CodeImporte(), Libelle = typeCtrl, Actif = true };
                             await _unitOfWork.DictionnaireQualiteRepository.AddTypeControleAsync(tctrl);
                             await _unitOfWork.CommitAsync();
                         }
@@ -219,7 +213,7 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
                             var mc = await _unitOfWork.DictionnaireQualiteRepository.GetMoyenControleByLibelleAsync(moyenCtrl);
                             if (mc == null)
                             {
-                                mc = new MoyenControle { Id = Guid.NewGuid(), Code = moyenCtrl.Length > 20 ? moyenCtrl.Substring(0, 20).ToUpper() : moyenCtrl.ToUpper(), Libelle = moyenCtrl, Actif = true };
+                                mc = new MoyenControle { Id = Guid.NewGuid(), Code = CodeImporte(), Libelle = moyenCtrl, Actif = true };
                                 await _unitOfWork.DictionnaireQualiteRepository.AddMoyenControleAsync(mc);
                                 await _unitOfWork.CommitAsync();
                             }
@@ -251,5 +245,12 @@ namespace SopalTrace.Infrastructure.Services.ExcelImport
             result.Sections = sectionsDict.Values.ToList();
             return result;
         }
+
+        /// <summary>Texte affiché de la cellule (valeur formatée, comme dans Excel), sans espaces autour.</summary>
+        private static string Texte(IXLWorksheet feuille, int ligne, int colonne) =>
+            feuille.Cell(ligne, colonne).GetFormattedString()?.Trim() ?? "";
+
+        /// <summary>Code unique d'un élément de dictionnaire créé par l'import (même règle que l'import des plans).</summary>
+        private static string CodeImporte() => $"EXC-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}";
     }
 }

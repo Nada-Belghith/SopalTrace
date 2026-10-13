@@ -7,9 +7,9 @@ public partial class Nqa
 {
     public int Id { get; set; }
 
-    public double ValeurNqa { get; set; }
-
-    public virtual ICollection<DocumentEchantillonnageEntete> DocumentEchantillonnageEntetes { get; set; } = new List<DocumentEchantillonnageEntete>();
+    public decimal ValeurNqa { get; set; }
 
     public virtual ICollection<DocumentSection> DocumentSections { get; set; } = new List<DocumentSection>();
+
+    public virtual ICollection<SamplingPlan> SamplingPlans { get; set; } = new List<SamplingPlan>();
 }

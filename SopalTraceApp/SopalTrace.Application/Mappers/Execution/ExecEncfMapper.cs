@@ -6,18 +6,19 @@ namespace SopalTrace.Application.Mappers.Execution
 {
     public static class ExecEncfMapper
     {
-        public static ExecEncfDto? ToDto(ExecControleOf? entity)
+        /// <param name="entity">Exécution de l'OF (pièces types et résultats par tranche).</param>
+        /// <param name="statut">Statut ENCF du poste sur cette exécution : fournit le poste et le document appliqué.</param>
+        public static ExecEncfDto ToDto(ExecControleOf entity, ExecControleDocumentStatut? statut)
         {
-            if (entity == null) return null;
-
             return new ExecEncfDto
             {
                 Id = entity.Id,
                 NumeroOf = entity.NumeroOf,
                 OperationCode = entity.OperationCode,
-                PosteCode = entity.PosteCode,
+                PosteCode = statut?.PosteCode ?? entity.ExecControleOfPostes?.FirstOrDefault()?.PosteCode,
                 MachineCode = entity.MachineCode,
-                PlanSourceId = entity.PlanSourceId,
+                // Document « résultat contrôle en cours de fabrication » appliqué (affiché par le formulaire ENCF)
+                PlanSourceId = statut?.DocId,
                 TypeOf = entity.TypeOf,
                 Statut = entity.Statut,
                 DateDebut = entity.DateDebut,
@@ -26,7 +27,7 @@ namespace SopalTrace.Application.Mappers.Execution
                 // Info OF if available
                 CodeArticle = entity.NumeroOfNavigation?.CodeArticle,
                 DesignationArticle = entity.NumeroOfNavigation?.CodeArticleNavigation?.Designation,
-                Atelier = entity.PosteCodeNavigation?.Libelle,
+                Atelier = entity.ExecControleOfPostes?.FirstOrDefault()?.PosteCodeNavigation?.Libelle,
 
                 Tranches = entity.ExecControleTranches?.Select(t => new ExecControleTrancheDto
                 {
@@ -50,58 +51,6 @@ namespace SopalTrace.Application.Mappers.Execution
                     Remarque = p.Remarque,
                     MatriculeOperateur = p.MatriculeOperateur
                 }).OrderBy(p => p.HeureValidation).ToList() ?? new System.Collections.Generic.List<ExecPieceTypeDto>()
-            };
-        }
-
-        public static ExecControleOf? ToEntity(ExecEncfDto? dto)
-        {
-            if (dto == null) return null;
-
-            return new ExecControleOf
-            {
-                Id = dto.Id ?? System.Guid.NewGuid(),
-                NumeroOf = dto.NumeroOf ?? string.Empty,
-                OperationCode = dto.OperationCode ?? string.Empty,
-                PosteCode = dto.PosteCode ?? string.Empty,
-                MachineCode = dto.MachineCode,
-                PlanSourceId = dto.PlanSourceId,
-                TypeOf = dto.TypeOf ?? "FAB",
-                Statut = dto.Statut ?? "EN_COURS",
-                DateDebut = dto.DateDebut != default ? dto.DateDebut : System.DateTime.Now,
-                DateFin = dto.DateFin
-            };
-        }
-
-        public static ExecControleTranche? ToEntity(ExecControleTrancheDto? dto)
-        {
-            if (dto == null) return null;
-
-            return new ExecControleTranche
-            {
-                Id = dto.Id ?? System.Guid.NewGuid(),
-                ExecControleOfid = dto.ExecControleOFId,
-                TrancheHoraire = dto.TrancheHoraire ?? string.Empty,
-                HeureDebut = dto.HeureDebut,
-                HeureFin = dto.HeureFin,
-                ResultatFinal = dto.ResultatFinal ?? string.Empty,
-                DetailsNc = dto.DetailsNC,
-                ActionsCorrection = dto.ActionsCorrection,
-                MatriculeApprobateur = dto.MatriculeApprobateur
-            };
-        }
-
-        public static ExecPieceType? ToEntity(ExecPieceTypeDto? dto)
-        {
-            if (dto == null) return null;
-
-            return new ExecPieceType
-            {
-                Id = dto.Id ?? System.Guid.NewGuid(),
-                ExecControleOfid = dto.ExecControleOFId,
-                HeureValidation = dto.HeureValidation,
-                Resultat = dto.Resultat,
-                Remarque = dto.Remarque,
-                MatriculeOperateur = dto.MatriculeOperateur!
             };
         }
     }

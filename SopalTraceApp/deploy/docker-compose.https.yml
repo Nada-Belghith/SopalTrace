@@ -1,0 +1,11 @@
+# HTTPS : à ajouter au déploiement quand le certificat est disponible.
+#   docker compose -f docker-compose.prod.yml -f docker-compose.https.yml up -d
+# Certificats dans ./certs : sopaltrace.crt (chaîne complète) et sopaltrace.key.
+services:
+  sopaltrace.web:
+    ports: !override
+      - "${SOPALTRACE_HTTP_PORT:-80}:8080"
+      - "${SOPALTRACE_HTTPS_PORT:-443}:8443"
+    volumes:
+      - ./nginx-https.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro

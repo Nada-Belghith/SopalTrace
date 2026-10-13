@@ -29,7 +29,8 @@ public interface IDocumentEnteteRepository
         string? operationCode = null, 
         string? posteCode = null, 
         string? familleProduitCode = null,
-        string? statut = null);
+        string? statut = null,
+        string? refFormulaireCodeReference = null);
 
     Task<bool> ExistsByNomAndDesignationAsync(string nom, string designation, string typeDocumentCode);
     

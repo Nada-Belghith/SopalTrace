@@ -8,7 +8,6 @@
       :defaultTitle="defaultTitle"
       :typesSection="typesSection"
       :periodicites="periodicites"
-      :reglesEchantillonnage="reglesEchantillonnage"
       :isReadOnly="isReadOnly"
       @add-ligne="ajouterLigne"
       @remove="() => $emit('remove', section.id)"
@@ -44,7 +43,6 @@ const props = defineProps({
   columns: { type: Array, default: () => [] },
   typesSection: { type: Array, default: () => [] },
   periodicites: { type: Array, default: () => [] },
-  reglesEchantillonnage: { type: Array, default: () => [] },
   typesControle: { type: Array, default: () => [] },
   moyensControle: { type: Array, default: () => [] },
   instruments: { type: Array, default: () => [] },
@@ -88,18 +86,6 @@ const handleSectionUpdate = (updatedHeaderProps) => {
   Object.assign(freshSection, headerProps);
   emitUpdate(freshSection);
 };
-
-watch(() => props.operationCode, (newOp) => {
-  if (isReadOnly.value) return;
-  if (newOp !== 'ASS' && newOp !== 'PF') {
-    if (localSection.value.modeFreq === 'FIXE') {
-      const freshSection = JSON.parse(JSON.stringify(props.section));
-      freshSection.modeFreq = 'SANS';
-      freshSection.regleEchantillonnageId = null;
-      emitUpdate(freshSection);
-    }
-  }
-});
 
 const ajouterLigne = () => {
   if (isReadOnly.value) return;

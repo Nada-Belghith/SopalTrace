@@ -108,7 +108,6 @@
                   defaultTitle=""
                   :types-section="referentielStore.typesSection"
                   :periodicites="referentielStore.periodicites"
-                  :regles-echantillonnage="referentielStore.reglesEchantillonnage"
                   :isReadOnly="isReadOnly"
                   hideAddLigne
                   hideRemove
@@ -153,7 +152,6 @@
                     defaultTitle=""
                     :types-section="referentielStore.typesSection"
                     :periodicites="referentielStore.periodicites"
-                    :regles-echantillonnage="referentielStore.reglesEchantillonnage"
                     :isReadOnly="isReadOnly"
                     hideAddLigne
                     hideRemove
@@ -201,7 +199,6 @@
                     defaultTitle="Caractéristiques à contrôler"
                     :types-section="referentielStore.typesSection"
                     :periodicites="referentielStore.periodicites"
-                    :regles-echantillonnage="referentielStore.reglesEchantillonnage"
                     :isReadOnly="isReadOnly"
                     :hideRemove="sec.sectionType === 'REGLAGE'"
                     @add-ligne="sec.lignes = sec.lignes || []; sec.lignes.push({ caracteristique: '' })"
@@ -286,6 +283,7 @@
 </template>
 
 <script setup>
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { usedocumentRccfStore } from '@/stores/documentRccfStore';
@@ -293,7 +291,6 @@ import { useReferentielStore } from '@/stores/referentielStore';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import Dropdown from 'primevue/dropdown';
-import { useFabModeleStore } from '@/stores/fabModeleStore';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
@@ -305,7 +302,6 @@ defineProps({
 
 const store = usedocumentRccfStore();
 const referentielStore = useReferentielStore();
-const fabModeleStore = useFabModeleStore();
 const toast = useToast();
 const confirm = useConfirm();
 const router = useRouter();
@@ -330,7 +326,7 @@ const modeleColumns = computed(() => {
   
   customCols.forEach(cc => {
     const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
-    const newCol = { key: cc.key, label: cc.label, isCustom: true, width: 'w-[12%]' };
+    const newCol = { key: cc.key, label: cc.label, type: normaliserTypeColonne(cc.type), options: cc.options || [], isCustom: true, width: 'w-[12%]' };
     if (insertIdx !== -1) {
       cols.splice(insertIdx + 1, 0, newCol);
     } else {
@@ -374,7 +370,8 @@ const onFormulaireChange = (event) => {
             ? structure.customCols.map(c => ({
                 key: c.key || c.cleColonne,
                 label: c.label || c.labelAffiche || c.titre,
-                type: c.type || c.typeValeur || 'Texte',
+                type: normaliserTypeColonne(c.type || c.typeValeur),
+                options: c.options || [],
                 insertAfter: c.insertAfter || 'observations'
               }))
             : [];

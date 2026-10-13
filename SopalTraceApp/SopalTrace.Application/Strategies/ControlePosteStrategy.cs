@@ -24,15 +24,6 @@ public class ControlePosteStrategy : IDocumentTypeStrategy
         return string.Empty;
     }
 
-    public string GetDefaultFormRole() => "RESULTAT_CONTROLE_POSTE";
-
-    public void ApplyCustomProperties(DocumentEntete document, string? configurationColonnesJson)
-    {
-        if (configurationColonnesJson != null)
-        {
-            document.Libre3 = configurationColonnesJson;
-        }
-    }
 
     public async Task PopulateDtoAsync(DocumentEntete document, SopalTrace.Application.DTOs.QualityPlans.Documents.DocumentEnteteDto dto)
     {
@@ -55,7 +46,8 @@ public class ControlePosteStrategy : IDocumentTypeStrategy
         }
         
         var eqList = equipes.Select(e => new { nom = e.NomEquipe, debut = e.HeureDebut, fin = e.HeureFin }).ToList();
-        var cList = cols.Select(c => new { key = c.CleColonne, label = c.LabelAffiche, type = c.TypeValeur, insertAfter = c.InsertAfter, targetTable = c.TargetTable }).ToList();
+        var cList = cols.Select(c => new { key = c.CleColonne, label = c.LabelAffiche, type = c.TypeValeur, insertAfter = c.InsertAfter, targetTable = c.TargetTable,
+            options = c.ColumnAllowedValues.Where(v => v.Active).OrderBy(v => v.DisplayOrder).Select(v => v.Value).ToList() }).ToList();
         
         dto.ConfigurationColonnesJson = System.Text.Json.JsonSerializer.Serialize(new { equipes = eqList, customCols = cList }, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
     }

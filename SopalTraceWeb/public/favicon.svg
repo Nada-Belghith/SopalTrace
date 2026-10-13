@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Chemin de traçabilité en S -->
+  <path d="M16 14 Q40 14 40 28 Q40 42 16 42 Q-4 42 16 56 L48 56" 
+        fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 4"/>
+  <!-- Noeud départ -->
+  <circle cx="16" cy="14" r="5" fill="#2563eb"/>
+  <!-- Noeud central avec checkmark -->
+  <circle cx="28" cy="35" r="7" fill="#2563eb"/>
+  <path d="M24 35 L27 38 L33 31" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Noeud fin -->
+  <circle cx="48" cy="56" r="5" fill="#10b981"/>
+</svg>

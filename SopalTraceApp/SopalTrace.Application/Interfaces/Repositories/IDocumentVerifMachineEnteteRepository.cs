@@ -7,15 +7,15 @@ namespace SopalTrace.Application.Interfaces.Repositories;
 
 public interface IDocumentVerifMachineEnteteRepository
 {
-    Task<DocumentVerifMachineEntete?> GetByIdAsync(Guid id, bool includeRelations = true);
-    Task<IEnumerable<DocumentVerifMachineEntete>> GetAllWithRelationsAsync();
-    Task<IEnumerable<DocumentVerifMachineEntete>> GetByMachineCodeAsync(string machineCode);
-    Task AddAsync(DocumentVerifMachineEntete entity);
-    Task UpdateAsync(DocumentVerifMachineEntete entity);
-    Task DeleteAsync(DocumentVerifMachineEntete entity);
-    Task<IEnumerable<DocumentVerifMachineEntete>> GetByFormulaireIdAsync(Guid formulaireId);
+    Task<DocumentEntete?> GetByIdAsync(Guid id, bool includeRelations = true);
+    Task<IEnumerable<DocumentEntete>> GetAllWithRelationsAsync();
+    Task<IEnumerable<DocumentEntete>> GetByMachineCodeAsync(string machineCode);
+    Task AddAsync(DocumentEntete entity);
+    Task UpdateAsync(DocumentEntete entity);
+    Task DeleteAsync(DocumentEntete entity);
+    Task<IEnumerable<DocumentEntete>> GetByFormulaireIdAsync(Guid formulaireId);
     void RemoveFamille(DocumentVerifMachineFamille famille);
     void AddFamille(DocumentVerifMachineFamille famille);
-    void RemoveLigne(DocumentVerifMachineLigne ligne);
-    void AddLigne(DocumentVerifMachineLigne ligne);
+    void RemoveLigne(DocumentLigne ligne);
+    void AddLigne(DocumentLigne ligne);
 }

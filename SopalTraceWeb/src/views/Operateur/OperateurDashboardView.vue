@@ -52,7 +52,7 @@
     <StartOfModal 
       :showModal="showModal"
       :selectedOf="selectedOf"
-      :form="form"
+      v-model:form="form"
       :errorMessage="errorMessage"
       :isSignalingPlan="isSignalingPlan"
       :planSignale="planSignale"
@@ -276,8 +276,8 @@ watch(() => route.query.execution, (newVal) => {
   }
 });
 
-onBeforeRouteLeave((to, from) => handleNavigation(to));
-onBeforeRouteUpdate((to, from) => handleNavigation(to));
+onBeforeRouteLeave((to) => handleNavigation(to));
+onBeforeRouteUpdate((to) => handleNavigation(to));
 
 </script>
 

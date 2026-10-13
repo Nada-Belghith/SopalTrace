@@ -6,7 +6,7 @@ import Button from 'primevue/button'
 import ProgressSpinner from 'primevue/progressspinner'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
-
+   
 const route = useRoute()
 const router = useRouter()
 const execControleOfId = route.params.execControleOfId
@@ -17,9 +17,9 @@ const echantillonnagePlan = ref(null)
 const isLoading = ref(true)
 const errorMessage = ref('')
 
-onMounted(async () => {
+onMounted(async () => { 
   try {
-    const response = await apiClient.get(`/ExecEchantillonnage/${execControleOfId}?posteCode=${posteCode}`)
+    const response = await apiClient.get(`/ExecEchantillonnage/${execControleOfId}`, { params: { posteCode: posteCode || undefined } })
     echantillonnagePlan.value = response.data
   } catch (error) {
     console.error("Erreur chargement:", error)
@@ -28,21 +28,6 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
-
-const valider = async () => {
-  if (echantillonnagePlan.value) {
-    try {
-      await apiClient.put(`/ExecEchantillonnage/${echantillonnagePlan.value.id}`, echantillonnagePlan.value)
-      if (echantillonnagePlan.value.execControleDocumentStatutId) {
-        await apiClient.put(`/Operateur/assemblage-documents/${echantillonnagePlan.value.execControleDocumentStatutId}/terminer`)
-      }
-      router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode } })
-    } catch (error) {
-      console.error('Erreur lors de la validation:', error)
-      errorMessage.value = "Erreur lors de la validation."
-    }
-  }
-}
 
 const goBack = () => {
   router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode } })
@@ -199,7 +184,7 @@ const isModeActive = (mode) => {
             <thead>
               <tr class="bg-[#f8fafc] text-[11px] text-gray-600 font-bold uppercase tracking-wider border-b border-gray-200">
                 <th class="py-4 px-2 border-r border-gray-200 w-16">N°</th>
-                <th class="py-4 px-2 border-r border-gray-200">Effectif du lot<br><span class="text-gray-400 font-normal">(Tranche)</span></th>
+                <th class="py-4 px-2 border-r border-gray-200">Effectif du lot<br><span class="text-gray-400 font-normal"></span></th>
                 <th class="py-4 px-2 border-r border-gray-200">Lettre<br>Code</th>
                 <th class="py-4 px-2 border-r border-gray-200">Échantillon global (A)</th>
                 <th class="py-4 px-2 border-r border-gray-200">Nb postes (B)</th>
@@ -242,10 +227,6 @@ const isModeActive = (mode) => {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div class="flex justify-end mt-6">
-        <Button label="Valider et Enregistrer" icon="pi pi-check" class="p-button-success" @click="valider" />
       </div>
     </div>
   </div>

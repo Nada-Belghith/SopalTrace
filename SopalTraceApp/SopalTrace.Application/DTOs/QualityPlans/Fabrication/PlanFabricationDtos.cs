@@ -17,9 +17,6 @@ public class CreatePlanFabricationRequestDto
     public string? NatureArticleCode { get; set; }
     public string? FamilleProduitFiniCode { get; set; }
     public string? PosteCode { get; set; }
-    public string? Libre1 { get; set; }
-    public string? Libre2 { get; set; }
-    public string? Libre3 { get; set; }
 
     public string? ConfigurationColonnesJson { get; set; }
 
@@ -33,11 +30,13 @@ public class CreatePlanFabricationRequestDto
 
 public class UpdatePlanFabricationRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string? RowVersion { get; set; }
+
     public string? Nom { get; set; }
     public string? CodeArticleSageVersionne { get; set; }
     public string? LegendeMoyens { get; set; }
     public string? Remarques { get; set; }
-    public string? Libre1 { get; set; }
     
     public string? ConfigurationColonnesJson { get; set; }
     public string? RefFormulaireCodeReference { get; set; }
@@ -54,9 +53,7 @@ public class CreatePlanFabricationSectionDto
     public string LibelleSection { get; set; } = string.Empty;
     public Guid? TypeSectionId { get; set; }
     public Guid? PeriodiciteId { get; set; }
-    public Guid? RegleEchantillonnageId { get; set; }
     public string? Notes { get; set; }
-    public string? NormeReference { get; set; }
     public int? NqaId { get; set; }
 
     public List<CreatePlanFabricationLigneDto> Lignes { get; set; } = new();
@@ -80,17 +77,8 @@ public class CreatePlanFabricationLigneDto
     public string? Observations { get; set; }
     public string? ImageBase64 { get; set; }
     public string? MachineCode { get; set; }
-    public bool EstVerifPresence { get; set; }
-    public Guid? DefauthequeId { get; set; }
-    public string? RefPlanProduit { get; set; }
-    public string? MachineCodeCtrlPoste { get; set; }
     public Guid? RisqueDefautId { get; set; }
 
-    public string? Libre1 { get; set; }
-    public string? Libre2 { get; set; }
-    public string? Libre3 { get; set; }
-    public string? Libre4 { get; set; }
-    public string? Libre5 { get; set; }
 
     public List<CreatePlanFabricationExtraColonneDto> ExtraColonnes { get; set; } = new();
 }
@@ -104,11 +92,17 @@ public class CreatePlanFabricationExtraColonneDto
 
 public class NouvelleVersionPlanFabricationRequestDto : CreatePlanFabricationRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string? RowVersion { get; set; }
+
     public Guid AncienId { get; set; }
 }
 
 public class PlanFabricationEnteteDto
 {
+    /// <summary>Version du document (RowVersion en base64), à renvoyer telle quelle lors de l'enregistrement.</summary>
+    public string? RowVersion { get; set; }
+
     public Guid Id { get; set; }
     public string Nom { get; set; } = string.Empty;
     public string? CodeArticleSageVersionne { get; set; }
@@ -131,9 +125,6 @@ public class PlanFabricationEnteteDto
     public Guid? ModeleSourceId { get; set; }
     public string? PosteCode { get; set; }
     public string? PosteLibelle { get; set; }
-    public string? Libre1 { get; set; }
-    public string? Libre2 { get; set; }
-    public string? Libre3 { get; set; }
 
     public string? ConfigurationColonnesJson { get; set; }
     
@@ -148,9 +139,7 @@ public class PlanFabricationSectionDto
     public string LibelleSection { get; set; } = string.Empty;
     public Guid? TypeSectionId { get; set; }
     public Guid? PeriodiciteId { get; set; }
-    public Guid? RegleEchantillonnageId { get; set; }
     public string? Notes { get; set; }
-    public string? NormeReference { get; set; }
     public int? NqaId { get; set; }
 
     public List<PlanFabricationLigneDto> Lignes { get; set; } = new();
@@ -180,17 +169,8 @@ public class PlanFabricationLigneDto
     public string? Observations { get; set; }
     public string? ImageBase64 { get; set; }
     public string? MachineCode { get; set; }
-    public bool EstVerifPresence { get; set; }
-    public Guid? DefauthequeId { get; set; }
-    public string? RefPlanProduit { get; set; }
-    public string? MachineCodeCtrlPoste { get; set; }
     public Guid? RisqueDefautId { get; set; }
 
-    public string? Libre1 { get; set; }
-    public string? Libre2 { get; set; }
-    public string? Libre3 { get; set; }
-    public string? Libre4 { get; set; }
-    public string? Libre5 { get; set; }
 
     public List<PlanFabricationLigneExtraColonneDto> ExtraColonnes { get; set; } = new();
 }

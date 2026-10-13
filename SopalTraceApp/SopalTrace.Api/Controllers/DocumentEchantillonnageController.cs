@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 
 using SopalTrace.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
+using FluentValidation;
+using SopalTrace.Application.Utilities;
 
 namespace SopalTrace.Api.Controllers;
 
@@ -16,10 +18,17 @@ namespace SopalTrace.Api.Controllers;
 public class DocumentEchantillonnageController : ControllerBase
 {
     private readonly IDocumentEchantillonnageService _service;
+    private readonly IValidator<CreateDocumentEchantillonnageRequestDto> _validateurCreation;
+    private readonly IValidator<UpdateDocumentEchantillonnageRequestDto> _validateurModification;
 
-    public DocumentEchantillonnageController(IDocumentEchantillonnageService service)
+    public DocumentEchantillonnageController(
+        IDocumentEchantillonnageService service,
+        IValidator<CreateDocumentEchantillonnageRequestDto> validateurCreation,
+        IValidator<UpdateDocumentEchantillonnageRequestDto> validateurModification)
     {
         _service = service;
+        _validateurCreation = validateurCreation;
+        _validateurModification = validateurModification;
     }
 
     [HttpGet("actif")]
@@ -41,9 +50,9 @@ public class DocumentEchantillonnageController : ControllerBase
     public async Task<IActionResult> CreateDocument([FromBody] CreateDocumentEchantillonnageRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        await ValidationHelper.ValidateAndThrowAsync(_validateurCreation, request, "création du plan d'échantillonnage");
 
-        var creePar = "Admin"; // TODO: Utiliser ICurrentUserService si disponible
-        var newId = await _service.CreateDocumentAsync(request, creePar);
+        var newId = await _service.CreateDocumentAsync(request);
 
         return Ok(new { success = true, data = newId, message = "Document créé avec succès." });
     }
@@ -52,16 +61,16 @@ public class DocumentEchantillonnageController : ControllerBase
     public async Task<IActionResult> UpdateDocument(Guid id, [FromBody] UpdateDocumentEchantillonnageRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        await ValidationHelper.ValidateAndThrowAsync(_validateurModification, request, "modification du plan d'échantillonnage");
 
-        await _service.UpdateDocumentAsync(id, request);
-        return Ok(new { success = true, data = id, message = "Document mis à jour avec succès." });
+        var rowVersion = await _service.UpdateDocumentAsync(id, request);
+        return Ok(new { success = true, data = id, rowVersion, message = "Document mis à jour avec succès." });
     }
 
     [HttpPut("{id}/activer")]
     public async Task<IActionResult> ActivateDocument(Guid id)
     {
-        var modifiePar = "Admin"; // TODO: Utiliser ICurrentUserService si disponible
-        await _service.ActivateDocumentAsync(id, modifiePar);
+        await _service.ActivateDocumentAsync(id);
         return Ok(new { success = true, data = id, message = "Document activé avec succès." });
     }
 
@@ -69,6 +78,7 @@ public class DocumentEchantillonnageController : ControllerBase
     public async Task<IActionResult> CreateNewVersion([FromBody] CreateNewVersionDocumentEchantillonnageRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        await ValidationHelper.ValidateAndThrowAsync(_validateurModification, request.Donnees, "nouvelle version du plan d'échantillonnage");
 
         var newId = await _service.CreateNewVersionAsync(request);
         return Ok(new { success = true, data = newId, message = "Nouvelle version créée avec succès." });

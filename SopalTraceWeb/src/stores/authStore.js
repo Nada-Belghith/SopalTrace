@@ -29,13 +29,9 @@ export const useAuthStore = defineStore('auth', {
 
     // Vérification de permissions spécifiques
     isAdmin: (state) => state.user?.role === 'ADMIN',
-    isResponsable: (state) => {
-      const role = state.user?.role || '';
-      return role === 'ADMIN' || role.includes('RESPONSABLE');
-    },
-    isOperateur: (state) => state.user?.role === 'OPERATEUR',
-    isSuperviseur: (state) => state.user?.role === 'SUPERVISEUR_PROD',
-    isManager: (state) => state.user?.role === 'MANAGER_PROD'
+    /** Responsable DI ou responsable qualité (rôles de l'application : voir RolesApp côté API). */
+    isResponsable: (state) => ['RESPONSABLE_DI', 'RESPONSABLE_QUALITE'].includes(state.user?.role),
+    isOperateur: (state) => state.user?.role === 'OPERATEUR'
   },
 
   actions: {
@@ -54,16 +50,28 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async register(matricule, email, password) {
+    async register(matricule, email) {
       this.isLoading = true;
       this.error = null;
       try {
-        const data = await authService.register(matricule, email, password);
-        this.setSession(data, matricule);
+        await authService.register(matricule, email);
         return true;
       } catch (err) {
-        // apiClient intercepte l'erreur et retourne un objet avec { message, status }
-        this.error = err.message || "Erreur lors de l'inscription";
+        this.error = err.response?.data?.message || err.message || "Erreur lors de l'inscription";
+        throw err;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async setupPassword(token, nouveauMotDePasse) {
+      this.isLoading = true;
+      this.error = null;
+      try {
+        await authService.setupPassword(token, nouveauMotDePasse);
+        return true;
+      } catch (err) {
+        this.error = err.message || 'Erreur lors de la configuration du mot de passe';
         throw err;
       } finally {
         this.isLoading = false;
@@ -129,10 +137,7 @@ export const useAuthStore = defineStore('auth', {
       if (!this.user || !this.user.role) return false;
 
       const userRole = this.user.role;
-      return requiredRoles.some(role =>
-        userRole === role ||
-        (role === 'RESPONSABLE' && userRole.includes('RESPONSABLE'))
-      );
+      return requiredRoles.includes(userRole);
     },
 
     async forgotPassword(email) {

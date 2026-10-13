@@ -11,8 +11,6 @@ public partial class NatureArticleOperation
 
     public int OrdreGamme { get; set; }
 
-    public bool EstObligatoire { get; set; }
-
     public virtual NatureArticle NatureArticleCodeNavigation { get; set; } = null!;
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;

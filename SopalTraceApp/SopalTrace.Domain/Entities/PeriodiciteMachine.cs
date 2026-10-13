@@ -15,5 +15,7 @@ public partial class PeriodiciteMachine
 
     public bool Actif { get; set; }
 
+    public string? ControlMoment { get; set; }
+
     public virtual ICollection<DocumentVerifMachineEcheance> DocumentVerifMachineEcheances { get; set; } = new List<DocumentVerifMachineEcheance>();
 }

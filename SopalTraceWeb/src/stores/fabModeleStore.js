@@ -1,9 +1,11 @@
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
 import { referentielsService } from '@/services/referentielsService';
-import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
+import { titreSection } from '@/utils/sectionTitleUtils';
 import { useReferentielStore } from './referentielStore';
+import { verifierImportExcel } from '@/utils/importExcelResultat';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
   // Dictionnaires are now in useReferentielStore
@@ -138,7 +140,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       const newCol = {
         key: cc.key,
         label: cc.label,
-        type: cc.type,
+        type: normaliserTypeColonne(cc.type),
+        options: cc.options || [],
         width: 'w-[12%]',
         textAlign: 'center',
         isCustom: true
@@ -173,7 +176,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       ordreAffiche: sections.value.length + 1,
       typeSectionId: '',
       periodiciteId: null,
-      regleEchantillonnageId: null, // Ajouté pour la règle d'échantillonnage
       libelleSection: '',
       frequenceLibelle: '',
       notes: '',
@@ -216,9 +218,10 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   };
 
   const syncSectionLibellesFromTypes = () => {
+    const refStore = useReferentielStore();
     sections.value.forEach((section) => {
       if (!section.typeSectionId) return;
-      section.libelleSection = resolveSectionDisplayTitle(section);
+      section.libelleSection = titreSection(section, refStore.typesSection, refStore.periodicites);
     });
   };
 
@@ -229,9 +232,10 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     const codeRef = entete.value.refFormulaireCodeReference || null;
 
     return {
+      // Version reçue au chargement : refus 409 si le modèle a été modifié entre-temps
+      rowVersion: entete.value.rowVersion,
       nom: codeModeleAuto.value || entete.value.code,
       designation: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
-      libre1: entete.value.typeRobinetCode || null,
       natureArticleCode: entete.value.natureComposantCode || '',
       operationCode: entete.value.operationCode || '',
       posteCode: entete.value.posteCode || null,
@@ -239,14 +243,12 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       remarques: entete.value.notes || "",
       legendeMoyens: legendeMoyens || '',
       versionInitiale: entete.value.versionInitiale,
-      libre2: null,
       colonneDefs: typeof configCols === 'string' ? JSON.parse(configCols) : configCols,
       refFormulaireCodeReference: codeRef,
       sections: sections.value.map((s, idx) => ({
         ordreAffiche: idx + 1,
         typeSectionId: (s.typeSectionId && s.typeSectionId !== '') ? s.typeSectionId : null,
         periodiciteId: s.periodiciteId || null,
-        regleEchantillonnageId: s.regleEchantillonnageId || null,
         libelleSection: s.libelleSection || 'SECTION SANS NOM',
         frequenceLibelle: s.frequenceLibelle || '',
         notes: s.notes || '',
@@ -306,6 +308,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
       const res = await fabModeleService.updateModel(id, payload);
+      entete.value.rowVersion = res.data?.rowVersion ?? entete.value.rowVersion;
       return res.data;
     } finally {
       isLoading.value = false;
@@ -324,21 +327,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
 
 
-  const restaurerModele = async (motif) => {
-    if (!entete.value.id) return;
-    isLoading.value = true;
-    try {
-      const payload = {
-        documentArchiveId: entete.value.id,
-        motifRestoration: motif
-      };
-      const response = await fabModeleService.restoreModel(payload);
-      return response.data;
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
   const importerDepuisExcel = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -353,7 +341,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     isLoading.value = true;
     try {
       // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
-      const parsedData = await fabModeleService.importExcel(formData);
+      const parsedData = verifierImportExcel(await fabModeleService.importExcel(formData));
 
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
@@ -368,7 +356,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
           typeSectionId: sec.typeSectionId,
           modeFreq: sec.modeFreq,
           periodiciteId: sec.periodiciteId,
-          regleEchantillonnageId: sec.regleEchantillonnageId,
           freqNum: sec.freqNum,
           typeVariable: sec.typeVariable,
           freqHours: sec.freqHours,
@@ -378,6 +365,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
             typeCaracteristiqueId: lig.typeCaracteristiqueId,
             typeControleId: lig.typeControleId,
             moyenControleId: lig.moyenControleId,
+            moyenTexteLibre: lig.moyenTexteLibre || '',
             instrumentCode: lig.instrumentCode,
             valeurNominale: lig.valeurNominale,
             toleranceSuperieure: lig.toleranceSuperieure,
@@ -388,7 +376,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
             instruction: lig.instruction,
             estCritique: lig.estCritique,
             libelleAffiche: lig.libelleAffiche,
-            imageBase64: lig.imageBase64 || null
+            imageBase64: lig.imageBase64 || null,
+            valeursColonnesSpecifiques: lig.colonnesSupplementaires || {}
           }))
         }));
       }
@@ -408,7 +397,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     syncConfigurationFromFormulaire,
     applyFormulaireVersionConfiguration,
     addSection,
-    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft, restaurerModele, importerDepuisExcel,
+    removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft, importerDepuisExcel,
     isBeingLoaded
   };
 });

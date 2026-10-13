@@ -23,6 +23,12 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   const machines = computed(() => refStore.machines);
   const famillesCorps = computed(() => refStore.famillesCorps);
 
+  // Configuration du formulaire de la machine (table Machine, colonnes Verif*) : aucun comportement déduit du code.
+  const getMachineConfig = (machineCode) => {
+    const code = (machineCode || '').trim().toUpperCase();
+    return refStore.machines.find(m => (m.code || '').toUpperCase() === code) || {};
+  };
+
   // --- ÉTAT DU PLAN ---
   const entete = ref({
     id: null,
@@ -88,16 +94,15 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
   // --- MAPPING VERS LE FORMAT BACKEND (APLATISSEMENT) ---
   const buildPayload = () => {
-    const code = entete.value.machineCode?.toUpperCase().replace('-', '').replace(' ', '').trim() || '';
-    const isSansConformiteAuto = code.includes('BEE46') || code.includes('BEE47') ||
-      code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
-    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
-      code.includes('MAS22');
+    const code = entete.value.machineCode?.trim().toUpperCase() || '';
+    const config = getMachineConfig(code);
 
-    const finalAfficheConformite = isSansConformiteAuto ? false : entete.value.afficheConformite;
-    const finalAfficheFuiteEtalon = hasFuiteEtalonByDefault ? true : entete.value.afficheFuiteEtalon;
+    const finalAfficheConformite = config.sansConformite ? false : entete.value.afficheConformite;
+    const finalAfficheFuiteEtalon = config.fuiteEtalon ? true : entete.value.afficheFuiteEtalon;
 
     return {
+      // Version reçue au chargement : refus 409 si le plan a été modifié entre-temps
+      RowVersion: entete.value.rowVersion,
       Nom: entete.value.nom,
       MachineCode: entete.value.machineCode,
       VersionInitiale: entete.value.versionInitiale,
@@ -182,15 +187,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     entete.value.afficheFamilles = true;
     entete.value.afficheFuiteEtalon = false;
 
-    const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-    const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
-      code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
-    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') || code.includes('MAS22');
-
-    if (isSansConformiteAuto) {
+    const config = getMachineConfig(machineCode);
+    if (config.sansConformite) {
       entete.value.afficheConformite = false;
     }
-    if (hasFuiteEtalonByDefault) {
+    if (config.fuiteEtalon) {
       entete.value.afficheFuiteEtalon = true;
     }
 
@@ -346,6 +347,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
       entete.value = {
         id: data.id,
+        rowVersion: data.rowVersion,
         nom: data.nom,
         machineCode: data.machineCode,
         afficheConformite: data.afficheConformite,
@@ -475,6 +477,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         const response = await verifMachineService.updateDocument(entete.value.id, payload);
         const newId = response.data.planId || response.data.id || entete.value.id;
         entete.value.id = newId;
+        entete.value.rowVersion = response.data.rowVersion ?? entete.value.rowVersion;
         prendreSnapshot();
         return { id: newId, noChanges: false, version: response.data.version };
       } else {
@@ -495,6 +498,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     try {
       const payload = {
         ancienId: entete.value.id,
+        rowVersion: entete.value.rowVersion,
         modifiePar: 'ADMIN',
         motifModification: motif,
         donnees: buildPayload()
@@ -666,8 +670,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     }
   };
 
+  const machineConfig = computed(() => getMachineConfig(entete.value.machineCode));
+
   return {
     isDicosLoaded,
+    machineConfig, getMachineConfig,
     periodicitesMachine,
     moyensDetection,
     piecesReference,

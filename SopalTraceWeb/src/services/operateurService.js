@@ -1,58 +1,64 @@
 import apiClient from './apiClient';
 
+const enc = encodeURIComponent;
+
 class OperateurService {
   getPostesDisponibles() {
-    return apiClient.get(`/Operateur/postes`);
+    return apiClient.get('/Operateur/postes');
+  }
+
+  getMachines() {
+    return apiClient.get('/Operateur/machines');
   }
 
   getMachinesPourPoste(posteCode) {
-    return apiClient.get(`/Operateur/poste/${posteCode}/machines`);
+    return apiClient.get(`/Operateur/poste/${enc(posteCode)}/machines`);
   }
 
   getAllOfOperations() {
-    return apiClient.get(`/Operateur/ofs/operations`);
+    return apiClient.get('/Operateur/ofs/operations');
   }
 
   verifierPlan(articleCode, operationCode = '') {
-    const opParam = operationCode ? `&operationCode=${operationCode}` : '';
-    return apiClient.get(`/Operateur/plan/existe?articleCode=${articleCode}${opParam}`);
-  }
-
-  updatePlanLigne(ligneId, data) {
-    return apiClient.put(`/Operateur/plan/ligne/${ligneId}`, data);
+    return apiClient.get('/Operateur/plan/existe', { params: { articleCode, operationCode: operationCode || undefined } });
   }
 
   demarrerOf(data) {
-    return apiClient.post(`/Operateur/of/start`, data);
+    return apiClient.post('/Operateur/of/start', data);
   }
 
   mettreEnReglage(execControleOfId) {
     return apiClient.post(`/Operateur/of/${execControleOfId}/mettre-en-reglage`, {});
   }
 
-  mettreEnPause(execControleOfId, raison) {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/pause`, { raison });
+  mettreEnPause(execControleOfId, raison, typePause = 'AUTRE') {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/pause`, { raison, typePause });
   }
 
-  reprendreDepuisPause(execControleOfId) {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/reprendre`, {});
+  /** Reprise de l'équipe donnée (plusieurs équipes peuvent être en pause sur un OF d'assemblage). */
+  reprendreDepuisPause(execControleOfId, equipe = null) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/reprendre`, {}, { params: { equipe: equipe || undefined } });
+  }
+
+  terminerPoste(execControleOfId) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/fin-poste`, {});
   }
 
   cloturerOf(execControleOfId) {
     return apiClient.post(`/Operateur/of/${execControleOfId}/close`, {});
   }
 
-  ignorerTranche(execControleOfId, trancheHoraire, matriculeOperateur, raison) {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${trancheHoraire}/ignorer`, { matriculeOperateur, raison });
+  ignorerTranche(execControleOfId, trancheHoraire, raison) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${enc(trancheHoraire)}/ignorer`, { raison });
   }
 
-  declarerTrancheReglage(execControleOfId, trancheHoraire, matriculeOperateur) {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${trancheHoraire}/reglage`, { matriculeOperateur });
+  declarerTrancheReglage(execControleOfId, trancheHoraire) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/tranche/${enc(trancheHoraire)}/reglage`, {});
   }
 
-  getAlertesActives(execControleOfId, posteCode = null) {
-    const query = posteCode ? `?posteCode=${encodeURIComponent(posteCode)}` : '';
-    return apiClient.get(`/Operateur/of/${execControleOfId}/alertes-actives${query}`);
+  /** Contrôles à faire ; assemblage : ceux de l'équipe (par défaut celle qui a la main) sur le poste. */
+  getAlertesActives(execControleOfId, posteCode = null, equipe = null) {
+    return apiClient.get(`/Operateur/of/${execControleOfId}/alertes-actives`, { params: { posteCode: posteCode || undefined, equipe: equipe || undefined } });
   }
 
   repondreOccurrence(occurrenceId, data) {

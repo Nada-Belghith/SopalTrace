@@ -154,8 +154,6 @@ public partial class ExcelImportService
                 map.PerioCol = colScores.OrderByDescending(kv => kv.Value).First().Key;
         }
 
-        Console.WriteLine($"[DEBUG EXCEL MAP] RisqueCol={map.RisqueCol}, MethodeCol={map.MethodeCol}, PerioCol={map.PerioCol}, MoyenDetCol={map.MoyenDetCol}");
-
         return map;
     }
 
@@ -382,11 +380,7 @@ public partial class ExcelImportService
                                     periodicite = allPerios.FirstOrDefault(p => 
                                         NormalizeForSearch(p.Libelle).Contains(NormalizeForSearch(normalizedPerio)) ||
                                         NormalizeForSearch(normalizedPerio).Contains(NormalizeForSearch(p.Libelle)));
-
-                                    if (periodicite == null)
-                                    {
-                                        // On ignore la périodicité non reconnue au lieu de crasher (demandé par l'utilisateur)
-                                    }
+                                    // Une périodicité non reconnue est ignorée (pas d'échéance créée).
                                 }
                                 _createdPerioMachineCache[normalizedPerio] = periodicite;
                             }
@@ -548,8 +542,7 @@ public partial class ExcelImportService
                 Code = normalizedCode,
                 TypePiece = SafeSubstring(typePiece, 10),
                 Actif = true,
-                Designation = SafeSubstring(code, 150),
-                FamilleDesc = string.IsNullOrWhiteSpace(machineCode) ? "Import Excel" : SafeSubstring(machineCode, 50)
+                Designation = SafeSubstring(code, 150)
             };
 
             await _unitOfWork.DictionnaireQualiteRepository.AddPieceReferenceAsync(piece);

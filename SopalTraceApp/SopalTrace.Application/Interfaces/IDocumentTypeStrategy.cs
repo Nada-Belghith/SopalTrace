@@ -14,15 +14,6 @@ public interface IDocumentTypeStrategy
     /// </summary>
     string GetDefaultFormulaireCodeRef(DocumentContextInfo context);
     
-    /// <summary>
-    /// Gets the default role to assign to the form if it does not have one.
-    /// </summary>
-    string GetDefaultFormRole();
-    
-    /// <summary>
-    /// Applies custom properties to the DocumentEntete specific to the document type.
-    /// </summary>
-    void ApplyCustomProperties(DocumentEntete document, string? configurationColonnesJson);
     
     /// <summary>
     /// Populates custom properties into the DocumentEnteteDto when retrieving the document.

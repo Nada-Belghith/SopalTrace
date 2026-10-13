@@ -10,6 +10,7 @@ using System.Linq;
 
 namespace SopalTrace.Infrastructure.Repositories;
 
+/// <summary>Plans d'échantillonnage : Document_Entete de type PLAN_ECHANTILLONNAGE avec ses paramètres (SamplingPlan).</summary>
 public class DocumentEchantillonnageEnteteRepository : IDocumentEchantillonnageEnteteRepository
 {
     private readonly SopalTraceDbContext _context;
@@ -19,49 +20,47 @@ public class DocumentEchantillonnageEnteteRepository : IDocumentEchantillonnageE
         _context = context;
     }
 
-    public async Task<DocumentEchantillonnageEntete?> GetByIdAsync(Guid id, bool includeRelations = true)
+    private IQueryable<DocumentEntete> Plans => _context.DocumentEntetes
+        .Where(p => p.TypeDocumentCode == TypesDocument.PlanEchantillonnage)
+        .Include(p => p.SamplingPlan)
+            .ThenInclude(s => s!.AcceptableQualityLevel);
+
+    public async Task<DocumentEntete?> GetByIdAsync(Guid id, bool includeRelations = true)
     {
-        var query = _context.DocumentEchantillonnageEntetes.AsQueryable();
-
-        if (includeRelations)
-        {
-            query = query
-                .Include(p => p.Nqa);
-        }
-
-        return await query.FirstOrDefaultAsync(p => p.Id == id);
+        return await Plans.FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    public async Task<DocumentEchantillonnageEntete?> GetPlanActifAsync()
+    public async Task<DocumentEntete?> GetPlanActifAsync()
     {
-        return await _context.DocumentEchantillonnageEntetes
-            .Include(p => p.Nqa)
+        return await Plans
             .Where(p => p.Statut == StatutsPlan.Actif)
             .OrderByDescending(p => p.Version)
             .FirstOrDefaultAsync();
     }
 
-    public async Task<IEnumerable<DocumentEchantillonnageEntete>> GetAllWithRelationsAsync()
+    public async Task<IEnumerable<DocumentEntete>> GetAllWithRelationsAsync()
     {
-        return await _context.DocumentEchantillonnageEntetes
+        return await Plans
             .OrderByDescending(p => p.CreeLe)
             .ToListAsync();
     }
 
-    public async Task AddAsync(DocumentEchantillonnageEntete entity)
+    public async Task AddAsync(DocumentEntete entity)
     {
-        await _context.DocumentEchantillonnageEntetes.AddAsync(entity);
+        entity.TypeDocumentCode = TypesDocument.PlanEchantillonnage;
+        entity.Portee = PorteesDocument.Generique;
+        await _context.DocumentEntetes.AddAsync(entity);
     }
 
-    public Task UpdateAsync(DocumentEchantillonnageEntete entity)
+    public Task UpdateAsync(DocumentEntete entity)
     {
-        _context.DocumentEchantillonnageEntetes.Update(entity);
+        // Entité suivie : le suivi des modifications d'EF Core suffit.
         return Task.CompletedTask;
     }
 
-    public Task DeleteAsync(DocumentEchantillonnageEntete entity)
+    public Task DeleteAsync(DocumentEntete entity)
     {
-        _context.DocumentEchantillonnageEntetes.Remove(entity);
+        _context.DocumentEntetes.Remove(entity);
         return Task.CompletedTask;
     }
 }

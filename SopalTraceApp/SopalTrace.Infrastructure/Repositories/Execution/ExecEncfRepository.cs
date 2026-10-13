@@ -1,11 +1,11 @@
+using SopalTrace.Domain.Constants;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces.Execution;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.Repositories.Execution
 {
@@ -18,73 +18,44 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             _context = context;
         }
 
-        public async Task<ExecControleOf?> GetExecEncfAsync(Guid id)
+        private IQueryable<ExecControleOf> AvecDetails => _context.ExecControleOfs
+            .AsSplitQuery()
+            .Include(e => e.ExecPieceTypes)
+            .Include(e => e.ExecControleTranches)
+            .Include(e => e.ExecControleDocumentStatuts)
+            .Include(e => e.ExecControleOfSessions)
+            .Include(e => e.NumeroOfNavigation)
+                .ThenInclude(of => of.CodeArticleNavigation)
+            .Include(e => e.ExecControleOfPostes)
+                .ThenInclude(p => p.PosteCodeNavigation);
+
+        public async Task<ExecControleOf?> GetExecutionAsync(Guid execControleOfId)
         {
-            return await _context.ExecControleOfs
-                .Include(e => e.ExecPieceTypes)
-                .Include(e => e.ExecControleTranches)
-                .Include(e => e.NumeroOfNavigation)
-                    .ThenInclude(of => of.CodeArticleNavigation)
-                .Include(e => e.PosteCodeNavigation)
-                .FirstOrDefaultAsync(e => e.Id == id);
+            return await AvecDetails.FirstOrDefaultAsync(e => e.Id == execControleOfId);
         }
 
-        public async Task<ExecControleOf?> GetEnCoursExecEncfByOfAsync(string numeroOf, string posteCode)
+        public async Task<ExecControleOf?> GetExecutionOuverteAsync(string numeroOf, string posteCode)
         {
-            return await _context.ExecControleOfs
-                .Include(e => e.ExecPieceTypes)
-                .Include(e => e.ExecControleTranches)
-                .Include(e => e.NumeroOfNavigation)
-                    .ThenInclude(of => of.CodeArticleNavigation)
-                .Include(e => e.PosteCodeNavigation)
-                .Where(e => e.NumeroOf == numeroOf && e.PosteCode == posteCode && e.Statut == "EN_COURS")
+            return await AvecDetails
+                .Where(e => e.NumeroOf == numeroOf && e.Statut != StatutsExecution.Cloture
+                            && (e.TypeOf != TypesOf.Assemblage || e.ExecControleOfPostes.Any(p => p.PosteCode == posteCode)))
                 .OrderByDescending(e => e.DateDebut)
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<MfgheadOrdreFabrication?> GetOfDetailsAsync(string numeroOf)
+        public async Task<DocumentEntete?> GetDocumentActifAsync(string posteCode)
         {
-            return await _context.MfgheadOrdreFabrications
-                .Include(o => o.CodeArticleNavigation)
-                .FirstOrDefaultAsync(o => o.NumeroOf == numeroOf);
+            return await _context.DocumentEntetes
+                .Where(d => d.TypeDocumentCode == TypesDocument.ResultatCF && d.Statut == DocumentStatuts.Actif
+                            && (d.PosteCode == posteCode || d.PosteCode == null))
+                .OrderByDescending(d => d.PosteCode == posteCode)   // le document du poste avant le document commun
+                .ThenByDescending(d => d.Version)
+                .FirstOrDefaultAsync();
         }
 
-        public async Task AddExecEncfAsync(ExecControleOf entity)
-        {
-            await _context.ExecControleOfs.AddAsync(entity);
-        }
-
-        public async Task SaveChangesAsync()
-        {
-            await _context.SaveChangesAsync();
-        }
-
-
-
-        public Task RemoveTranches(IEnumerable<ExecControleTranche> items)
-        {
-            _context.ExecControleTranches.RemoveRange(items);
-            return Task.CompletedTask;
-        }
-
-
-
-        public Task AddTranche(ExecControleTranche item)
-        {
-            _context.ExecControleTranches.Add(item);
-            return Task.CompletedTask;
-        }
-
-        public Task RemovePieceTypes(IEnumerable<ExecPieceType> items)
-        {
-            _context.ExecPieceTypes.RemoveRange(items);
-            return Task.CompletedTask;
-        }
-
-        public Task AddPieceType(ExecPieceType item)
-        {
-            _context.ExecPieceTypes.Add(item);
-            return Task.CompletedTask;
-        }
+        public void AddStatut(ExecControleDocumentStatut statut) => _context.ExecControleDocumentStatuts.Add(statut);
+        public void AddTranche(ExecControleTranche tranche) => _context.ExecControleTranches.Add(tranche);
+        public void AddPieceType(ExecPieceType pieceType) => _context.ExecPieceTypes.Add(pieceType);
+        public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
     }
 }

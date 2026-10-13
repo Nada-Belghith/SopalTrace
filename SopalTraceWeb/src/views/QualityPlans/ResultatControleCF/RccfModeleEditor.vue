@@ -19,21 +19,18 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { usedocumentRccfStore } from '@/stores/documentRccfStore';
 import { useReferentielStore } from '@/stores/referentielStore';
 import DocumentResultatControleCfForm from '@/components/ResultatControleCF/DocumentResultatControleCfForm.vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
-import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 
 const store = usedocumentRccfStore();
 const refStore = useReferentielStore();
 const route = useRoute();
-const router = useRouter();
-const toast = useToast();
 
 const isReadOnly = computed(() => route.query.view === 'true');
 

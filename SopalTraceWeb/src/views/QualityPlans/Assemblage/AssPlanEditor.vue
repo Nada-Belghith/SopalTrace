@@ -93,7 +93,6 @@
                 :is-read-only="isReadOnly"
                 :types-section="refStore.typesSection"
                 :periodicites="refStore.periodicites"
-                :regles-echantillonnage="refStore.reglesEchantillonnage"
                 :types-controle="refStore.typesControle"
                 :moyens-controle="refStore.moyensControle"
                 :instruments="refStore.instruments"
@@ -148,11 +147,11 @@
 </template>
 
 <script setup>
+import { periodiciteAvecLibelle } from '@/utils/frequencyUtils';
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAssPlanStore } from '@/stores/assPlanStore';
 import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
@@ -161,8 +160,8 @@ import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmati
 import { documentService as assPlanService } from '@/services/documentService';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { createModeleSnapshot } from '@/utils/modelMapper';
-import { prepareSectionsForBackend } from '@/utils/sectionUtils';
-import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
+import { messageImportExcel } from '@/utils/importExcelResultat';
+import { prepareSectionsForBackend, hydrateSectionFromBackend } from '@/utils/sectionUtils';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
@@ -170,7 +169,6 @@ import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import assPlanHeader from '@/components/Assemblage/assPlanHeader.vue';
 import BaseTableHeader from '@/components/Shared/BaseTableHeader.vue';
 import PlanSection from '@/components/Shared/PlanSection.vue';
-import PlanSectionHeader from '@/components/Shared/PlanSectionHeader.vue';
 import { useReferentielStore } from '@/stores/referentielStore';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 
@@ -195,9 +193,7 @@ const {
   sections, 
   ajouterSection: ajouterGroupe, 
   supprimerSection: supprimerGroupe, 
-  mettreAJourSection: mettreAJourGroupe, 
-  supprimerLigneASection, 
-  mettreAJourLigne 
+  mettreAJourSection: mettreAJourGroupe 
 } = useEditorSections();
 
 const groupes = sections;
@@ -207,8 +203,6 @@ const codeOriginal = ref('');
 const statut = computed(() => store.entete?.statut || 'BROUILLON');
 const version = ref(0);
 const showColumnModal = ref(false);
-const isArchiveEditing = ref(route.query.draft === 'true');
-const isUpgradeMode = computed(() => route.query.upgrade === 'true');
 
 const { 
   showLegendValidation, 
@@ -217,7 +211,7 @@ const {
   validerSaisieValeurs 
 } = useEditorValidation(groupes, computed(() => store.entete.legendeMoyens), toast);
 
-const { isDirty, updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
+const { updateCurrentSnapshot, initializeSnapshot } = useDirtyChecking();
 
 // 👁️ NOUVEAU : DÉTECTION DU MODE LECTURE SEULE DEPUIS L'URL
 // isForcedView is now provided by useDocumentHeaderMeta
@@ -291,8 +285,7 @@ const headerTitle = computed(() => {
     let title = "Plan en cours d'assemblage PF";
     if (famille) title += ` - ${famille}`;
     const famObject = store.famillesProduit?.find(f => f.code === famille);
-    const isSoupape = famObject?.libelle?.toLowerCase().includes('soupape');
-    if (isSoupape && poste) title += ` - Poste ${poste}`;
+    if (famObject?.planParPoste && poste) title += ` - Poste ${poste}`;
     return title;
   }
   if (nature === 'CORPS' || nature === 'VOLANT') return `Plan d'assemblage ${nature}`;
@@ -319,12 +312,12 @@ const onFileSelected = async (event) => {
   event.target.value = '';
   try {
     store.isLoading = true;
-    await store.importerDepuisExcel(file);
+    const resultat = await store.importerDepuisExcel(file);
     groupes.value = JSON.parse(JSON.stringify(store.sections));
-    toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Les données ont été chargées.', life: 4000 });
+    toast.add(messageImportExcel(resultat));
     updateCurrentSnapshot(createModeleSnapshot(store.entete, store.sections));
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: 'Impossible de lire le fichier.', life: 4000 });
+    toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: error.message || 'Impossible de lire le fichier.', life: 8000 });
   } finally {
     store.isLoading = false;
   }
@@ -358,11 +351,12 @@ const chargerModelePourEdition = async (id) => {
     modeleEditionId.value = data.id;
     codeOriginal.value = data.nom;
     version.value = data.version;
+    store.entete.rowVersion = data.rowVersion;
     store.entete.code = data.nom;
     store.entete.statut = data.statut;
     store.entete.operationCode = data.operationCode;
     store.entete.natureComposantCode = data.natureArticleCode;
-    store.entete.typeRobinetCode = data.libre1;
+    store.entete.typeRobinetCode = data.typeRobinetCode || '';
     store.entete.libelle = data.designation;
     store.entete.notes = data.remarques || '';
     store.entete.legendeMoyens = data.legendeMoyens || '';
@@ -370,16 +364,19 @@ const chargerModelePourEdition = async (id) => {
     store.entete.familleProduitCode = data.familleProduitFiniCode || '';
     
     const sortedSections = [...(data.sections || [])].sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
-    groupes.value = sortedSections.map(sec => ({
-      ...sec,
-      lignes: [...(sec.lignes || [])].sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0))
-    }));
+    groupes.value = sortedSections.map(sec => hydrateSectionFromBackend(sec, refStore.periodicites));
     
     if (!isForcedView.value) {
       setTimeout(() => initializeSnapshot(createModeleSnapshot(store.entete, groupes.value)), 100);
     }
   } catch (e) {
-    toast.add({ severity: 'error', summary: 'Introuvable', detail: 'Modèle introuvable.', life: 5000 });
+    console.error('Chargement du plan d\'assemblage', e);
+    toast.add({
+      severity: 'error',
+      summary: e?.status === 404 ? 'Introuvable' : 'Chargement impossible',
+      detail: e?.status === 404 ? 'Plan d\'assemblage introuvable.' : `Le plan d'assemblage n'a pas pu être affiché : ${e?.message || 'erreur inconnue'}`,
+      life: 6000
+    });
   } finally {
     store.isLoading = false;
   }
@@ -391,7 +388,7 @@ const preparerDonneesEtFrequences = async () => {
     refStore.periodicites,
     async (payloadFreq) => {
       const res = await fabPlanService.createPeriodicite(payloadFreq);
-      refStore.periodicites.push({ id: res.data.periodiciteId || res.data.id, ...payloadFreq });
+      refStore.periodicites.push(periodiciteAvecLibelle({ id: res.data.periodiciteId || res.data.id, ...payloadFreq }));
       return res;
     }
   );
@@ -441,9 +438,7 @@ const { handleSaveDirect, handleSaveCorrection, handleSaveNewVersion } = useDocu
           const res = await assPlanService.getByFilters({ 
             typeDocumentCode: 'PLAN_ASS', 
             statut: 'ACTIF',
-            natureComposantCode: store.entete.natureComposantCode || undefined,
-            operationCode: store.entete.operationCode || undefined,
-            posteCode: store.entete.posteCode || undefined
+            refFormulaireCodeReference: store.entete.refFormulaireCodeReference || undefined
           });
           const plansActifs = Array.isArray(res) ? res : (res?.data || []);
           const planActif = plansActifs.find(p => cleanName(p.nom) === baseNom) || plansActifs[0];
@@ -451,7 +446,7 @@ const { handleSaveDirect, handleSaveCorrection, handleSaveNewVersion } = useDocu
           if (planActif) {
             const isConfirmed = await confirmArchivagePlanActif({
               typeDocument: "plan d'assemblage",
-              identifiant: `cette famille`, 
+              identifiant: `ce formulaire`, 
               version: planActif.version || 1
             });
             if (!isConfirmed) return false;
@@ -469,22 +464,6 @@ const { handleSaveDirect, handleSaveCorrection, handleSaveNewVersion } = useDocu
   returnUrl: returnUrl.value
 });
 
-const activerPlanCourant = async () => {
-  if (!validerSaisieValeurs()) return;
-  if (!validerLegendeMoyens()) return;
-
-  isSaving.value = true;
-  try {
-    await store.updatePlan(modeleEditionId.value, store.entete.legendeMoyens);
-    await Promise.resolve(); // Simulate activation logic if needed
-    toast.add({ severity: 'success', summary: 'Succès', detail: 'Le modèle a été activé avec succès.', life: 5000 });
-    setTimeout(() => router.push(returnUrl.value), 1500);
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de l\'activation', life: 6000 });
-  } finally {
-    isSaving.value = false;
-  }
-};
 
 const resetForNewPlan = () => {
   modeleEditionId.value = null;

@@ -9,6 +9,8 @@ public partial class RefFormulaireEquipe
 
     public Guid FormulaireId { get; set; }
 
+    public string TeamCode { get; set; } = null!;
+
     public string NomEquipe { get; set; } = null!;
 
     public int HeureDebut { get; set; }
@@ -20,4 +22,6 @@ public partial class RefFormulaireEquipe
     public bool Actif { get; set; }
 
     public virtual RefFormulaire Formulaire { get; set; } = null!;
+
+    public virtual Team TeamCodeNavigation { get; set; } = null!;
 }

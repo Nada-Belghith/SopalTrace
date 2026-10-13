@@ -75,14 +75,14 @@
                 <div class="w-32">
                   <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Équipe</label>
                   <select v-model="form.numEquipe" class="w-full border border-slate-300 rounded-lg p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none">
-                    <option value="1">Matin</option>
-                    <option value="2">A-Midi</option>
-                    <option value="3">Nuit</option>
+                    <option value="E1">Équipe 1</option>
+                    <option value="E2">Équipe 2</option>
+                    <option value="E3">Équipe 3</option>
                   </select>
                 </div>
               </div>
 
-              <div v-if="form.operationCode === 'TRONC' || form.operationCode === 'TRN'" class="flex gap-4 mt-4 animate-fade-in-down border-t border-blue-100 pt-4">
+              <div v-if="op.avecCotesTronconnage" class="flex gap-4 mt-4 animate-fade-in-down border-t border-blue-100 pt-4">
                 <div class="flex-1">
                   <label class="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Longueur (mm)</label>
                   <input type="number" step="0.01" v-model="form.longueur" placeholder="Ex: 120.5" :disabled="isLongueurInitialized"
@@ -131,10 +131,12 @@
 </template>
 
 <script setup>
+// Formulaire de démarrage partagé avec le parent (v-model:form).
+const form = defineModel('form', { type: Object, required: true });
+
 defineProps({
   showModal: { type: Boolean, required: true },
   selectedOf: { type: Object, default: () => ({}) },
-  form: { type: Object, required: true },
   errorMessage: { type: String, default: '' },
   isSignalingPlan: { type: Boolean, default: false },
   planSignale: { type: Boolean, default: false },

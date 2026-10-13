@@ -16,7 +16,6 @@ export function useEditorSections() {
       typeVariable: 'HEURE',
       freqHours: 1,
       isNewFreq: false,
-      regleEchantillonnageId: null,
       notes: '',
       ordreAffiche: sections.value.length,
       lignes: []
@@ -50,7 +49,6 @@ export function useEditorSections() {
         toleranceSuperieure: null,
         toleranceInferieure: null,
         limiteSpecTexte: '',
-        defauthequeId: null,
         instruction: '',
         observations: ''
       });

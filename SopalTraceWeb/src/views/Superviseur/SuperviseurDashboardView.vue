@@ -1,150 +1,120 @@
 <template>
-  <div class="min-h-screen bg-slate-900 text-slate-100 p-6 md:p-8 font-sans">
+  <div class="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-8 font-sans">
     <div class="max-w-7xl mx-auto space-y-8">
-      
+
       <!-- HEADER -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-800/50 p-6 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div class="flex items-center gap-4">
-          <div class="p-3 bg-amber-500/20 text-amber-400 rounded-xl">
+          <div class="p-3 bg-amber-100 text-amber-600 rounded-xl">
             <i class="pi pi-shield text-3xl"></i>
           </div>
           <div>
-            <h1 class="text-2xl font-black text-white tracking-tight">Dashboard Superviseur</h1>
-            <p class="text-slate-400 text-sm mt-1">Supervision et validation des plans qualité transverses</p>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Dashboard Superviseur</h1>
+            <p class="text-slate-500 text-sm mt-1">Documents qualité actifs et archivés, génériques et spécifiques</p>
           </div>
         </div>
-        <div class="flex gap-3">
-          <button @click="loadData" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold text-sm transition-colors flex items-center gap-2">
-            <i class="pi pi-refresh" :class="{ 'animate-spin': loading }"></i> Actualiser
-          </button>
-        </div>
+        <button @click="charger" :disabled="chargement"
+                class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 border border-slate-200 disabled:opacity-50">
+          <i class="pi pi-refresh" :class="{ 'pi-spin': chargement }"></i> Actualiser
+        </button>
       </div>
 
-      <!-- STATS CARDS -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-gradient-to-br from-blue-900/50 to-slate-800 border border-blue-500/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
-          <div class="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><i class="pi pi-file text-6xl text-blue-400"></i></div>
-          <p class="text-blue-300 font-bold text-sm uppercase tracking-wider">Plans d'Assemblage</p>
-          <p class="text-4xl font-black text-white mt-2">{{ stats.assemblage }}</p>
-        </div>
-        <div class="bg-gradient-to-br from-emerald-900/50 to-slate-800 border border-emerald-500/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
-          <div class="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><i class="pi pi-box text-6xl text-emerald-400"></i></div>
-          <p class="text-emerald-300 font-bold text-sm uppercase tracking-wider">Produits Finis</p>
-          <p class="text-4xl font-black text-white mt-2">{{ stats.pf }}</p>
-        </div>
-        <div class="bg-gradient-to-br from-purple-900/50 to-slate-800 border border-purple-500/30 p-6 rounded-2xl shadow-lg relative overflow-hidden group">
-          <div class="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><i class="pi pi-cog text-6xl text-purple-400"></i></div>
-          <p class="text-purple-300 font-bold text-sm uppercase tracking-wider">Vérification Machines</p>
-          <p class="text-4xl font-black text-white mt-2">{{ stats.machines }}</p>
-        </div>
-      </div>
+      <p v-if="erreur" class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{{ erreur }}</p>
 
-      <!-- MAIN CONTENT -->
-      <div class="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
-        <div class="border-b border-slate-700 p-4 flex gap-4 bg-slate-800/80">
-          <button @click="activeTab = 'assemblage'" :class="['px-4 py-2 rounded-lg text-sm font-bold transition-all', activeTab === 'assemblage' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:text-white hover:bg-slate-700']">Assemblage</button>
-          <button @click="activeTab = 'pf'" :class="['px-4 py-2 rounded-lg text-sm font-bold transition-all', activeTab === 'pf' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:text-white hover:bg-slate-700']">Produits Finis</button>
-          <button @click="activeTab = 'machines'" :class="['px-4 py-2 rounded-lg text-sm font-bold transition-all', activeTab === 'machines' ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' : 'text-slate-400 hover:text-white hover:bg-slate-700']">Vérif Machines</button>
-        </div>
-
-        <div class="p-6 min-h-[400px]">
-          <div v-if="loading" class="flex flex-col items-center justify-center h-64 space-y-4">
-            <i class="pi pi-spinner animate-spin text-4xl text-amber-500"></i>
-            <p class="text-slate-400 font-medium">Chargement des données...</p>
-          </div>
-          
-          <div v-else-if="filteredPlans.length === 0" class="flex flex-col items-center justify-center h-64 space-y-4">
-            <div class="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center">
-              <i class="pi pi-folder-open text-2xl text-slate-400"></i>
+      <!-- COMPTEURS -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div v-for="carte in cartes" :key="carte.cle"
+             class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+          <div class="p-6 border-b flex items-center justify-between gap-3" :class="carte.entete">
+            <div class="flex items-center gap-3">
+              <div class="p-2 rounded-lg" :class="carte.fondIcone"><i :class="carte.icone" class="text-xl"></i></div>
+              <h2 class="text-lg font-bold" :class="carte.titre">{{ carte.libelle }}</h2>
             </div>
-            <p class="text-slate-400 font-medium text-lg">Aucun plan trouvé pour cette catégorie</p>
+            <span class="text-xs font-semibold text-slate-500">{{ compte(carte.cle).total ?? 0 }} au total</span>
           </div>
+          <div class="p-6 grid gap-4" :class="carte.statuts.length === 3 ? 'grid-cols-3' : 'grid-cols-2'">
+            <div v-for="s in carte.statuts" :key="s.cle" class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">{{ s.libelle }}</p>
+                <i :class="s.icone"></i>
+              </div>
+              <p class="text-4xl font-black text-slate-900" :data-test="`${carte.cle}-${s.cle}`">{{ compte(carte.cle)[s.cle] ?? 0 }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div v-for="plan in filteredPlans" :key="plan.id" class="bg-slate-900 border border-slate-700 hover:border-amber-500/50 rounded-xl p-5 transition-all hover:shadow-xl hover:shadow-amber-500/10 group">
-              <div class="flex justify-between items-start mb-4">
-                <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-md" :class="getStatusClass(plan.statut)">
-                  {{ plan.statut || 'BROUILLON' }}
+      <!-- DÉTAIL PAR TYPE DE DOCUMENT -->
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          <h2 class="text-base font-bold text-slate-800">Par type de document</h2>
+        </div>
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-semibold">
+              <th class="px-6 py-3">Type de document</th>
+              <th class="px-6 py-3">Portée</th>
+              <th class="px-6 py-3 text-right">Actifs</th>
+              <th class="px-6 py-3 text-right">Archivés</th>
+              <th class="px-6 py-3 text-right">Brouillons</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-if="!chargement && parType.length === 0">
+              <td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">Aucun document enregistré.</td>
+            </tr>
+            <tr v-for="t in parType" :key="`${t.typeDocumentCode}-${t.portee}`" class="text-sm">
+              <td class="px-6 py-3 font-semibold text-slate-700">{{ t.libelle }}</td>
+              <td class="px-6 py-3">
+                <span class="px-2 py-0.5 rounded text-xs font-semibold"
+                      :class="t.portee === 'SPECIFIQUE' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'">
+                  {{ t.portee === 'SPECIFIQUE' ? 'Spécifique' : 'Générique' }}
                 </span>
-                <span class="text-slate-500 text-xs font-mono">{{ formatDate(plan.creeLe) }}</span>
-              </div>
-              <h3 class="text-lg font-bold text-white mb-1">{{ plan.codeAffiche || plan.code || 'Plan sans code' }}</h3>
-              <p class="text-slate-400 text-sm mb-4 line-clamp-2">{{ plan.libelle || 'Aucune description' }}</p>
-              
-              <div class="flex items-center justify-between mt-auto pt-4 border-t border-slate-800">
-                <div class="flex items-center gap-2 text-slate-400 text-xs font-mono">
-                  <i class="pi pi-user"></i> {{ plan.creePar || 'Système' }}
-                </div>
-                <button @click="openPlan(plan)" class="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-amber-500 text-slate-300 group-hover:text-slate-900 flex items-center justify-center transition-colors">
-                  <i class="pi pi-arrow-right"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+              </td>
+              <td class="px-6 py-3 text-right font-bold text-slate-800">{{ t.comptes.actifs }}</td>
+              <td class="px-6 py-3 text-right text-slate-600">{{ t.comptes.archives }}</td>
+              <td class="px-6 py-3 text-right text-slate-400">{{ t.portee === 'SPECIFIQUE' ? t.comptes.brouillons : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
 import apiClient from '@/services/apiClient';
 
+const ACTIFS = { cle: 'actifs', libelle: 'Actifs', icone: 'pi pi-check-circle text-emerald-500' };
+const ARCHIVES = { cle: 'archives', libelle: 'Archivés', icone: 'pi pi-history text-slate-400' };
+const BROUILLONS = { cle: 'brouillons', libelle: 'Brouillons', icone: 'pi pi-pencil text-amber-500' };
 
-const router = useRouter();
+// Un document générique n'a pas de brouillon : il est actif ou archivé.
+const cartes = [
+  { cle: 'generiques', statuts: [ACTIFS, ARCHIVES], libelle: 'Documents Génériques', icone: 'pi pi-file text-blue-600', fondIcone: 'bg-blue-100', entete: 'bg-blue-50/50 border-blue-100', titre: 'text-blue-900' },
+  { cle: 'specifiques', statuts: [ACTIFS, ARCHIVES, BROUILLONS], libelle: 'Documents Spécifiques', icone: 'pi pi-file-edit text-emerald-600', fondIcone: 'bg-emerald-100', entete: 'bg-emerald-50/50 border-emerald-100', titre: 'text-emerald-900' }
+];
 
-const activeTab = ref('assemblage');
-const loading = ref(false);
-const plans = ref({ assemblage: [], pf: [], machines: [] });
+const chargement = ref(false);
+const erreur = ref('');
+const statistiques = ref(null);
 
-const stats = computed(() => ({
-  assemblage: plans.value.assemblage.length,
-  pf: plans.value.pf.length,
-  machines: plans.value.machines.length
-}));
+const compte = (cle) => statistiques.value?.[cle] || {};
+const parType = computed(() => statistiques.value?.parType || []);
 
-const filteredPlans = computed(() => plans.value[activeTab.value] || []);
-
-const loadData = async () => {
-  loading.value = true;
+const charger = async () => {
+  chargement.value = true;
+  erreur.value = '';
   try {
-    const [resFab, resAss, resPf] = await Promise.allSettled([
-      apiClient.get('/PlanFabrication'),
-      apiClient.get('/Document?typeDocumentCode=PLAN_ASS'),
-      apiClient.get('/Document?typeDocumentCode=PLAN_PF')
-    ]);
-
-    plans.value.assemblage = resAss.status === 'fulfilled' ? (resAss.value.data.data || resAss.value.data) : [];
-    plans.value.pf = resPf.status === 'fulfilled' ? (resPf.value.data.data || resPf.value.data) : [];
-    plans.value.fabrication = resFab.status === 'fulfilled' ? (resFab.value.data.data || resFab.value.data) : [];
-  } catch (err) {
-    console.error("Erreur de chargement:", err);
+    const { data } = await apiClient.get('/hub/statistiques');
+    statistiques.value = data;
+  } catch (e) {
+    erreur.value = e.message || 'Impossible de charger les statistiques.';
   } finally {
-    loading.value = false;
+    chargement.value = false;
   }
 };
 
-onMounted(() => {
-  loadData();
-});
-
-const getStatusClass = (statut) => {
-  const s = (statut || '').toUpperCase();
-  if (s === 'VALIDE' || s === 'APPROUVE') return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-  if (s === 'ATTENTE') return 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
-  return 'bg-slate-700 text-slate-300 border border-slate-600';
-};
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
-const openPlan = (plan) => {
-  if (activeTab.value === 'assemblage') router.push(`/plans/fabrication/edit/${plan.id}`);
-  else if (activeTab.value === 'pf') router.push(`/plans/pf/edit/${plan.id}`);
-  else router.push(`/plans/nc/edit/${plan.id}`); // Adjust path based on real routing
-};
+onMounted(charger);
 </script>

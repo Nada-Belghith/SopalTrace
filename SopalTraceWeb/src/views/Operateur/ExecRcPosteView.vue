@@ -1,842 +1,384 @@
 <script setup>
-import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
+/**
+ * Contrôle au poste : un document par jour de production et par poste, commun aux équipes. Les équipes et leurs
+ * heures viennent du document (définies par le superviseur) ; le serveur dit qui peut saisir (l'équipe en
+ * production, sur le document du jour en cours) et lesquelles de ses heures. Cet écran n'en déduit rien.
+ */
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import apiClient from '@/services/apiClient'
+import execAssemblageService from '@/services/execAssemblageService'
 import { useAppToast } from '@/composables/useAppToast'
-import { useAuthStore } from '@/stores/authStore'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
-import Button from 'primevue/button'
-import Dialog from 'primevue/dialog'
 
 const router = useRouter()
 const route = useRoute()
 const toast = useAppToast()
-const authStore = useAuthStore()
 const operateurStore = useOperateurStore()
 
 const execControleOfId = route.params.execControleOfId
-const posteCode = ref(route.query.posteCode)
-const rawEquipe = localStorage.getItem('sopal_sessionEquipe') || operateurStore.activeOfContext?.numEquipe || '1'
-const equipe = ref(rawEquipe.toString().replace(/\D/g, '') || '1')
-const currentStatutId = ref(route.query.statutId)
+const posteCode = route.query.posteCode
+const equipeTablette = route.query.equipe || operateurStore.activeOfContext?.equipe || null
 
-const loading = ref(false)
-const saving = ref(false)
-const planData = ref(null)
-
-const existingSessionForDate = computed(() => {
-  if (!newDocDate.value) return null
-  return availableSessions.value.find(s => s.dateExecution && s.dateExecution.split('T')[0] === newDocDate.value)
-})
-
-const viewMode = ref('loading')
-const initialMode = route.query.mode === 'all' ? 'gallery' : 'details'
+const doc = ref(null)
+const chargement = ref(true)
+const enregistrement = ref(false)
 const planManquant = ref(false)
+const signalementEnCours = ref(false)
+const conflit = ref(null)
 
-const availableSessions = ref([])
-const isConsultationMode = ref(false)
-const selectedFilterDate = ref('')
-const selectedFilterEquipe = ref('')
+// Saisie : non-conformités par ligne et par heure, pièces réalisées par heure, rebuts de l'équipe.
+const heures = ref({})
+const realisees = ref({})
+const rebutsEquipe = ref(null)
+const modifie = ref(false)
 
-const showNewDocModal = ref(false)
-const newDocDate = ref(new Date().toISOString().split('T')[0])
+const heureCourante = ref(new Date().getHours())
+let minuteur = null
 
-const showPlanManquantDialog = ref(false)
-const isSignalingPlan = ref(false)
+const ofContexte = computed(() => operateurStore.activeOfContext || {})
+const tranchesEquipe = computed(() => new Set(doc.value?.tranchesEquipe || []))
+const peutSaisir = computed(() => !!doc.value?.peutSaisir)
+const equipes = computed(() => doc.value?.equipes || [])
+const colonnes = computed(() => equipes.value.flatMap(e => e.tranches.map(t => ({ tranche: t, equipe: e.code }))))
+const equipeSaisie = computed(() => equipes.value.find(e => e.code === doc.value?.equipeSaisie) || null)
+const validations = computed(() => doc.value?.validations || [])
+const validation = (code) => validations.value.find(v => v.equipe === code)
+const jours = computed(() => doc.value?.jours || [])
 
-const isDocumentTermine = ref(false)
-const documentDate = ref(new Date().toLocaleDateString('fr-FR'))
+const formatJour = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '—'
+const formatHeure = (d) => d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''
+const libelleHeures = (e) => `${String(e.debut).padStart(2, '0')} h – ${String(e.fin).padStart(2, '0')} h`
+const estHeureCourante = (tranche) => Number(tranche.slice(0, 2)) === heureCourante.value
+const modifiable = (tranche) => peutSaisir.value && tranchesEquipe.value.has(tranche)
+const nombre = (v) => (v === null || v === undefined || v === '' ? 0 : Number(v))
 
-const currentHour = ref(new Date().getHours())
+const totalLigne = (ligneId) => colonnes.value.reduce((s, c) => s + nombre(heures.value[ligneId]?.[c.tranche]), 0)
+const totalDefautsTranche = (tranche) => (doc.value?.lignes || []).reduce((s, l) => s + nombre(heures.value[l.docLigneId]?.[tranche]), 0)
+const testeesTranche = (tranche) => nombre(realisees.value[tranche]) + totalDefautsTranche(tranche)
 
-const timerId = ref(null)
+/** Rebuts déjà enregistrés pour une équipe. */
+const rebutsEnregistres = (code) => (doc.value?.rebutsParEquipe || []).filter(r => r.equipe === code).reduce((s, r) => s + r.nbPiecesRebutees, 0)
 
-const tranchesParEquipe = {
-  '1': ['06-07', '07-08', '08-09', '09-10', '10-11', '11-12', '12-13', '13-14'],
-  '2': ['14-15', '15-16', '16-17', '17-18', '18-19', '19-20', '20-21', '21-22'],
-  '3': ['22-23', '23-00', '00-01', '01-02', '02-03', '03-04', '04-05', '05-06']
-}
-
-const activeTranches = computed(() => {
-  return tranchesParEquipe[equipe.value] || tranchesParEquipe['1']
-})
-
-const isCurrentTranche = (tranche) => {
-  const [start] = tranche.split('-').map(Number)
-  return currentHour.value === start
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('fr-FR')
-}
-
-const availableDates = computed(() => {
-  const map = new Map()
-  availableSessions.value.forEach(s => {
-    if (s.dateExecution) {
-      const rawDateStr = s.dateExecution.split('T')[0]
-      if (!map.has(rawDateStr)) {
-        map.set(rawDateStr, formatDate(s.dateExecution))
-      }
-    }
-  })
-  return Array.from(map.entries()).map(([raw, formatted]) => ({ raw, formatted }))
-})
-
-
-const filteredSessions = computed(() => {
-  return availableSessions.value.filter(s => {
-    const matchDate = !selectedFilterDate.value || (s.dateExecution && s.dateExecution.split('T')[0] === selectedFilterDate.value)
-    const matchEquipe = !selectedFilterEquipe.value || (s.equipe === selectedFilterEquipe.value)
-    return matchDate && matchEquipe
-  })
-})
-
-const selectCardSession = async (statutIdToLoad) => {
-  await loadSession(statutIdToLoad)
-  viewMode.value = 'details'
-}
-
-const switchToGalleryMode = async () => {
-  viewMode.value = 'gallery'
-  await loadPlan()
-}
-
-const handleCreateNewDocument = async () => {
-  if (!newDocDate.value) {
-    toast.error('Erreur', 'Veuillez sélectionner une date.')
-    return
-  }
-  loading.value = true
-  showNewDocModal.value = false
-  try {
-    const payload = {
-      posteCode: posteCode.value,
-      dateExecution: newDocDate.value,
-      equipe: equipe.value
-    }
-    const res = await apiClient.post(`/ExecRcPoste/${execControleOfId}/nouveau-document`, payload)
-    processResponse(res)
-    viewMode.value = 'details'
-    toast.success('Succès', 'Nouveau document créé.')
-  } catch (err) {
-    toast.error('Erreur', err.response?.data?.message || 'Impossible de créer un nouveau document.')
-  } finally {
-    loading.value = false
-  }
-}
-
-
-const docHeader = computed(() => {
+/** Bilan affiché : recalculé en direct pendant la saisie (le serveur le recalcule à l'enregistrement). */
+const bilan = computed(() => {
+  if (!doc.value) return null
+  const defauts = colonnes.value.reduce((s, c) => s + totalDefautsTranche(c.tranche), 0)
+  const testees = colonnes.value.reduce((s, c) => s + testeesTranche(c.tranche), 0)
+  const total = (doc.value.rebutsParEquipe || []).reduce((s, r) => s + r.nbPiecesRebutees, 0)
+  const rebuts = peutSaisir.value ? total - rebutsEnregistres(doc.value.equipeSaisie) + nombre(rebutsEquipe.value) : total
   return {
-    codeArticle: operateurStore.activeOfContext?.codeArticle || operateurStore.activeOfContext?.articleCode || '-',
-    designationArticle: operateurStore.activeOfContext?.designationArticle || '-',
-    numeroOf: operateurStore.activeOfContext?.numeroOf || operateurStore.activeOfContext?.numeroOF || '-',
-    equipe: equipe.value || '-',
-    posteCode: posteCode.value || '-',
-    dateExecution: documentDate.value
+    defauts, testees, rebuts,
+    tauxNc: testees > 0 ? Math.round((defauts * 10000) / testees) / 100 : 0,
+    conformes: Math.max(0, testees - rebuts)
   }
 })
 
-// Initialize form model
-const formLignes = ref([])
-const formReponses = ref({})
-const formBilan = ref({
-  totalDefauts: 0,
-  totalPiecesTestees: 0,
-  tauxNc: 0,
-  nbPiecesRebutees: 0,
-  nbPieceConforme: 0
-})
-
-const configurationEquipes = ref([])
-
-const allColumns = computed(() => {
-  const cols = [];
-  if (configurationEquipes.value.length === 0) {
-    // Fallback if no config
-    Object.keys(tranchesParEquipe).forEach(eq => {
-      tranchesParEquipe[eq].forEach(t => {
-        cols.push({ id: `col_${eq}_${t}`, header: t, group: `Equipe ${eq}`, numEquipe: eq });
-      });
-    });
-    return cols;
+const appliquer = (data) => {
+  doc.value = data
+  const h = {}
+  for (const l of data.lignes) {
+    h[l.docLigneId] = {}
+    for (const x of l.heures) h[l.docLigneId][x.trancheHoraire] = x.nbNcParHeure
   }
-  
-  configurationEquipes.value.forEach((eq, idx) => {
-    let cur = eq.debut;
-    let steps = eq.fin > eq.debut ? (eq.fin - eq.debut) : (24 - eq.debut + eq.fin);
-    for (let i = 0; i < steps; i++) {
-      let start = cur % 24;
-      let end = (cur + 1) % 24;
-      cols.push({
-        id: `col_${idx}_${start}_${end}`,
-        header: `${start.toString().padStart(2, '0')}-${end.toString().padStart(2, '0')}`,
-        group: eq.nom,
-        numEquipe: (idx + 1).toString()
-      });
-      cur++;
-    }
-  });
-  return cols;
-});
+  heures.value = h
+  realisees.value = Object.fromEntries(data.reponses.map(r => [r.trancheHoraire, r.totalRealiseHeure]))
+  rebutsEquipe.value = data.nbPiecesRebuteesEquipe ?? null
+  modifie.value = false
+  conflit.value = null
+}
 
-const headerGroups = computed(() => {
-  const groups = [];
-  let currentGroup = null;
-  let currentGroupCols = [];
-  let colspan = 0;
-  
-  for (const col of allColumns.value) {
-    if (col.group === currentGroup) {
-      colspan++;
-      currentGroupCols.push(col);
-    } else {
-      if (colspan > 0) {
-        groups.push({ name: currentGroup, colspan, columns: currentGroupCols, numEquipe: currentGroupCols[0].numEquipe });
-      }
-      currentGroup = col.group;
-      currentGroupCols = [col];
-      colspan = 1;
-    }
-  }
-  if (colspan > 0) {
-    groups.push({ name: currentGroup, colspan, columns: currentGroupCols, numEquipe: currentGroupCols[0].numEquipe });
-  }
-  return groups;
-});
-
-const activeTranchesComputed = computed(() => {
-  const currentGroup = headerGroups.value.find(g => g.numEquipe == equipe.value);
-  if (currentGroup) return currentGroup.columns.map(c => c.header);
-  return activeTranches.value;
-});
-
-const loadPlan = async () => {
-  loading.value = true
+const charger = async (statutId = null) => {
+  chargement.value = true
   try {
-    const res = await apiClient.get(`/ExecRcPoste/${execControleOfId}?posteCode=${posteCode.value}&equipe=${equipe.value}`)
-    processResponse(res)
-    if (viewMode.value === 'loading') {
-      if (route.query.mode === 'auto') {
-        const active = availableSessions.value.find(s => !s.estTermine)
-        viewMode.value = active ? 'details' : 'gallery'
-      } else {
-        viewMode.value = initialMode
-      }
-    }
+    const res = statutId
+      ? await apiClient.get(`/ExecRcPoste/statut/${statutId}`)
+      : await execAssemblageService.getPlanRcPoste(execControleOfId, posteCode, equipeTablette || '')
+    appliquer(res.data)
+    planManquant.value = false
   } catch (err) {
-    if (err.status === 404 || err.status === 400) {
-      planManquant.value = true
-      viewMode.value = 'planManquant'
-    } else {
-      viewMode.value = initialMode
-      toast.error('Erreur', 'Impossible de charger le plan RC Poste.')
-    }
+    if (err.status === 404) planManquant.value = true
+    else toast.error(err.message || 'Impossible de charger le contrôle au poste.')
   } finally {
-    loading.value = false
+    chargement.value = false
   }
+}
+
+const ouvrirJour = async (jour) => {
+  if (modifie.value && !confirm('Des modifications ne sont pas enregistrées. Changer de jour quand même ?')) return
+  await charger(jour.statutId)
+}
+
+/** Seules les heures de l'équipe sont envoyées ; le serveur refuse les autres. */
+const payload = () => {
+  const tranches = [...tranchesEquipe.value]
+  const rempli = (v) => v !== null && v !== undefined && v !== ''
+  return {
+    execControleDocumentStatutId: doc.value.execControleDocumentStatutId,
+    derniereSaisieEquipe: doc.value.derniereSaisieEquipe,
+    nbPiecesRebuteesEquipe: rempli(rebutsEquipe.value) ? Number(rebutsEquipe.value) : 0,
+    lignes: doc.value.lignes.map(l => ({
+      docLigneId: l.docLigneId,
+      heures: tranches.filter(t => rempli(heures.value[l.docLigneId]?.[t])).map(t => ({ trancheHoraire: t, nbNcParHeure: Number(heures.value[l.docLigneId][t]) }))
+    })),
+    reponses: tranches.filter(t => rempli(realisees.value[t])).map(t => ({ trancheHoraire: t, totalRealiseHeure: Number(realisees.value[t]) }))
+  }
+}
+
+const enregistrer = async ({ silencieux = false } = {}) => {
+  enregistrement.value = true
+  try {
+    const res = await apiClient.put(`/ExecRcPoste/${doc.value.execControleDocumentStatutId}`, payload())
+    appliquer(res.data)
+    if (!silencieux) toast.success('Heures enregistrées.')
+    return true
+  } catch (err) {
+    if (err.status === 409) conflit.value = err.message
+    toast.error(err.message || 'Impossible d\'enregistrer.')
+    return false
+  } finally {
+    enregistrement.value = false
+  }
+}
+
+const validerMesHeures = async () => {
+  if (modifie.value && !(await enregistrer({ silencieux: true }))) return
+  enregistrement.value = true
+  try {
+    const res = await execAssemblageService.validerHeuresRcPoste(doc.value.execControleDocumentStatutId)
+    appliquer(res.data)
+    toast.success(`Heures de l'équipe ${doc.value.equipeSaisie} validées.`)
+  } catch (err) {
+    toast.error(err.message || 'Impossible de valider les heures.')
+  } finally {
+    enregistrement.value = false
+  }
+}
+
+const valeurSaisie = (valeur) => (valeur === '' ? null : Math.max(0, Number(valeur)))
+
+const saisirDefauts = (ligneId, tranche, valeur) => {
+  heures.value[ligneId] = { ...(heures.value[ligneId] || {}), [tranche]: valeurSaisie(valeur) }
+  modifie.value = true
+}
+const saisirRealisees = (tranche, valeur) => {
+  realisees.value = { ...realisees.value, [tranche]: valeurSaisie(valeur) }
+  modifie.value = true
+}
+const saisirRebuts = (valeur) => {
+  rebutsEquipe.value = valeurSaisie(valeur)
+  modifie.value = true
 }
 
 const signalerPlanManquant = async () => {
-  isSignalingPlan.value = true
+  signalementEnCours.value = true
   try {
     await apiClient.post('/Alertes/plan-manquant', {
-      operationCode: 'ASS',
-      posteCode: posteCode.value,
-      numeroOf: operateurStore.activeOfContext?.numeroOf,
-      articleCode: operateurStore.activeOfContext?.articleCode,
-      designationArticle: operateurStore.activeOfContext?.designationArticle,
-      descriptionProbleme: `Document Contrôle au Poste introuvable ou inactif pour le poste ${posteCode.value}`
+      operationCode: 'ASS', posteCode, numeroOf: ofContexte.value.numeroOf, articleCode: ofContexte.value.articleCode || ofContexte.value.codeArticle,
+      designationArticle: ofContexte.value.designationArticle,
+      descriptionProbleme: `Document de contrôle au poste introuvable ou inactif pour le poste ${posteCode}`
     })
-    toast.success('Signalé !', 'Une notification a été envoyée au superviseur.')
-    showPlanManquantDialog.value = false
-    router.push({ name: 'operateur-assemblage' })
+    toast.success('Le superviseur a été prévenu.')
+    retour()
   } catch {
-    toast.error('Erreur', 'Impossible d\'envoyer l\'alerte.')
+    toast.error('Impossible d\'envoyer l\'alerte.')
   } finally {
-    isSignalingPlan.value = false
+    signalementEnCours.value = false
   }
 }
 
-const loadSession = async (statutId) => {
-  loading.value = true
-  try {
-    const res = await apiClient.get(`/ExecRcPoste/statut/${statutId}`)
-    processResponse(res)
-  } catch {
-    toast.error('Erreur', 'Impossible de charger cette session.')
-  } finally {
-    loading.value = false
-  }
-}
-
-const processResponse = (res) => {
-    if (res.data) {
-      planData.value = res.data
-      currentStatutId.value = res.data.execControleDocumentStatutId
-      
-      if (res.data.availableSessions) {
-        availableSessions.value = res.data.availableSessions
-      }
-      const currentSession = availableSessions.value.find(s => s.statutId === currentStatutId.value)
-      if (currentSession) {
-        isDocumentTermine.value = currentSession.estTermine
-        isConsultationMode.value = currentSession.estTermine
-        if (currentSession.dateExecution) {
-          selectedFilterDate.value = currentSession.dateExecution.split('T')[0]
-          documentDate.value = formatDate(currentSession.dateExecution)
-        }
-      }
-      
-      try {
-        if (res.data.configurationColonnesJson && res.data.configurationColonnesJson !== "{}") {
-           const parsed = JSON.parse(res.data.configurationColonnesJson)
-           configurationEquipes.value = parsed.equipes || []
-        }
-      } catch (e) {
-        console.error("Error parsing config", e);
-      }
-      
-      const tranchesToUse = allColumns.value.map(c => c.header);
-
-      // Map lines
-      formLignes.value = res.data.lignes.map(l => {
-        const row = {
-          docLigneId: l.docLigneId,
-          libelleAffiche: l.libelleAffiche,
-          machineCodeCtrlPoste: l.machineCodeCtrlPoste,
-          heures: {}
-        }
-        tranchesToUse.forEach(t => {
-          const h = l.heures.find(x => x.trancheHoraire === t)
-          row.heures[t] = h ? h.nbNcParHeure : null
-        })
-        return row
-      })
-
-      // Map reponses (totals)
-      tranchesToUse.forEach(t => {
-        const r = res.data.reponses.find(x => x.trancheHoraire === t)
-        formReponses.value[t] = r ? r.totalRealiseHeure : null
-      })
-
-      if (res.data.bilan) {
-        formBilan.value = { ...res.data.bilan }
-      }
-    }
-}
-
-const computeTotals = () => {
-  let totalDef = 0
-  let totalTested = 0
-  
-  const allTranches = allColumns.value.map(c => c.header);
-
-  formLignes.value.forEach(l => {
-    allTranches.forEach(t => {
-      if (l.heures[t]) totalDef += Number(l.heures[t])
-    })
-  })
-
-  allTranches.forEach(t => {
-    if (formReponses.value[t]) totalTested += Number(formReponses.value[t])
-  })
-
-  formBilan.value.totalDefauts = totalDef
-  // Total pièces testées = Total réalisé + Total des défauts
-  formBilan.value.totalPiecesTestees = totalTested + totalDef
-  const totalPieces = formBilan.value.totalPiecesTestees
-  if (totalPieces > 0) {
-    formBilan.value.tauxNc = Number(((totalDef / totalPieces) * 100).toFixed(2))
-  } else {
-    formBilan.value.tauxNc = 0
-  }
-  formBilan.value.nbPieceConforme = totalPieces - (Number(formBilan.value.nbPiecesRebutees) || 0)
-}
-
-watch([formLignes, formReponses, () => formBilan.value.nbPiecesRebutees], () => {
-  computeTotals()
-}, { deep: true })
-
-const handleValider = async () => {
-  computeTotals()
-  saving.value = true
-  try {
-    const allTranches = allColumns.value.map(c => c.header)
-    const payload = {
-      execControleDocumentStatutId: currentStatutId.value,
-      lignes: formLignes.value.map(l => ({
-        docLigneId: l.docLigneId,
-        heures: allTranches
-          .filter(t => l.heures[t] !== null && l.heures[t] !== undefined && l.heures[t] !== '')
-          .map(t => ({
-             trancheHoraire: t,
-             nbNcParHeure: l.heures[t]
-          }))
-      })),
-      reponses: allTranches
-        .filter(t => formReponses.value[t] !== null && formReponses.value[t] !== undefined && formReponses.value[t] !== '')
-        .map(t => {
-          let colDefauts = 0
-          formLignes.value.forEach(l => {
-            if (l.heures[t]) colDefauts += Number(l.heures[t])
-          })
-          return {
-             trancheHoraire: t,
-             totalNcHeure: colDefauts,
-             totalRealiseHeure: formReponses.value[t]
-          }
-        }),
-      bilan: formBilan.value
-    }
-
-    await apiClient.put(`/ExecRcPoste/${currentStatutId.value}`, payload)
-    toast.success('Succès', 'Les données ont été enregistrées.')
-    switchToGalleryMode()
-  } catch {
-    toast.error('Erreur', 'Impossible de sauvegarder.')
-  } finally {
-    saving.value = false
-  }
-}
-
-const marquerTermine = async () => {
-  await handleValider()
-  saving.value = true
-  try {
-    await apiClient.put(`/Operateur/assemblage-documents/${currentStatutId.value}/terminer`)
-    isDocumentTermine.value = true
-    toast.success('Succès', 'Le document a été clôturé.')
-    switchToGalleryMode()
-  } catch {
-    toast.error('Erreur', 'Impossible de clôturer le document.')
-  } finally {
-    saving.value = false
-  }
-}
-
-const goBack = () => {
-  if (viewMode.value === 'details') {
-    switchToGalleryMode()
-  } else {
-    router.push({ 
-      name: 'operateur-of-fini',
-      query: { 
-        execControleOfId: execControleOfId,
-        posteCode: posteCode.value
-      }
-    })
-  }
+const retour = () => {
+  if (modifie.value && !confirm('Des modifications ne sont pas enregistrées. Quitter quand même ?')) return
+  router.push({ name: 'operateur-of-fini', query: { execControleOfId, posteCode, equipe: route.query.equipe || undefined } })
 }
 
 onMounted(() => {
-  if (!posteCode.value || !equipe.value) {
-    toast.error('Paramètres manquants', 'Poste ou Equipe non définis.')
-    return
-  }
-  loadPlan()
-  
-  // Timer to update current hour display
-  timerId.value = setInterval(() => {
-    currentHour.value = new Date().getHours()
-  }, 60000) // check every minute
+  charger(route.query.statutId || null)
+  minuteur = setInterval(() => { heureCourante.value = new Date().getHours() }, 60000)
 })
-
-onUnmounted(() => {
-  if (timerId.value) clearInterval(timerId.value)
-})
-
+onUnmounted(() => clearInterval(minuteur))
 </script>
 
 <template>
-  <div class="rc-poste-view p-6 flex flex-col h-full bg-slate-50">
-    <!-- Breadcrumb / Back -->
-    <div class="mb-4">
-      <Button icon="pi pi-arrow-left" label="Retour" class="p-button-text" @click="goBack" />
-    </div>
-
-    <div v-if="loading" class="flex justify-center p-8">
-      <i class="pi pi-spin pi-spinner text-3xl text-primary"></i>
-    </div>
-
-    <!-- PLAN MANQUANT -->
-    <div v-else-if="viewMode === 'planManquant'" class="flex-1 flex items-center justify-center">
-      <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-12 max-w-lg w-full text-center">
-        <i class="pi pi-info-circle text-6xl text-slate-300 mb-6" style="display:block"></i>
-        <h2 class="text-xl font-bold text-slate-700 mb-2">Contrôle au Poste</h2>
-        <p class="text-slate-600 text-base mb-2">Aucun plan de contrôle au poste n'est paramétré pour <strong>{{ posteCode }}</strong>.</p>
-        <p class="text-slate-400 text-sm mb-8">Contactez votre superviseur pour qu'il crée ou active le document associé à ce poste.</p>
-        <Button 
-          label="Signaler au Superviseur" 
-          icon="pi pi-exclamation-triangle" 
-          severity="danger" 
-          outlined 
-          :loading="isSignalingPlan"
-          @click="signalerPlanManquant" 
-        />
-      </div>
-    </div>
-
-    <!-- MODE GALERIE -->
-    <div v-else-if="viewMode === 'gallery'" class="flex-1 flex flex-col">
-      <div class="flex justify-between items-end mb-6 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+  <div class="p-4 md:p-6 w-full space-y-4 pb-28">
+    <!-- En-tête -->
+    <header class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+      <button type="button" @click="retour"
+              class="min-h-[40px] text-blue-700 hover:text-blue-900 text-sm font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center mb-2">
+        <i class="pi pi-arrow-left mr-2"></i> Retour à l'assistant
+      </button>
+      <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 class="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <i class="pi pi-th-large text-blue-500"></i>
-            Sessions Contrôle au Poste
-          </h1>
-          <p class="text-slate-500 font-medium text-sm mt-1 ml-9">
-            Poste : <strong class="text-slate-700">{{ posteCode }}</strong>
+          <h1 class="m-0 text-2xl font-black text-slate-800">Contrôle au poste {{ posteCode }}</h1>
+          <p class="m-0 mt-1 text-sm text-slate-500">
+            OF <strong class="text-slate-700">{{ ofContexte.numeroOf || '—' }}</strong>
+            <span class="mx-2 text-slate-300">|</span> Article <strong class="text-slate-700">{{ ofContexte.codeArticle || ofContexte.articleCode || '—' }}</strong>
+            <template v-if="doc?.planNom"><span class="mx-2 text-slate-300">|</span> {{ doc.planNom }}</template>
           </p>
         </div>
-        
-        <div class="flex gap-6 items-end">
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center gap-2">
-              <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Date :</label>
-              <select 
-                v-model="selectedFilterDate" 
-                class="bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold rounded-lg p-2.5 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none shadow-sm cursor-pointer min-w-[150px]"
-              >
-                <option value="">Toutes les dates</option>
-                <option v-for="d in availableDates" :key="d.raw" :value="d.raw">
-                  📅 {{ d.formatted }}
-                </option>
-              </select>
-            </div>
-          </div>
-          
-          <Button label="Nouveau document" icon="pi pi-plus" class="p-button-primary mb-1" @click="showNewDocModal = true" />
+        <div v-if="doc" class="flex flex-wrap items-center gap-2 text-sm font-semibold">
+          <span class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800"><i class="pi pi-calendar mr-1"></i>Journée du {{ formatJour(doc.jourProduction) }}</span>
+          <span v-if="equipeSaisie" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800">
+            <i class="pi pi-pencil mr-1"></i>Saisie : {{ equipeSaisie.nom }} ({{ equipeSaisie.code }}) · {{ libelleHeures(equipeSaisie) }}
+          </span>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        <div 
-          v-for="s in filteredSessions" 
-          :key="s.statutId"
-          @click="selectCardSession(s.statutId)"
-          class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-blue-400 transition-all cursor-pointer flex flex-col justify-between group relative overflow-hidden"
-        >
-          <div class="flex justify-between items-center mb-4">
-            <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1"
-                  :class="s.estTermine ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-              <i :class="s.estTermine ? 'pi pi-check-circle' : 'pi pi-clock'"></i>
-              {{ s.estTermine ? 'Terminé' : 'En Cours' }}
+      <p v-if="doc && !peutSaisir" class="m-0 mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+        <i class="pi pi-lock mr-1"></i>Lecture seule : {{ doc.motifLectureSeule }}
+      </p>
+      <p v-if="doc?.equipesParDefaut" class="m-0 mt-2 text-xs text-slate-500 italic">
+        Le document ne définit pas ses équipes : les équipes standard s'appliquent (6 h–14 h, 14 h–22 h, 22 h–6 h).
+      </p>
+      <div v-if="conflit" class="mt-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-900 flex flex-wrap items-center gap-3">
+        <span class="flex-1"><i class="pi pi-exclamation-triangle mr-1"></i>{{ conflit }}</span>
+        <button type="button" @click="charger(doc.execControleDocumentStatutId)"
+                class="min-h-[40px] px-4 rounded-lg bg-red-600 text-white font-bold border-0 cursor-pointer">Recharger</button>
+      </div>
+    </header>
+
+    <div v-if="chargement && !doc" class="py-16 text-center text-slate-500"><i class="pi pi-spin pi-spinner text-3xl"></i></div>
+
+    <!-- Aucun document actif pour le poste -->
+    <section v-else-if="planManquant" class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <i class="pi pi-file-excel text-4xl text-slate-400"></i>
+      <p class="m-0 mt-3 text-lg font-bold text-slate-700">Aucun document de contrôle au poste actif pour {{ posteCode }}</p>
+      <p class="m-0 mt-1 text-sm text-slate-500">Le superviseur doit créer ou activer le document de ce poste (et de la famille de l'article).</p>
+      <button type="button" @click="signalerPlanManquant" :disabled="signalementEnCours"
+              class="mt-5 min-h-[48px] px-6 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold border-0 cursor-pointer disabled:opacity-60">
+        <i class="pi pi-exclamation-triangle mr-2"></i>Signaler au superviseur
+      </button>
+    </section>
+
+    <template v-else-if="doc">
+      <!-- Jours et validations des équipes -->
+      <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">Jours</span>
+          <button v-for="j in jours" :key="j.statutId" type="button" @click="ouvrirJour(j)"
+                  class="min-h-[40px] px-3 rounded-lg border text-sm font-semibold cursor-pointer flex items-center gap-2"
+                  :class="j.statutId === doc.execControleDocumentStatutId ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'">
+            {{ formatJour(j.jour) }}
+            <span v-if="j.equipesValidees.length" class="text-[11px] px-1.5 py-0.5 rounded"
+                  :class="j.statutId === doc.execControleDocumentStatutId ? 'bg-white/20' : 'bg-emerald-50 text-emerald-700'">
+              <i class="pi pi-check text-[10px]"></i> {{ j.equipesValidees.join(', ') }}
             </span>
-          </div>
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">Équipes</span>
+          <span v-for="e in equipes" :key="e.code" class="px-3 py-1 rounded-full text-xs font-semibold border"
+                :class="validation(e.code) ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-600'">
+            {{ e.nom }} ({{ e.code }}) · {{ libelleHeures(e) }} —
+            <template v-if="validation(e.code)"><i class="pi pi-check text-[10px]"></i> validées à {{ formatHeure(validation(e.code).dateValidation) }}</template>
+            <template v-else>non validées</template>
+          </span>
+        </div>
+      </section>
 
-          <div class="space-y-2 mb-4">
-            <div class="flex items-center text-slate-800 font-bold text-sm">
-              <i class="pi pi-calendar mr-2 text-blue-500"></i>
-              <span>Date : {{ formatDate(s.dateExecution) }}</span>
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-blue-600 group-hover:text-blue-700">
-            <span>Ouvrir & Consulter</span>
-            <i class="pi pi-arrow-right transform group-hover:translate-x-1 transition-transform"></i>
-          </div>
-        </div>
-
-        <div v-if="filteredSessions.length === 0" class="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-200">
-          <i class="pi pi-search text-3xl text-slate-300 mb-2"></i>
-          <p class="text-slate-500 font-bold text-sm">Aucun rapport ne correspond à votre filtre.</p>
-        </div>
-      </div>
-      
-      <!-- Modal Nouveau Document -->
-      <Dialog v-model:visible="showNewDocModal" header="Nouveau Document" :modal="true" class="w-full max-w-md">
-        <div class="p-4 flex flex-col gap-4">
-          <div class="flex flex-col gap-2">
-            <label class="font-bold text-slate-700 text-sm">Date d'exécution :</label>
-            <input type="date" v-model="newDocDate" class="p-2 border rounded-md" />
-          </div>
-          <div v-if="existingSessionForDate" class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm flex items-start gap-2">
-            <i class="pi pi-info-circle mt-0.5"></i>
-            <div>
-              <p v-if="existingSessionForDate.estTermine">Un document pour cette date existe déjà et est <strong>terminé</strong>.</p>
-              <p v-else>Un document pour cette date est déjà <strong>en cours</strong>.</p>
-            </div>
-          </div>
-        </div>
-        <template #footer>
-          <Button label="Annuler" icon="pi pi-times" class="p-button-text text-slate-500" @click="showNewDocModal = false" />
-          <Button v-if="existingSessionForDate" label="Ouvrir" icon="pi pi-folder-open" class="p-button-outlined p-button-info" @click="selectCardSession(existingSessionForDate.statutId); showNewDocModal = false" />
-          <Button v-else label="Créer" icon="pi pi-check" class="p-button-primary" @click="handleCreateNewDocument" />
-        </template>
-      </Dialog>
-    </div>
-
-    <!-- MODE DETAILS -->
-    <template v-else-if="viewMode === 'details' && planData">
-      <div class="header-card bg-white shadow-sm rounded-lg p-5 mb-6 border border-slate-200">
-        <div class="flex justify-between items-start">
-          <div>
-            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Résultat Contrôle Poste</h1>
-            <p class="text-slate-500 mt-1 font-medium">Poste: {{ docHeader.posteCode }} - Equipe {{ docHeader.equipe }}</p>
-          </div>
-          <div class="text-right flex flex-col items-end gap-2">
-            <div class="flex items-center gap-3">
-              <Button 
-                :label="`Voir toutes les cartes (${availableSessions.length})`" 
-                icon="pi pi-th-large" 
-                class="p-button-outlined p-button-secondary bg-white shadow-sm border-slate-300 !py-1" 
-                @click="switchToGalleryMode" 
-              />
-              <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-blue-50 text-blue-700">
-                <i class="pi pi-calendar mr-2"></i> {{ docHeader.dateExecution }}
-              </span>
-            </div>
-            <div class="flex items-center gap-2">
-              <button 
-                v-if="isConsultationMode"
-                @click="isConsultationMode = false; isDocumentTermine = false"
-                class="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white shadow-sm hover:bg-amber-600 transition-all flex items-center gap-2"
-              >
-                <i class="pi pi-pencil"></i>
-                <span>Modifier</span>
-              </button>
-            </div>
-            <div v-if="isDocumentTermine" class="mt-1">
-              <span class="px-3 py-1 bg-green-100 text-green-700 rounded text-sm font-bold">Terminé</span>
-            </div>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t border-slate-100">
-          <div>
-            <span class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Code Article</span>
-            <span class="text-slate-800 font-medium">{{ docHeader.codeArticle }}</span>
-          </div>
-          <div class="md:col-span-2">
-            <span class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Désignation</span>
-            <span class="text-slate-800 font-medium">{{ docHeader.designationArticle }}</span>
-          </div>
-          <div>
-            <span class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">N° OF</span>
-            <span class="text-slate-800 font-medium">{{ docHeader.numeroOf }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden flex-1 flex flex-col relative border-l-4 border-l-emerald-500">
-        <!-- Main Header -->
-        <div class="bg-slate-800 px-5 py-4 flex items-center relative min-h-[64px]">
-            <div class="flex-1 text-center">
-                <h2 class="text-white font-bold uppercase tracking-widest text-lg">
-                  Résultat de contrôle - Poste {{ docHeader.posteCode }}
-                </h2>
-            </div>
-        </div>
-        <!-- Scrollable Table Container -->
-        <div class="overflow-auto custom-scrollbar flex-1 p-0 relative min-h-[400px] pb-3">
-          <table class="w-full text-left border-collapse min-w-[800px] text-sm whitespace-nowrap">
-            <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm text-slate-700 text-[11px] font-bold border-b-2 border-slate-200">
-              <tr>
-                <th colspan="3" class="p-2 border-b border-r text-center align-middle">
-                    <div class="text-[12px] font-black text-slate-800 tracking-wide uppercase">Test de Non-conformité</div>
+      <!-- Tableau : défile dans sa carte, la colonne des défauts reste visible -->
+      <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-max w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-slate-800 text-white">
+                <th rowspan="2" class="sticky left-0 z-20 bg-slate-800 px-4 py-3 text-left min-w-[260px] border-r border-slate-700">Non-conformité</th>
+                <th v-for="e in equipes" :key="e.code" :colspan="e.tranches.length"
+                    class="px-3 py-2 text-center border-r border-slate-700"
+                    :class="e.code === doc.equipeSaisie ? 'bg-emerald-700' : ''">
+                  {{ e.nom }} ({{ e.code }}) <span class="font-normal opacity-80">· {{ libelleHeures(e) }}</span>
                 </th>
-                
-                <template v-for="(g, idx) in headerGroups" :key="'g'+idx">
-                  <th :colspan="g.colspan" class="border-b border-r text-center align-top relative p-2 bg-slate-100 min-w-[200px]">
-                    <div class="mb-2 text-[13px] font-black text-slate-800 uppercase">{{ g.name }}</div>
-                    <div class="flex items-center justify-center gap-4 mt-2 px-2 pb-1 text-[10px] normal-case font-semibold">
-                        <div class="flex items-center gap-1.5 whitespace-nowrap">
-                            <label class="text-slate-500">Nom et prénom :</label>
-                            <input type="text" :value="g.numEquipe == equipe ? (authStore.user?.prenom ? authStore.user.prenom + ' ' : '') + (authStore.user?.nom || '') : ''" disabled
-                                class="border-b border-slate-300 bg-transparent px-1 py-0.5 outline-none text-emerald-700 font-bold w-32" />
-                        </div>
-                        <div class="flex items-center gap-1.5 whitespace-nowrap">
-                            <label class="text-slate-500">Matricule :</label>
-                            <input type="text" :value="g.numEquipe == equipe ? authStore.user?.matricule : ''" disabled
-                                class="border-b border-slate-300 bg-transparent px-1 py-0.5 outline-none text-emerald-700 font-bold w-20" />
-                        </div>
-                    </div>
-                  </th>
-                </template>
-                
-                <th class="p-2 border-b border-r text-center w-24 align-middle" rowspan="2">Total des défauts</th>
-                <th class="p-2 border-b border-r text-center w-28 align-middle" rowspan="2">Total des pièces testées</th>
-                <th class="p-2 border-b border-r text-center w-24 align-middle" rowspan="2">Taux de NC</th>
-                <th class="p-2 border-b border-r text-center w-24 align-middle" rowspan="2">NB des pièces rebutées</th>
-                <th class="p-2 border-b text-center w-24 align-middle" rowspan="2">NB des pièces conformes</th>
+                <th rowspan="2" class="px-3 py-3 text-center min-w-[80px]">Total</th>
               </tr>
-              <tr>
-                <th class="p-2 border-b border-r text-center align-middle w-10 bg-slate-50/50">N°</th>
-                <th class="p-2 border-b border-r text-center align-middle min-w-[120px] bg-slate-50/50">Machine<br/>Banc d'essai</th>
-                <th class="p-2 border-b border-r text-center align-middle min-w-[150px] bg-slate-50/50">Désignation du défaut</th>
-                <template v-for="(g, idx) in headerGroups" :key="'subg'+idx">
-                  <th v-for="col in g.columns" :key="col.id" 
-                      class="p-2 border-b border-r text-center font-semibold min-w-[5rem] text-[10px] transition-all"
-                      :class="isCurrentTranche(col.header) && col.numEquipe == equipe ? 'bg-emerald-100 text-emerald-900 border-b-2 border-emerald-500 shadow-sm' : 'bg-slate-50/50'">
-                    {{ col.header }}
-                  </th>
-                </template>
+              <tr class="bg-slate-100 text-slate-700 text-xs">
+                <th v-for="c in colonnes" :key="c.tranche" class="px-2 py-2 text-center min-w-[64px] border-r border-slate-200 font-semibold"
+                    :class="[estHeureCourante(c.tranche) && modifiable(c.tranche) ? 'bg-emerald-200 text-emerald-900' : '', modifiable(c.tranche) ? 'text-emerald-800' : '']">
+                  {{ c.tranche }}
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(ligne, idx) in formLignes" :key="ligne.docLigneId" class="border-b hover:bg-slate-50 transition-colors">
-                <td class="p-2 border-r text-center text-slate-500 font-bold">{{ idx + 1 }}</td>
-                <td class="p-2 border-r text-slate-700 text-xs text-center font-semibold">{{ ligne.machineCodeCtrlPoste || '-' }}</td>
-                <td class="p-4 text-slate-800 border-r font-medium text-sm text-center">{{ ligne.libelleAffiche }}</td>
-                
-                <template v-for="(g, gIdx) in headerGroups" :key="'rg'+gIdx">
-                  <template v-if="g.numEquipe == equipe">
-                    <td v-for="col in g.columns" :key="col.id" class="p-1 border-r text-center transition-all" 
-                        :class="isCurrentTranche(col.header) ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-300' : ''">
-                      <input type="number" v-model.number="ligne.heures[col.header]" :disabled="isDocumentTermine" 
-                             class="w-full text-center border-0 bg-transparent hover:bg-white focus:bg-white focus:ring-1 focus:ring-emerald-400 p-1.5 rounded transition-all text-xs font-semibold text-gray-800 outline-none" 
-                             min="0" />
-                    </td>
-                  </template>
-                  <template v-else>
-                    <td v-for="col in g.columns" :key="col.id" class="p-1 border-r text-center bg-slate-50/50">
-                      <input type="number" :value="ligne.heures[col.header]" disabled 
-                             class="w-full text-center border-0 bg-transparent p-1.5 rounded text-xs font-semibold text-gray-800 outline-none" />
-                    </td>
-                  </template>
-                </template>
-
-                <!-- Total des défauts (par ligne) -->
-                <td class="p-4 text-center font-bold text-slate-700 bg-slate-50 border-r">
-                  {{ activeTranchesComputed.reduce((sum, t) => sum + (Number(ligne.heures[t]) || 0), 0) }}
+              <tr v-for="l in doc.lignes" :key="l.docLigneId" class="border-b border-slate-100 hover:bg-slate-50/60">
+                <td class="sticky left-0 z-10 bg-white px-4 py-2 border-r border-slate-200">
+                  <div class="font-semibold text-slate-800">{{ l.libelleAffiche }}</div>
+                  <div v-if="l.machineCode && l.machineCode !== '-'" class="text-[11px] text-slate-500">Machine {{ l.machineCode }}</div>
                 </td>
-                <td class="bg-white border-r"></td>
-                <td class="bg-white border-r"></td>
-                <td class="bg-white border-r"></td>
-                <td class="bg-white"></td>
-              </tr>
-              
-              <!-- Row: Total Non conforme -->
-              <tr class="bg-red-50 border-t-2 border-slate-200">
-                <td colspan="3" class="p-4 font-bold text-slate-700 text-right border-r">Total Non conforme :</td>
-                
-                <template v-for="(g, gIdx) in headerGroups" :key="'t1'+gIdx">
-                  <template v-if="g.numEquipe == equipe">
-                    <td v-for="col in g.columns" :key="col.id" class="p-4 border-r text-center font-bold text-red-600 text-lg">
-                      {{ formLignes.reduce((sum, l) => sum + (Number(l.heures[col.header]) || 0), 0) }}
-                    </td>
-                  </template>
-                  <template v-else>
-                    <td v-for="col in g.columns" :key="col.id" class="p-4 border-r text-center font-bold text-red-600 text-lg bg-slate-50/50">
-                      {{ formLignes.reduce((sum, l) => sum + (Number(l.heures[col.header]) || 0), 0) }}
-                    </td>
-                  </template>
-                </template>
-
-                <!-- Total global des défauts -->
-                <td class="p-4 text-center font-bold text-red-700 border-r text-lg">
-                    {{ formBilan.totalDefauts }}
+                <td v-for="c in colonnes" :key="c.tranche" class="px-1 py-1 text-center border-r border-slate-100"
+                    :class="modifiable(c.tranche) ? 'bg-emerald-50/40' : ''">
+                  <input v-if="modifiable(c.tranche)" type="number" min="0" inputmode="numeric"
+                         :value="heures[l.docLigneId]?.[c.tranche] ?? ''"
+                         @input="saisirDefauts(l.docLigneId, c.tranche, $event.target.value)"
+                         class="w-14 min-h-[40px] text-center rounded-lg border border-slate-300 bg-white font-semibold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none" />
+                  <span v-else class="text-slate-500">{{ heures[l.docLigneId]?.[c.tranche] ?? '' }}</span>
                 </td>
-                <td class="p-4 text-center font-bold text-blue-700 border-r text-lg">
-                    {{ formBilan.totalPiecesTestees }}
-                </td>
-                <td class="p-4 text-center font-bold text-slate-700 border-r text-lg">
-                    {{ formBilan.tauxNc }}%
-                </td>
-                <td class="p-2 border-r text-center bg-white">
-                  <input type="number" v-model.number="formBilan.nbPiecesRebutees" :disabled="isDocumentTermine" 
-                         class="w-full text-center border border-slate-300 bg-white p-2 rounded focus:ring-2 focus:ring-red-400 focus:outline-none transition-all text-lg font-bold text-red-600" 
-                         min="0" />
-                </td>
-                <td class="p-4 text-center font-bold text-green-600 text-lg">
-                    {{ formBilan.totalPiecesTestees - (formBilan.nbPiecesRebutees || 0) }}
-                </td>
-              </tr>
-
-              <!-- Row: Total réalisé -->
-              <tr class="bg-slate-100 border-t border-slate-200">
-                <td colspan="3" class="p-4 font-bold text-slate-700 text-right border-r">Total réalisé :</td>
-                
-                <template v-for="(g, gIdx) in headerGroups" :key="'t2'+gIdx">
-                  <template v-if="g.numEquipe == equipe">
-                      <td v-for="col in g.columns" :key="col.id" class="p-1 border-r text-center">
-                        <input type="number" v-model.number="formReponses[col.header]" :disabled="isDocumentTermine" 
-                               :class="['w-full text-center p-2 rounded text-sm font-bold text-gray-800 outline-none transition-colors', isDocumentTermine ? 'bg-transparent border-0' : 'border border-slate-300 bg-white hover:border-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500']" 
-                               min="0" />
-                      </td>
-                  </template>
-                  <template v-else>
-                      <td v-for="col in g.columns" :key="col.id" class="p-1 border-r text-center bg-slate-50/50">
-                        <input type="number" :value="formReponses[col.header]" disabled 
-                               class="w-full text-center border-0 bg-transparent p-2 rounded text-sm font-bold text-gray-800 outline-none" />
-                      </td>
-                  </template>
-                </template>
-
-                <td class="bg-slate-100 border-r"></td>
-                <td class="bg-slate-100 border-r"></td>
-                <td class="bg-slate-100 border-r"></td>
-                <td class="bg-slate-100 border-r"></td>
-                <td class="bg-slate-100"></td>
+                <td class="px-3 text-center font-bold text-slate-800">{{ totalLigne(l.docLigneId) }}</td>
               </tr>
             </tbody>
+            <tfoot class="text-xs">
+              <tr class="bg-slate-50 border-t-2 border-slate-200">
+                <td class="sticky left-0 z-10 bg-slate-50 px-4 py-2 font-bold text-slate-700 border-r border-slate-200">Total des défauts</td>
+                <td v-for="c in colonnes" :key="c.tranche" class="text-center font-semibold text-slate-700 border-r border-slate-100">{{ totalDefautsTranche(c.tranche) || '' }}</td>
+                <td class="text-center font-bold">{{ bilan.defauts }}</td>
+              </tr>
+              <tr class="bg-white">
+                <td class="sticky left-0 z-10 bg-white px-4 py-2 font-bold text-slate-700 border-r border-slate-200">Pièces réalisées</td>
+                <td v-for="c in colonnes" :key="c.tranche" class="px-1 py-1 text-center border-r border-slate-100"
+                    :class="modifiable(c.tranche) ? 'bg-emerald-50/40' : ''">
+                  <input v-if="modifiable(c.tranche)" type="number" min="0" inputmode="numeric"
+                         :value="realisees[c.tranche] ?? ''" @input="saisirRealisees(c.tranche, $event.target.value)"
+                         class="w-14 min-h-[40px] text-center rounded-lg border border-slate-300 bg-white font-semibold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none" />
+                  <span v-else class="text-slate-500">{{ realisees[c.tranche] ?? '' }}</span>
+                </td>
+                <td></td>
+              </tr>
+              <tr class="bg-slate-50">
+                <td class="sticky left-0 z-10 bg-slate-50 px-4 py-2 font-bold text-slate-700 border-r border-slate-200">Pièces testées</td>
+                <td v-for="c in colonnes" :key="c.tranche" class="text-center text-slate-700 border-r border-slate-100">{{ testeesTranche(c.tranche) || '' }}</td>
+                <td class="text-center font-bold">{{ bilan.testees }}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
-      </div>
+      </section>
 
-      <!-- Action Buttons -->
-      <div v-if="!isDocumentTermine" class="flex justify-end gap-3 mt-6 pb-8">
-        <Button label="Enregistrer" icon="pi pi-save" @click="handleValider" :loading="saving" :disabled="isDocumentTermine" class="p-button-outlined" />
-        <Button label="Marquer comme terminé" icon="pi pi-check" @click="marquerTermine" :disabled="isDocumentTermine" severity="success" />
-      </div>
+      <!-- Bilan de la journée -->
+      <section class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="bg-white rounded-2xl border border-slate-200 p-4"><p class="m-0 text-xs font-bold uppercase text-slate-500">Défauts</p><p class="m-0 mt-1 text-2xl font-black text-slate-800">{{ bilan.defauts }}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4"><p class="m-0 text-xs font-bold uppercase text-slate-500">Pièces testées</p><p class="m-0 mt-1 text-2xl font-black text-slate-800">{{ bilan.testees }}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4"><p class="m-0 text-xs font-bold uppercase text-slate-500">Taux de NC</p><p class="m-0 mt-1 text-2xl font-black" :class="bilan.tauxNc > 0 ? 'text-red-600' : 'text-slate-800'">{{ bilan.tauxNc }} %</p></div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4">
+          <p class="m-0 text-xs font-bold uppercase text-slate-500">Pièces rebutées</p>
+          <p class="m-0 mt-1 text-2xl font-black text-slate-800">{{ bilan.rebuts }}</p>
+          <label v-if="peutSaisir" class="mt-2 flex items-center gap-2 text-xs text-slate-600">
+            dont {{ doc.equipeSaisie }}
+            <input type="number" min="0" :value="rebutsEquipe ?? ''" @input="saisirRebuts($event.target.value)"
+                   class="w-20 min-h-[36px] text-center rounded-lg border border-slate-300 font-semibold" />
+          </label>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4"><p class="m-0 text-xs font-bold uppercase text-slate-500">Conformes</p><p class="m-0 mt-1 text-2xl font-black text-emerald-700">{{ bilan.conformes }}</p></div>
+      </section>
 
+      <section v-if="doc.planRemarques || doc.planLegendeMoyens" class="bg-white rounded-2xl border border-slate-200 p-4 text-sm text-slate-600 space-y-1">
+        <p v-if="doc.planRemarques" class="m-0"><strong>Remarques :</strong> {{ doc.planRemarques }}</p>
+        <p v-if="doc.planLegendeMoyens" class="m-0"><strong>Légende des moyens :</strong> {{ doc.planLegendeMoyens }}</p>
+      </section>
+
+      <!-- Actions : toujours visibles -->
+      <div v-if="peutSaisir" class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 px-4 md:px-6 py-3 flex flex-wrap items-center justify-end gap-3">
+        <span class="mr-auto text-sm font-semibold" :class="modifie ? 'text-amber-700' : 'text-slate-500'">
+          <i class="pi" :class="modifie ? 'pi-circle-fill text-[8px]' : 'pi-check'"></i>
+          {{ modifie ? 'Modifications non enregistrées' : 'Tout est enregistré' }}
+        </span>
+        <button type="button" @click="enregistrer()" :disabled="enregistrement || !modifie"
+                class="min-h-[48px] px-5 rounded-xl border border-slate-300 bg-white text-slate-700 font-bold cursor-pointer disabled:opacity-50">
+          <i class="pi pi-save mr-2"></i>Enregistrer
+        </button>
+        <button type="button" @click="validerMesHeures" :disabled="enregistrement"
+                class="min-h-[48px] px-5 rounded-xl border-0 font-bold cursor-pointer disabled:opacity-60"
+                :class="validation(doc.equipeSaisie) ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-600 hover:bg-emerald-700 text-white'">
+          <i class="pi pi-check mr-2"></i>{{ validation(doc.equipeSaisie) ? `Heures ${doc.equipeSaisie} validées` : `Valider mes heures (${doc.equipeSaisie})` }}
+        </button>
+      </div>
     </template>
-
-    <!-- Dialog Plan Manquant -->
-    <Dialog v-model:visible="showPlanManquantDialog" modal header="Contrôle au Poste" :style="{ width: '50vw' }">
-      <div class="text-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 m-2">
-        <i class="pi pi-info-circle text-5xl text-gray-400 mb-4" style="display:block"></i>
-        <p class="text-gray-600 text-lg mb-2">Aucun plan de contrôle au poste n'est paramétré pour <strong>{{ posteCode }}</strong>.</p>
-        <p class="text-gray-500 text-sm mb-6">Contactez votre superviseur pour qu'il crée ou active le document associé à ce poste.</p>
-        <Button 
-          label="Signaler au Superviseur" 
-          icon="pi pi-exclamation-triangle" 
-          severity="danger" 
-          outlined 
-          :loading="isSignalingPlan"
-          @click="signalerPlanManquant" 
-        />
-      </div>
-    </Dialog>
-
   </div>
 </template>
-
-<style scoped>
-.rc-poste-view {
-  min-height: calc(100vh - 4rem);
-}
-:deep(.p-inputnumber-input) {
-  width: 100%;
-  text-align: center;
-}
-/* Hide number spinners for better readability of large numbers */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type="number"] {
-  -moz-appearance: textfield;
-}
-
-/* Scrollbar personnalisée pour qu'elle soit toujours visible et claire */
-.custom-scrollbar::-webkit-scrollbar {
-  height: 12px;
-  width: 12px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 8px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-  border-radius: 8px;
-  border: 2px solid #f1f5f9;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-}
-</style>

@@ -24,15 +24,42 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
+      path: '/auth/setup-password',
+      name: 'setup-password',
+      component: () => import('@/views/Auth/SetupPasswordView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
       path: '/',
-      redirect: '/dev/hub'
+      redirect: to => {
+        const authStore = useAuthStore();
+        if (authStore.userRole === 'ADMIN') return { name: 'admin-dashboard' };
+        if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
+        if (authStore.userRole === 'SUPERVISEUR_QUALITE') return { name: 'superviseur-dashboard' };
+        if (authStore.userRole === 'OPERATEUR') return { name: 'operateur-of-semi-fini' };
+        if (authStore.userRole === 'RESPONSABLE_QUALITE') return { name: 'qualite-tracabilite-totale' };
+        return { name: 'dev-hub' };
+      }
     },
     {
       path: '/dev',
       component: MainLayout,
-      meta: { requiresAuth: true, roles: ['ADMIN', 'RESPONSABLE_DI', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE', 'RESPONSABLE'] }, // Empêche l'accès à l'OPERATEUR par défaut
+      meta: { requiresAuth: true, roles: ['ADMIN', 'RESPONSABLE_DI', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }, // Empêche l'accès à l'OPERATEUR par défaut
       children: [
-        // 1. LE HUB (Le choix du type de plan - Image 1)
+        // 1. ADMIN - DASHBOARD ET HABILITATIONS
+        {
+          path: 'admin-dashboard',
+          name: 'admin-dashboard',
+          component: () => import('@/views/Admin/AdminDashboard.vue'),
+          meta: { roles: ['ADMIN'] }
+        },
+        {
+          path: 'habilitations',
+          name: 'admin-habilitations',
+          component: () => import('@/views/Admin/GestionHabilitations.vue'),
+          meta: { roles: ['ADMIN'] }
+        },
+        // 2. LE HUB (Le choix du type de plan - Image 1)
         {
           path: 'hub',
           name: 'dev-hub',
@@ -63,7 +90,7 @@ const router = createRouter({
           path: 'ass/editer/:id',
           name: 'dev-ass-edit',
           component: () => import('@/views/QualityPlans/Assemblage/AssPlanEditor.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE', 'SUPERVISEUR_QUALITE'] }
+          meta: { roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
         },
 
         // --- EXECUTION DES PLANS ---
@@ -208,9 +235,21 @@ const router = createRouter({
           component: () => import('@/views/Operateur/ExecRcPosteView.vue')
         },
         {
+          // Vérifications machine d'un poste à un moment : ?posteCode=...&periodicite=DEMARRAGE|APRES_PAUSE|FIN_POSTE
+          path: 'verif-machines/:execControleOfId',
+          name: 'exec-verif-machines',
+          component: () => import('@/views/Operateur/VerifMachinesPosteView.vue')
+        },
+        {
           path: 'plan-assemblage/:execControleOfId',
           name: 'exec-plan-assemblage',
           component: () => import('@/views/Operateur/ExecPlanAssemblageView.vue')
+        },
+        {
+          // Résultat contrôle en cours de fabrication (ENCF) d'un poste : ?of=...&poste=...
+          path: 'encf/:execControleOfId',
+          name: 'operateur-encf',
+          component: () => import('@/components/Execution/ExecEncfForm.vue')
         },
         {
           path: 'tracabilite/:execControleOfId',
@@ -239,6 +278,11 @@ const router = createRouter({
           path: 'scan-of',
           name: 'magasinier-scan-of',
           component: () => import('@/views/Magasinier/OfScannerView.vue')
+        },
+        {
+          path: 'scan-bl',
+          name: 'magasinier-scan-bl',
+          component: () => import('@/views/Magasinier/BlScannerView.vue')
         }
       ]
     },
@@ -252,6 +296,19 @@ const router = createRouter({
           path: 'dashboard',
           name: 'superviseur-dashboard',
           component: () => import('@/views/Superviseur/SuperviseurDashboardView.vue')
+        }
+      ]
+    },
+    {
+      path: '/qualite',
+      name: 'qualite-root',
+      component: MainLayout,
+      meta: { requiresAuth: true, roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] },
+      children: [
+        {
+          path: 'tracabilite',
+          name: 'qualite-tracabilite-totale',
+          component: () => import('@/views/Qualite/TracabiliteTotaleView.vue')
         }
       ]
     }
@@ -269,9 +326,11 @@ router.beforeEach(async (to, from) => {
   }
 
   if (to.name === 'login' && authStore.isAuthenticated) {
+    if (authStore.userRole === 'ADMIN') return { name: 'admin-dashboard' };
     if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
     if (authStore.userRole === 'SUPERVISEUR_QUALITE') return { name: 'superviseur-dashboard' };
     if (authStore.userRole === 'OPERATEUR') return { name: 'operateur-of-semi-fini' };
+    if (authStore.userRole === 'RESPONSABLE_QUALITE') return { name: 'qualite-tracabilite-totale' };
     return { name: 'dev-hub' };
   }
 
@@ -279,9 +338,11 @@ router.beforeEach(async (to, from) => {
   if (requiredRoles && !authStore.hasAccess(requiredRoles)) {
     // PREVENT INFINITE REDIRECT: if we're already trying to go to the fallback, stop redirecting.
     let fallbackRoute = 'dev-hub';
-    if (authStore.userRole === 'MAGASINIER') fallbackRoute = 'magasinier-scan-of';
+    if (authStore.userRole === 'ADMIN') fallbackRoute = 'admin-dashboard';
+    else if (authStore.userRole === 'MAGASINIER') fallbackRoute = 'magasinier-scan-of';
     else if (authStore.userRole === 'SUPERVISEUR_QUALITE') fallbackRoute = 'superviseur-dashboard';
     else if (authStore.userRole === 'OPERATEUR') fallbackRoute = 'operateur-of-semi-fini';
+    else if (authStore.userRole === 'RESPONSABLE_QUALITE') fallbackRoute = 'qualite-tracabilite-totale';
 
     if (to.name !== fallbackRoute) {
       return { name: fallbackRoute };

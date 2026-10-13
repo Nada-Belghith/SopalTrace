@@ -29,10 +29,10 @@ public class Iso2859Service : IIso2859Service
         return regle?.CodeLettre;
     }
 
-    public async Task<int?> GetEffectifEchantillonAsync(string lettreCode, double valeurNqa)
+    public async Task<int?> GetEffectifEchantillonAsync(string lettreCode)
     {
         var echantillonnage = await _context.RefIso2859Echantillonnages
-            .Where(x => x.CodeLettre == lettreCode && x.ValeurNqa == valeurNqa)
+            .Where(x => x.CodeLettre == lettreCode)
             .FirstOrDefaultAsync();
 
         return echantillonnage?.Quantite;

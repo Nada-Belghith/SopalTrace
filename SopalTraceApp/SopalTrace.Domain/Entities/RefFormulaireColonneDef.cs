@@ -21,5 +21,9 @@ public partial class RefFormulaireColonneDef
 
     public bool Actif { get; set; }
 
+    public virtual ICollection<ColumnAllowedValue> ColumnAllowedValues { get; set; } = new List<ColumnAllowedValue>();
+
     public virtual RefFormulaire Formulaire { get; set; } = null!;
+
+    public virtual ColumnValueType TypeValeurNavigation { get; set; } = null!;
 }

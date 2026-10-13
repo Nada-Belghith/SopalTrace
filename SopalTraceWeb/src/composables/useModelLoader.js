@@ -1,3 +1,4 @@
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { nextTick } from 'vue';
 import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
 import { parseFrequenceLibelle, resolveFrequencyFromPeriodiciteId } from '@/utils/frequencyUtils';
@@ -7,8 +8,10 @@ import {
   resolveSectionDisplayTitle
 } from '@/utils/sectionTitleUtils';
 import { createModeleSnapshot } from '@/utils/modelMapper';
+import { useReferentielStore } from '@/stores/referentielStore';
 
 export function useModelLoader(store, ctx) {
+  const refStore = useReferentielStore();
   const loadModelForEditing = async (id, toast, router) => {
     store.isLoading = true;
     store.isBeingLoaded = true;
@@ -16,23 +19,24 @@ export function useModelLoader(store, ctx) {
       store.loadingMessage = "Chargement du modèle...";
       const res = await fabModeleService.getModelById(id);
       const data = res?.data?.data || res?.data || res;
-      
+
       ctx.modeleEditionId.value = data.id;
+      store.entete.rowVersion = data.rowVersion;
       ctx.codeOriginal.value = data.nom;
       ctx.statut.value = data.statut;
       ctx.version.value = data.version;
-      
+
       store.entete.code = data.code || data.nom;
       store.entete.operationCode = data.operationCode;
       store.entete.natureComposantCode = data.natureComposantCode || data.natureArticleCode;
-      store.entete.typeRobinetCode = data.typeRobinetCode || data.libre1 || '';
+      store.entete.typeRobinetCode = data.typeRobinetCode || '';
       store.entete.libelle = data.libelle || data.designation;
       store.entete.notes = data.notes || data.remarques || '';
       store.entete.legendeMoyens = data.legendeMoyens || '';
       store.entete.posteCode = data.posteCode || '';
       store.entete.familleProduitCode = data.familleProduitCode || data.familleProduitFiniCode || '';
       store.entete.refFormulaireCodeReference = data.codeReferenceFormulaire || data.refFormulaireCodeReference || 'PRC';
-      
+
       try {
         if (store.entete.natureComposantCode && store.entete.operationCode && ctx.statut.value === 'ARCHIVE') {
           const resExist = await fabModeleService.getModelsByFilters({
@@ -48,7 +52,7 @@ export function useModelLoader(store, ctx) {
       } catch (e) {
         console.warn("Impossible de vérifier les versions actives", e);
       }
-      
+
       if (ctx.isArchiveEditing.value || ctx.isUpgradeMode.value) {
         store.syncConfigurationFromFormulaire();
       } else {
@@ -56,7 +60,7 @@ export function useModelLoader(store, ctx) {
         if (data.configurationColonnesJson) {
           try {
             configParsed = JSON.parse(data.configurationColonnesJson);
-          } catch(e) {
+          } catch (e) {
             console.error('Erreur parsing configurationColonnesJson:', e);
           }
         }
@@ -65,7 +69,8 @@ export function useModelLoader(store, ctx) {
           store.entete.configurationColonnes = configParsed.map(c => ({
             key: c.cleColonne || c.key,
             label: c.labelAffiche || c.label,
-            type: c.typeValeur || c.type || 'Texte',
+            type: normaliserTypeColonne(c.typeValeur || c.type),
+            options: c.options || [],
             insertAfter: c.insertAfter || 'code_instrument'
           }));
         } else if (!ctx.isArchived.value) {
@@ -82,7 +87,7 @@ export function useModelLoader(store, ctx) {
       ctx.groupes.value = sectionsTriees.map(sec => {
         let freqData = { modeFreq: 'SANS', periodiciteId: null, freqNum: 1, typeVariable: 'HEURE', freqHours: 1 };
         if (sec.periodiciteId) {
-          const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, store.periodicites || []);
+          const resolved = resolveFrequencyFromPeriodiciteId(sec.periodiciteId, refStore.periodicites || []);
           if (resolved) {
             freqData = resolved;
           }
@@ -90,22 +95,17 @@ export function useModelLoader(store, ctx) {
         if (freqData.modeFreq === 'SANS') {
           const texteParse = sec.frequenceLibelle || sec.libelleSection || '';
           if (texteParse) {
-            freqData = parseFrequenceLibelle(texteParse, store.periodicites || []);
+            freqData = parseFrequenceLibelle(texteParse, refStore.periodicites || []);
           }
         }
-        
-        if (sec.regleEchantillonnageId) {
-          freqData.modeFreq = 'FIXE';
-          freqData.regleEchantillonnageId = sec.regleEchantillonnageId;
-        }
 
-        let typeSectionId = normalizeTypeSectionId(sec.typeSectionId || '', store.typesSection);
+        let typeSectionId = normalizeTypeSectionId(sec.typeSectionId || '', refStore.typesSection);
         if (!typeSectionId && sec.libelleSection) {
           const secLib = sec.libelleSection.trim().toLowerCase();
           let bestMatch = null;
           let maxLength = -1;
 
-          store.typesSection.forEach(t => {
+          refStore.typesSection.forEach(t => {
             const tLib = (t.libelle || t.nom || '').trim().toLowerCase();
             if (!tLib || secLib === 'section sans nom') return;
 
@@ -123,15 +123,16 @@ export function useModelLoader(store, ctx) {
         }
 
         const libelleSection = resolveSectionDisplayTitle(
-          { typeSectionId, libelleSection: sec.libelleSection, nom: sec.nom },
-          store.typesSection
+          { typeSectionId, libelleSection: sec.libelleSection, nom: sec.nom, periodiciteId: sec.periodiciteId },
+          refStore.typesSection,
+          refStore.periodicites
         );
         const nom = nettoyerNomSection(
           sec.libelleSection || libelleSection,
           typeSectionId,
-          store.typesSection,
+          refStore.typesSection,
           sec.frequenceLibelle || '',
-          sec.regleEchantillonnageLibelle || ''
+          ''
         );
 
         const lignesTriees = [...(sec.lignes || [])].sort((a, b) =>
@@ -146,7 +147,7 @@ export function useModelLoader(store, ctx) {
           ...freqData,
           isNewFreq: false,
           libelleSection,
-          lignes: lignesTriees.map(lig => ({ 
+          lignes: lignesTriees.map(lig => ({
             id: lig.id,
             isFromDb: true,
             typeCaracteristiqueId: lig.typeCaracteristiqueId,
@@ -161,17 +162,17 @@ export function useModelLoader(store, ctx) {
             observations: lig.observations || '',
             moyenTexteLibre: lig.moyenTexteLibre || '',
             imageBase64: lig.imageBase64 || null,
-            valeursColonnesSpecifiques: lig.extraColonnes 
-              ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne])) 
+            valeursColonnesSpecifiques: lig.extraColonnes
+              ? Object.fromEntries(lig.extraColonnes.map(ec => [ec.cleColonne, ec.valeurColonne]))
               : (lig.colonnesSupplementaires ? JSON.parse(lig.colonnesSupplementaires) : {})
           }))
         };
       });
-      
+
       if (ctx.isUpgradeMode.value) {
         toast.add({ severity: 'info', summary: 'Mode Édition Activé', detail: 'Modifiez la structure (mise à niveau avec le PRC actif), puis cliquez sur "Enregistrer la Nouvelle Version".', life: 5000 });
       }
-      
+
       if (!ctx.isForcedView.value) {
         setTimeout(() => {
           ctx.initializeSnapshot(createModeleSnapshot(store.entete, ctx.groupes.value));
@@ -199,14 +200,14 @@ export function useModelLoader(store, ctx) {
     const preservedRef = store.entete.refFormulaireCodeReference;
     const preservedCols = store.entete.configurationColonnes;
 
-    store.entete = { 
+    store.entete = {
       ...store.entete,
-      operationCode: '', 
-      natureComposantCode: '', 
-      typeRobinetCode: '', 
-      libelle: '', 
-      notes: '', 
-      legendeMoyens: '', 
+      operationCode: '',
+      natureComposantCode: '',
+      typeRobinetCode: '',
+      libelle: '',
+      notes: '',
+      legendeMoyens: '',
       posteCode: '',
       familleProduitCode: '',
       refFormulaireCodeReference: preservedRef || '',
@@ -215,7 +216,7 @@ export function useModelLoader(store, ctx) {
     ctx.groupes.value = [];
 
     store.applyFormulaireConfiguration();
-    
+
     setTimeout(() => {
       ctx.initializeSnapshot(createModeleSnapshot(store.entete, ctx.groupes.value));
     }, 100);

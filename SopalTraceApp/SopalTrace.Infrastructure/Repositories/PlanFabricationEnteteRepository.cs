@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces.Repositories;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 using System;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.Repositories;
 
+/// <summary>Plans de fabrication stockés dans Document_Entete (type PLAN_FAB, portée SPECIFIQUE).</summary>
 public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
 {
     private readonly SopalTraceDbContext _context;
@@ -18,104 +20,100 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
         _context = context;
     }
 
-    public async Task<PlanFabricationEntete?> GetByIdAsync(Guid id, bool includeRelations = false)
+    private IQueryable<DocumentEntete> Plans =>
+        _context.DocumentEntetes.Where(p => p.TypeDocumentCode == TypesDocument.PlanFabrication);
+
+    private static IQueryable<DocumentEntete> AvecStructure(IQueryable<DocumentEntete> query) => query
+        .AsSplitQuery()
+        .Include(p => p.DocumentSections)
+            .ThenInclude(s => s.DocumentLignes)
+                .ThenInclude(l => l.DocumentLigneExtraColonnes)
+        .Include(p => p.DocumentSections)
+            .ThenInclude(s => s.DocumentLignes)
+                .ThenInclude(l => l.DocumentLineImage);
+
+    public async Task<DocumentEntete?> GetByIdAsync(Guid id, bool includeRelations = false)
     {
-        var query = _context.PlanFabricationEntetes.AsQueryable();
+        var query = Plans;
 
         if (includeRelations)
-        {
-            query = query
-                .Include(p => p.PlanFabricationSections)
-                    .ThenInclude(s => s.PlanFabricationLignes)
-                        .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
-                .Include(p => p.Formulaire)
-                .Include(p => p.ModeleSource);
-        }
+            query = AvecStructure(query).Include(p => p.Formulaire).Include(p => p.DocumentSource);
 
         return await query.FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    public async Task<IEnumerable<PlanFabricationEntete>> GetAllAsync(bool includeRelations = false)
+    public async Task<IEnumerable<DocumentEntete>> GetAllAsync(bool includeRelations = false)
     {
-        var query = _context.PlanFabricationEntetes.AsQueryable();
+        var query = Plans;
 
         if (includeRelations)
-        {
-            query = query
-                .Include(p => p.PlanFabricationSections)
-                    .ThenInclude(s => s.PlanFabricationLignes)
-                        .ThenInclude(l => l.PlanFabricationLigneExtraColonnes);
-        }
+            query = AvecStructure(query);
 
         return await query.ToListAsync();
     }
 
-    public async Task AddAsync(PlanFabricationEntete document)
+    public async Task AddAsync(DocumentEntete document)
     {
-        await _context.PlanFabricationEntetes.AddAsync(document);
+        document.TypeDocumentCode = TypesDocument.PlanFabrication;
+        document.Portee = PorteesDocument.Specifique;
+        await _context.DocumentEntetes.AddAsync(document);
     }
 
-    public Task UpdateAsync(PlanFabricationEntete document)
+    public Task UpdateAsync(DocumentEntete document)
     {
-        _context.PlanFabricationEntetes.Update(document);
+        _context.DocumentEntetes.Update(document);
         return Task.CompletedTask;
     }
 
-    public Task DeleteAsync(PlanFabricationEntete document)
+    public Task DeleteAsync(DocumentEntete document)
     {
-        _context.PlanFabricationEntetes.Remove(document);
+        _context.DocumentEntetes.Remove(document);
         return Task.CompletedTask;
     }
 
-    public void RemoveSection(PlanFabricationSection section)
+    public void RemoveSection(DocumentSection section)
     {
-        _context.PlanFabricationSections.Remove(section);
+        _context.DocumentSections.Remove(section);
     }
 
-    public void RemoveLigne(PlanFabricationLigne ligne)
+    public void RemoveLigne(DocumentLigne ligne)
     {
-        _context.PlanFabricationLignes.Remove(ligne);
+        _context.DocumentLignes.Remove(ligne);
     }
 
-    public void RemoveExtraColonne(PlanFabricationLigneExtraColonne extraColonne)
+    public void RemoveExtraColonne(DocumentLigneExtraColonne extraColonne)
     {
-        _context.Set<PlanFabricationLigneExtraColonne>().Remove(extraColonne);
+        _context.DocumentLigneExtraColonnes.Remove(extraColonne);
     }
 
     /// <summary>Insert une nouvelle section directement dans le DbSet — EntityState.Added garanti.</summary>
-    public void AddSection(PlanFabricationSection section)
+    public void AddSection(DocumentSection section)
     {
-        _context.PlanFabricationSections.Add(section);
+        _context.DocumentSections.Add(section);
     }
 
-    public async Task<IEnumerable<PlanFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId)
+    public async Task<IEnumerable<DocumentEntete>> GetByFormulaireIdAsync(Guid formulaireId)
     {
-        return await _context.PlanFabricationEntetes
+        return await Plans
             .Where(p => p.FormulaireId == formulaireId)
             .ToListAsync();
     }
 
-    public async Task<PlanFabricationEntete?> GetActifByReferenceAsync(string typeDocumentCode, string codeArticleSageVersionne, string? operationCode = null)
+    public async Task<DocumentEntete?> GetActifByReferenceAsync(string typeDocumentCode, string codeArticleSageVersionne, string? operationCode = null)
     {
-        var query = _context.PlanFabricationEntetes.Where(p => p.Statut == "ACTIF" && p.CodeArticleSageVersionne == codeArticleSageVersionne);
-        
-        if (!string.IsNullOrWhiteSpace(operationCode))
-        {
-            query = query.Where(p => p.OperationCode == operationCode);
-        }
+        var query = Plans.Where(p => p.Statut == DocumentStatuts.Actif && p.CodeArticleSageVersionne == codeArticleSageVersionne);
 
-        return await query
-            .Include(p => p.PlanFabricationSections)
-                .ThenInclude(s => s.PlanFabricationLignes)
-                    .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
-            .FirstOrDefaultAsync();
+        if (!string.IsNullOrWhiteSpace(operationCode))
+            query = query.Where(p => p.OperationCode == operationCode);
+
+        return await AvecStructure(query).FirstOrDefaultAsync();
     }
-    
-    public async Task<IEnumerable<PlanFabricationEntete>> GetByFiltersAsync(
-        string? operationCode = null, 
+
+    public async Task<IEnumerable<DocumentEntete>> GetByFiltersAsync(
+        string? operationCode = null,
         string? statut = null)
     {
-        var query = _context.PlanFabricationEntetes.AsQueryable();
+        var query = Plans;
 
         if (!string.IsNullOrWhiteSpace(operationCode))
             query = query.Where(p => p.OperationCode == operationCode);
@@ -123,27 +121,18 @@ public class PlanFabricationEnteteRepository : IPlanFabricationEnteteRepository
         if (!string.IsNullOrWhiteSpace(statut) && statut != "ALL")
             query = query.Where(p => p.Statut == statut);
 
-        return await query
-            .Include(p => p.PlanFabricationSections)
-                .ThenInclude(s => s.PlanFabricationLignes)
-                    .ThenInclude(l => l.PlanFabricationLigneExtraColonnes)
-            .ToListAsync();
+        return await AvecStructure(query).ToListAsync();
     }
 
     public async Task<int> GetLatestVersionAsync(
-        string codeArticleSageVersionne, 
+        string codeArticleSageVersionne,
         string? operationCode = null)
     {
-        var query = _context.PlanFabricationEntetes.Where(p => p.CodeArticleSageVersionne == codeArticleSageVersionne);
+        var query = Plans.Where(p => p.CodeArticleSageVersionne == codeArticleSageVersionne);
 
         if (!string.IsNullOrWhiteSpace(operationCode))
             query = query.Where(p => p.OperationCode == operationCode);
-        
-        if (await query.AnyAsync())
-        {
-            return await query.MaxAsync(p => p.Version);
-        }
 
-        return 0;
+        return await query.MaxAsync(p => (int?)p.Version) ?? 0;
     }
 }

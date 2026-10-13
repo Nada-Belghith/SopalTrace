@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -5,6 +6,7 @@ using SopalTrace.Application.DTOs.Execution;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Interfaces.Execution;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 
 namespace SopalTrace.Application.Services
 {
@@ -26,52 +28,49 @@ namespace SopalTrace.Application.Services
             var execOf = await _unitOfWork.ExecControleOfRepository.GetByIdWithOFAsync(execControleOfId);
 
             if (execOf == null)
-                throw new Exception("Exécution non trouvée.");
+                throw new RessourceIntrouvableException("Exécution non trouvée.");
 
             var tailleLot = Convert.ToInt32(execOf.NumeroOfNavigation.QuantiteLancee);
             if (tailleLot <= 0)
-                throw new Exception("L'OF n'a pas de quantité valide.");
+                throw new RegleMetierException("L'OF n'a pas de quantité valide.");
 
-            var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
-
-            if (plan == null)
-                throw new Exception("Plan d'échantillonnage source introuvable.");
+            var plan = (await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync())?.SamplingPlan
+                ?? throw new RessourceIntrouvableException("Plan d'échantillonnage source introuvable.");
 
             // Get LettreCode
-            var lettreCode = await _iso2859Service.GetLettreCodeAsync(tailleLot, plan.NiveauControle);
+            var lettreCode = await _iso2859Service.GetLettreCodeAsync(tailleLot, plan.InspectionLevelCode);
             if (string.IsNullOrEmpty(lettreCode))
-                throw new Exception($"Impossible de déterminer la Lettre Code pour le lot de {tailleLot} et niveau {plan.NiveauControle}.");
+                throw new RegleMetierException($"Impossible de déterminer la Lettre Code pour le lot de {tailleLot} et niveau {plan.InspectionLevelCode}.");
 
-            var nqaValeur = plan.Nqa?.ValeurNqa ?? 0.01; // Fallback if Nqa is null
-            if (plan.Nqa == null)
-            {
-                 // We might need a repository for NQA or modify GetByIdAsync
-            }
 
-            var effectif = await _iso2859Service.GetEffectifEchantillonAsync(lettreCode, nqaValeur);
+            var effectif = await _iso2859Service.GetEffectifEchantillonAsync(lettreCode);
             if (effectif == null)
-                throw new Exception($"Impossible de déterminer l'effectif pour Lettre {lettreCode} et NQA {nqaValeur}.");
+                throw new RegleMetierException($"Impossible de déterminer l'effectif pour la lettre code {lettreCode}.");
 
             // Ac and Re criteria
-            int critereAc = plan.CritereAcceptationAc;
-            int critereRe = plan.CritereRejetRe;
+            int critereAc = plan.AcceptanceNumber;
+            int critereRe = plan.RejectionNumber;
 
             var postesActifs = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
             int nbPostesTotal = request.NbPostes ?? (postesActifs.Any() ? postesActifs.Count() : 1);
             int effectifParPoste = (int)Math.Ceiling((double)effectif.Value / nbPostesTotal);
 
+            var activeSession = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
+
             var docStatut = new ExecControleDocumentStatut
             {
                 Id = Guid.NewGuid(),
                 ExecControleOfId = execOf.Id,
-                TypeDocument = "ECHANTILLONNAGE",
+                TypeDocument = TypesDocumentExecution.Echantillonnage,
                 PosteCode = request.PosteCode,
-                DocId = plan.Id,
+                DocId = plan.DocumentId,
+                SessionId = activeSession?.Id,
                 EstDemarrageTermine = true,
+                EstPauseTermine = true,
                 EstTermine = true,
                 DateExecution = DateTime.Now,
                 DateTermine = DateTime.Now,
-                Equipe = request.Equipe,
+                Equipe = Equipes.NormaliserOuNull(request.Equipe),
                 MachineCode = request.MachineCode,
                 MatriculeOperateur = request.MatriculeOperateur
             };
@@ -88,6 +87,7 @@ namespace SopalTrace.Application.Services
                 EffectifEchantillonA = effectif.Value,
                 EffectifParPosteAb = effectifParPoste,
                 CritereAcceptationAc = critereAc,
+                CritereRejetRe = critereRe,
             };
 
             if (request.InstrumentCodes != null && request.InstrumentCodes.Any())
@@ -117,7 +117,7 @@ namespace SopalTrace.Application.Services
                 PosteCode = docStatut.PosteCode,
                 CritereAcceptationAc = execEchantillonnage.CritereAcceptationAc,
                 CritereRejetRe = execEchantillonnage.CritereRejetRe,
-                InstrumentCodes = request.InstrumentCodes // Passing it back from request for now
+                InstrumentCodes = request.InstrumentCodes ?? new()
             };
         }
 
@@ -127,22 +127,22 @@ namespace SopalTrace.Application.Services
             if (exec == null) return null;
 
             var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
-            var statutEchantillonnage = statuts.FirstOrDefault(s => s.TypeDocument == "ECHANTILLONNAGE" && (posteCode == null || s.PosteCode == posteCode));
+            var statutEchantillonnage = statuts.FirstOrDefault(s => s.TypeDocument == TypesDocumentExecution.Echantillonnage && (posteCode == null || s.PosteCode == posteCode));
 
             string? niveauControle = null;
             string? typePlan = null;
             string? modeControle = null;
-            double? nqaValeur = null;
+            decimal? nqaValeur = null;
 
             if (statutEchantillonnage?.DocId != null)
             {
-                var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(statutEchantillonnage.DocId.Value);
+                var plan = (await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetByIdAsync(statutEchantillonnage.DocId.Value))?.SamplingPlan;
                 if (plan != null)
                 {
-                    niveauControle = plan.NiveauControle;
-                    typePlan = plan.TypePlan;
-                    modeControle = plan.ModeControle;
-                    nqaValeur = plan.Nqa?.ValeurNqa;
+                    niveauControle = plan.InspectionLevelCode;
+                    typePlan = plan.SamplingType;
+                    modeControle = plan.InspectionSeverity;
+                    nqaValeur = plan.AcceptableQualityLevel?.ValeurNqa;
                 }
             }
 
@@ -191,60 +191,5 @@ namespace SopalTrace.Application.Services
             return plan != null;
         }
 
-        public async Task<ExecEchantillonnageDto> UpdatePlanAsync(Guid id, ExecEchantillonnageDto request)
-        {
-            var exec = await _unitOfWork.ExecEchantillonnageRepository.GetByIdAsync(id);
-            if (exec == null)
-                throw new Exception("Exécution non trouvée.");
-
-            exec.LettreCode = request.LettreCode;
-            exec.EffectifEchantillonA = request.EffectifEchantillonA;
-            exec.NbPostesB = request.NbPostesB;
-            exec.EffectifParPosteAb = request.EffectifParPosteAb;
-            exec.CritereAcceptationAc = request.CritereAcceptationAc;
-            exec.CritereRejetRe = request.CritereRejetRe;
-            if (request.InstrumentCodes != null)
-            {
-                exec.CodeInstruments.Clear();
-                var instruments = await _unitOfWork.DictionnaireQualiteRepository.GetInstrumentsByCodesAsync(request.InstrumentCodes);
-                foreach (var inst in instruments)
-                {
-                    exec.CodeInstruments.Add(inst);
-                }
-            }
-
-            // Mettre à jour le poste et code machine si modifié (via ExecControleDocumentStatut)
-            var statuts = await _operateurRepository.GetDocumentStatutsAsync(exec.ExecControleDocumentStatut.ExecControleOfId);
-            var statut = statuts.FirstOrDefault(s => s.Id == exec.ExecControleDocumentStatutId);
-            if (statut != null)
-            {
-                statut.PosteCode = request.PosteCode;
-                statut.MachineCode = request.CodeMachine;
-                statut.EstDemarrageTermine = true;
-                statut.EstTermine = true;
-                statut.DateTermine ??= DateTime.Now;
-                if (request.DateEchantillonnage.HasValue)
-                {
-                    statut.DateExecution = request.DateEchantillonnage.Value;
-                }
-                // Save statut
-                _operateurRepository.UpdateExecControleDocumentStatut(statut);
-            }
-
-            if (request.DateFabrication.HasValue)
-            {
-                var execOf = await _unitOfWork.ExecControleOfRepository.GetByIdWithOFAsync(exec.ExecControleDocumentStatut.ExecControleOfId);
-                if (execOf != null)
-                {
-                    execOf.DateDebut = request.DateFabrication.Value;
-                    // Note: Update ExecControleOF in repo if needed, assuming ChangeTracker handles it or explicit update needed
-                }
-            }
-
-            await _unitOfWork.ExecEchantillonnageRepository.UpdateAsync(exec);
-            await _unitOfWork.CommitAsync();
-
-            return request;
-        }
     }
 }

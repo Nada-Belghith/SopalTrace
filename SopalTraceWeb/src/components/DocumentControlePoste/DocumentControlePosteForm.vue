@@ -29,7 +29,7 @@
                     </Dropdown>
                 </div>
                 <p class="text-xs text-emerald-600/80 font-medium italic">
-                  La sélection du formulaire remplira automatiquement le poste.
+                  Le poste et la famille sont ceux du formulaire choisi (ex. « PAS71 soupape » : poste PAS71, famille avec soupape).
                 </p>
               </div>
 
@@ -37,7 +37,7 @@
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Poste de travail concerné</label>
                 <Dropdown v-model="store.entete.posteCode" :options="refStore.postesTravail" optionLabel="libelle" optionValue="code" 
-                          placeholder="Choisir un poste" class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id" @change="onSelectionChange"
+                          placeholder="Choisir un poste" class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id || !!formulaireChoisi?.posteCode" @change="onSelectionChange"
                           :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                     <template #value="slotProps">
                         <div v-if="slotProps.value" class="text-sm font-semibold text-slate-800">
@@ -47,6 +47,18 @@
                     </template>
                     <template #option="slotProps">
                         <div class="text-sm">Poste {{ slotProps.option.code }} - {{ slotProps.option.libelle }}</div>
+                    </template>
+                </Dropdown>
+              </div>
+
+              <!-- FAMILLE DE PRODUIT FINI : document propre à une famille (ex. avec soupape) ; vide = tous les produits -->
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Famille de produit fini</label>
+                <Dropdown v-model="store.entete.familleProduitFiniCode" :options="refStore.famillesProduit" optionLabel="libelle" optionValue="code"
+                          placeholder="Toutes les familles" showClear class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id || !!formulaireChoisi?.familleProduitFiniCode"
+                          :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
+                    <template #option="slotProps">
+                        <div class="text-sm">{{ slotProps.option.code }} - {{ slotProps.option.libelle }}</div>
                     </template>
                 </Dropdown>
               </div>
@@ -249,8 +261,22 @@
               <i class="pi pi-users"></i>
               Configuration des Équipes et Horaires
             </h3>
+            <p class="text-xs text-slate-300 mb-4">
+              Chaque équipe est rattachée à son code (celui choisi par l'opérateur au démarrage) : seule l'équipe en production
+              saisit, et seulement ses heures. Heure de fin exclue ; une équipe de nuit finit le lendemain (ex. 22 → 6).
+              La journée du document commence à l'heure de la première équipe.
+            </p>
+            <p v-if="erreurEquipes" class="mb-3 rounded-lg bg-rose-500/15 border border-rose-400/40 px-3 py-2 text-xs font-semibold text-rose-200">
+              <i class="pi pi-exclamation-triangle mr-1"></i>{{ erreurEquipes }}
+            </p>
             <div class="space-y-3">
               <div v-for="(eq, idx) in store.entete.configurationColonnes.equipes" :key="idx" class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                <div class="w-36">
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Équipe</label>
+                  <select v-model="eq.code" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-sm outline-none focus:border-emerald-500">
+                    <option v-for="t in equipesReference" :key="t.code" :value="t.code">{{ t.code }} — {{ t.libelle }}</option>
+                  </select>
+                </div>
                 <div class="flex-1">
                   <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nom de l'équipe</label>
                   <input type="text" v-model="eq.nom" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm outline-none focus:border-emerald-500" placeholder="Ex: Equipe 1" />
@@ -270,7 +296,7 @@
                 </div>
               </div>
             </div>
-            <button @click="store.entete.configurationColonnes.equipes.push({ nom: 'Nouvelle équipe', debut: 6, fin: 14 })" class="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors flex items-center gap-2">
+            <button @click="ajouterEquipe" class="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors flex items-center gap-2">
               <i class="pi pi-plus"></i> Ajouter une équipe
             </button>
           </div>
@@ -337,6 +363,7 @@
 </template>
 
 <script setup>
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
@@ -347,10 +374,9 @@ import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
-import { parseDesignation } from '@/utils/designationParser';
 import Dropdown from 'primevue/dropdown';
-import AutoComplete from 'primevue/autocomplete';
-import InputText from 'primevue/inputtext';
+import { referentielsService } from '@/services/referentielsService';
+import { EQUIPES_CONTROLE_POSTE_PAR_DEFAUT } from '@/constants/execution';
 
 const props = defineProps({
     isReadOnly: { type: Boolean, default: false }
@@ -364,6 +390,42 @@ const toast = useToast();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 const fileInput = ref(null);
 const refFormulaireSelected = ref('');
+
+/** Équipes de l'usine (E1, E2, E3…) auxquelles rattacher les équipes du document. */
+const equipesReference = ref([]);
+
+const tranchesEquipe = (eq) => {
+  const debut = Number(eq.debut), fin = Number(eq.fin), tranches = [];
+  if (!Number.isInteger(debut) || !Number.isInteger(fin) || debut === fin) return tranches;
+  for (let h = debut; h !== fin; h = (h + 1) % 24) tranches.push(h);
+  return tranches;
+};
+
+/** Même contrôle que le serveur : code unique, heures valides, aucune heure couverte par deux équipes. */
+const erreurEquipes = computed(() => {
+  const equipes = store.entete.configurationColonnes?.equipes || [];
+  const codes = new Set(), heures = new Map();
+  for (const eq of equipes) {
+    if (!eq.code) return `Choisissez l'équipe (E1, E2…) de « ${eq.nom || 'sans nom'} ».`;
+    if (codes.has(eq.code)) return `L'équipe ${eq.code} est définie deux fois.`;
+    codes.add(eq.code);
+    if (Number(eq.debut) === Number(eq.fin)) return `« ${eq.nom} » doit commencer et finir à des heures différentes.`;
+    for (const h of tranchesEquipe(eq)) {
+      if (heures.has(h)) return `L'heure ${String(h).padStart(2, '0')} h est couverte par deux équipes (${heures.get(h)} et ${eq.code}).`;
+      heures.set(h, eq.code);
+    }
+  }
+  return null;
+});
+
+const ajouterEquipe = () => {
+  const equipes = store.entete.configurationColonnes.equipes;
+  const libre = equipesReference.value.find(t => !equipes.some(e => e.code === t.code));
+  equipes.push({ code: libre?.code || '', nom: libre?.libelle || 'Nouvelle équipe', debut: 6, fin: 14 });
+};
+/** Formulaire choisi : son poste et sa famille (champs du référentiel) s'imposent au document. */
+const formulaireChoisi = computed(() =>
+  (refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || []).find(f => f.id === refFormulaireSelected.value) || null);
 const showColumnModal = ref(false);
 
 const standardColumns = computed(() => {
@@ -400,14 +462,6 @@ const baseColumnsMapped = computed(() => {
     { key: 'col_machine', label: "Machine Banc d'essai", type: 'TEXT', group: null },
     { key: 'col_designation', label: "Désignation du défaut", type: 'TEXT', group: null }
   ];
-  const postesOptions = computed(() => refStore.postesTravail.map(p => ({
-    value: p.code || p.Code || p.codePoste || p.CodePoste,
-    label: p.libelle || p.Libelle || p.designation || p.Designation
-  })));
-  const machinesOptions = computed(() => refStore.machines || []);
-  const defautsOptions = computed(() => refStore.risquesDefauts || []);
-  const isDicosLoaded = computed(() => refStore.isDicosControlePosteLoaded);
-  const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || []);
   const std = standardColumns.value.map(c => ({
     key: c.id,
     label: c.header,
@@ -436,7 +490,8 @@ const customInlineCols = computed(() => {
   return customColumns.value.map(cc => ({
     id: cc.id || cc.key,
     header: cc.header || cc.label,
-    type: cc.type || 'TEXT',
+    type: normaliserTypeColonne(cc.type),
+    options: cc.options || [],
     group: null,
     isCustom: true
   }));
@@ -504,6 +559,11 @@ const onCancel = () => {
 };
 
 onMounted(async () => {
+  try {
+    equipesReference.value = (await referentielsService.getEquipes()).data?.data || [];
+  } catch {
+    equipesReference.value = EQUIPES_CONTROLE_POSTE_PAR_DEFAUT.map(e => ({ code: e.code, libelle: e.nom }));
+  }
   if (!refStore.isDicosControlePosteLoaded) {
     await refStore.fetchDictionnaires('controle-poste');
   }
@@ -535,10 +595,15 @@ watch(refFormulaireSelected, (newRefId) => {
     const selectedForm = (refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || []).find(f => f.id === newRefId);
     if (!selectedForm) return;
 
-    const designation = selectedForm.designation || '';
-    const parsed = parseDesignation(designation, [], [], refStore.postesTravail || []);
+    // Poste du formulaire (champ du référentiel, jamais déduit du texte), sinon celui déjà choisi.
+    const posteCode = selectedForm.posteCode || store.entete.posteCode;
+    if (!posteCode) {
+      store.entete.formulaireId = newRefId;
+      store.entete.formulaireCodeReference = selectedForm.codeReference || null;
+      return;
+    }
 
-    if (parsed.posteCode) {
+    {
       store.entete.formulaireId = newRefId;
       store.entete.formulaireCodeReference = selectedForm.codeReference || null;
 
@@ -551,13 +616,14 @@ watch(refFormulaireSelected, (newRefId) => {
             ? structure.customCols.map(c => ({
                 key: c.key || c.cleColonne,
                 label: c.label || c.labelAffiche || c.titre,
-                type: c.type || c.typeValeur || 'Texte',
+                type: normaliserTypeColonne(c.type || c.typeValeur),
+                options: c.options || [],
                 insertAfter: c.insertAfter || 'col_designation'
               }))
             : [];
           const equipes = (structure.equipes && structure.equipes.length > 0)
-            ? structure.equipes.map(e => ({ nom: e.nom, debut: e.debut, fin: e.fin }))
-            : [{ nom: 'Equipe 1', debut: 6, fin: 14 }, { nom: 'Equipe 2', debut: 14, fin: 22 }];
+            ? structure.equipes.map((e, i) => ({ code: e.code || `E${i + 1}`, nom: e.nom, debut: e.debut, fin: e.fin }))
+            : EQUIPES_CONTROLE_POSTE_PAR_DEFAUT.map(e => ({ ...e }));
           configColonnes = { equipes, customCols };
         } catch (e) {
           console.error('Erreur parsing configurationStructureJson:', e);
@@ -566,11 +632,12 @@ watch(refFormulaireSelected, (newRefId) => {
 
       // Initialiser le nouveau plan AVEC la structure chargée
       store.initialiserNouveauPlan(
-        parsed.posteCode,
+        posteCode,
         newRefId,
         selectedForm.codeReference || null,
         configColonnes
       );
+      store.entete.familleProduitFiniCode = selectedForm.familleProduitFiniCode || null;
     }
   }
 });

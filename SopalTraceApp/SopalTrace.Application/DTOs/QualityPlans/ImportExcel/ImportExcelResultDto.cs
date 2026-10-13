@@ -19,8 +19,6 @@ public class ImportExcelSectionDto
     public string Notes { get; set; } = string.Empty;
     public Guid? TypeSectionId { get; set; }
     public Guid? PeriodiciteId { get; set; }
-    public Guid? RegleEchantillonnageId { get; set; }
-    public string RegleEchantillonnageLibelle { get; set; } = string.Empty;
     public string ModeFreq { get; set; } = "SANS";
     public int FreqNum { get; set; } = 1;
     public string TypeVariable { get; set; } = "HEURE";
@@ -36,6 +34,8 @@ public class ImportExcelLigneDto
     public Guid? TypeCaracteristiqueId { get; set; }
     public Guid? TypeControleId { get; set; }
     public Guid? MoyenControleId { get; set; }
+    /// <summary>Moyen de contrôle absent du catalogue, conservé tel que saisi (exclusif avec MoyenControleId).</summary>
+    public string? MoyenTexteLibre { get; set; }
     public string InstrumentCode { get; set; } = string.Empty;
     public string LimiteSpecTexte { get; set; } = string.Empty;
     public string Observations { get; set; } = string.Empty;

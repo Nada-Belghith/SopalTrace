@@ -94,8 +94,29 @@ const toggleMobileMenu = () => {
       <!-- Navigation Principale -->
       <nav class="flex-1 overflow-y-auto py-6 custom-scrollbar" @click="isMobileMenuOpen = false">
         
+        <!-- SECTION : ADMIN -->
+        <template v-if="authStore.userRole === 'ADMIN'">
+          <div class="px-6 mb-3">
+            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Administration</p>
+          </div>
+          <ul class="px-4 mb-6 space-y-2">
+            <li>
+              <router-link to="/dev/admin-dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50" active-class="bg-[#1e293b] text-blue-400 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.08)] font-bold border border-transparent">
+                <i class="pi pi-chart-line text-lg"></i>
+                <span>Dashboard Admin</span>
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/dev/habilitations" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50" active-class="bg-[#1e293b] text-blue-400 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.08)] font-bold border border-transparent">
+                <i class="pi pi-shield text-lg"></i>
+                <span>Gestion Habilitations</span>
+              </router-link>
+            </li>
+          </ul>
+        </template>
+
         <!-- SECTION : SUPERVISEUR QUALITE -->
-        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE' || authStore.userRole === 'ADMIN'">
+        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE'">
           <!-- SECTION 1 : STRUCTURE DES PLANS -->
           <div class="px-6 mb-3">
             <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Structure des plans</p>
@@ -160,7 +181,7 @@ const toggleMobileMenu = () => {
         </template>
 
         <!-- SECTION : RESPONSABLE DI -->
-        <template v-if="authStore.isResponsable || authStore.userRole === 'ADMIN'">
+        <template v-if="authStore.userRole === 'RESPONSABLE_DI'">
           <!-- SECTION 1 : PLANS DE CONTRÔLES -->
           <div class="px-6 mb-3">
             <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Plans de contrôles</p>
@@ -235,7 +256,7 @@ const toggleMobileMenu = () => {
         </template>
 
         <!-- SECTION 3 : ANALYSES -->
-        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE' || authStore.userRole === 'ADMIN' || authStore.isResponsable">
+        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE' || authStore.isResponsable">
           <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
             <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Analyses</p>
           </div>
@@ -256,7 +277,12 @@ const toggleMobileMenu = () => {
           <ul class="space-y-1 px-3 mb-6">
             <li>
               <router-link to="/magasinier/scan-of" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-bold">
-                <i class="pi pi-qrcode"></i> Scan Ordre de Fab (OF)
+                <i class="pi pi-box"></i> Matière Première
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/magasinier/scan-bl" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 font-bold">
+                <i class="pi pi-truck"></i> Produits Finis (Expéd.)
               </router-link>
             </li>
           </ul>

@@ -87,6 +87,8 @@ public class RefFormulaireService : IRefFormulaireService
                 Statut = StatutsPlan.Actif,
                 CreeLe = DateTime.UtcNow,
                 Role = oldForm.Role,
+                PosteCode = oldForm.PosteCode,
+                FamilleProduitFiniCode = oldForm.FamilleProduitFiniCode
             };
 
             var parsedCols = ColonneJsonMapper.Deserialize(dto.ConfigurationStructureJson ?? ColonneJsonMapper.Serialize(oldCols));

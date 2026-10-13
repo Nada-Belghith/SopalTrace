@@ -50,7 +50,7 @@ export function parseDesignation(designation, validFamilies = [], validMachines 
   if (d.includes('ASS') || d.includes('ASSEMBLAGE') || d.includes('PF')) {
     result.operationCode = 'ASS';
   } else if (d.includes('USINAGE') || d.includes('FAB')) {
-    result.operationCode = 'USI'; // example
+    result.operationCode = 'USINAG';
   }
 
   // 4. Poste

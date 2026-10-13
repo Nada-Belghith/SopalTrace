@@ -1,20 +1,23 @@
-using SopalTrace.Domain.Entities;
 using System;
 using System.Threading.Tasks;
+using SopalTrace.Domain.Entities;
 
 namespace SopalTrace.Application.Interfaces.Execution
 {
+    /// <summary>
+    /// Résultat contrôle en cours de fabrication (ENCF) : document RESULTAT_CF exécuté pendant un OF démarré,
+    /// sur la même exécution que les autres documents (pièces types et résultats par tranche de l'OF).
+    /// </summary>
     public interface IExecEncfRepository
     {
-        Task<ExecControleOf?> GetExecEncfAsync(Guid id);
-        Task<ExecControleOf?> GetEnCoursExecEncfByOfAsync(string numeroOf, string posteCode);
-        Task<MfgheadOrdreFabrication?> GetOfDetailsAsync(string numeroOf);
-        Task AddExecEncfAsync(ExecControleOf entity);
+        Task<ExecControleOf?> GetExecutionAsync(Guid execControleOfId);
+        /// <summary>Exécution non clôturée de l'OF ; pour un OF d'assemblage, le poste doit lui être affecté.</summary>
+        Task<ExecControleOf?> GetExecutionOuverteAsync(string numeroOf, string posteCode);
+        /// <summary>Document « résultat contrôle en cours de fabrication » actif du poste (ou commun à tous les postes).</summary>
+        Task<DocumentEntete?> GetDocumentActifAsync(string posteCode);
+        void AddStatut(ExecControleDocumentStatut statut);
+        void AddTranche(ExecControleTranche tranche);
+        void AddPieceType(ExecPieceType pieceType);
         Task SaveChangesAsync();
-        
-        Task RemoveTranches(System.Collections.Generic.IEnumerable<ExecControleTranche> items);
-        Task AddTranche(ExecControleTranche item);
-        Task RemovePieceTypes(System.Collections.Generic.IEnumerable<ExecPieceType> items);
-        Task AddPieceType(ExecPieceType item);
     }
 }

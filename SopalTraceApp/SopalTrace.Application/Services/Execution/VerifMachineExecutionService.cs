@@ -1,11 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SopalTrace.Application.Dtos.VerifMachine;
-using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Interfaces.Execution;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 
 namespace SopalTrace.Application.Services.Execution;
 
@@ -18,36 +18,35 @@ public class VerifMachineExecutionService : IVerifMachineExecutionService
         _operateurRepository = operateurRepository;
     }
 
-    public async Task<ExecVerifMachineSessionDto> GetExecVerifMachineAsync(Guid statutId, Guid? periodiciteId = null)
+    public async Task<ExecVerifMachineSessionDto> GetExecVerifMachineAsync(Guid statutId)
     {
-        var reponses = await _operateurRepository.GetExecVerifMachineReponsesAsync(statutId, periodiciteId);
-        var docStatut = await _operateurRepository.GetDocumentStatutByIdAsync(statutId);
+        var docStatut = await GetStatutVerifMachineAsync(statutId);
+        // Historique en ajout seul : seule la dernière saisie de chaque échéance est affichée.
+        var reponses = (await _operateurRepository.GetExecVerifMachineReponsesAsync(statutId))
+            .GroupBy(r => r.DocumentVerifMachineEcheanceId)
+            .Select(g => g.OrderByDescending(r => r.DateExecution).First())
+            .ToList();
 
-        var availableSessions = new List<VerifMachineSessionSummaryDto>();
-        if (docStatut != null && !string.IsNullOrEmpty(docStatut.MachineCode))
+        var aujourdhui = DateTime.Today;
+        var sessions = await _operateurRepository.GetDocumentStatutsForMachineAsync(docStatut.ExecControleOfId, docStatut.MachineCode!);
+
+        return new ExecVerifMachineSessionDto
         {
-            var today = DateTime.Now.Date;
-            var sessions = await _operateurRepository.GetDocumentStatutsForMachineAsync(docStatut.ExecControleOfId, docStatut.MachineCode);
-            availableSessions = sessions.Select(s => new VerifMachineSessionSummaryDto
+            NumeroOf = docStatut.ExecControleOf.NumeroOf,
+            CodeArticle = docStatut.ExecControleOf.NumeroOfNavigation?.CodeArticle,
+            DesignationArticle = docStatut.ExecControleOf.NumeroOfNavigation?.CodeArticleNavigation?.Designation,
+            Equipe = docStatut.Equipe,
+            MachineCode = docStatut.MachineCode,
+            DateExecution = docStatut.DateExecution ?? docStatut.DateTermine,
+            AvailableSessions = sessions.Select(s => new VerifMachineSessionSummaryDto
             {
                 StatutId = s.Id,
                 Equipe = s.Equipe,
                 DateExecution = s.DateExecution,
                 DateTermine = s.DateTermine,
-                EstTermine = s.EstTermine || (s.DateExecution.HasValue && s.DateExecution.Value.Date < today),
+                EstTermine = s.EstTermine || (s.DateExecution.HasValue && s.DateExecution.Value.Date < aujourdhui),
                 MatriculeOperateur = s.MatriculeOperateur
-            }).ToList();
-        }
-
-        return new ExecVerifMachineSessionDto
-        {
-            NumeroOf = docStatut?.ExecControleOf?.NumeroOf,
-            CodeArticle = docStatut?.ExecControleOf?.NumeroOfNavigation?.CodeArticle,
-            DesignationArticle = docStatut?.ExecControleOf?.NumeroOfNavigation?.CodeArticleNavigation?.Designation,
-            Equipe = docStatut?.Equipe,
-            MachineCode = docStatut?.MachineCode,
-            DateExecution = docStatut?.DateExecution ?? docStatut?.DateTermine,
-            AvailableSessions = availableSessions,
+            }).ToList(),
             Reponses = reponses.Select(r => new ExecVerifMachineReponseDto
             {
                 Id = r.Id,
@@ -63,33 +62,30 @@ public class VerifMachineExecutionService : IVerifMachineExecutionService
         };
     }
 
-    public async Task<bool> SaveExecVerifMachineAsync(SaveExecVerifMachineRequest request)
+    public async Task SaveExecVerifMachineAsync(SaveExecVerifMachineRequest request)
     {
+        var docStatut = await GetStatutVerifMachineAsync(request.ExecControleDocumentStatutId);
+        if (docStatut.ExecControleOf.Statut == StatutsExecution.Cloture)
+            throw new EtatExecutionInvalideException("Cet OF est clôturé : la vérification machine ne peut plus être modifiée.");
+
+        // Les vérifications d'une équipe dont la session est terminée restent consultables mais ne sont plus modifiables.
+        var sessionActive = await _operateurRepository.GetActiveSessionAsync(docStatut.ExecControleOfId);
+        if (docStatut.SessionId != sessionActive?.Id)
+            throw new EtatExecutionInvalideException("Cette vérification appartient à une session d'équipe terminée : elle ne peut plus être modifiée.");
+
         var dateExecution = DateTime.Now;
-
-        var docStatut = await _operateurRepository.GetDocumentStatutByIdAsync(request.ExecControleDocumentStatutId);
-        if (docStatut != null)
+        docStatut.DateExecution ??= dateExecution;
+        docStatut.MatriculeOperateur ??= request.MatriculeOperateur;
+        if (docStatut.EstTermine)
         {
-            docStatut.DateExecution ??= dateExecution;
-            docStatut.MatriculeOperateur ??= request.MatriculeOperateur;
-            if (docStatut.EstTermine)
-            {
-                docStatut.EstTermine = false;
-                docStatut.DateTermine = null;
-            }
-            _operateurRepository.UpdateExecControleDocumentStatut(docStatut);
+            docStatut.EstTermine = false;
+            docStatut.DateTermine = null;
         }
 
-        var anciennesReponses = await _operateurRepository.GetExecVerifMachineReponsesAsync(request.ExecControleDocumentStatutId, request.PeriodiciteMachineId);
-        
-        if (anciennesReponses.Any())
+        // Les réponses précédentes sont conservées (preuve ISO 9001) : la nouvelle saisie s'ajoute à l'historique.
+        _operateurRepository.AddExecVerifMachineReponses(request.Reponses.Select(r => new ExecVerifMachineReponse
         {
-            _operateurRepository.RemoveExecVerifMachineReponses(anciennesReponses);
-        }
-
-        var nouvellesReponses = request.Reponses.Select(r => new ExecVerifMachineReponse
-        {
-            ExecControleDocumentStatutId = request.ExecControleDocumentStatutId,
+            ExecControleDocumentStatutId = docStatut.Id,
             DocumentVerifMachineEcheanceId = r.DocumentVerifMachineEcheanceId,
             DateExecution = dateExecution,
             MatriculeOperateur = request.MatriculeOperateur,
@@ -97,63 +93,86 @@ public class VerifMachineExecutionService : IVerifMachineExecutionService
             FuiteAffichee = r.FuiteAffichee,
             Conforme = r.Conforme,
             Observation = r.Observation
-        }).ToList();
-
-        _operateurRepository.AddExecVerifMachineReponses(nouvellesReponses);
+        }).ToList());
 
         await _operateurRepository.SaveChangesAsync();
-        return true;
     }
 
-    public async Task<IEnumerable<object>> GetPeriodicitesMachineAsync()
+    public async Task TerminerToutDocumentsMachineAsync(Guid execControleOfId, string machineCode)
     {
-        var periodes = await _operateurRepository.GetPeriodicitesMachineAsync();
-        return periodes.Select(p => new { p.Id, p.Code, p.Libelle, p.OrdreAffichage });
-    }
+        await GetExecutionOuverteAsync(execControleOfId);
 
-    public async Task<bool> TerminerToutDocumentsMachineAsync(Guid execControleOfId, string machineCode)
-    {
+        var maintenant = DateTime.Now;
         var statuts = await _operateurRepository.GetDocumentStatutsForMachineAsync(execControleOfId, machineCode);
-        var now = DateTime.Now;
         foreach (var s in statuts)
         {
             s.EstDemarrageTermine = true;
             if (!s.EstTermine)
             {
                 s.EstTermine = true;
-                s.DateTermine ??= now;
-                s.DateExecution ??= now;
-                _operateurRepository.UpdateExecControleDocumentStatut(s);
+                s.DateTermine ??= maintenant;
+                s.DateExecution ??= maintenant;
             }
         }
         await _operateurRepository.SaveChangesAsync();
-        return true;
     }
 
-    public async Task<bool> CloturerTousVerifMachineAsync(Guid execControleOfId, string posteCode)
+    public async Task CloturerTousVerifMachineAsync(Guid execControleOfId, string posteCode)
     {
-        var clotureDoc = new ExecControleDocumentStatut
-        {
-            Id = Guid.NewGuid(),
-            ExecControleOfId = execControleOfId,
-            PosteCode = posteCode,
-            TypeDocument = "CLOTURE_VM_POSTE",
-            DateExecution = DateTime.Now,
-            EstDemarrageTermine = true,
-            EstTermine = true
-        };
-        _operateurRepository.AddExecControleDocumentStatut(clotureDoc);
-        
-        var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
-        foreach (var s in statuts.Where(x => x.PosteCode == posteCode && x.TypeDocument == "VERIF_MACHINE" && !x.EstTermine))
+        await GetExecutionOuverteAsync(execControleOfId);
+
+        var postes = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
+        if (!postes.Contains(posteCode))
+            throw new RegleMetierException($"Le poste {posteCode} n'est pas affecté à cet OF.");
+
+        var maintenant = DateTime.Now;
+        var statutsPoste = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId))
+            .Where(x => x.PosteCode == posteCode)
+            .ToList();
+
+        foreach (var s in statutsPoste.Where(x => x.TypeDocument == TypesDocumentExecution.VerifMachine && !x.EstTermine))
         {
             s.EstDemarrageTermine = true;
             s.EstTermine = true;
-            s.DateTermine ??= DateTime.Now;
-            _operateurRepository.UpdateExecControleDocumentStatut(s);
+            s.DateTermine ??= maintenant;
         }
-        
+
+        // Marqueur de clôture rattaché à la session active pour être visible dans la liste des documents de l'équipe.
+        if (!statutsPoste.Any(x => x.TypeDocument == TypesDocumentExecution.ClotureVerifMachinePoste))
+        {
+            var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
+            _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
+            {
+                Id = Guid.NewGuid(),
+                ExecControleOfId = execControleOfId,
+                PosteCode = posteCode,
+                TypeDocument = TypesDocumentExecution.ClotureVerifMachinePoste,
+                SessionId = session?.Id,
+                Equipe = session?.Equipe,
+                DateExecution = maintenant,
+                DateTermine = maintenant,
+                EstDemarrageTermine = true,
+                EstTermine = true
+            });
+        }
+
         await _operateurRepository.SaveChangesAsync();
-        return true;
+    }
+
+    private async Task<ExecControleDocumentStatut> GetStatutVerifMachineAsync(Guid statutId)
+    {
+        var statut = await _operateurRepository.GetDocumentStatutByIdAsync(statutId);
+        if (statut == null || statut.TypeDocument != TypesDocumentExecution.VerifMachine || string.IsNullOrEmpty(statut.MachineCode))
+            throw new RessourceIntrouvableException("Document de vérification machine introuvable.");
+        return statut;
+    }
+
+    private async Task GetExecutionOuverteAsync(Guid execControleOfId)
+    {
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId)
+            ?? throw new RessourceIntrouvableException("Exécution introuvable.");
+
+        if (execOf.Statut == StatutsExecution.Cloture)
+            throw new EtatExecutionInvalideException("Cet OF est clôturé : aucune modification n'est possible.");
     }
 }

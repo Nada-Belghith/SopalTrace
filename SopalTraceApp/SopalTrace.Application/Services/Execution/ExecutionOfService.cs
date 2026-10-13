@@ -1,11 +1,14 @@
 using System;
+using SopalTrace.Application.Helpers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SopalTrace.Application.DTOs.Execution.Operateur;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Interfaces.Execution;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 
 namespace SopalTrace.Application.Services.Execution;
 
@@ -14,84 +17,61 @@ public class ExecutionOfService : IExecutionOfService
     private readonly IOperateurRepository _operateurRepository;
     private readonly IOccurrenceService _occurrenceService;
     private readonly IOccurrenceRepository _occurrenceRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ExecutionOfService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IOccurrenceRepository occurrenceRepository)
+    public ExecutionOfService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IOccurrenceRepository occurrenceRepository, IUnitOfWork unitOfWork)
     {
         _operateurRepository = operateurRepository;
         _occurrenceService = occurrenceService;
         _occurrenceRepository = occurrenceRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<ExecControleOfDto> DemarrerOfAsync(DemarrerOfRequest request)
     {
         var of = await _operateurRepository.GetOfAsync(request.NumeroOf);
-        if (of == null) throw new Exception("OF introuvable");
+        if (of == null) throw new RessourceIntrouvableException("OF introuvable.");
 
         if (!await _operateurRepository.CanStartOperationAsync(request.NumeroOf, request.OperationCode))
         {
-            throw new Exception("Vous ne pouvez pas démarrer cette opération car l'opération précédente dans la gamme n'a pas encore commencé.");
+            throw new RegleMetierException("Vous ne pouvez pas démarrer cette opération car l'opération précédente dans la gamme n'a pas encore commencé.");
         }
+
+        var operation = await _operateurRepository.GetOperationAsync(request.OperationCode)
+                        ?? throw new RessourceIntrouvableException("Opération introuvable.");
+        if (operation.AvecMachine && string.IsNullOrWhiteSpace(request.MachineCode))
+            throw new RegleMetierException($"La machine est obligatoire pour l'opération {operation.Libelle}.");
 
         var planFab = await _operateurRepository.GetPlanActifAsync(of.CodeArticle, request.OperationCode);
-        if (planFab == null) throw new Exception("Aucun plan de fabrication actif pour cet article");
+        if (planFab == null) throw new RessourceIntrouvableException("Aucun plan de fabrication actif pour cet article.");
 
-        if (request.OperationCode == "TRONC" || request.OperationCode == "TRN")
-        {
-            if (request.Longueur.HasValue || request.Diametre.HasValue)
-            {
-                var lignes = planFab.PlanFabricationSections.SelectMany(s => s.PlanFabricationLignes).ToList();
-                
-                if (request.Longueur.HasValue)
-                {
-                    var ligneLongueur = lignes.FirstOrDefault(l => l.LibelleAffiche != null && l.LibelleAffiche.Contains("longueur", StringComparison.OrdinalIgnoreCase));
-                    if (ligneLongueur != null)
-                    {
-                        var baseLibelle = ligneLongueur.LibelleAffiche!.Split('=')[0];
-                        ligneLongueur.LibelleAffiche = $"{baseLibelle}= {request.Longueur.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
-                    }
-                }
-
-                if (request.Diametre.HasValue)
-                {
-                    var ligneDiametre = lignes.FirstOrDefault(l => l.LibelleAffiche != null && 
-                        (l.LibelleAffiche.Contains("Diametre", StringComparison.OrdinalIgnoreCase) || 
-                         l.LibelleAffiche.Contains("Diamètre", StringComparison.OrdinalIgnoreCase)));
-                    if (ligneDiametre != null)
-                    {
-                        var baseLibelle = ligneDiametre.LibelleAffiche!.Split('=')[0];
-                        ligneDiametre.LibelleAffiche = $"{baseLibelle}= {request.Diametre.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
-                    }
-                }
-            }
-        }
-
-        bool aDesControlesReglage = planFab.PlanFabricationSections.Any(s => 
-            (s.TypeSection?.Code == "REGLAGE" || s.TypeSection?.Code == "REGLAGE_PROD") 
-            && s.PlanFabricationLignes.Any());
+        bool aDesControlesReglage = planFab.DocumentSections.Any(s => 
+            (s.TypeSection?.TypeNormalise == SectionTypes.Reglage || s.TypeSection?.TypeNormalise == SectionTypes.ReglageProd) 
+            && s.DocumentLignes.Any());
 
         var execOf = new ExecControleOf
         {
             NumeroOf = request.NumeroOf,
             OperationCode = request.OperationCode,
             PlanSourceId = planFab.Id,
-            TypeOf = "FAB",
-            Statut = aDesControlesReglage ? "REGLAGE" : "EN_COURS",
-            EstEnReglage = aDesControlesReglage,
+            TypeOf = TypesOf.Fabrication,
+            Statut = aDesControlesReglage ? StatutsExecution.Reglage : StatutsExecution.EnCours,
             DateDebut = DateTime.Now,
-            DateFin = aDesControlesReglage ? DateTime.Now : null
+            SuspendedAt = aDesControlesReglage ? DateTime.Now : null,
+            // Tronçonnage : cotes saisies au démarrage, conservées sur l'exécution (le plan n'est pas modifié).
+            LongueurNominale = operation.AvecCotesTronconnage ? (decimal?)request.Longueur : null,
+            DiametreNominal = operation.AvecCotesTronconnage ? (decimal?)request.Diametre : null
         };
 
-        if (request.OperationCode == "USI" || request.OperationCode == "TRN" || request.OperationCode == "ESTOMP" || request.OperationCode == "TRONC")
+        if (operation.AvecMachine)
         {
-            execOf.MachineCodePrevu = string.IsNullOrEmpty(planFab.MachineDefautCode) ? request.MachineCode : planFab.MachineDefautCode;
+            execOf.MachineCodePrevu = string.IsNullOrEmpty(planFab.MachineCode) ? request.MachineCode : planFab.MachineCode;
             execOf.MachineCode = request.MachineCode;
         }
-        else if (request.OperationCode == "ASS")
+        else if (request.OperationCode == CodesOperation.Assemblage)
         {
+            // Les postes sont portés uniquement par Exec_ControleOf_Poste.
             var inputPostes = request.PosteCode ?? request.MachineCode ?? "";
-            execOf.PosteCodePrevu = inputPostes;
-            execOf.PosteCode = inputPostes;
-
             var postes = inputPostes.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                                     .Select(p => p.Trim())
                                     .Distinct()
@@ -109,12 +89,11 @@ public class ExecutionOfService : IExecutionOfService
         _operateurRepository.AddExecControleOf(execOf);
         await _operateurRepository.SaveChangesAsync();
 
+        // Contrôles de production : planifiés par le serveur dès que l'OF est en cours (après le réglage).
         if (aDesControlesReglage)
         {
             await _occurrenceService.GenererOccurrencesReglageCoursAsync(execOf.Id);
         }
-
-        await _occurrenceService.GenererOccurrencesInitialesAsync(execOf.Id);
 
         return await MapToDto(execOf.Id);
     }
@@ -122,14 +101,14 @@ public class ExecutionOfService : IExecutionOfService
     public async Task<bool> MettreEnReglageAsync(Guid execControleOfId)
     {
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
-        if (execOf == null || (execOf.Statut != "EN_COURS" && execOf.Statut != "REGLAGE")) return false;
+        if (execOf == null || (execOf.Statut != StatutsExecution.EnCours && execOf.Statut != StatutsExecution.Reglage)) return false;
 
-        execOf.EstEnReglage = true;
-        execOf.Statut = "REGLAGE";
-        execOf.DateFin = DateTime.Now;
-        
+        var debutReglage = DateTime.Now;
+        execOf.Statut = StatutsExecution.Reglage;
+        execOf.SuspendedAt = debutReglage;
+
         var futureUnansweredOccurrences = execOf.ExecPrelevementIntermediaires
-            .Where(o => !o.TrancheHoraire.StartsWith("REGLAGE") && !o.EstRepondu && o.HeureNotifPrevue >= execOf.DateFin)
+            .Where(o => !o.TrancheHoraire.StartsWith("REGLAGE") && !o.EstRepondu && o.HeureNotifPrevue >= debutReglage)
             .ToList();
             
         foreach (var occ in futureUnansweredOccurrences)
@@ -147,9 +126,30 @@ public class ExecutionOfService : IExecutionOfService
     public async Task<(bool Success, string Message)> ReprendreOfAsync(Guid execControleOfId)
     {
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
-        if (execOf == null || (execOf.Statut != "EN_COURS" && execOf.Statut != "REGLAGE")) return (false, "Impossible de reprendre cet OF.");
+        if (execOf == null || (execOf.Statut != StatutsExecution.EnCours && execOf.Statut != StatutsExecution.Reglage && execOf.Statut != StatutsExecution.EnPause)) return (false, "Impossible de reprendre cet OF.");
 
-        if (execOf.EstEnReglage || execOf.Statut == "REGLAGE") 
+        var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
+        if (session != null && session.Statut == StatutsSession.EnPause)
+        {
+            if (session.SuspendedAt.HasValue)
+            {
+                session.TempsPauseTotalMinutes += (DateTime.Now - session.SuspendedAt.Value).TotalMinutes;
+                session.SuspendedAt = null;
+            }
+            session.Statut = StatutsSession.EnCours;
+        }
+
+        if (execOf.Statut == StatutsExecution.EnPause)
+        {
+            if (execOf.SuspendedAt.HasValue)
+            {
+                execOf.TempsPauseTotalMinutes += (DateTime.Now - execOf.SuspendedAt.Value).TotalMinutes;
+            }
+            execOf.SuspendedAt = null;
+            execOf.Statut = StatutsExecution.EnCours;
+        }
+
+        if (execOf.Statut == StatutsExecution.Reglage)
         {
             var reglageOccurrences = execOf.ExecPrelevementIntermediaires.Where(o => o.TrancheHoraire.StartsWith("REGLAGE")).ToList();
             
@@ -165,110 +165,169 @@ public class ExecutionOfService : IExecutionOfService
                 .Select(g => g.OrderByDescending(o => o.HeureNotifPrevue).First())
                 .ToList();
 
-            if (latestReglagePerSection.Any(o => o.Resultat != "C"))
+            if (latestReglagePerSection.Any(o => o.Resultat != ResultatsControle.Conforme))
             {
                 return (false, "Les caractéristiques au réglage ne sont pas toutes conformes (NC). Veuillez générer un nouveau réglage.");
             }
 
-            execOf.EstEnReglage = false;
-            execOf.Statut = "EN_COURS";
-            
-            execOf.DateFin = DateTime.Now; 
-            await _occurrenceService.AjusterDateDebutApresReglageAsync(execOf.Id);
+            execOf.Statut = StatutsExecution.EnCours;
+            execOf.SuspendedAt = null;
             await _occurrenceService.NettoyerOccurrencesReglageAsync(execOf.Id);
         }
         await _operateurRepository.SaveChangesAsync();
         return (true, "Reprise avec succès.");
     }
 
-    public async Task<bool> MettreEnPauseAsync(Guid execControleOfId, string raison)
+    public async Task<bool> MettreEnPauseAsync(Guid execControleOfId, string raison, string typePause)
     {
+        if (!TypesPause.Autorises.Contains(typePause))
+            throw new RegleMetierException("Type de pause invalide.");
+
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
-        if (execOf == null || execOf.Statut != "EN_COURS") return false;
+        if (execOf == null || execOf.Statut != StatutsExecution.EnCours) return false;
 
-        execOf.Statut = "EN_PAUSE";
-        execOf.DateFin = DateTime.Now;
+        // Plusieurs enregistrements successifs (remarque de tranche, statuts) : tout ou rien.
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            var maintenant = DateTime.Now;
+            var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
+            if (session != null)
+            {
+                session.Statut = StatutsSession.EnPause;
+                session.SuspendedAt = maintenant;
+                // Seule la pause déjeuner rend due la vérification machine « après pause » à la reprise.
+                if (typePause == TypesPause.Dejeuner) session.HadLunchBreak = true;
+            }
 
-        await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, $"Mise en pause : {raison}");
+            execOf.Statut = StatutsExecution.EnPause;
+            execOf.SuspendedAt = maintenant;
 
-        var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
-        if (magOf != null) magOf.Statut = "EN_PAUSE";
+            await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, $"Mise en pause [{typePause}] : {raison}");
 
-        await _operateurRepository.SaveChangesAsync();
-        return true;
+            await _operateurRepository.SaveChangesAsync();
+            return true;
+        });
     }
 
-    public async Task<bool> ReprendreDepuisPauseAsync(Guid execControleOfId)
+    public async Task<bool> ReprendreDepuisPauseAsync(Guid execControleOfId, string? equipe = null)
     {
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
-        if (execOf == null || execOf.Statut != "EN_PAUSE") return false;
+        if (execOf == null) return false;
 
-        var pauseStart = execOf.DateFin ?? DateTime.Now;
-        var pauseDuration = DateTime.Now - pauseStart;
-        if (pauseDuration < TimeSpan.Zero) pauseDuration = TimeSpan.Zero;
+        // Plusieurs équipes peuvent être en pause : on reprend celle demandée, jamais pendant qu'une autre produit.
+        var sessions = await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId);
+        var enProduction = sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnCours);
+        var aReprendre = string.IsNullOrWhiteSpace(equipe)
+            ? sessions.Where(s => s.Statut == StatutsSession.EnPause).OrderByDescending(s => s.SuspendedAt).FirstOrDefault()
+            : sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnPause && string.Equals(s.Equipe, equipe, StringComparison.OrdinalIgnoreCase));
+        if (enProduction != null && aReprendre != null)
+            throw new EtatExecutionInvalideException(
+                $"L'équipe {enProduction.Equipe} produit actuellement sur cet OF : reprenez après sa pause ou sa fin de poste.");
+        if (execOf.Statut != StatutsExecution.EnPause || (sessions.Count > 0 && aReprendre == null)) return false;
 
-        execOf.Statut = "EN_COURS";
-        execOf.TempsPauseTotalMinutes += pauseDuration.TotalMinutes;
-        execOf.DateFin = null;
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            var maintenant = DateTime.Now;
+            var pauseDuration = maintenant - (execOf.SuspendedAt ?? maintenant);
+            if (pauseDuration < TimeSpan.Zero) pauseDuration = TimeSpan.Zero;
 
-        var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
-        if (magOf != null) magOf.Statut = "EN_COURS";
+            execOf.Statut = StatutsExecution.EnCours;
+            execOf.TempsPauseTotalMinutes += pauseDuration.TotalMinutes;
+            execOf.SuspendedAt = null;
 
-        await _operateurRepository.SaveChangesAsync();
+            var session = aReprendre;
+            if (session != null && session.Statut == StatutsSession.EnPause)
+            {
+                var sessionPauseDuration = maintenant - (session.SuspendedAt ?? maintenant);
+                if (sessionPauseDuration < TimeSpan.Zero) sessionPauseDuration = TimeSpan.Zero;
 
-        return true;
+                session.Statut = StatutsSession.EnCours;
+                session.TempsPauseTotalMinutes += sessionPauseDuration.TotalMinutes;
+                session.SuspendedAt = null;
+            }
+
+            await _operateurRepository.SaveChangesAsync();
+            return true;
+        });
+    }
+
+    public async Task<bool> TerminerPosteAsync(Guid execControleOfId)
+    {
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        if (execOf == null || execOf.Statut == StatutsExecution.Cloture) return false;
+
+        var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
+        if (session == null) return false;
+
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            var maintenant = DateTime.Now;
+            session.Statut = StatutsSession.Termine;
+            session.DateFin = maintenant;
+            session.SuspendedAt = null;
+
+            // D'autres équipes sont en pause sur l'OF : il reste en pause jusqu'à la reprise de l'une d'elles.
+            var autres = (await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId)).Where(s => s.Id != session.Id).ToList();
+            if (autres.Count > 0 && autres.All(s => s.Statut == StatutsSession.EnPause))
+            {
+                execOf.Statut = StatutsExecution.EnPause;
+                execOf.SuspendedAt = maintenant;
+            }
+
+            // Trace la fin de poste de l'équipe sans clôturer l'OF.
+            await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, "Fin de poste équipe (Session clôturée).");
+
+            await _operateurRepository.SaveChangesAsync();
+            return true;
+        });
     }
 
     public async Task<bool> CloturerOfAsync(Guid execControleOfId)
     {
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
+        if (execOf == null || execOf.Statut == StatutsExecution.Cloture) return false;
 
-        if (execOf == null) return false;
-
-        execOf.Statut = "CLOTURE";
-        execOf.DateFin = DateTime.Now;
-
-        await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, "Clôture de l'opération pour cet OF");
-
-        var unanswered = execOf.ExecPrelevementIntermediaires.Where(n => !n.EstRepondu).ToList();
-        foreach (var occ in unanswered)
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            occ.Resultat = "IGNORE";
-            occ.EstRepondu = true;
-            occ.HeureReponse = DateTime.Now;
-        }
-
-        if (unanswered.Any())
-        {
-            _occurrenceRepository.RemoveIntermediaires(unanswered);
-        }
-
-        var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
-        foreach (var s in statuts)
-        {
-            s.EstTermine = true;
-            s.DateTermine = DateTime.Now;
-        }
-
-        bool allClosed = await _operateurRepository.AreAllOperationsClosedAsync(execOf.NumeroOf);
-        
-        if (allClosed)
-        {
-            var magOf = await _operateurRepository.GetMagPreparationOfAsync(execOf.NumeroOf);
-            if (magOf != null) 
+            var maintenant = DateTime.Now;
+            // Toutes les équipes encore ouvertes sont clôturées avec l'OF (une clôture forcée par un
+            // administrateur peut laisser une équipe en pause ; l'assistant l'exige avant).
+            foreach (var session in await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId))
             {
-                magOf.Statut = "TERMINE";
+                session.Statut = StatutsSession.Termine;
+                session.DateFin = maintenant;
+                session.SuspendedAt = null;
             }
-        }
 
-        await _operateurRepository.SaveChangesAsync();
-        return true;
+            execOf.Statut = StatutsExecution.Cloture;
+            execOf.DateFin = maintenant;
+            execOf.SuspendedAt = null;
+
+            await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, "Clôture de l'opération pour cet OF");
+
+            // Les occurrences non répondues n'ont plus d'objet une fois l'OF clôturé.
+            var nonRepondues = execOf.ExecPrelevementIntermediaires.Where(n => !n.EstRepondu).ToList();
+            if (nonRepondues.Count > 0)
+            {
+                _occurrenceRepository.RemoveIntermediaires(nonRepondues);
+            }
+
+            foreach (var s in await _operateurRepository.GetDocumentStatutsAsync(execControleOfId))
+            {
+                s.EstTermine = true;
+                s.DateTermine = maintenant;
+            }
+
+            await _operateurRepository.SaveChangesAsync();
+
+            return true;
+        });
     }
 
     private async Task<ExecControleOfDto> MapToDto(Guid execOfId)
     {
         var execOf = await _operateurRepository.GetExecOfByIdAsync(execOfId);
-        if (execOf == null) throw new Exception("OF introuvable");
+        if (execOf == null) throw new RessourceIntrouvableException("OF introuvable.");
         
         bool aDesControlesReglage = execOf.PlanSourceId.HasValue 
             ? await _operateurRepository.HasReglageSectionsAsync(execOf.PlanSourceId.Value) 
@@ -280,24 +339,12 @@ public class ExecutionOfService : IExecutionOfService
             NumeroOf = execOf.NumeroOf,
             OperationCode = execOf.OperationCode,
             MachineCode = execOf.MachineCode,
-            PosteCode = execOf.PosteCode,
+            PosteCode = string.Join(",", await _operateurRepository.GetPostesForExecutionAsync(execOf.Id)),
             Statut = execOf.Statut,
             DateDebut = execOf.DateDebut,
             A_Des_Controles_Reglage = aDesControlesReglage,
-            EstEnReglage = execOf.EstEnReglage
+            EstEnReglage = execOf.Statut == StatutsExecution.Reglage
         };
-    }
-
-    public async Task<bool> UpdatePlanLigneAsync(Guid ligneId, UpdatePlanLigneDto dto)
-    {
-        var ligne = await _operateurRepository.GetPlanLigneAsync(ligneId);
-        if (ligne == null) return false;
-
-        if (dto.LibelleAffiche != null) ligne.LibelleAffiche = dto.LibelleAffiche;
-        if (dto.LimiteSpecTexte != null) ligne.LimiteSpecTexte = dto.LimiteSpecTexte;
-
-        await _operateurRepository.SaveChangesAsync();
-        return true;
     }
 
     public async Task<object> VerifierPlanActifAsync(string articleCode, string? operationCode = null)
@@ -305,23 +352,13 @@ public class ExecutionOfService : IExecutionOfService
         var planFab = await _operateurRepository.GetPlanActifAsync(articleCode, operationCode);
         if (planFab == null) return new { existe = false, longueur = (double?)null, diametre = (double?)null };
 
-        var lignes = planFab.PlanFabricationSections.SelectMany(s => s.PlanFabricationLignes).ToList();
-
-        double? longueur = null;
-        var ligneLongueur = lignes.FirstOrDefault(l => l.LibelleAffiche != null && l.LibelleAffiche.Contains("longueur", StringComparison.OrdinalIgnoreCase));
-        if (ligneLongueur?.LibelleAffiche != null)
-        {
-            var parts = ligneLongueur.LibelleAffiche.Split('=');
-            if (parts.Length > 1 && double.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double l)) longueur = l;
-        }
-
-        double? diametre = null;
-        var ligneDiametre = lignes.FirstOrDefault(l => l.LibelleAffiche != null && (l.LibelleAffiche.Contains("Diametre", StringComparison.OrdinalIgnoreCase) || l.LibelleAffiche.Contains("Diamètre", StringComparison.OrdinalIgnoreCase)));
-        if (ligneDiametre?.LibelleAffiche != null)
-        {
-            var parts = ligneDiametre.LibelleAffiche.Split('=');
-            if (parts.Length > 1 && double.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double d)) diametre = d;
-        }
+        // Cote du plan (écrite par la qualité) en priorité, sinon celle du dernier OF du même article et de la même opération.
+        var lignes = planFab.DocumentSections.SelectMany(s => s.DocumentLignes).ToList();
+        var precedentes = await _operateurRepository.GetDernieresCotesTronconnageAsync(articleCode, operationCode);
+        double? longueur = (double?)(CotesTronconnage.Lire(lignes.FirstOrDefault(l => CotesTronconnage.EstLongueur(l.LibelleAffiche))?.LibelleAffiche)
+                                     ?? precedentes.Longueur);
+        double? diametre = (double?)(CotesTronconnage.Lire(lignes.FirstOrDefault(l => CotesTronconnage.EstDiametre(l.LibelleAffiche))?.LibelleAffiche)
+                                     ?? precedentes.Diametre);
 
         return new { existe = true, longueur, diametre };
     }

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using SopalTrace.Application.Interfaces;
-using SopalTrace.Domain.Entities; // <-- LA CORRECTION EST ICI !
+using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 
 namespace SopalTrace.Infrastructure.Repositories;
@@ -19,12 +19,16 @@ public class JournalConnexionRepository : IJournalConnexionRepository
     {
         _context.JournalConnexions.Add(new JournalConnexion
         {
-            Id = Guid.NewGuid(), // Ajout conseillé pour les GUID
-            Matricule = matricule,
+            Id = Guid.NewGuid(),
+            // Longueurs des colonnes : un matricule saisi à l'inscription n'est pas garanti valide.
+            Matricule = Couper(matricule, 20),
             Action = action,
-            Details = details,
-            DateAction = DateTime.UtcNow
+            Details = Couper(details, 255),
+            DateAction = DateTime.Now
         });
         await _context.SaveChangesAsync();
     }
+
+    private static string Couper(string? texte, int longueur)
+        => string.IsNullOrEmpty(texte) || texte.Length <= longueur ? texte ?? string.Empty : texte[..longueur];
 }

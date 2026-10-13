@@ -104,7 +104,6 @@
                     :is-read-only="isReadOnly"
                     :types-section="refStore.typesSection"
                     :periodicites="refStore.periodicites"
-                    :regles-echantillonnage="refStore.reglesEchantillonnage"
                     :types-controle="refStore.typesControle"
                     :moyens-controle="refStore.moyensControle"
                     :instruments="refStore.instruments"
@@ -176,7 +175,9 @@
 </template>
 
 <script setup>
-  import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
+import { normaliserTypeColonne } from '@/constants/columnTypes'
+import { messageImportExcel } from '@/utils/importExcelResultat'
+  import { ref, onMounted, computed, onUnmounted } from 'vue';
   import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
   import { useToast } from 'primevue/usetoast';
   import { useConfirm } from 'primevue/useconfirm';
@@ -188,12 +189,10 @@
 
   import PlanHeader from '@/components/Shared/PlanHeader.vue';
   import PlanWizardStep from '@/components/QualityPlans/PlanWizardStep.vue';
-  import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
   import PlanReadView from '@/components/Shared/PlanReadView.vue';
   import PlanSection from '@/components/Shared/PlanSection.vue';
   import BaseTableHeader from '@/components/Shared/BaseTableHeader.vue';
   import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
-  import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
   import EditorActions from '@/components/Shared/EditorActions.vue';
   import ConfirmDialog from 'primevue/confirmdialog';
   import InputText from 'primevue/inputtext';
@@ -240,8 +239,7 @@
     sections,
     ajouterSection,
     supprimerSection,
-    mettreAJourSection,
-    supprimerLigneASection
+    mettreAJourSection
   } = useEditorSections();
 
   const {
@@ -589,7 +587,6 @@
               frequenceLibelle: s.frequenceLibelle || '',
               typeSectionId: (s.typeSectionId && s.typeSectionId !== "") ? s.typeSectionId : null,
               periodiciteId: (s.periodiciteId && s.periodiciteId !== "") ? s.periodiciteId : null,
-              regleEchantillonnageId: (s.regleEchantillonnageId && s.regleEchantillonnageId !== "") ? s.regleEchantillonnageId : null,
               lignes: (s.lignes || []).map((l, lIdx) => ({
                 ordreAffiche: lIdx + 1,
                 typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
@@ -709,7 +706,6 @@
               ...s,
               typeSectionId: (s.typeSectionId && s.typeSectionId !== "") ? s.typeSectionId : null,
               periodiciteId: (s.periodiciteId && s.periodiciteId !== "") ? s.periodiciteId : null,
-              regleEchantillonnageId: (s.regleEchantillonnageId && s.regleEchantillonnageId !== "") ? s.regleEchantillonnageId : null,
               lignes: (s.lignes || []).map(l => ({
                 ...l,
                 typeCaracteristiqueId: (l.typeCaracteristiqueId && l.typeCaracteristiqueId !== "") ? l.typeCaracteristiqueId : null,
@@ -731,12 +727,12 @@
             version: 1
           };
 
-          toast.add({ severity: 'success', summary: 'Import réussi', detail: 'Fichier Excel chargé en mémoire.', life: 3000 });
+          toast.add(messageImportExcel(parsedData));
         }
       }
     } catch (error) {
       console.error('Erreur import Excel:', error);
-      toast.add({ severity: 'error', summary: 'Erreur', detail: error.response?.data?.message || 'Erreur lors de la lecture du fichier.', life: 5000 });
+      toast.add({ severity: 'error', summary: 'Erreur d\'import', detail: error.message || 'Erreur lors de la lecture du fichier.', life: 8000 });
     } finally {
       wizard.isGenerating.value = false;
     }
@@ -782,7 +778,8 @@
               oldConfig = parsed.map(c => ({
                 key: c.cleColonne || c.key,
                 label: c.labelAffiche || c.label,
-                type: c.typeValeur || c.type || 'Texte',
+                type: normaliserTypeColonne(c.typeValeur || c.type),
+                options: c.options || [],
                 insertAfter: c.insertAfter || 'code_instrument'
               }));
             } catch (e) {

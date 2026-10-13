@@ -15,7 +15,7 @@ export function useStartOfForm(dependencies) {
     numeroOf: '',
     operationCode: '',
     machineCode: '',
-    numEquipe: 1,
+    numEquipe: 'E1',
     matriculeOperateur: authStore.user?.matricule || 'OP_INCONNU',
     longueur: null,
     diametre: null
@@ -39,7 +39,7 @@ export function useStartOfForm(dependencies) {
       numeroOf: of.numeroOf,
       operationCode: '',
       machineCode: '',
-      numEquipe: 1,
+      numEquipe: 'E1',
       matriculeOperateur: authStore.user?.matricule || 'OP_INCONNU',
       longueur: null,
       diametre: null
@@ -116,8 +116,8 @@ export function useStartOfForm(dependencies) {
         if (!res.data.existe) {
           errorMessage.value = "Aucun plan de contrôle n'est actif pour cet article.";
         } else {
-          const isTronnage = op.operationCode === 'TRONC' || op.operationCode === 'TRN';
-          if (isTronnage) {
+          // Cotes nominales demandées seulement pour les opérations qui en prévoient (Operation.AvecCotesTronconnage)
+          if (op.avecCotesTronconnage) {
             if (res.data.longueur != null) {
               form.value.longueur = res.data.longueur;
               isLongueurInitialized.value = true;

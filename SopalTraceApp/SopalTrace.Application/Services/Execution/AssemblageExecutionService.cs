@@ -3,64 +3,75 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SopalTrace.Application.DTOs.Execution.Operateur;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Interfaces.Execution;
+using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 
 namespace SopalTrace.Application.Services.Execution;
 
+/// <summary>Cycle de vie d'un OF d'assemblage (produit fini) côté opérateur.</summary>
 public class AssemblageExecutionService : IAssemblageExecutionService
 {
     private readonly IOperateurRepository _operateurRepository;
     private readonly IOccurrenceService _occurrenceService;
-    private readonly IOccurrenceRepository _occurrenceRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public AssemblageExecutionService(
-        IOperateurRepository operateurRepository,
-        IOccurrenceService occurrenceService,
-        IOccurrenceRepository occurrenceRepository)
+    public AssemblageExecutionService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IUnitOfWork unitOfWork)
     {
         _operateurRepository = operateurRepository;
         _occurrenceService = occurrenceService;
-        _occurrenceRepository = occurrenceRepository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<IEnumerable<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync()
+    {
+        return await _operateurRepository.GetOfsAssemblageStatutAsync();
     }
 
     public async Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request)
     {
-        var of = await _operateurRepository.GetOfAsync(request.NumeroOf);
-        if (of == null) throw new Exception("OF introuvable");
+        var of = await _operateurRepository.GetOfAsync(request.NumeroOf)
+            ?? throw new RessourceIntrouvableException("OF introuvable.");
 
-        var planAss = await _operateurRepository.GetPlanAssemblageActifAsync(of.CodeArticle);
-        
+        if (!await _operateurRepository.OfAssemblageDisponibleAsync(of.NumeroOf))
+            throw new RegleMetierException("Cet OF n'est pas disponible pour l'assemblage (non préparé par le magasin ou sans opération d'assemblage).");
+
+        if (await _operateurRepository.ExisteExecutionAssemblageActiveAsync(of.NumeroOf))
+            throw new EtatExecutionInvalideException("L'assemblage de cet OF est déjà démarré. Rafraîchissez la liste puis rejoignez la session existante.");
+
+        var postes = await ValiderPostesAsync(request.PosteCodes);
+        var maintenant = DateTime.Now;
+
         var execOf = new ExecControleOf
         {
-            NumeroOf = request.NumeroOf,
-            OperationCode = request.OperationCode,
-            PlanSourceId = null,
-            TypeOf = "ASS",
-            Statut = "EN_COURS",
-            DateDebut = DateTime.Now
+            NumeroOf = of.NumeroOf,
+            OperationCode = CodesOperation.Assemblage,
+            TypeOf = TypesOf.Assemblage,
+            Statut = StatutsExecution.EnCours,
+            DateDebut = maintenant
         };
-
-        _operateurRepository.AddExecControleOf(execOf);
-        await _operateurRepository.SaveChangesAsync();
-
-        foreach (var posteCode in request.PosteCodes)
+        foreach (var posteCode in postes)
         {
-            var execPoste = new ExecControleOfPoste
-            {
-                ExecControleOfId = execOf.Id,
-                PosteCode = posteCode
-            };
-            execOf.ExecControleOfPostes.Add(execPoste);
+            execOf.ExecControleOfPostes.Add(new ExecControleOfPoste { PosteCode = posteCode });
         }
+        execOf.ExecControleOfSessions.Add(new ExecControleOfSession
+        {
+            Equipe = request.Equipe,
+            Statut = StatutsSession.EnCours,
+            DateDebut = maintenant
+        });
 
-        await _operateurRepository.SaveChangesAsync();
-
-        execOf.Statut = "EN_COURS";
-        execOf.EstEnReglage = false;
-        await _operateurRepository.SaveChangesAsync();
-        await _occurrenceService.GenererOccurrencesInitialesAsync(execOf.Id);
+        // OF, postes et session sont enregistrés ensemble ou pas du tout (les contrôles de production sont
+        // planifiés par le serveur quand le poste arrive en production).
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            _operateurRepository.AddExecControleOf(execOf);
+            await _operateurRepository.SaveChangesAsync();
+            return execOf.Id;
+        });
 
         return new ExecControleOfDto
         {
@@ -72,140 +83,120 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         };
     }
 
-    public async Task<bool> InitDocumentsAsync(Guid execControleOfId, string typeDocument, string? posteCode, string? machineCode = null, string? equipe = null, string? matricule = null)
+    public async Task AjouterPostesAsync(Guid execControleOfId, AjouterPostesRequest request)
     {
-        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
-        if (execOf == null) throw new Exception("Exécution introuvable");
+        var execOf = await GetExecutionOuverteAsync(execControleOfId);
 
-        var postes = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
-        var existing = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
-        var today = DateTime.Now.Date;
-        
-        if (existing.Any(s => s.TypeDocument == typeDocument && (posteCode == null || s.PosteCode == posteCode) && (machineCode == null || s.MachineCode == machineCode) && s.Equipe == equipe && s.DateExecution == today)) return true;
+        // Une seule équipe en production à la fois : une autre équipe peut rejoindre l'OF pendant la pause
+        // de la précédente, qui retrouvera son étape à son retour.
+        var sessions = await _operateurRepository.GetSessionsOuvertesAsync(execOf.Id);
+        var enProduction = sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnCours);
+        if (enProduction != null && !string.Equals(enProduction.Equipe, request.Equipe, StringComparison.OrdinalIgnoreCase))
+            throw new EtatExecutionInvalideException(
+                $"L'équipe {enProduction.Equipe} produit actuellement sur cet OF : elle doit se mettre en pause ou terminer son poste avant qu'une autre équipe ne prenne la main.");
 
-        bool initializedAny = false;
-
-        if (typeDocument == "VERIF_MACHINE" || typeDocument == "RESULTAT_CONTROLE_POSTE" || execOf.TypeOf == "ASS")
+        if (!sessions.Any(s => string.Equals(s.Equipe, request.Equipe, StringComparison.OrdinalIgnoreCase)))
         {
-            var of = await _operateurRepository.GetOfAsync(execOf.NumeroOf);
-            var postesToInit = !string.IsNullOrEmpty(posteCode) ? new List<string> { posteCode } : postes.ToList();
-
-            foreach (var p in postesToInit)
+            var maintenant = DateTime.Now;
+            _operateurRepository.AddSession(new ExecControleOfSession
             {
-                IEnumerable<RefFormulaire> forms = Enumerable.Empty<RefFormulaire>();
-                if (typeDocument == "VERIF_MACHINE")
-                {
-                    if (!string.IsNullOrEmpty(machineCode))
-                    {
-                        forms = await _operateurRepository.GetFormulairesPourMachineAsync(machineCode, typeDocument);
-                    }
-                }
-                else if (typeDocument == "RESULTAT_CONTROLE_POSTE")
-                {
-                    var plan = await _operateurRepository.GetPlanControlePosteAsync(p, of?.CodeArticle ?? "");
-                    if (plan != null)
-                    {
-                        forms = new List<RefFormulaire> { new RefFormulaire { Id = plan.Id } };
-                    }
-                }
-                else
-                {
-                    forms = of != null ? await _operateurRepository.GetFormulairesPourArticleAsync(of.CodeArticle, typeDocument) : Enumerable.Empty<RefFormulaire>();
-                }
-
-                foreach (var f in forms)
-                {
-                    _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
-                    {
-                        ExecControleOfId = execControleOfId,
-                        PosteCode = p,
-                        MachineCode = machineCode,
-                        TypeDocument = typeDocument,
-                        DocId = f.Id,
-                        EstTermine = false,
-                        Equipe = equipe,
-                        DateExecution = today,
-                        MatriculeOperateur = matricule
-                    });
-                    initializedAny = true;
-                }
+                ExecControleOfId = execOf.Id,
+                Equipe = request.Equipe,
+                Statut = StatutsSession.EnCours,
+                DateDebut = maintenant
+            });
+            // L'OF repart en production avec la nouvelle équipe (la pause de l'équipe précédente est décomptée).
+            if (execOf.Statut == StatutsExecution.EnPause)
+            {
+                if (execOf.SuspendedAt.HasValue) execOf.TempsPauseTotalMinutes += Math.Max(0, (maintenant - execOf.SuspendedAt.Value).TotalMinutes);
+                execOf.SuspendedAt = null;
+                execOf.Statut = StatutsExecution.EnCours;
             }
         }
-        else
+        // Équipe déjà présente (en pause) : elle reprendra depuis l'assistant (« Reprendre »).
+
+        var postesExistants = (await _operateurRepository.GetPostesForExecutionAsync(execOf.Id)).ToHashSet();
+        var nouveauxPostes = await ValiderPostesAsync(request.PosteCodes.Where(p => !postesExistants.Contains(p)));
+
+        foreach (var poste in nouveauxPostes)
         {
-            var of = await _operateurRepository.GetOfAsync(execOf.NumeroOf);
-            if (of != null)
+            _operateurRepository.AddExecControleOfPoste(new ExecControleOfPoste
             {
-                var forms = await _operateurRepository.GetFormulairesPourArticleAsync(of.CodeArticle, typeDocument);
-                foreach (var f in forms)
-                {
-                    _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
-                    {
-                        ExecControleOfId = execControleOfId,
-                        PosteCode = null,
-                        TypeDocument = typeDocument,
-                        DocId = f.Id,
-                        EstTermine = false,
-                        Equipe = equipe,
-                        DateExecution = today,
-                        MatriculeOperateur = matricule
-                    });
-                    initializedAny = true;
-                }
-            }
+                ExecControleOfId = execOf.Id,
+                PosteCode = poste
+            });
         }
 
-        if (initializedAny)
-        {
-            await _operateurRepository.SaveChangesAsync();
-        }
-
-        return initializedAny;
+        await _operateurRepository.SaveChangesAsync();
     }
 
-    public async Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId)
+    public async Task<Guid> InitVerifMachineAsync(Guid execControleOfId, InitVerifMachineRequest request, string matricule)
     {
-        var statuts = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId)).ToList();
+        var execOf = await GetExecutionOuverteAsync(execControleOfId);
 
-        var today = DateTime.Now.Date;
-        bool hasChanges = false;
-        foreach (var s in statuts)
+        var postes = await _operateurRepository.GetPostesForExecutionAsync(execOf.Id);
+        if (!postes.Contains(request.PosteCode))
+            throw new RegleMetierException($"Le poste {request.PosteCode} n'est pas affecté à cet OF.");
+
+        var planId = await _operateurRepository.GetPlanVerifMachineActifIdAsync(request.MachineCode)
+            ?? throw new RessourceIntrouvableException($"Aucun plan de vérification actif n'a été trouvé pour la machine {request.MachineCode}. Veuillez le signaler au superviseur.");
+
+        var session = await _operateurRepository.GetActiveSessionAsync(execOf.Id);
+        var aujourdhui = DateTime.Today;
+
+        var existant = (await _operateurRepository.GetDocumentStatutsAsync(execOf.Id)).FirstOrDefault(s =>
+            s.TypeDocument == TypesDocumentExecution.VerifMachine &&
+            s.PosteCode == request.PosteCode &&
+            s.MachineCode == request.MachineCode &&
+            s.DateExecution == aujourdhui);
+        if (existant != null) return existant.Id;
+
+        var statut = new ExecControleDocumentStatut
         {
-            if (!s.EstTermine && s.DateExecution.HasValue && s.DateExecution.Value.Date < today)
-            {
-                s.EstTermine = true;
-                s.DateTermine = s.DateExecution.Value.Date.AddDays(1).AddTicks(-1);
-                _operateurRepository.UpdateExecControleDocumentStatut(s);
-                hasChanges = true;
-            }
+            Id = Guid.NewGuid(),
+            ExecControleOfId = execOf.Id,
+            PosteCode = request.PosteCode,
+            MachineCode = request.MachineCode,
+            TypeDocument = TypesDocumentExecution.VerifMachine,
+            DocId = planId,
+            SessionId = session?.Id,
+            Equipe = session?.Equipe,
+            DateExecution = aujourdhui,
+            MatriculeOperateur = matricule
+        };
+        _operateurRepository.AddExecControleDocumentStatut(statut);
+        await _operateurRepository.SaveChangesAsync();
+        return statut.Id;
+    }
 
-            if ((s.TypeDocument == "PLAN_ASS" || s.TypeDocument == "PLAN_ASSEMBLAGE") && !s.DocId.HasValue)
-            {
-                var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
-                var of = execOf != null ? await _operateurRepository.GetOfAsync(execOf.NumeroOf) : null;
-                if (of != null)
-                {
-                    var planAss = await _operateurRepository.GetPlanAssemblageActifAsync(of.CodeArticle);
-                    if (planAss != null)
-                    {
-                        s.DocId = planAss.Id;
-                        _operateurRepository.UpdateExecControleDocumentStatut(s);
-                        hasChanges = true;
-                    }
-                }
-            }
+    public async Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId, string? equipe = null)
+    {
+        // Documents de l'équipe demandée (elle peut être en pause pendant qu'une autre produit), sinon de la session active.
+        Guid? sessionId = null;
+        if (!string.IsNullOrWhiteSpace(equipe))
+        {
+            sessionId = (await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId))
+                .FirstOrDefault(s => string.Equals(s.Equipe, equipe, StringComparison.OrdinalIgnoreCase))?.Id;
         }
-        
-        if (hasChanges)
+        var statuts = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId, sessionId)).ToList();
+
+        // Un document resté ouvert un jour précédent est clôturé automatiquement à minuit.
+        var aujourdhui = DateTime.Today;
+        var documentsExpires = statuts.Where(s => !s.EstTermine && s.DateExecution.HasValue && s.DateExecution.Value.Date < aujourdhui).ToList();
+        foreach (var s in documentsExpires)
+        {
+            s.EstTermine = true;
+            s.DateTermine = s.DateExecution!.Value.Date.AddDays(1).AddTicks(-1);
+        }
+        if (documentsExpires.Count > 0)
         {
             await _operateurRepository.SaveChangesAsync();
         }
 
-        var formIds = statuts.Where(s => s.DocId.HasValue && s.TypeDocument != "ECHANTILLONNAGE").Select(s => s.DocId.GetValueOrDefault()).Distinct();
-        var designations = await _operateurRepository.GetFormulaireDesignationsAsync(formIds);
-
-        var machineCodes = statuts.Where(s => !string.IsNullOrEmpty(s.MachineCode)).Select(s => s.MachineCode!).Distinct().ToList();
-        var machineNames = await _operateurRepository.GetMachineLabelsAsync(machineCodes);
+        var designations = await _operateurRepository.GetFormulaireDesignationsAsync(
+            statuts.Where(s => s.DocId.HasValue && s.TypeDocument != TypesDocumentExecution.Echantillonnage).Select(s => s.DocId!.Value));
+        var machineNames = await _operateurRepository.GetMachineLabelsAsync(
+            statuts.Where(s => !string.IsNullOrEmpty(s.MachineCode)).Select(s => s.MachineCode!));
 
         return statuts.Select(s => new DocumentStatutDto
         {
@@ -213,9 +204,11 @@ public class AssemblageExecutionService : IAssemblageExecutionService
             TypeDocument = s.TypeDocument,
             PosteCode = s.PosteCode,
             MachineCode = s.MachineCode,
-            MachineLibelle = !string.IsNullOrEmpty(s.MachineCode) && machineNames.ContainsKey(s.MachineCode) ? machineNames[s.MachineCode] : null,
+            MachineLibelle = s.MachineCode != null && machineNames.TryGetValue(s.MachineCode, out var libelle) ? libelle : null,
             DocId = s.DocId,
-            LibelleFormulaire = s.TypeDocument == "ECHANTILLONNAGE" ? "Document Échantillonnage" : (s.DocId.HasValue && designations.ContainsKey(s.DocId.Value) ? designations[s.DocId.Value] : null),
+            LibelleFormulaire = s.TypeDocument == TypesDocumentExecution.Echantillonnage
+                ? "Document Échantillonnage"
+                : s.DocId.HasValue && designations.TryGetValue(s.DocId.Value, out var designation) ? designation : null,
             EstDemarrageTermine = s.EstDemarrageTermine,
             EstPauseTermine = s.EstPauseTermine,
             EstTermine = s.EstTermine,
@@ -225,139 +218,96 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         });
     }
 
-    public async Task<IEnumerable<MachineDto>> GetMachinesByPosteAsync(string posteCode)
+    public async Task MarquerDocumentTermineAsync(Guid statutId, string matricule, string? periodicite)
     {
-        var machines = await _operateurRepository.GetMachinesByPosteAsync(posteCode);
-        var periodicitesMap = await _operateurRepository.GetMachinesPlanPeriodicitesAsync();
-        return machines.Select(m => {
-            var per = periodicitesMap.ContainsKey(m.CodeMachine) ? periodicitesMap[m.CodeMachine] : new List<string>();
-            return new MachineDto { 
-                CodeMachine = m.CodeMachine, 
-                Libelle = m.Libelle, 
-                HasDemarragePlan = per.Any(p => p.Contains("démarrage") || p.Contains("demarrage") || p.Contains("début") || p.Contains("debut")),
-                HasApresPausePlan = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause") || p.Contains("pause")),
-                HasFinPostePlan = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste") || p.Contains("fin du poste") || p.Contains("fin"))
-            };
-        });
-    }
+        var statut = await GetStatutAsync(statutId);
 
-    public async Task<bool> MarquerDocumentTermineAsync(Guid statutId, string? matricule = null, string periodicite = "")
-    {
-        var statut = await _operateurRepository.GetDocumentStatutByIdAsync(statutId);
-        if (statut == null) return false;
+        var moments = string.IsNullOrEmpty(statut.MachineCode)
+            ? new List<string>()
+            : await _operateurRepository.GetPeriodicitesPlanMachineAsync(statut.MachineCode);
+        bool aApresPause = PeriodiciteMachineHelper.AApresPause(moments);
+        bool aFinPoste = PeriodiciteMachineHelper.AFinPoste(moments);
 
-        bool hasApresPause = false;
-        bool hasFinPoste = false;
-        
-        if (!string.IsNullOrEmpty(statut.MachineCode))
+        switch (PeriodicitesControle.Normaliser(periodicite))
         {
-            var periodicitesMap = await _operateurRepository.GetMachinesPlanPeriodicitesAsync();
-            if (periodicitesMap.ContainsKey(statut.MachineCode))
-            {
-                var per = periodicitesMap[statut.MachineCode];
-                hasApresPause = per.Any(p => p.Contains("après la pause") || p.Contains("apres la pause") || p.Contains("après pause") || p.Contains("apres pause") || p.Contains("pause"));
-                hasFinPoste = per.Any(p => p.Contains("fin de poste") || p.Contains("fin poste") || p.Contains("fin du poste") || p.Contains("fin"));
-            }
-        }
-
-        if (periodicite == "APRES_PAUSE")
-        {
-            statut.EstPauseTermine = true;
-            if (!hasFinPoste) statut.EstTermine = true;
-        }
-        else if (periodicite == "FIN_POSTE" || periodicite == "fin_poste")
-        {
-            statut.EstTermine = true;
-        }
-        else
-        {
-            statut.EstDemarrageTermine = true;
-            if (!hasApresPause && !hasFinPoste) statut.EstTermine = true;
+            case PeriodicitesControle.ApresPause:
+                statut.EstPauseTermine = true;
+                if (!aFinPoste) statut.EstTermine = true;
+                break;
+            case PeriodicitesControle.FinPoste:
+                statut.EstTermine = true;
+                break;
+            default:
+                statut.EstDemarrageTermine = true;
+                if (!aApresPause && !aFinPoste) statut.EstTermine = true;
+                break;
         }
 
         statut.DateTermine = DateTime.Now;
-        if (!string.IsNullOrEmpty(matricule))
-        {
-            statut.MatriculeOperateur = matricule;
-        }
-
+        statut.MatriculeOperateur = matricule;
         await _operateurRepository.SaveChangesAsync();
-        return true;
     }
 
-    public async Task<bool> RouvrirDocumentAsync(Guid statutId, string periodicite = "")
+    public async Task RouvrirDocumentAsync(Guid statutId, string matricule, string? periodicite)
     {
-        var statut = await _operateurRepository.GetDocumentStatutByIdAsync(statutId);
-        if (statut == null) return false;
+        var statut = await GetStatutAsync(statutId);
 
-        if (periodicite == "APRES_PAUSE")
+        switch (PeriodicitesControle.Normaliser(periodicite))
         {
-            statut.EstPauseTermine = false;
-        }
-        else if (periodicite == "FIN_POSTE" || periodicite == "fin_poste")
-        {
-            statut.EstTermine = false;
-        }
-        else
-        {
-            statut.EstDemarrageTermine = false;
-            statut.EstTermine = false;
+            case PeriodicitesControle.ApresPause:
+                statut.EstPauseTermine = false;
+                break;
+            case PeriodicitesControle.FinPoste:
+                statut.EstTermine = false;
+                break;
+            default:
+                statut.EstDemarrageTermine = false;
+                statut.EstTermine = false;
+                break;
         }
         statut.DateTermine = null;
+        statut.MatriculeOperateur = matricule;
 
         await _operateurRepository.SaveChangesAsync();
-        return true;
     }
 
-    public async Task<IEnumerable<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync()
+    private async Task<ExecControleOf> GetExecutionOuverteAsync(Guid execControleOfId)
     {
-        var allOfs = await _operateurRepository.GetAllOfOperationsDisponiblesAsync();
-        var ofsAss = allOfs.Where(o => o.GammeOperatoire.Any(g => g.OperationCode == "ASS")).ToList();
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId)
+            ?? throw new RessourceIntrouvableException("Exécution introuvable.");
 
-        var execsEnCours = (await _operateurRepository.GetExecsAssemblageEnCoursAsync()).ToList();
+        if (execOf.Statut == StatutsExecution.Cloture)
+            throw new EtatExecutionInvalideException("Cet OF est clôturé : aucune modification n'est possible.");
 
-        var result = new List<OfAssemblageStatutDto>();
-
-        foreach (var of in ofsAss)
-        {
-            var execExistante = execsEnCours.FirstOrDefault(e => e.NumeroOf == of.NumeroOf);
-
-            result.Add(new OfAssemblageStatutDto
-            {
-                NumeroOf = of.NumeroOf,
-                DesignationArticle = of.DesignationArticle,
-                CodeArticle = of.CodeArticle,
-                QuantiteLancee = of.QuantiteLancee,
-                DateDebut = execExistante != null ? execExistante.DateDebut : of.DateDebut,
-                Statut = execExistante != null ? execExistante.Statut : null,
-                ExecControleOfId = execExistante?.Id,
-                PostesExistants = execExistante?.ExecControleOfPostes.Select(p => p.PosteCode).ToList() ?? new List<string>()
-            });
-        }
-
-        return result;
+        return execOf;
     }
 
-    public async Task<bool> AjouterPostesAsync(Guid execControleOfId, List<string> posteCodes)
+    private async Task<ExecControleDocumentStatut> GetStatutAsync(Guid statutId)
     {
-        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
-        if (execOf == null) return false;
+        var statut = await _operateurRepository.GetDocumentStatutByIdAsync(statutId)
+            ?? throw new RessourceIntrouvableException("Statut document introuvable.");
 
-        var postesExistants = (await _operateurRepository.GetPostesForExecutionAsync(execControleOfId)).ToHashSet();
+        if (statut.ExecControleOf.Statut == StatutsExecution.Cloture)
+            throw new EtatExecutionInvalideException("Cet OF est clôturé : aucune modification n'est possible.");
 
-        foreach (var poste in posteCodes.Distinct())
-        {
-            if (!postesExistants.Contains(poste))
-            {
-                _operateurRepository.AddExecControleOfPoste(new ExecControleOfPoste
-                {
-                    ExecControleOfId = execControleOfId,
-                    PosteCode = poste
-                });
-            }
-        }
+        // Seuls les documents de l'équipe active sont modifiables ; ceux d'une session terminée sont archivés.
+        var sessionActive = await _operateurRepository.GetActiveSessionAsync(statut.ExecControleOfId);
+        if (statut.SessionId != sessionActive?.Id)
+            throw new EtatExecutionInvalideException("Ce document appartient à une session d'équipe terminée : il ne peut plus être modifié.");
 
-        await _operateurRepository.SaveChangesAsync();
-        return true;
+        return statut;
+    }
+
+    private async Task<List<string>> ValiderPostesAsync(IEnumerable<string> posteCodes)
+    {
+        var demandes = posteCodes.Select(p => p.Trim()).Where(p => p.Length > 0).Distinct().ToList();
+        if (demandes.Count == 0) return demandes;
+
+        var actifs = await _operateurRepository.GetCodesPostesActifsAsync(demandes);
+        var inconnus = demandes.Where(p => !actifs.Contains(p)).ToList();
+        if (inconnus.Count > 0)
+            throw new RegleMetierException($"Poste(s) inconnu(s) ou inactif(s) : {string.Join(", ", inconnus)}.");
+
+        return demandes;
     }
 }
