@@ -17,7 +17,8 @@ public partial class OccurrenceService
         string trancheReglage = $"REGLAGE_COURS_{DateTime.Now:HH_mm}";
         var newIntermediaires = new List<ExecPrelevementIntermediaire>();
         
-        var sessionId = await _occurrenceRepository.GetActiveSessionIdAsync(execControleOfId);
+        // Réglage de fabrication : pas d'équipe (les réglages d'assemblage sont suivis par la planification, par poste).
+        Guid? sessionId = null;
 
         if (of.PlanSourceId.HasValue)
         {

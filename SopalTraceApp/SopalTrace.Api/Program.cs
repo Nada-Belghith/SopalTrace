@@ -128,6 +128,7 @@ builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IAvanceme
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IVerifMachinePosteService, SopalTrace.Application.Services.Execution.VerifMachinePosteService>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IVerifMachineExecutionService, SopalTrace.Application.Services.Execution.VerifMachineExecutionService>();
 builder.Services.AddScoped<IOccurrenceService, SopalTrace.Application.Services.OccurrenceService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IDemarragePosteRepository, SopalTrace.Infrastructure.Repositories.Execution.DemarragePosteRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IPlanificationProductionRepository, SopalTrace.Infrastructure.Repositories.Execution.PlanificationProductionRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IPlanificationProductionService, SopalTrace.Application.Services.Execution.PlanificationProductionService>();
 // Contrôles de production de l'assemblage planifiés chaque minute, que les écrans soient ouverts ou non.

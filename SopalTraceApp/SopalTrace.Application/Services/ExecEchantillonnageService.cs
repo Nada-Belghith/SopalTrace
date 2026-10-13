@@ -15,20 +15,43 @@ namespace SopalTrace.Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IIso2859Service _iso2859Service;
         private readonly IOperateurRepository _operateurRepository;
+        private readonly IDemarragePosteRepository _demarrages;
 
-        public ExecEchantillonnageService(IUnitOfWork unitOfWork, IIso2859Service iso2859Service, IOperateurRepository operateurRepository)
+        public ExecEchantillonnageService(IUnitOfWork unitOfWork, IIso2859Service iso2859Service, IOperateurRepository operateurRepository,
+            IDemarragePosteRepository demarrages)
         {
             _unitOfWork = unitOfWork;
             _iso2859Service = iso2859Service;
             _operateurRepository = operateurRepository;
+            _demarrages = demarrages;
         }
 
+        /// <summary>
+        /// Fiche d'échantillonnage d'un poste de l'OF (une par poste, chaque poste vit comme si l'OF n'en avait
+        /// qu'un) : remplie par l'équipe qui a démarré le poste, les équipes suivantes la trouvent faite.
+        /// </summary>
         public async Task<ExecEchantillonnageDto> InitPlanPourOfAsync(Guid execControleOfId, InitEchantillonnageRequest request)
         {
             var execOf = await _unitOfWork.ExecControleOfRepository.GetByIdWithOFAsync(execControleOfId);
 
             if (execOf == null)
                 throw new RessourceIntrouvableException("Exécution non trouvée.");
+            if (execOf.Statut == StatutsExecution.Cloture)
+                throw new EtatExecutionInvalideException("Cet OF est clôturé.");
+
+            var posteCode = request.PosteCode?.Trim();
+            if (string.IsNullOrEmpty(posteCode))
+                throw new RegleMetierException("Le poste de la fiche d'échantillonnage est obligatoire.");
+            if (!(await _operateurRepository.GetPostesForExecutionAsync(execControleOfId)).Contains(posteCode))
+                throw new RegleMetierException($"Le poste {posteCode} n'est pas affecté à cet OF.");
+            var session = await _demarrages.GetSessionAsync(execControleOfId, posteCode);
+            if (session == null || session.Statut != StatutsSession.EnCours)
+                throw new EtatExecutionInvalideException($"Aucune équipe ne produit sur le poste {posteCode} : reprenez la production pour remplir la fiche.");
+            if (!await _demarrages.EstEnCoursAsync(session.Id, posteCode))
+                throw new EtatExecutionInvalideException(ExecPlanAssemblageService.MessagePosteNonDemarre(posteCode, session.Equipe));
+            if (await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAndPosteAsync(execControleOfId, posteCode) != null)
+                throw new EtatExecutionInvalideException($"La fiche d'échantillonnage du poste {posteCode} est déjà remplie pour cet OF.");
+            request.PosteCode = posteCode;
 
             var tailleLot = Convert.ToInt32(execOf.NumeroOfNavigation.QuantiteLancee);
             if (tailleLot <= 0)
@@ -51,11 +74,11 @@ namespace SopalTrace.Application.Services
             int critereAc = plan.AcceptanceNumber;
             int critereRe = plan.RejectionNumber;
 
-            var postesActifs = await _operateurRepository.GetPostesForExecutionAsync(execControleOfId);
-            int nbPostesTotal = request.NbPostes ?? (postesActifs.Any() ? postesActifs.Count() : 1);
+            // Le poste est traité comme le seul de l'OF, sauf si l'opérateur répartit l'effectif sur plusieurs postes.
+            int nbPostesTotal = Math.Max(1, request.NbPostes ?? 1);
             int effectifParPoste = (int)Math.Ceiling((double)effectif.Value / nbPostesTotal);
 
-            var activeSession = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
+            var activeSession = session;
 
             var docStatut = new ExecControleDocumentStatut
             {
@@ -98,10 +121,6 @@ namespace SopalTrace.Application.Services
 
             await _unitOfWork.ExecEchantillonnageRepository.AddAsync(execEchantillonnage);
 
-            // Ajuster TempsPauseTotalMinutes pour que les occurrences d'échantillonnage
-            // commencent à partir de MAINTENANT, et non pas depuis le début de l'OF (DateDebut).
-            execOf.TempsPauseTotalMinutes = (DateTime.Now - execOf.DateDebut).TotalMinutes;
-
             await _unitOfWork.CommitAsync();
 
             return new ExecEchantillonnageDto
@@ -126,8 +145,8 @@ namespace SopalTrace.Application.Services
             var exec = await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAndPosteAsync(execControleOfId, posteCode);
             if (exec == null) return null;
 
-            var statuts = await _operateurRepository.GetDocumentStatutsAsync(execControleOfId);
-            var statutEchantillonnage = statuts.FirstOrDefault(s => s.TypeDocument == TypesDocumentExecution.Echantillonnage && (posteCode == null || s.PosteCode == posteCode));
+            // Statut de la fiche (quelle que soit l'équipe qui l'a remplie).
+            var statutEchantillonnage = exec.ExecControleDocumentStatut;
 
             string? niveauControle = null;
             string? typePlan = null;

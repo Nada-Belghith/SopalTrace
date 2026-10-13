@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import execAssemblageService from '@/services/execAssemblageService'
 import { useAppToast } from '@/composables/useAppToast'
 import Button from 'primevue/button'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
 import { idsDuMoment } from '@/utils/periodicitesMachine'
 
 import { useVerifMachineStore } from '@/stores/verifMachineStore'
@@ -265,7 +266,7 @@ const goBack = () => {
   if (opCode === 'ASS' || !opCode) {
     router.push({
       name: 'operateur-of-fini',
-      query: { execControleOfId, posteCode }
+      query: { execControleOfId, posteCode, equipe: route.query.equipe || operateurStore.activeOfContext?.equipe || undefined }
     })
   } else {
     router.push({
@@ -277,7 +278,7 @@ const goBack = () => {
 
 const titre = computed(() => {
   if (modeAssistant) return `Vérification machine ${docHeader.value.machineCode} · ${libelleMoment}`
-  return viewMode.value === 'gallery' ? "Galerie des rapports d'exécution" : 'Exécution : Vérification Machine'
+  return viewMode.value === 'gallery' ? "Galerie des rapports d'exécution" : 'Vérification machine'
 })
 
 const handleBackArrow = () => {
@@ -296,15 +297,8 @@ const handleBackArrow = () => {
 
 <template>
   <div class="p-4 max-w-[1400px] mx-auto">
-    <div class="flex items-center justify-between gap-3 mb-6">
-      <div class="flex items-center gap-3">
-        <Button icon="pi pi-arrow-left" class="p-button-rounded p-button-text p-button-secondary" @click="handleBackArrow" />
-        <h2 class="m-0 text-xl font-bold text-slate-800">
-          {{ titre }}
-        </h2>
-      </div>
-
-      <div class="flex items-center gap-3">
+    <EnTetePage class="mb-6" :titre="titre" retour @retour="handleBackArrow">
+      <template #actions>
         <!-- Mode Toggle Button -->
         <button 
           v-if="!modeAssistant && availableSessions.length > 0 && viewMode === 'details'"
@@ -312,7 +306,7 @@ const handleBackArrow = () => {
           class="px-4 py-2 rounded-xl text-xs font-bold bg-white text-blue-600 border border-slate-300 shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center gap-2"
         >
           <i class="pi pi-th-large"></i>
-          <span>Voir toutes les cartes ({{ availableSessions.length }})</span>
+          <span>Voir toutes les cartes · {{ availableSessions.length }}</span>
         </button>
 
         <!-- Modifier Button -->
@@ -324,8 +318,8 @@ const handleBackArrow = () => {
           <i class="pi pi-pencil"></i>
           <span>Modifier</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </EnTetePage>
 
     <!-- ──────────────── MODE 1 : GALERIE DE CARTES ──────────────── -->
     <div v-if="viewMode === 'gallery'" class="space-y-6">
@@ -337,7 +331,7 @@ const handleBackArrow = () => {
               <i class="pi pi-th-large text-lg"></i>
             </div>
             <div>
-              <h3 class="text-base font-bold text-slate-800 m-0">Rapports d'exécution ({{ availableSessions.length }})</h3>
+              <h3 class="text-base font-bold text-slate-800 m-0">Rapports d'exécution <span class="text-slate-400 font-semibold">· {{ availableSessions.length }}</span></h3>
               <p class="text-xs text-slate-500 m-0">Cliquez sur une carte pour ouvrir, consulter et modifier le rapport d'exécution.</p>
             </div>
           </div>

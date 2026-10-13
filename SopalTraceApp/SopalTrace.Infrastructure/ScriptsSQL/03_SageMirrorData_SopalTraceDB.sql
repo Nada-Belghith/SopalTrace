@@ -131,6 +131,7 @@ INSERT INTO dbo.BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative
 -- Nomenclature pour les articles semi-finis (SF) pour hériter de la famille de robinet
 ('25B0A01-1', '2903201-1', 1, 1),
 ('25B2A01-1-1', '2903202-1', 1, 1),
+('25B2A01-1-1', '31B5201-1', 1, 1), -- Volant du robinet soupape (même famille que son autre parent 25B0A01-1)
 ('25A8B01-1', '3028S01-1', 1, 1),
 ('25B0A01-1', '31B5201-1', 1, 1), -- Lie le Volant 31B5201-1 au parent Produit Fini pour hériter de sa famille de robinet
 ('25B0A01-1', 'C-25B0A01', 1, 1),
@@ -198,15 +199,15 @@ INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, Quantit
 -- =================================================================================
 
 INSERT INTO dbo.AUTILIS (USR_0, INTUSR_0, ENAFLG_0, CODMET_0, ADDEML_0) VALUES
-('11111', 'Nada Belghith', 2, 'RESPONSABLE_DI', 'nada.belghith@enis.tn'),
+('11111', 'Nada Belghith', 2, 'RESPONSABLE_DI', NULL),
 ('77777', 'Nada Belghith2', 2, 'RESPONSABLE_DI', 'nada.belghith@enis.u-sfax.tn'),
 ('22222', 'Res Qualite Test', 2, 'RESPONSABLE_QUALITE', 'resqualite@s.com'),
 ('55555', 'Operateur Test', 2, 'OPERATEUR', 'belghithnada@gmail.com'),
 ('33333', 'Magasinier Test', 2, 'MAGASINIER', 'magasinier@s.com'),
-('44444', 'Superviseur Test', 2, 'SUPERVISEUR_QUALITE', 'superviseur@s.com'),
-('66666', 'Admin Doc', 2, 'ADMIN', 'admin@s.com'),
-('11112', 'Superviseur Prod 1', 2, 'SUPERVISEUR_PROD', 'nada.belghith@enis.tn'),
-('22223', 'Manager Prod 1', 2, 'MANAGER_PROD', 'nada.belghith@enis.u-sfax.tn');
+('44444', 'Superviseur Test', 2, 'SUPERVISEUR_QUALITE', 'imen.belghith@enis.tn'),
+('66666', 'Admin Doc', 2, 'ADMIN', 'nada.belghith@enis.tn'),
+('11112', 'Superviseur Prod 1', 2, 'SUPERVISEUR_PROD', NULL),
+('22223', 'Manager Prod 1', 2, 'MANAGER_PROD', NULL);
 
 INSERT INTO dbo.ATEXTRA (CODFIC_0, ZONE_0, IDENT1_0, LANGUE_0, TEXTE_0) VALUES
 ('AUTILIS', 'INTUSR', '11111', 'FRA', 'Nada Belghith'),

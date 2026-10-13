@@ -27,11 +27,11 @@ public partial class OccurrenceService
                 : await _occurrenceRepository.GetDocumentSectionsActivesAsync(execControleOfId))
             : new List<DocumentSection>();
 
-        // Assemblage : contrôles de l'équipe (par défaut celle qui a la main) sur le poste, planifiés par le serveur.
+        // Assemblage : contrôles de l'équipe (par défaut celle qui tient le poste) sur le poste, planifiés par le serveur.
         if (isAssOf)
         {
             var sessionId = string.IsNullOrWhiteSpace(equipe)
-                ? await _occurrenceRepository.GetActiveSessionIdAsync(execControleOfId)
+                ? string.IsNullOrEmpty(posteCode) ? null : await _occurrenceRepository.GetSessionIdDuPosteAsync(execControleOfId, posteCode)
                 : of.ExecControleOfSessions?
                     .Where(s => s.Statut != StatutsSession.Termine && string.Equals(s.Equipe, equipe, StringComparison.OrdinalIgnoreCase))
                     .Select(s => (Guid?)s.Id)

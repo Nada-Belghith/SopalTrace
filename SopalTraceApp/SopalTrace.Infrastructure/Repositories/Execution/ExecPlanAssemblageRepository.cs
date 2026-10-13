@@ -29,36 +29,6 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .FirstOrDefaultAsync(e => e.Id == id);
         }
 
-        public async Task<ExecControleOfSession?> GetActiveSessionAsync(Guid execControleOfId)
-        {
-            return await _context.ExecControleOfSessions
-                .AsNoTracking()
-                .Where(s => s.ExecControleOfId == execControleOfId &&
-                            (s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause))
-                .OrderBy(s => s.Statut == StatutsSession.EnCours ? 0 : 1)
-                .ThenByDescending(s => s.DateDebut)
-                .FirstOrDefaultAsync();
-        }
-
-        public async Task<List<ExecControleOfSession>> GetSessionsOuvertesAsync(Guid execControleOfId)
-        {
-            return await _context.ExecControleOfSessions
-                .AsNoTracking()
-                .Where(s => s.ExecControleOfId == execControleOfId &&
-                            (s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause))
-                .OrderByDescending(s => s.DateDebut)
-                .ToListAsync();
-        }
-
-        public async Task<Guid?> GetPremiereSessionIdAsync(Guid execControleOfId)
-        {
-            return await _context.ExecControleOfSessions
-                .Where(s => s.ExecControleOfId == execControleOfId)
-                .OrderBy(s => s.DateDebut)
-                .Select(s => (Guid?)s.Id)
-                .FirstOrDefaultAsync();
-        }
-
         // ───────────────────────── Sélection du plan d'assemblage ─────────────────────────
 
         public async Task<Guid?> TrouverPlanAssemblageIdAsync(string codeArticle, string posteCode)
@@ -193,10 +163,10 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .ToListAsync();
         }
 
-        public async Task<int?> GetEffectifParPosteAsync(Guid execControleOfId)
+        public async Task<int?> GetEffectifParPosteAsync(Guid execControleOfId, string posteCode)
         {
             return await _context.ExecEchantillonnages
-                .Where(e => e.ExecControleDocumentStatut.ExecControleOfId == execControleOfId)
+                .Where(e => e.ExecControleDocumentStatut.ExecControleOfId == execControleOfId && e.ExecControleDocumentStatut.PosteCode == posteCode)
                 .OrderByDescending(e => e.ExecControleDocumentStatut.DateExecution)
                 .Select(e => e.EffectifParPosteAb)
                 .FirstOrDefaultAsync();

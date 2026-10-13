@@ -16,8 +16,6 @@ namespace SopalTrace.Application.Interfaces.Execution
         Task<ExecControleDocumentStatut?> GetStatutByIdWithDetailsAsync(Guid id);
         Task<DocumentEntete?> GetPlanByIdAsync(Guid id);
         Task<DocumentEntete?> GetPlanActifByPosteAsync(string posteCode, Guid execControleOfId);
-        /// <summary>Équipe en production sur l'OF (null si aucune).</summary>
-        Task<ExecControleOfSession?> GetSessionEnCoursAsync(Guid execControleOfId);
         /// <summary>Validations des équipes (marqueurs par session) sur le poste : du jour de production donné, ou de tous les jours.</summary>
         Task<List<ExecControleDocumentStatut>> GetValidationsEquipesAsync(Guid execControleOfId, string posteCode, DateTime? jour = null);
         /// <summary>Équipes actives (et leurs heures) définies dans le formulaire du document.</summary>

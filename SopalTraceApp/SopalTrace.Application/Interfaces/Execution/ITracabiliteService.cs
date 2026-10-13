@@ -7,7 +7,8 @@ namespace SopalTrace.Application.Interfaces.Execution
 {
     public interface ITracabiliteService
     {
-        Task<RegistreTracabiliteDto> GetRegistreTracabiliteAsync(Guid execControleOfId);
+        /// <summary>Registre de l'OF vu depuis un poste : l'équipe qui saisit est celle qui tient le poste.</summary>
+        Task<RegistreTracabiliteDto> GetRegistreTracabiliteAsync(Guid execControleOfId, string? posteCode = null);
         Task<RegistreTracabiliteRowDto> AddLigneTracabiliteAsync(AddRegistreTracabiliteDto dto, string matriculeOperateur);
         Task<bool> ValidateLotAsync(Guid execControleOfId, string typeArticle, string numeroLot);
         Task<List<string>> SearchLotsAsync(Guid execControleOfId, string typeArticle, string query);

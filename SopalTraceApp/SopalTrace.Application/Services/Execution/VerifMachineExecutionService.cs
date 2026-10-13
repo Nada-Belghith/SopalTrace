@@ -12,10 +12,12 @@ namespace SopalTrace.Application.Services.Execution;
 public class VerifMachineExecutionService : IVerifMachineExecutionService
 {
     private readonly IOperateurRepository _operateurRepository;
+    private readonly IDemarragePosteRepository _postes;
 
-    public VerifMachineExecutionService(IOperateurRepository operateurRepository)
+    public VerifMachineExecutionService(IOperateurRepository operateurRepository, IDemarragePosteRepository postes)
     {
         _operateurRepository = operateurRepository;
+        _postes = postes;
     }
 
     public async Task<ExecVerifMachineSessionDto> GetExecVerifMachineAsync(Guid statutId)
@@ -68,10 +70,9 @@ public class VerifMachineExecutionService : IVerifMachineExecutionService
         if (docStatut.ExecControleOf.Statut == StatutsExecution.Cloture)
             throw new EtatExecutionInvalideException("Cet OF est clôturé : la vérification machine ne peut plus être modifiée.");
 
-        // Les vérifications d'une équipe dont la session est terminée restent consultables mais ne sont plus modifiables.
-        var sessionActive = await _operateurRepository.GetActiveSessionAsync(docStatut.ExecControleOfId);
-        if (docStatut.SessionId != sessionActive?.Id)
-            throw new EtatExecutionInvalideException("Cette vérification appartient à une session d'équipe terminée : elle ne peut plus être modifiée.");
+        // Les vérifications d'une équipe qui ne tient plus le poste restent consultables mais ne sont plus modifiables.
+        if (docStatut.SessionId is not Guid sessionId || docStatut.PosteCode == null || !await _postes.EstEnCoursAsync(sessionId, docStatut.PosteCode))
+            throw new EtatExecutionInvalideException("Cette vérification appartient à une équipe qui ne tient plus ce poste : elle ne peut plus être modifiée.");
 
         var dateExecution = DateTime.Now;
         docStatut.DateExecution ??= dateExecution;
@@ -126,7 +127,10 @@ public class VerifMachineExecutionService : IVerifMachineExecutionService
             throw new RegleMetierException($"Le poste {posteCode} n'est pas affecté à cet OF.");
 
         var maintenant = DateTime.Now;
-        var statutsPoste = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId))
+        // Vérifications de l'équipe qui tient le poste.
+        var session = await _postes.GetSessionAsync(execControleOfId, posteCode)
+            ?? throw new EtatExecutionInvalideException($"Aucune équipe ne tient le poste {posteCode}.");
+        var statutsPoste = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId, session.Id))
             .Where(x => x.PosteCode == posteCode)
             .ToList();
 
@@ -140,15 +144,14 @@ public class VerifMachineExecutionService : IVerifMachineExecutionService
         // Marqueur de clôture rattaché à la session active pour être visible dans la liste des documents de l'équipe.
         if (!statutsPoste.Any(x => x.TypeDocument == TypesDocumentExecution.ClotureVerifMachinePoste))
         {
-            var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
             _operateurRepository.AddExecControleDocumentStatut(new ExecControleDocumentStatut
             {
                 Id = Guid.NewGuid(),
                 ExecControleOfId = execControleOfId,
                 PosteCode = posteCode,
                 TypeDocument = TypesDocumentExecution.ClotureVerifMachinePoste,
-                SessionId = session?.Id,
-                Equipe = session?.Equipe,
+                SessionId = session.Id,
+                Equipe = session.Equipe,
                 DateExecution = maintenant,
                 DateTermine = maintenant,
                 EstDemarrageTermine = true,

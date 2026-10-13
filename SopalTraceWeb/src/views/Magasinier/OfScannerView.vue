@@ -174,7 +174,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import Swal from 'sweetalert2';
+import { confirmer } from '@/composables/useConfirmation';
 import { useAuthStore } from '@/stores/authStore';
 import magasinService from '@/services/magasinService';
 import { useScanDouchette } from '@/composables/Magasinier/useScanDouchette';
@@ -248,18 +248,16 @@ const terminer = async () => {
   const manquants = preparation.value.composants.filter(c => c.lots.length === 0);
   let motif = null;
   if (manquants.length > 0) {
-    const reponse = await Swal.fire({
-      title: 'Préparation incomplète',
-      html: `Composants non servis : <b>${manquants.map(c => c.codeArticle).join(', ')}</b><br>Indiquez le motif pour terminer quand même.`,
-      input: 'textarea',
-      inputAttributes: { maxlength: 300 },
-      inputValidator: (v) => (!v || !v.trim()) && 'Le motif est obligatoire.',
-      showCancelButton: true,
-      confirmButtonText: 'Terminer',
-      cancelButtonText: 'Continuer à scanner'
+    const reponse = await confirmer({
+      titre: 'Préparation incomplète',
+      message: 'Ces composants n\'ont pas été servis. Indiquez le motif pour terminer quand même.',
+      details: manquants.map(c => c.codeArticle),
+      saisie: { libelle: 'Le motif', obligatoire: true, longueurMax: 300 },
+      libelleConfirmer: 'Terminer',
+      libelleAnnuler: 'Continuer à scanner'
     });
-    if (!reponse.isConfirmed) return scanComposant.focus();
-    motif = reponse.value;
+    if (!reponse.confirme) return scanComposant.focus();
+    motif = reponse.valeur;
   }
   try {
     preparation.value = await magasinService.terminerPreparation(preparation.value.id, motif);
@@ -271,16 +269,14 @@ const terminer = async () => {
 };
 
 const annuler = async () => {
-  const reponse = await Swal.fire({
-    title: 'Annuler la préparation ?',
-    text: 'Les scans enregistrés sont conservés dans l\'historique, une nouvelle préparation pourra être ouverte.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Annuler la préparation',
-    cancelButtonText: 'Retour'
+  const { confirme } = await confirmer({
+    titre: 'Annuler la préparation ?',
+    message: 'Les scans enregistrés sont conservés dans l\'historique, une nouvelle préparation pourra être ouverte.',
+    danger: true,
+    libelleConfirmer: 'Annuler la préparation',
+    libelleAnnuler: 'Retour'
   });
-  if (!reponse.isConfirmed) return;
+  if (!confirme) return;
   try {
     await magasinService.annulerPreparation(preparation.value.id);
     afficher(true, `Préparation de l'OF ${preparation.value.numeroOf} annulée.`);

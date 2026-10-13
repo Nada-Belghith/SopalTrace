@@ -973,9 +973,9 @@ CREATE TABLE dbo.Exec_ControleOf_Session (
     TempsPauseTotalMinutes FLOAT NOT NULL DEFAULT 0,
     -- L'équipe a pris sa pause déjeuner : la vérification machine « après pause » devient due à la reprise.
     HadLunchBreak BIT NOT NULL DEFAULT 0,
-    -- Fin demandée par l'équipe (assemblage) : FIN_POSTE ou FIN_OF ; NULL en production.
-    -- Tenue par le serveur pour que chaque tablette affiche la même étape.
-    ClosingRequest VARCHAR(10) NULL CHECK (ClosingRequest IN ('FIN_POSTE', 'FIN_OF')),
+    -- Clôture de l'OF demandée par l'équipe (assemblage) ; NULL sinon. La fin de poste se demande poste par
+    -- poste (Exec_SessionPost.ClosingRequestedAt). Tenue par le serveur : chaque tablette affiche la même étape.
+    ClosingRequest VARCHAR(10) NULL CONSTRAINT CK_ExecControleOfSession_ClosingRequest CHECK (ClosingRequest = 'FIN_OF'),
     RowVersion ROWVERSION NOT NULL,
     CONSTRAINT CK_ExecControleOfSession_DateFin CHECK (DateFin IS NULL OR Statut = 'TERMINE')
 );
@@ -1004,13 +1004,77 @@ BEGIN
 END;
 GO
 
--- Plusieurs équipes peuvent avoir une session ouverte sur un OF (l'une produit, les autres sont en pause et
--- reprendront leur étape) : une seule équipe en production à la fois, une seule session ouverte par équipe.
--- (Statut est dans la clé du premier index pour que la relation OF → sessions reste « plusieurs » côté EF.)
-CREATE UNIQUE INDEX UX_ExecControleOfSession_OneRunningTeam
-    ON dbo.Exec_ControleOf_Session (ExecControleOfId, Statut) WHERE Statut = 'EN_COURS';
+-- Plusieurs équipes peuvent travailler en même temps sur l'OF, chacune sur ses postes (une seule équipe à la
+-- fois par poste : UX_ExecSessionPost_OneTeamPerPoste). Une équipe a au plus une session ouverte (en production
+-- ou en pause) par OF ; elle peut en ouvrir autant qu'elle veut, l'une après l'autre. (DateFin est nulle pour
+-- toute session ouverte — CK_ExecControleOfSession_DateFin — et figure dans la clé pour que la relation
+-- OF → sessions reste « plusieurs » côté EF.)
 CREATE UNIQUE INDEX UX_ExecControleOfSession_OneOpenSessionPerTeam
-    ON dbo.Exec_ControleOf_Session (ExecControleOfId, Equipe) WHERE Statut IN ('EN_COURS', 'EN_PAUSE');
+    ON dbo.Exec_ControleOf_Session (ExecControleOfId, Equipe, DateFin) WHERE Statut IN ('EN_COURS', 'EN_PAUSE');
+GO
+
+-- Poste tenu par une équipe dans sa session (choisi à la prise de poste ou « Démarrer ce poste ») : il suit son
+-- propre parcours (échantillonnage, démarrage, production, fin de poste), indépendamment des autres postes de
+-- l'OF. Le premier démarrage d'un poste sur l'OF porte aussi le contrôle « début d'OF » (LOT_OF) de ce poste.
+-- La fin de poste se demande (ClosingRequestedAt) puis se termine (EndedAt) poste par poste ; tant qu'un poste
+-- n'est pas terminé, aucune autre équipe ne peut le prendre.
+CREATE TABLE dbo.Exec_SessionPost (
+    Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+    SessionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOf_Session(Id),
+    -- OF de la session (cohérence : TR_ExecSessionPost_Consistency), pour l'unicité par poste de l'OF.
+    ExecControleOfId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Exec_ControleOF(Id),
+    PosteCode VARCHAR(30) NOT NULL REFERENCES dbo.PosteTravail(CodePoste),
+    StartedAt DATETIME2(3) NOT NULL DEFAULT SYSDATETIME(),
+    StartedBy VARCHAR(20) NULL REFERENCES dbo.AUTILIS(USR_0),
+    -- Fin de poste demandée par l'équipe sur ce poste : ses contrôles de fin deviennent dus.
+    ClosingRequestedAt DATETIME2(3) NULL,
+    -- Poste terminé par l'équipe (contrôles de fin faits) : une autre équipe peut le prendre.
+    EndedAt DATETIME2(3) NULL,
+    EndedBy VARCHAR(20) NULL REFERENCES dbo.AUTILIS(USR_0),
+    CONSTRAINT UQ_ExecSessionPost UNIQUE (SessionId, PosteCode),
+    CONSTRAINT CK_ExecSessionPost_Dates CHECK (
+        (ClosingRequestedAt IS NULL OR ClosingRequestedAt >= StartedAt) AND (EndedAt IS NULL OR EndedAt >= StartedAt)),
+    CONSTRAINT CK_ExecSessionPost_EndedBy CHECK (EndedBy IS NULL OR EndedAt IS NOT NULL)
+);
+GO
+
+-- Une seule équipe à la fois sur un poste de l'OF : la suivante le prend après que la précédente l'a terminé.
+CREATE UNIQUE INDEX UX_ExecSessionPost_OneTeamPerPoste
+    ON dbo.Exec_SessionPost (ExecControleOfId, PosteCode) WHERE EndedAt IS NULL;
+GO
+
+-- Un poste appartient à l'OF de sa session, et une session terminée n'a plus de poste en cours.
+CREATE TRIGGER TR_ExecSessionPost_Consistency ON dbo.Exec_SessionPost
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.Exec_ControleOf_Session s ON s.Id = i.SessionId
+               WHERE s.ExecControleOfId <> i.ExecControleOfId)
+        THROW 50111, 'Le poste n''appartient pas à l''OF de la session.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.Exec_ControleOf_Session s ON s.Id = i.SessionId
+               WHERE i.EndedAt IS NULL AND s.Statut = 'TERMINE')
+        THROW 50112, 'Session d''équipe terminée : aucun poste ne peut y rester en cours.', 1;
+END;
+GO
+
+-- Session terminée : tous ses postes le sont. Clôture de l'OF demandée : l'équipe est seule sur l'OF (les autres
+-- ont terminé leurs postes) et aucune autre ne commence avant la clôture.
+CREATE TRIGGER TR_ExecControleOfSession_Consistency ON dbo.Exec_ControleOf_Session
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.Exec_SessionPost p ON p.SessionId = i.Id
+               WHERE i.Statut = 'TERMINE' AND p.EndedAt IS NULL)
+        THROW 50112, 'Session d''équipe terminée : aucun poste ne peut y rester en cours.', 1;
+    IF EXISTS (SELECT 1 FROM dbo.Exec_ControleOf_Session s
+               JOIN (SELECT DISTINCT ExecControleOfId FROM inserted) i ON i.ExecControleOfId = s.ExecControleOfId
+               WHERE s.Statut IN ('EN_COURS', 'EN_PAUSE')
+               GROUP BY s.ExecControleOfId
+               HAVING COUNT(*) > 1 AND MAX(CASE WHEN s.ClosingRequest = 'FIN_OF' THEN 1 ELSE 0 END) = 1)
+        THROW 50110, 'Clôture de l''OF en cours : une seule équipe peut être ouverte sur l''OF.', 1;
+END;
 GO
 
 CREATE TABLE dbo.Exec_ControleDocumentStatut (
@@ -1035,6 +1099,12 @@ GO
 
 CREATE INDEX IX_ExecControleDocumentStatut_ExecSession
     ON dbo.Exec_ControleDocumentStatut (ExecControleOfId, SessionId) INCLUDE (TypeDocument, PosteCode, MachineCode);
+-- Une fiche d'échantillonnage par poste de l'OF (chaque poste vit comme si l'OF n'en avait qu'un).
+CREATE UNIQUE INDEX UX_ExecControleDocumentStatut_SamplingPerPoste
+    ON dbo.Exec_ControleDocumentStatut (ExecControleOfId, PosteCode) WHERE TypeDocument = 'ECHANTILLONNAGE' AND PosteCode IS NOT NULL;
+-- Confirmation des lots d'une équipe : toujours sur le registre d'un poste.
+ALTER TABLE dbo.Exec_ControleDocumentStatut ADD CONSTRAINT CK_ExecControleDocumentStatut_RegistrePoste
+    CHECK (TypeDocument <> 'REGISTRE_TRACA' OR PosteCode IS NOT NULL);
 GO
 
 CREATE TABLE dbo.Exec_PieceType (
@@ -1337,9 +1407,10 @@ CREATE TABLE dbo.Exec_RC_Poste_Bilan (
 );
 GO
 
--- Registre de traçabilité de l'OF : une ligne par changement de lots (corps, volant, composants scannés par le
--- magasinier), avec l'équipe, le poste et l'opérateur. Une ligne erronée est annulée avec son motif, jamais
--- supprimée. Chaque équipe confirme ses lots avant sa fin de poste (Exec_ControleDocumentStatut par session).
+-- Registre de traçabilité : un par poste de l'OF (PosteCode). Une ligne par changement de lots sur le poste (corps,
+-- volant, composants scannés par le magasinier), avec l'équipe et l'opérateur ; la version est propre au poste.
+-- Une ligne erronée est annulée avec son motif, jamais supprimée. Chaque équipe confirme ses lots du poste avant
+-- sa fin de poste (Exec_ControleDocumentStatut par session et par poste).
 CREATE TABLE dbo.ExecRegistreTracabilite (
     Id UNIQUEIDENTIFIER NOT NULL DEFAULT NEWSEQUENTIALID(),
     ExecControleOfId UNIQUEIDENTIFIER NOT NULL,
@@ -1349,16 +1420,36 @@ CREATE TABLE dbo.ExecRegistreTracabilite (
     Volant VARCHAR(100) NULL,
     SessionId UNIQUEIDENTIFIER NULL REFERENCES dbo.Exec_ControleOf_Session(Id),
     Equipe VARCHAR(10) NULL REFERENCES dbo.Team(Code),
-    PosteCode VARCHAR(30) NULL REFERENCES dbo.PosteTravail(CodePoste),
+    -- Poste dont c'est le registre : un poste affecté à l'OF (FK_ExecRegistreTracabilite_OfPoste).
+    PosteCode VARCHAR(30) NOT NULL,
     MatriculeOperateur VARCHAR(20) NULL REFERENCES dbo.AUTILIS(USR_0),
     CancelledAt DATETIME2(3) NULL,
     CancelledBy VARCHAR(20) NULL REFERENCES dbo.AUTILIS(USR_0),
     CancellationReason VARCHAR(250) NULL,
     CONSTRAINT PK_ExecRegistreTracabilite PRIMARY KEY (Id),
     CONSTRAINT FK_ExecRegistreTracabilite_ExecControleOf FOREIGN KEY (ExecControleOfId) REFERENCES dbo.Exec_ControleOf (Id),
+    CONSTRAINT FK_ExecRegistreTracabilite_OfPoste FOREIGN KEY (ExecControleOfId, PosteCode)
+        REFERENCES dbo.Exec_ControleOf_Poste (ExecControleOfId, PosteCode),
     CONSTRAINT CK_ExecRegistreTracabilite_Cancellation CHECK (
         CancelledAt IS NULL OR (CancelledBy IS NOT NULL AND CancellationReason IS NOT NULL))
 );
+GO
+
+CREATE INDEX IX_ExecRegistreTracabilite_Poste ON dbo.ExecRegistreTracabilite (ExecControleOfId, PosteCode, DateHeure);
+GO
+
+-- Ligne saisie par une équipe : sa session appartient à l'OF et a tenu ce poste (registre du poste).
+CREATE TRIGGER TR_ExecRegistreTracabilite_Consistency ON dbo.ExecRegistreTracabilite
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i
+               WHERE i.SessionId IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM dbo.Exec_SessionPost p
+                                 WHERE p.SessionId = i.SessionId AND p.ExecControleOfId = i.ExecControleOfId AND p.PosteCode = i.PosteCode))
+        THROW 50114, 'Registre de traçabilité : l''équipe n''a pas tenu ce poste de l''OF.', 1;
+END;
 GO
 
 CREATE TABLE dbo.ExecRegistreTracabiliteComposant (

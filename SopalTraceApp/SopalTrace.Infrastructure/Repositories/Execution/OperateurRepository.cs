@@ -25,6 +25,23 @@ public class OperateurRepository : IOperateurRepository
               m.NumeroOfNavigation.ExecControleOfs.Any(e => e.OperationCode == op.OperationCode && e.Statut == StatutsExecution.Cloture) &&
               !m.NumeroOfNavigation.ExecControleOfs.Any(e => e.OperationCode == op.OperationCode && e.Statut != StatutsExecution.Cloture)));
 
+    /// <summary>Un OF clôturé reste au tableau de bord de l'opérateur ce nombre de jours (consultation de ses documents).</summary>
+    public const int JoursOfsCloturesVisibles = 7;
+
+    /// <summary>
+    /// OF du tableau de bord : préparés par le magasin, disponibles pour la production ou clôturés depuis moins de
+    /// <see cref="JoursOfsCloturesVisibles"/> jours (en consultation seule).
+    /// </summary>
+    private static Expression<Func<MagPreparationOf, bool>> OfAuTableauDeBord(DateTime clotureDepuis) => m =>
+        m.Statut == StatutsPreparationMagasin.Termine &&
+        (!(m.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations.Any() &&
+           m.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations.All(op =>
+               m.NumeroOfNavigation.ExecControleOfs.Any(e => e.OperationCode == op.OperationCode && e.Statut == StatutsExecution.Cloture) &&
+               !m.NumeroOfNavigation.ExecControleOfs.Any(e => e.OperationCode == op.OperationCode && e.Statut != StatutsExecution.Cloture)))
+         || m.NumeroOfNavigation.ExecControleOfs.Any(e => e.Statut == StatutsExecution.Cloture && e.DateFin >= clotureDepuis));
+
+    private static DateTime DebutOfsCloturesVisibles => DateTime.Now.AddDays(-JoursOfsCloturesVisibles);
+
     private static readonly string[] StatutsPlanVerifMachineActif = { "ACTIF", "Actif" };
 
     private readonly SopalTraceDbContext _context;
@@ -177,7 +194,7 @@ public class OperateurRepository : IOperateurRepository
                     .ThenInclude(a => a.NatureArticleCodeNavigation)
                         .ThenInclude(na => na.NatureArticleOperations)
                             .ThenInclude(nao => nao.OperationCodeNavigation)
-            .Where(OfDisponiblePourLaProduction)
+            .Where(OfAuTableauDeBord(DebutOfsCloturesVisibles))
             .ToListAsync();
 
         var result = new List<OperateurOfDto>();
@@ -242,10 +259,15 @@ public class OperateurRepository : IOperateurRepository
                 }
             }
 
+            // Toutes les opérations de la gamme clôturées : l'OF est en consultation seule.
+            if (dto.GammeOperatoire.Count > 0 && dto.GammeOperatoire.All(o => o.ActiveExecStatut == StatutsExecution.Cloture))
+                dto.DateCloture = activeExecs.Where(e => e.Statut == StatutsExecution.Cloture).Max(e => e.DateFin);
+
             result.Add(dto);
         }
 
-        return result;
+        // OF à traiter d'abord, puis les clôturés du plus récent au plus ancien.
+        return result.OrderBy(o => o.DateCloture.HasValue).ThenByDescending(o => o.DateCloture).ToList();
     }
 
     public async Task<IEnumerable<Machine>> GetAllMachinesAsync()
@@ -313,7 +335,10 @@ public class OperateurRepository : IOperateurRepository
 
     public async Task<List<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync()
     {
-        var ofs = await QueryOfsAssemblageDisponibles()
+        var ofs = await _context.MagPreparationOfs
+            .Where(OfAuTableauDeBord(DebutOfsCloturesVisibles))
+            .Where(m => m.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCodeNavigation.NatureArticleOperations
+                            .Any(o => o.OperationCode == CodesOperation.Assemblage))
             .AsNoTracking()
             .Select(m => new
             {
@@ -330,31 +355,34 @@ public class OperateurRepository : IOperateurRepository
 
         var execs = await _context.ExecControleOfs
             .AsNoTracking()
-            .Where(e => e.TypeOf == TypesOf.Assemblage && e.Statut != StatutsExecution.Cloture && numeros.Contains(e.NumeroOf))
+            .Where(e => e.TypeOf == TypesOf.Assemblage && numeros.Contains(e.NumeroOf))
             .Select(e => new
             {
                 e.Id,
                 e.NumeroOf,
                 e.Statut,
                 e.DateDebut,
+                e.DateFin,
                 Postes = e.ExecControleOfPostes.Select(p => p.PosteCode).ToList(),
-                // Équipe qui a la main (en production, sinon la dernière en pause) et équipes en pause.
-                Equipe = e.ExecControleOfSessions
+                // Équipes ouvertes et postes qu'elles tiennent.
+                Equipes = e.ExecControleOfSessions
                     .Where(s => s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause)
-                    .OrderBy(s => s.Statut == StatutsSession.EnCours ? 0 : 1)
-                    .ThenByDescending(s => s.DateDebut)
-                    .Select(s => s.Equipe)
-                    .FirstOrDefault(),
-                EquipesEnPause = e.ExecControleOfSessions
-                    .Where(s => s.Statut == StatutsSession.EnPause)
-                    .Select(s => s.Equipe)
+                    .OrderBy(s => s.DateDebut)
+                    .Select(s => new EquipeOfAssemblageDto
+                    {
+                        Equipe = s.Equipe,
+                        EnPause = s.Statut == StatutsSession.EnPause,
+                        ClotureDemandee = s.ClosingRequest == DemandesCloture.FinOf,
+                        Postes = s.ExecSessionPosts.Where(p => p.EndedAt == null).OrderBy(p => p.PosteCode).Select(p => p.PosteCode).ToList()
+                    })
                     .ToList()
             })
             .ToListAsync();
 
+        // Exécution affichée : celle en cours, sinon la dernière clôturée (consultation).
         var execParOf = execs
             .GroupBy(e => e.NumeroOf)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(e => e.DateDebut).First());
+            .ToDictionary(g => g.Key, g => g.OrderBy(e => e.Statut == StatutsExecution.Cloture).ThenByDescending(e => e.DateDebut).First());
 
         return ofs.Select(of =>
         {
@@ -368,11 +396,14 @@ public class OperateurRepository : IOperateurRepository
                 DateDebut = exec?.DateDebut ?? of.DateDebut,
                 Statut = exec?.Statut,
                 ExecControleOfId = exec?.Id,
-                EquipeActuelle = exec?.Equipe,
-                EquipesEnPause = exec?.EquipesEnPause ?? new List<string>(),
+                Equipes = exec?.Equipes ?? new List<EquipeOfAssemblageDto>(),
+                DateCloture = exec?.Statut == StatutsExecution.Cloture ? exec.DateFin : null,
                 PostesExistants = exec?.Postes ?? new List<string>()
             };
-        }).ToList();
+        })
+        // OF à traiter d'abord, puis les clôturés du plus récent au plus ancien.
+        .OrderBy(o => o.DateCloture.HasValue).ThenByDescending(o => o.DateCloture)
+        .ToList();
     }
 
     public async Task<bool> OfAssemblageDisponibleAsync(string numeroOf)
@@ -442,29 +473,6 @@ public class OperateurRepository : IOperateurRepository
 
     // ───────────────────────────── Sessions d'équipe ─────────────────────────────
 
-    /// <summary>
-    /// Session qui a la main sur l'OF : l'équipe en production, sinon l'équipe la plus récemment mise en pause.
-    /// Plusieurs équipes peuvent avoir une session ouverte (une seule en production, les autres en pause).
-    /// </summary>
-    public async Task<ExecControleOfSession?> GetActiveSessionAsync(Guid execControleOfId)
-    {
-        return await _context.ExecControleOfSessions
-            .Where(s => s.ExecControleOfId == execControleOfId &&
-                        (s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause))
-            .OrderBy(s => s.Statut == StatutsSession.EnCours ? 0 : 1)
-            .ThenByDescending(s => s.DateDebut)
-            .FirstOrDefaultAsync();
-    }
-
-    public async Task<List<ExecControleOfSession>> GetSessionsOuvertesAsync(Guid execControleOfId)
-    {
-        return await _context.ExecControleOfSessions
-            .Where(s => s.ExecControleOfId == execControleOfId &&
-                        (s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause))
-            .OrderByDescending(s => s.DateDebut)
-            .ToListAsync();
-    }
-
     public void AddSession(ExecControleOfSession session)
     {
         _context.ExecControleOfSessions.Add(session);
@@ -472,13 +480,17 @@ public class OperateurRepository : IOperateurRepository
 
     // ───────────────────────────── Statuts de documents ─────────────────────────────
 
-    /// <summary>Statuts de la session donnée, par défaut la session active (ou sans session si aucune équipe n'est active).</summary>
-    public async Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId, Guid? sessionId = null)
+    public async Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId, Guid sessionId)
     {
-        var activeSessionId = sessionId ?? (await GetActiveSessionAsync(execControleOfId))?.Id;
-
         return await _context.ExecControleDocumentStatuts
-            .Where(d => d.ExecControleOfId == execControleOfId && d.SessionId == activeSessionId)
+            .Where(d => d.ExecControleOfId == execControleOfId && d.SessionId == sessionId)
+            .ToListAsync();
+    }
+
+    public async Task<List<ExecControleDocumentStatut>> GetStatutsOfAsync(Guid execControleOfId)
+    {
+        return await _context.ExecControleDocumentStatuts
+            .Where(d => d.ExecControleOfId == execControleOfId)
             .ToListAsync();
     }
 
@@ -496,10 +508,12 @@ public class OperateurRepository : IOperateurRepository
         var query = _context.ExecControleDocumentStatuts
             .Where(s => s.ExecControleOfId == execControleOfId && s.MachineCode == machineCode && s.TypeDocument == TypesDocumentExecution.VerifMachine);
 
-        var activeSessionId = (await GetActiveSessionAsync(execControleOfId))?.Id;
-        if (activeSessionId != null)
+        // Vérifications de l'équipe qui tient le poste de la machine, s'il est tenu ; sinon tout l'historique.
+        var tenues = query.Where(d => _context.ExecSessionPosts.Any(p =>
+            p.SessionId == d.SessionId && p.PosteCode == d.PosteCode && p.EndedAt == null));
+        if (await tenues.AnyAsync())
         {
-            query = query.Where(d => d.SessionId == activeSessionId);
+            query = tenues;
         }
 
         return await query

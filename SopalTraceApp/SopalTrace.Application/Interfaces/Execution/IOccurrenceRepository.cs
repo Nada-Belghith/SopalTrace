@@ -8,7 +8,8 @@ namespace SopalTrace.Application.Interfaces.Execution;
 public interface IOccurrenceRepository
 {
     Task<ExecControleOf?> GetExecControleOfWithIntermediairesAsync(Guid execControleOfId);
-    Task<Guid?> GetActiveSessionIdAsync(Guid execControleOfId);
+    /// <summary>Session de l'équipe qui tient le poste (null s'il est libre).</summary>
+    Task<Guid?> GetSessionIdDuPosteAsync(Guid execControleOfId, string posteCode);
     Task<List<DocumentSection>> GetSectionsActivesAsync(Guid planEnteteId);
     /// <summary>Sections ECHANTILLONNAGE du plan d'assemblage (DocumentSection) pour un OF de type ASS.</summary>
     Task<List<DocumentSection>> GetDocumentSectionsActivesAsync(Guid execControleOfId);

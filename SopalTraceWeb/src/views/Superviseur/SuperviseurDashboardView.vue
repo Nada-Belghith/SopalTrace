@@ -3,21 +3,15 @@
     <div class="max-w-7xl mx-auto space-y-8">
 
       <!-- HEADER -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div class="flex items-center gap-4">
-          <div class="p-3 bg-amber-100 text-amber-600 rounded-xl">
-            <i class="pi pi-shield text-3xl"></i>
-          </div>
-          <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Dashboard Superviseur</h1>
-            <p class="text-slate-500 text-sm mt-1">Documents qualité actifs et archivés, génériques et spécifiques</p>
-          </div>
-        </div>
-        <button @click="charger" :disabled="chargement"
-                class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 border border-slate-200 disabled:opacity-50">
-          <i class="pi pi-refresh" :class="{ 'pi-spin': chargement }"></i> Actualiser
-        </button>
-      </div>
+      <EnTetePage titre="Tableau de bord" complement="Superviseur qualité"
+                  sous-titre="Documents qualité actifs et archivés, génériques et spécifiques">
+        <template #actions>
+          <button @click="charger" :disabled="chargement"
+                  class="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 border border-slate-200 disabled:opacity-50">
+            <i class="pi pi-refresh" :class="{ 'pi-spin': chargement }"></i> Actualiser
+          </button>
+        </template>
+      </EnTetePage>
 
       <p v-if="erreur" class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{{ erreur }}</p>
 
@@ -84,6 +78,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import apiClient from '@/services/apiClient';
 
 const ACTIFS = { cle: 'actifs', libelle: 'Actifs', icone: 'pi pi-check-circle text-emerald-500' };

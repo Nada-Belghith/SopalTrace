@@ -24,11 +24,14 @@ namespace SopalTrace.Application.Services
     {
         private readonly IExecRcPosteRepository _repository;
         private readonly IFormulaireStructureService _formulaireStructureService;
+        private readonly IDemarragePosteRepository _demarrages;
 
-        public ExecRcPosteService(IExecRcPosteRepository repository, IFormulaireStructureService formulaireStructureService)
+        public ExecRcPosteService(IExecRcPosteRepository repository, IFormulaireStructureService formulaireStructureService,
+            IDemarragePosteRepository demarrages)
         {
             _repository = repository;
             _formulaireStructureService = formulaireStructureService;
+            _demarrages = demarrages;
         }
 
         /// <summary>Document du jour de production en cours (créé à la première ouverture).</summary>
@@ -119,8 +122,8 @@ namespace SopalTrace.Application.Services
             if (!statut.ExecRcPosteReponses.Any(r => tranches.Contains(r.TrancheHoraire)))
                 throw new RegleMetierException($"Saisissez au moins les pièces réalisées d'une heure de l'équipe {equipe.Code} avant de valider.");
 
-            var session = await _repository.GetSessionEnCoursAsync(statut.ExecControleOfId);
             var posteCode = statut.PosteCode ?? "";
+            var session = await SessionDuPosteAsync(statut);
             var validations = await _repository.GetValidationsEquipesAsync(statut.ExecControleOfId, posteCode, statut.DateExecution);
             if (!validations.Any(v => v.SessionId == session!.Id))
             {
@@ -213,15 +216,26 @@ namespace SopalTrace.Application.Services
             if (plan == null) throw new RessourceIntrouvableException("Plan de contrôle au poste introuvable.");
 
             var equipes = await EquipesAsync(plan);
-            var session = await _repository.GetSessionEnCoursAsync(statut.ExecControleOfId);
-            var motif = MotifLectureSeule(statut, equipes, session?.Equipe);
+            var session = await SessionDuPosteAsync(statut);
+            var motif = MotifLectureSeule(statut, equipes, session?.Equipe, await PosteDemarreAsync(session, statut));
             if (motif != null) throw new EtatExecutionInvalideException(motif);
 
             var equipe = EquipesControlePoste.Equipe(equipes, session!.Equipe)!;
             return (statut, plan, equipe, EquipesControlePoste.Tranches(equipe).ToHashSet());
         }
 
-        private static string? MotifLectureSeule(ExecControleDocumentStatut statut, IReadOnlyList<EquipePoste> equipes, string? equipeEnProduction)
+        private async Task<bool> PosteDemarreAsync(ExecControleOfSession? session, ExecControleDocumentStatut statut) =>
+            session != null && await _demarrages.EstEnCoursAsync(session.Id, statut.PosteCode ?? "");
+
+        /// <summary>Équipe en production qui tient le poste du document (null si aucune, ou en pause).</summary>
+        private async Task<ExecControleOfSession?> SessionDuPosteAsync(ExecControleDocumentStatut statut)
+        {
+            var session = statut.PosteCode == null ? null : await _demarrages.GetSessionAsync(statut.ExecControleOfId, statut.PosteCode);
+            return session?.Statut == StatutsSession.EnCours ? session : null;
+        }
+
+        private static string? MotifLectureSeule(ExecControleDocumentStatut statut, IReadOnlyList<EquipePoste> equipes, string? equipeEnProduction,
+            bool posteDemarre)
         {
             if (statut.EstTermine) return "Ce document est terminé : il ne peut plus être modifié.";
             var jourCourant = EquipesControlePoste.JourProduction(DateTime.Now, EquipesControlePoste.HeureDebutJournee(equipes));
@@ -230,6 +244,8 @@ namespace SopalTrace.Application.Services
             if (equipeEnProduction == null) return "Aucune équipe ne produit sur cet OF : reprenez la production pour saisir vos heures.";
             if (EquipesControlePoste.Equipe(equipes, equipeEnProduction) == null)
                 return $"L'équipe {equipeEnProduction} n'est pas définie dans ce document de contrôle au poste : demandez au superviseur de l'ajouter.";
+            if (!posteDemarre)
+                return $"Le poste {statut.PosteCode} n'est pas démarré par l'équipe {equipeEnProduction} : démarrez-le depuis l'assistant.";
             return null;
         }
 
@@ -336,8 +352,8 @@ namespace SopalTrace.Application.Services
             var comptages = statut.ExecControleLigneReponses.Where(r => r.ResultatType == ResultatsLigne.Comptage).ToList();
             var equipesDefinies = await _repository.GetEquipesAsync(plan.FormulaireId);
             var equipes = EquipesControlePoste.Depuis(equipesDefinies);
-            var session = await _repository.GetSessionEnCoursAsync(statut.ExecControleOfId);
-            var motif = MotifLectureSeule(statut, equipes, session?.Equipe);
+            var session = await SessionDuPosteAsync(statut);
+            var motif = MotifLectureSeule(statut, equipes, session?.Equipe, await PosteDemarreAsync(session, statut));
             var equipeSaisie = motif == null ? EquipesControlePoste.Equipe(equipes, session!.Equipe) : null;
             var rebutees = statut.ExecRcPosteBilans.Sum(b => b.NbPiecesRebutees);
 

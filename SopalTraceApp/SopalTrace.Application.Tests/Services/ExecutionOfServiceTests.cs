@@ -21,89 +21,193 @@ namespace SopalTrace.Application.Tests.Services
         private readonly Mock<IOccurrenceService> _occurrenceService = new();
         private readonly Mock<IOccurrenceRepository> _occurrenceRepository = new();
         private readonly Mock<IUnitOfWork> _unitOfWork = UnitOfWorkMock.Transactionnelle();
+        private readonly Mock<IDemarragePosteRepository> _postes = new();
         private readonly ExecutionOfService _service;
 
         private readonly Guid _execId = Guid.NewGuid();
         private readonly ExecControleOf _execOf;
+        private readonly List<ExecControleOfSession> _sessionsOuvertes = new();
+        private readonly List<ExecSessionPost> _postesTenus = new();
 
         public ExecutionOfServiceTests()
         {
-            _service = new ExecutionOfService(_repository.Object, _occurrenceService.Object, _occurrenceRepository.Object, _unitOfWork.Object);
+            _service = new ExecutionOfService(_repository.Object, _occurrenceService.Object, _occurrenceRepository.Object, _unitOfWork.Object, _postes.Object);
 
             _execOf = new ExecControleOf { Id = _execId, NumeroOf = NumeroOf, TypeOf = TypesOf.Assemblage, Statut = StatutsExecution.EnCours };
             _repository.Setup(r => r.GetExecOfWithIntermediairesAsync(_execId)).ReturnsAsync(_execOf);
             _repository.Setup(r => r.GetExecOfByIdAsync(_execId)).ReturnsAsync(_execOf);
-            _repository.Setup(r => r.GetDocumentStatutsAsync(_execId, It.IsAny<Guid?>())).ReturnsAsync(new List<ExecControleDocumentStatut>());
-            _repository.Setup(r => r.GetSessionsOuvertesAsync(_execId)).ReturnsAsync(() => _sessionsOuvertes.ToList());
+            _repository.Setup(r => r.GetStatutsOfAsync(_execId)).ReturnsAsync(new List<ExecControleDocumentStatut>());
+            _postes.Setup(p => p.GetSessionsOuvertesAsync(_execId)).ReturnsAsync(() => _sessionsOuvertes.ToList());
+            _postes.Setup(p => p.GetPostesEnCoursAsync(It.IsAny<Guid>()))
+                .ReturnsAsync((Guid sessionId) => _postesTenus.Where(p => p.SessionId == sessionId && p.EndedAt == null).ToList());
         }
 
-        private readonly List<ExecControleOfSession> _sessionsOuvertes = new();
-
-        private ExecControleOfSession SessionActive(string statut = StatutsSession.EnCours)
+        private ExecControleOfSession Equipe(string equipe, string statut = StatutsSession.EnCours, params string[] postes)
         {
-            var session = new ExecControleOfSession { Id = Guid.NewGuid(), ExecControleOfId = _execId, Equipe = "E1", Statut = statut };
-            _repository.Setup(r => r.GetActiveSessionAsync(_execId)).ReturnsAsync(session);
+            var session = new ExecControleOfSession
+            {
+                Id = Guid.NewGuid(), ExecControleOfId = _execId, Equipe = equipe, Statut = statut,
+                SuspendedAt = statut == StatutsSession.EnPause ? DateTime.Now.AddMinutes(-5) : null
+            };
             _sessionsOuvertes.Add(session);
+            foreach (var poste in postes)
+                _postesTenus.Add(new ExecSessionPost
+                {
+                    Id = Guid.NewGuid(), SessionId = session.Id, ExecControleOfId = _execId, PosteCode = poste, StartedAt = DateTime.Now.AddHours(-1)
+                });
             return session;
         }
 
-        private ExecControleOfSession AutreEquipe(string equipe, string statut)
-        {
-            var session = new ExecControleOfSession { Id = Guid.NewGuid(), ExecControleOfId = _execId, Equipe = equipe, Statut = statut, SuspendedAt = DateTime.Now.AddMinutes(-5) };
-            _sessionsOuvertes.Add(session);
-            return session;
-        }
+        private ExecSessionPost Poste(ExecControleOfSession session, string posteCode) =>
+            _postesTenus.Single(p => p.SessionId == session.Id && p.PosteCode == posteCode);
 
-        // ───────────── Plusieurs équipes : une seule en production ─────────────
+        // ───────────── Pause et reprise : par équipe ─────────────
 
         [Fact]
-        public async Task Reprise_RefuseeTantQuUneAutreEquipeProduit()
+        public async Task Reprise_DUneEquipeSansSessionOuverte_Refusee()
         {
-            _execOf.Statut = StatutsExecution.EnCours;
-            SessionActive(StatutsSession.EnCours).Equipe = "E2";
-            AutreEquipe("E1", StatutsSession.EnPause);
+            _execOf.Statut = StatutsExecution.EnPause;
+            Equipe("E1", StatutsSession.EnPause, "PAS71");
 
-            var ex = await Assert.ThrowsAsync<EtatExecutionInvalideException>(() => _service.ReprendreDepuisPauseAsync(_execId, "E1"));
+            var ex = await Assert.ThrowsAsync<EtatExecutionInvalideException>(() => _service.ReprendreDepuisPauseAsync(_execId, "E2"));
             Assert.Contains("E2", ex.Message);
         }
 
         [Fact]
-        public async Task Reprise_DeLEquipeDemandee_QuandPersonneNeProduit()
+        public async Task Reprise_DeLEquipeEnPause_LOfRepasseEnCours()
         {
             _execOf.Statut = StatutsExecution.EnPause;
-            _execOf.SuspendedAt = DateTime.Now.AddMinutes(-3);
-            var e2 = SessionActive(StatutsSession.EnPause);
-            e2.Equipe = "E2";
-            var e1 = AutreEquipe("E1", StatutsSession.EnPause);
-            _unitOfWork.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<bool>>>())).Returns<Func<Task<bool>>>(f => f());
+            _execOf.SuspendedAt = DateTime.Now.AddMinutes(-30);
+            var e1 = Equipe("E1", StatutsSession.EnPause, "PAS71");
+            e1.SuspendedAt = DateTime.Now.AddMinutes(-30);
 
             Assert.True(await _service.ReprendreDepuisPauseAsync(_execId, "E1"));
 
-            Assert.Equal((StatutsSession.EnCours, StatutsSession.EnPause, StatutsExecution.EnCours), (e1.Statut, e2.Statut, _execOf.Statut));
+            Assert.Equal((StatutsSession.EnCours, StatutsExecution.EnCours), (e1.Statut, _execOf.Statut));
+            Assert.Null(e1.SuspendedAt);
+            Assert.InRange(e1.TempsPauseTotalMinutes, 29.5, 31);
+            Assert.InRange(_execOf.TempsPauseTotalMinutes, 29.5, 31);
         }
 
         [Fact]
-        public async Task FinDePoste_AutreEquipeEnPause_LOfResteEnPause()
+        public async Task Reprise_EquipeDejaEnProduction_RetourneFaux()
         {
-            SessionActive(StatutsSession.EnCours);
-            AutreEquipe("E2", StatutsSession.EnPause);
-            _unitOfWork.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<bool>>>())).Returns<Func<Task<bool>>>(f => f());
+            Equipe("E1", StatutsSession.EnCours, "PAS71");
 
-            Assert.True(await _service.TerminerPosteAsync(_execId));
+            Assert.False(await _service.ReprendreDepuisPauseAsync(_execId, "E1"));
+        }
 
+        [Fact]
+        public async Task Pause_DUneEquipe_LesAutresEquipesContinuent()
+        {
+            var e1 = Equipe("E1", StatutsSession.EnCours, "PAS72");
+            var e2 = Equipe("E2", StatutsSession.EnCours, "PAS71");
+
+            Assert.True(await _service.MettreEnPauseAsync(_execId, "repas", TypesPause.Dejeuner, "E1"));
+
+            Assert.Equal((StatutsSession.EnPause, StatutsSession.EnCours), (e1.Statut, e2.Statut));
+            Assert.True(e1.HadLunchBreak);
+            Assert.Equal(StatutsExecution.EnCours, _execOf.Statut);
+        }
+
+        [Fact]
+        public async Task Pause_DeToutesLesEquipes_MetLOfEnPause()
+        {
+            Equipe("E1", StatutsSession.EnPause, "PAS72");
+            var e2 = Equipe("E2", StatutsSession.EnCours, "PAS71");
+
+            Assert.True(await _service.MettreEnPauseAsync(_execId, "repas", TypesPause.Dejeuner, "E2"));
+
+            Assert.Equal(StatutsSession.EnPause, e2.Statut);
             Assert.Equal(StatutsExecution.EnPause, _execOf.Statut);
+            Assert.NotNull(_execOf.SuspendedAt);
         }
 
         [Fact]
-        public async Task ClotureOf_TermineToutesLesEquipesOuvertes()
+        public async Task Pause_PlusieursEquipesSansPreciserLaSienne_Refusee()
         {
-            var e1 = SessionActive(StatutsSession.EnCours);
-            var e2 = AutreEquipe("E2", StatutsSession.EnPause);
-            _unitOfWork.Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<bool>>>())).Returns<Func<Task<bool>>>(f => f());
+            Equipe("E1", StatutsSession.EnCours, "PAS72");
+            Equipe("E2", StatutsSession.EnCours, "PAS71");
 
-            Assert.True(await _service.CloturerOfAsync(_execId));
+            await Assert.ThrowsAsync<RegleMetierException>(() => _service.MettreEnPauseAsync(_execId, "repas", TypesPause.Dejeuner));
+        }
 
-            Assert.Equal((StatutsSession.Termine, StatutsSession.Termine), (e1.Statut, e2.Statut));
+        [Fact]
+        public async Task MettreEnPause_TypeInconnu_Refuse()
+        {
+            await Assert.ThrowsAsync<RegleMetierException>(() => _service.MettreEnPauseAsync(_execId, "raison", "SIESTE"));
+            _repository.Verify(r => r.SaveChangesAsync(), Times.Never);
+        }
+
+        [Fact]
+        public async Task MettreEnPause_OfNonEnCours_RetourneFaux()
+        {
+            _execOf.Statut = StatutsExecution.EnPause;
+
+            Assert.False(await _service.MettreEnPauseAsync(_execId, "raison", TypesPause.Dejeuner));
+            _unitOfWork.Verify(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<bool>>>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task MettreEnPause_SeuleEquipe_TraceLaPauseDansUneTransaction()
+        {
+            var session = Equipe("E1", StatutsSession.EnCours, "PAS71");
+
+            Assert.True(await _service.MettreEnPauseAsync(_execId, "repas", TypesPause.Dejeuner));
+
+            Assert.Equal((StatutsSession.EnPause, StatutsExecution.EnPause), (session.Statut, _execOf.Statut));
+            _occurrenceService.Verify(o => o.AjouterRemarqueTrancheEnCoursAsync(_execId,
+                It.Is<string>(s => s.Contains(TypesPause.Dejeuner) && s.Contains("repas") && s.Contains("E1"))), Times.Once);
+            _unitOfWork.Verify(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<bool>>>()), Times.Once);
+        }
+
+        // ───────────── Fin de poste : poste par poste ─────────────
+
+        [Fact]
+        public async Task FinDePoste_DUnPoste_LesAutresPostesDeLEquipeContinuent()
+        {
+            var e1 = Equipe("E1", StatutsSession.EnCours, "PAS71", "PAS72");
+
+            Assert.True(await _service.TerminerPostesAsync(_execId, e1.Id, new[] { "PAS71" }, "55555"));
+
+            Assert.NotNull(Poste(e1, "PAS71").EndedAt);
+            Assert.Equal("55555", Poste(e1, "PAS71").EndedBy);
+            Assert.Null(Poste(e1, "PAS72").EndedAt);
+            Assert.Equal(StatutsSession.EnCours, e1.Statut);
+            _occurrenceService.Verify(o => o.AjouterRemarqueTrancheEnCoursAsync(_execId, It.Is<string>(s => s.Contains("PAS71") && s.Contains("E1"))), Times.Once);
+        }
+
+        [Fact]
+        public async Task FinDePoste_DuDernierPoste_TermineLaSessionEtLaisseLOfEnCours()
+        {
+            var e1 = Equipe("E1", StatutsSession.EnCours, "PAS72");
+            e1.ClosingRequest = null;
+            var etats = new List<(bool PosteTermine, string Session)>();
+            _repository.Setup(r => r.SaveChangesAsync()).Callback(() => etats.Add((Poste(e1, "PAS72").EndedAt != null, e1.Statut))).Returns(Task.CompletedTask);
+
+            Assert.True(await _service.TerminerPostesAsync(_execId, e1.Id, new[] { "PAS72" }, "55555"));
+
+            Assert.Equal((StatutsSession.Termine, StatutsExecution.EnCours), (e1.Statut, _execOf.Statut));
+            Assert.NotNull(e1.DateFin);
+            // Le poste est enregistré terminé avant la session (une session terminée ne tient plus aucun poste).
+            Assert.Equal((true, StatutsSession.EnCours), etats[0]);
+        }
+
+        [Fact]
+        public async Task FinDePoste_PosteNonTenuParLEquipe_RetourneFaux()
+        {
+            var e1 = Equipe("E1", StatutsSession.EnCours, "PAS72");
+
+            Assert.False(await _service.TerminerPostesAsync(_execId, e1.Id, new[] { "PAS71" }, "55555"));
+            _repository.Verify(r => r.SaveChangesAsync(), Times.Never);
+        }
+
+        [Fact]
+        public async Task FinDePoste_SessionInconnue_RetourneFaux()
+        {
+            Equipe("E1", StatutsSession.EnCours, "PAS72");
+
+            Assert.False(await _service.TerminerPostesAsync(_execId, Guid.NewGuid(), new[] { "PAS72" }, "55555"));
         }
 
         // ───────────── Démarrage : règles portées par l'opération ─────────────
@@ -155,85 +259,6 @@ namespace SopalTrace.Application.Tests.Services
             Assert.Equal("TRN27", _demarre.MachineCode);
         }
 
-        // ───────────── Pause ─────────────
-
-        [Fact]
-        public async Task MettreEnPause_TypeInconnu_Refuse()
-        {
-            await Assert.ThrowsAsync<RegleMetierException>(() => _service.MettreEnPauseAsync(_execId, "raison", "SIESTE"));
-            _repository.Verify(r => r.SaveChangesAsync(), Times.Never);
-        }
-
-        [Fact]
-        public async Task MettreEnPause_OfNonEnCours_RetourneFaux()
-        {
-            _execOf.Statut = StatutsExecution.EnPause;
-
-            Assert.False(await _service.MettreEnPauseAsync(_execId, "raison", TypesPause.Dejeuner));
-            _unitOfWork.Verify(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<bool>>>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task MettreEnPause_Valide_MetOfEtSessionEnPauseDansUneTransaction()
-        {
-            var session = SessionActive();
-
-            Assert.True(await _service.MettreEnPauseAsync(_execId, "repas", TypesPause.Dejeuner));
-
-            Assert.Equal(StatutsExecution.EnPause, _execOf.Statut);
-            Assert.NotNull(_execOf.SuspendedAt);
-            Assert.Equal(StatutsSession.EnPause, session.Statut);
-            _occurrenceService.Verify(o => o.AjouterRemarqueTrancheEnCoursAsync(_execId, It.Is<string>(s => s.Contains(TypesPause.Dejeuner) && s.Contains("repas"))), Times.Once);
-            _unitOfWork.Verify(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task<bool>>>()), Times.Once);
-        }
-
-        // ───────────── Reprise ─────────────
-
-        [Fact]
-        public async Task ReprendreDepuisPause_CumuleLeTempsDePause()
-        {
-            _execOf.Statut = StatutsExecution.EnPause;
-            _execOf.SuspendedAt = DateTime.Now.AddMinutes(-30);
-            var session = SessionActive(StatutsSession.EnPause);
-            session.SuspendedAt = DateTime.Now.AddMinutes(-30);
-
-            Assert.True(await _service.ReprendreDepuisPauseAsync(_execId));
-
-            Assert.Equal(StatutsExecution.EnCours, _execOf.Statut);
-            Assert.Null(_execOf.SuspendedAt);
-            Assert.Null(session.SuspendedAt);
-            Assert.InRange(_execOf.TempsPauseTotalMinutes, 29.5, 31);
-            Assert.Equal(StatutsSession.EnCours, session.Statut);
-            Assert.InRange(session.TempsPauseTotalMinutes, 29.5, 31);
-        }
-
-        [Fact]
-        public async Task ReprendreDepuisPause_OfNonEnPause_RetourneFaux()
-        {
-            Assert.False(await _service.ReprendreDepuisPauseAsync(_execId));
-        }
-
-        // ───────────── Fin de poste ─────────────
-
-        [Fact]
-        public async Task TerminerPoste_SansSessionActive_RetourneFaux()
-        {
-            Assert.False(await _service.TerminerPosteAsync(_execId));
-            _repository.Verify(r => r.SaveChangesAsync(), Times.Never);
-        }
-
-        [Fact]
-        public async Task TerminerPoste_TermineLaSessionSansCloturerLOf()
-        {
-            var session = SessionActive();
-
-            Assert.True(await _service.TerminerPosteAsync(_execId));
-
-            Assert.Equal(StatutsSession.Termine, session.Statut);
-            Assert.NotNull(session.DateFin);
-            Assert.Equal(StatutsExecution.EnCours, _execOf.Statut);
-        }
-
         // ───────────── Clôture ─────────────
 
         [Fact]
@@ -246,6 +271,21 @@ namespace SopalTrace.Application.Tests.Services
         }
 
         [Fact]
+        public async Task CloturerOf_TermineLesPostesPuisLesSessionsDeToutesLesEquipes()
+        {
+            var e1 = Equipe("E1", StatutsSession.EnCours, "PAS72");
+            var e2 = Equipe("E2", StatutsSession.EnPause, "PAS71");
+            var premiereSauvegarde = ((bool, bool, string, string)?)null;
+            _repository.Setup(r => r.SaveChangesAsync()).Callback(() => premiereSauvegarde ??=
+                (Poste(e1, "PAS72").EndedAt != null, Poste(e2, "PAS71").EndedAt != null, e1.Statut, e2.Statut)).Returns(Task.CompletedTask);
+
+            Assert.True(await _service.CloturerOfAsync(_execId));
+
+            Assert.Equal((StatutsSession.Termine, StatutsSession.Termine), (e1.Statut, e2.Statut));
+            Assert.Equal((true, true, StatutsSession.EnCours, StatutsSession.EnPause), premiereSauvegarde);
+        }
+
+        [Fact]
         public async Task CloturerOf_SupprimeLesOccurrencesNonReponduesEtTermineLesDocuments()
         {
             var repondue = new ExecPrelevementIntermediaire { Id = Guid.NewGuid(), TrancheHoraire = "08:00", EstRepondu = true };
@@ -253,8 +293,9 @@ namespace SopalTrace.Application.Tests.Services
             _execOf.ExecPrelevementIntermediaires.Add(repondue);
             _execOf.ExecPrelevementIntermediaires.Add(nonRepondue);
             var document = new ExecControleDocumentStatut { Id = Guid.NewGuid(), EstTermine = false };
-            _repository.Setup(r => r.GetDocumentStatutsAsync(_execId, It.IsAny<Guid?>())).ReturnsAsync(new List<ExecControleDocumentStatut> { document });
-            var session = SessionActive();
+            var verification = new ExecControleDocumentStatut { Id = Guid.NewGuid(), TypeDocument = TypesDocumentExecution.VerifMachine, EstTermine = false };
+            _repository.Setup(r => r.GetStatutsOfAsync(_execId)).ReturnsAsync(new List<ExecControleDocumentStatut> { document, verification });
+            var session = Equipe("E1", StatutsSession.EnCours, "PAS71");
             IEnumerable<ExecPrelevementIntermediaire>? supprimees = null;
             _occurrenceRepository.Setup(r => r.RemoveIntermediaires(It.IsAny<IEnumerable<ExecPrelevementIntermediaire>>()))
                 .Callback<IEnumerable<ExecPrelevementIntermediaire>>(o => supprimees = o.ToList());
@@ -264,8 +305,9 @@ namespace SopalTrace.Application.Tests.Services
             Assert.Equal(StatutsExecution.Cloture, _execOf.Statut);
             Assert.Equal(StatutsSession.Termine, session.Statut);
             Assert.True(document.EstTermine);
+            // Une vérification machine garde son état réel (jamais cochée sans saisie).
+            Assert.False(verification.EstTermine);
             Assert.Equal(nonRepondue.Id, Assert.Single(supprimees!).Id);
         }
-
     }
 }

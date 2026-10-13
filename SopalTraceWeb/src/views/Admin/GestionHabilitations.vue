@@ -3,15 +3,8 @@
 
     <!-- Top Header -->
     <header class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-3">
-          <i class="pi pi-shield text-blue-600"></i>
-          Gestion des Habilitations
-        </h1>
-        <p class="text-slate-500 text-sm mt-1">
-          Les employés demandent l'accès (matricule et e-mail de l'ERP) ; un administrateur valide la demande et attribue le rôle.
-        </p>
-      </div>
+      <EnTetePage class="flex-1 min-w-0" titre="Gestion des habilitations"
+                  sous-titre="Les employés demandent l'accès avec leur matricule et leur e-mail ERP ; un administrateur valide la demande et attribue le rôle." />
 
       <button @click="charger" :disabled="chargement"
               class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50">
@@ -367,8 +360,9 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import { useRoute } from 'vue-router';
-import Swal from 'sweetalert2';
+import { confirmer } from '@/composables/useConfirmation';
 import adminService from '@/services/adminService';
 import { useAuthStore } from '@/stores/authStore';
 import { useAppToast } from '@/composables/useAppToast';
@@ -552,16 +546,8 @@ const ACTIONS = {
 
 const agir = async (c, cle) => {
   const action = ACTIONS[cle];
-  const confirmation = await Swal.fire({
-    title: c.fullName,
-    text: action.question,
-    icon: action.danger ? 'warning' : 'question',
-    showCancelButton: true,
-    confirmButtonColor: action.danger ? '#dc2626' : '#2563eb',
-    confirmButtonText: 'Confirmer',
-    cancelButtonText: 'Annuler'
-  });
-  if (!confirmation.isConfirmed) return;
+  const { confirme } = await confirmer({ titre: c.fullName, message: action.question, danger: action.danger });
+  if (!confirme) return;
 
   try {
     const resultat = await action.appel(c);
@@ -599,16 +585,14 @@ const preattribuer = async () => {
 };
 
 const supprimerPreattribution = async (p) => {
-  const confirmation = await Swal.fire({
-    title: p.fullName,
-    text: 'Retirer ce rôle pré-attribué ? Une inscription future passera alors par la validation d\'un administrateur.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Retirer',
-    cancelButtonText: 'Annuler'
+  const { confirme } = await confirmer({
+    titre: p.fullName,
+    message: 'Retirer ce rôle pré-attribué ? Une inscription future passera alors par la validation d\'un administrateur.',
+    danger: true,
+    libelleConfirmer: 'Retirer',
+    icone: 'pi pi-trash'
   });
-  if (!confirmation.isConfirmed) return;
+  if (!confirme) return;
   try {
     await adminService.deletePreassignedRole(p.matricule);
     toast.success('Pré-attribution retirée.');

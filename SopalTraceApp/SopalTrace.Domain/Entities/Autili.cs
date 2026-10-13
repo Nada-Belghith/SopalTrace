@@ -37,6 +37,10 @@ public partial class Autili
 
     public virtual ICollection<ExecRegistreTracabilite> ExecRegistreTracabiliteMatriculeOperateurNavigations { get; set; } = new List<ExecRegistreTracabilite>();
 
+    public virtual ICollection<ExecSessionPost> ExecSessionPostEndedByNavigations { get; set; } = new List<ExecSessionPost>();
+
+    public virtual ICollection<ExecSessionPost> ExecSessionPostStartedByNavigations { get; set; } = new List<ExecSessionPost>();
+
     public virtual ICollection<ExecVerifMachineReponse> ExecVerifMachineReponses { get; set; } = new List<ExecVerifMachineReponse>();
 
     public virtual ICollection<MagExpeditionBl> MagExpeditionBls { get; set; } = new List<MagExpeditionBl>();

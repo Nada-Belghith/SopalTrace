@@ -15,14 +15,18 @@ namespace SopalTrace.Application.Tests.Services
     public class VerifMachineExecutionServiceTests
     {
         private readonly Mock<IOperateurRepository> _repository = new();
+        private readonly Mock<IDemarragePosteRepository> _postes = new();
         private readonly VerifMachineExecutionService _service;
+        private readonly ExecControleOfSession _equipeDuPoste = new() { Id = Guid.NewGuid(), Equipe = "E1", Statut = StatutsSession.EnCours };
 
         private readonly Guid _execId = Guid.NewGuid();
         private readonly ExecControleOf _execOf;
 
         public VerifMachineExecutionServiceTests()
         {
-            _service = new VerifMachineExecutionService(_repository.Object);
+            _service = new VerifMachineExecutionService(_repository.Object, _postes.Object);
+            _postes.Setup(p => p.GetSessionAsync(_execId, "PAS71", null)).ReturnsAsync(_equipeDuPoste);
+            _postes.Setup(p => p.EstEnCoursAsync(_equipeDuPoste.Id, "PAS71")).ReturnsAsync(true);
             _execOf = new ExecControleOf { Id = _execId, NumeroOf = "OF001", Statut = StatutsExecution.EnCours };
             _repository.Setup(r => r.GetExecOfByIdAsync(_execId)).ReturnsAsync(_execOf);
             _repository.Setup(r => r.GetPostesForExecutionAsync(_execId)).ReturnsAsync(new List<string> { "PAS71" });
@@ -40,7 +44,7 @@ namespace SopalTrace.Application.Tests.Services
                 TypeDocument = TypesDocumentExecution.VerifMachine,
                 MachineCode = "MAS19",
                 PosteCode = "PAS71",
-                SessionId = sessionId
+                SessionId = sessionId ?? _equipeDuPoste.Id
             };
             _repository.Setup(r => r.GetDocumentStatutByIdAsync(statut.Id)).ReturnsAsync(statut);
             return statut;
@@ -76,10 +80,9 @@ namespace SopalTrace.Application.Tests.Services
         }
 
         [Fact]
-        public async Task SaveExecVerifMachine_SessionTerminee_Refuse()
+        public async Task SaveExecVerifMachine_EquipeQuiNeTientPlusLePoste_Refuse()
         {
             var statut = StatutVerifMachine(sessionId: Guid.NewGuid());
-            _repository.Setup(r => r.GetActiveSessionAsync(_execId)).ReturnsAsync(new ExecControleOfSession { Id = Guid.NewGuid(), Statut = StatutsSession.EnCours });
 
             await Assert.ThrowsAsync<EtatExecutionInvalideException>(() => _service.SaveExecVerifMachineAsync(Demande(statut.Id)));
             _repository.Verify(r => r.SaveChangesAsync(), Times.Never);
@@ -132,7 +135,7 @@ namespace SopalTrace.Application.Tests.Services
         public async Task CloturerTous_TermineLesVerificationsEtAjouteLeMarqueur()
         {
             var verif = new ExecControleDocumentStatut { Id = Guid.NewGuid(), PosteCode = "PAS71", TypeDocument = TypesDocumentExecution.VerifMachine };
-            _repository.Setup(r => r.GetDocumentStatutsAsync(_execId, It.IsAny<Guid?>())).ReturnsAsync(new List<ExecControleDocumentStatut> { verif });
+            _repository.Setup(r => r.GetDocumentStatutsAsync(_execId, _equipeDuPoste.Id)).ReturnsAsync(new List<ExecControleDocumentStatut> { verif });
             ExecControleDocumentStatut? marqueur = null;
             _repository.Setup(r => r.AddExecControleDocumentStatut(It.IsAny<ExecControleDocumentStatut>()))
                 .Callback<ExecControleDocumentStatut>(s => marqueur = s);
@@ -143,13 +146,14 @@ namespace SopalTrace.Application.Tests.Services
             Assert.True(verif.EstDemarrageTermine);
             Assert.NotNull(marqueur);
             Assert.Equal(TypesDocumentExecution.ClotureVerifMachinePoste, marqueur!.TypeDocument);
+            Assert.Equal((_equipeDuPoste.Id, "E1"), (marqueur.SessionId, marqueur.Equipe));
         }
 
         [Fact]
         public async Task CloturerTous_MarqueurDejaPresent_NeLeRecreePas()
         {
             var marqueurExistant = new ExecControleDocumentStatut { Id = Guid.NewGuid(), PosteCode = "PAS71", TypeDocument = TypesDocumentExecution.ClotureVerifMachinePoste, EstTermine = true };
-            _repository.Setup(r => r.GetDocumentStatutsAsync(_execId, It.IsAny<Guid?>())).ReturnsAsync(new List<ExecControleDocumentStatut> { marqueurExistant });
+            _repository.Setup(r => r.GetDocumentStatutsAsync(_execId, _equipeDuPoste.Id)).ReturnsAsync(new List<ExecControleDocumentStatut> { marqueurExistant });
 
             await _service.CloturerTousVerifMachineAsync(_execId, "PAS71");
 

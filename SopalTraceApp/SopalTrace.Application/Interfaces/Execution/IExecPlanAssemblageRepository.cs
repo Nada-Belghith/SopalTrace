@@ -9,13 +9,7 @@ namespace SopalTrace.Application.Interfaces.Execution
     public interface IExecPlanAssemblageRepository
     {
         Task<ExecControleOf?> GetExecOfAsync(Guid id);
-        /// <summary>Session qui a la main : l'équipe en production, sinon la plus récemment mise en pause.</summary>
-        Task<ExecControleOfSession?> GetActiveSessionAsync(Guid execControleOfId);
-        /// <summary>Sessions ouvertes de l'OF (au plus une en production, les autres en pause).</summary>
-        Task<List<ExecControleOfSession>> GetSessionsOuvertesAsync(Guid execControleOfId);
 
-        /// <summary>Première session d'équipe de l'OF (celle qui l'a démarré).</summary>
-        Task<Guid?> GetPremiereSessionIdAsync(Guid execControleOfId);
 
         /// <summary>
         /// Plan d'assemblage actif applicable à l'article sur ce poste : plan de l'article ou de sa famille de
@@ -45,8 +39,8 @@ namespace SopalTrace.Application.Interfaces.Execution
         /// <summary>Périodes de production de l'équipe sur le poste (lecture seule).</summary>
         Task<List<ExecProductionPeriod>> GetPeriodesProductionAsync(Guid sessionId, string posteCode);
 
-        /// <summary>Effectif par poste de la dernière fiche d'échantillonnage de l'OF (pièces à contrôler par heure).</summary>
-        Task<int?> GetEffectifParPosteAsync(Guid execControleOfId);
+        /// <summary>Effectif par poste de la fiche d'échantillonnage du poste (pièces à contrôler par heure).</summary>
+        Task<int?> GetEffectifParPosteAsync(Guid execControleOfId, string posteCode);
 
         Task SaveChangesAsync();
     }

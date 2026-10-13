@@ -4,14 +4,8 @@
     <ConfirmDialog></ConfirmDialog>
 
     <div class="mb-10 flex justify-between items-start">
-      <div>
-        <h1 class="text-3xl font-black text-slate-900 tracking-tight">
-          {{ isModeleFabRoute ? 'Modèles de Fabrication' : 'DOCUMENTS GÉNÉRIQUES' }}
-        </h1>
-        <p class="text-slate-500 mt-1 font-medium text-sm">
-          {{ isModeleFabRoute ? 'Visualisez et gérez vos plans de contrôle génériques pour la fabrication.' : 'Visualisez et gérez vos plans de contrôle génériques existants.' }}
-        </p>
-      </div>
+      <EnTetePage :titre="isModeleFabRoute ? 'Modèles de fabrication' : 'Documents génériques'"
+                  :sous-titre="isModeleFabRoute ? 'Visualisez et gérez vos plans de contrôle génériques pour la fabrication.' : 'Visualisez et gérez vos plans de contrôle génériques existants.'" />
       <div v-if="isModeleFabRoute">
         <router-link to="/dev/fab/nouveau" class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-md transition-all active:scale-95">
           <i class="pi pi-plus font-bold"></i> NOUVEAU MODÈLE
@@ -215,6 +209,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';

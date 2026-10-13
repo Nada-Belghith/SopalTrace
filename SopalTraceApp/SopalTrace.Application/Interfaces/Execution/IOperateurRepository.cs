@@ -50,14 +50,13 @@ public interface IOperateurRepository
     void AddExecControleOfPoste(ExecControleOfPoste poste);
 
     // --- Sessions d'équipe ---
-    /// <summary>Session qui a la main : l'équipe en production, sinon la plus récemment mise en pause.</summary>
-    Task<ExecControleOfSession?> GetActiveSessionAsync(Guid execControleOfId);
-    /// <summary>Sessions ouvertes de l'OF (au plus une en production, les autres en pause).</summary>
-    Task<List<ExecControleOfSession>> GetSessionsOuvertesAsync(Guid execControleOfId);
     void AddSession(ExecControleOfSession session);
 
     // --- Statuts de documents ---
-    Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId, Guid? sessionId = null);
+    /// <summary>Statuts de documents de la session donnée.</summary>
+    Task<IEnumerable<ExecControleDocumentStatut>> GetDocumentStatutsAsync(Guid execControleOfId, Guid sessionId);
+    /// <summary>Statuts de documents de l'OF, toutes sessions (suivis).</summary>
+    Task<List<ExecControleDocumentStatut>> GetStatutsOfAsync(Guid execControleOfId);
     Task<ExecControleDocumentStatut?> GetDocumentStatutByIdAsync(Guid statutId);
     Task<List<ExecControleDocumentStatut>> GetDocumentStatutsForMachineAsync(Guid execControleOfId, string machineCode);
     void AddExecControleDocumentStatut(ExecControleDocumentStatut statut);

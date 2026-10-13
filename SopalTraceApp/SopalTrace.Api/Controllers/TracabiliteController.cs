@@ -25,9 +25,10 @@ namespace SopalTrace.Api.Controllers
         }
 
         [HttpGet("{execControleOfId:guid}")]
-        public async Task<IActionResult> GetRegistre(Guid execControleOfId)
+        public async Task<IActionResult> GetRegistre(Guid execControleOfId,
+            [FromQuery, RegularExpression(FormatsEntree.Code, ErrorMessage = FormatsEntree.MessageCodeInvalide)] string? posteCode = null)
         {
-            var result = await _tracabiliteService.GetRegistreTracabiliteAsync(execControleOfId);
+            var result = await _tracabiliteService.GetRegistreTracabiliteAsync(execControleOfId, posteCode);
             return Ok(new { success = true, data = result });
         }
 

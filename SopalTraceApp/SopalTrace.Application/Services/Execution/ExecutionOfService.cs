@@ -18,13 +18,16 @@ public class ExecutionOfService : IExecutionOfService
     private readonly IOccurrenceService _occurrenceService;
     private readonly IOccurrenceRepository _occurrenceRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IDemarragePosteRepository _postes;
 
-    public ExecutionOfService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IOccurrenceRepository occurrenceRepository, IUnitOfWork unitOfWork)
+    public ExecutionOfService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IOccurrenceRepository occurrenceRepository,
+        IUnitOfWork unitOfWork, IDemarragePosteRepository postes)
     {
         _operateurRepository = operateurRepository;
         _occurrenceService = occurrenceService;
         _occurrenceRepository = occurrenceRepository;
         _unitOfWork = unitOfWork;
+        _postes = postes;
     }
 
     public async Task<ExecControleOfDto> DemarrerOfAsync(DemarrerOfRequest request)
@@ -128,16 +131,8 @@ public class ExecutionOfService : IExecutionOfService
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null || (execOf.Statut != StatutsExecution.EnCours && execOf.Statut != StatutsExecution.Reglage && execOf.Statut != StatutsExecution.EnPause)) return (false, "Impossible de reprendre cet OF.");
 
-        var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
-        if (session != null && session.Statut == StatutsSession.EnPause)
-        {
-            if (session.SuspendedAt.HasValue)
-            {
-                session.TempsPauseTotalMinutes += (DateTime.Now - session.SuspendedAt.Value).TotalMinutes;
-                session.SuspendedAt = null;
-            }
-            session.Statut = StatutsSession.EnCours;
-        }
+        // Assemblage : la reprise est celle d'une équipe (ReprendreDepuisPauseAsync).
+        if (execOf.TypeOf == TypesOf.Assemblage) return (false, "Reprenez la production depuis l'assistant de votre équipe.");
 
         if (execOf.Statut == StatutsExecution.EnPause)
         {
@@ -178,7 +173,7 @@ public class ExecutionOfService : IExecutionOfService
         return (true, "Reprise avec succès.");
     }
 
-    public async Task<bool> MettreEnPauseAsync(Guid execControleOfId, string raison, string typePause)
+    public async Task<bool> MettreEnPauseAsync(Guid execControleOfId, string raison, string typePause, string? equipe = null)
     {
         if (!TypesPause.Autorises.Contains(typePause))
             throw new RegleMetierException("Type de pause invalide.");
@@ -186,23 +181,30 @@ public class ExecutionOfService : IExecutionOfService
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null || execOf.Statut != StatutsExecution.EnCours) return false;
 
+        var ouvertes = execOf.TypeOf == TypesOf.Assemblage ? await _postes.GetSessionsOuvertesAsync(execControleOfId) : new List<ExecControleOfSession>();
+        var session = execOf.TypeOf == TypesOf.Assemblage ? SessionEquipe(ouvertes, equipe) : null;
+        if (execOf.TypeOf == TypesOf.Assemblage && session?.Statut != StatutsSession.EnCours) return false;
+
         // Plusieurs enregistrements successifs (remarque de tranche, statuts) : tout ou rien.
         return await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             var maintenant = DateTime.Now;
-            var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
             if (session != null)
             {
                 session.Statut = StatutsSession.EnPause;
                 session.SuspendedAt = maintenant;
                 // Seule la pause déjeuner rend due la vérification machine « après pause » à la reprise.
                 if (typePause == TypesPause.Dejeuner) session.HadLunchBreak = true;
+                AppliquerStatutAssemblage(execOf, ouvertes, maintenant);
+            }
+            else
+            {
+                execOf.Statut = StatutsExecution.EnPause;
+                execOf.SuspendedAt = maintenant;
             }
 
-            execOf.Statut = StatutsExecution.EnPause;
-            execOf.SuspendedAt = maintenant;
-
-            await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, $"Mise en pause [{typePause}] : {raison}");
+            await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId,
+                $"Mise en pause [{typePause}]{(session != null ? $" équipe {session.Equipe}" : "")} : {raison}");
 
             await _operateurRepository.SaveChangesAsync();
             return true;
@@ -214,72 +216,102 @@ public class ExecutionOfService : IExecutionOfService
         var execOf = await _operateurRepository.GetExecOfWithIntermediairesAsync(execControleOfId);
         if (execOf == null) return false;
 
-        // Plusieurs équipes peuvent être en pause : on reprend celle demandée, jamais pendant qu'une autre produit.
-        var sessions = await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId);
-        var enProduction = sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnCours);
-        var aReprendre = string.IsNullOrWhiteSpace(equipe)
-            ? sessions.Where(s => s.Statut == StatutsSession.EnPause).OrderByDescending(s => s.SuspendedAt).FirstOrDefault()
-            : sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnPause && string.Equals(s.Equipe, equipe, StringComparison.OrdinalIgnoreCase));
-        if (enProduction != null && aReprendre != null)
-            throw new EtatExecutionInvalideException(
-                $"L'équipe {enProduction.Equipe} produit actuellement sur cet OF : reprenez après sa pause ou sa fin de poste.");
-        if (execOf.Statut != StatutsExecution.EnPause || (sessions.Count > 0 && aReprendre == null)) return false;
+        if (execOf.TypeOf == TypesOf.Assemblage)
+        {
+            // Chaque équipe reprend sa propre session (les autres équipes de l'OF n'en dépendent pas).
+            var ouvertes = await _postes.GetSessionsOuvertesAsync(execControleOfId);
+            var session = SessionEquipe(ouvertes, equipe);
+            if (session == null || session.Statut != StatutsSession.EnPause) return false;
+
+            var maintenant = DateTime.Now;
+            session.Statut = StatutsSession.EnCours;
+            session.TempsPauseTotalMinutes += Math.Max(0, (maintenant - (session.SuspendedAt ?? maintenant)).TotalMinutes);
+            session.SuspendedAt = null;
+            AppliquerStatutAssemblage(execOf, ouvertes, maintenant);
+            await _operateurRepository.SaveChangesAsync();
+            return true;
+        }
+
+        if (execOf.Statut != StatutsExecution.EnPause) return false;
+
+        var fin = DateTime.Now;
+        execOf.Statut = StatutsExecution.EnCours;
+        execOf.TempsPauseTotalMinutes += Math.Max(0, (fin - (execOf.SuspendedAt ?? fin)).TotalMinutes);
+        execOf.SuspendedAt = null;
+        await _operateurRepository.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> TerminerPostesAsync(Guid execControleOfId, Guid sessionId, IReadOnlyCollection<string> posteCodes, string? matricule)
+    {
+        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
+        if (execOf == null || execOf.Statut == StatutsExecution.Cloture) return false;
+
+        var ouvertes = await _postes.GetSessionsOuvertesAsync(execControleOfId);
+        var session = ouvertes.FirstOrDefault(s => s.Id == sessionId);
+        if (session == null) return false;
+        var enCours = await _postes.GetPostesEnCoursAsync(sessionId);
+        var aTerminer = enCours.Where(p => posteCodes.Contains(p.PosteCode)).ToList();
+        if (aTerminer.Count == 0) return false;
 
         return await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             var maintenant = DateTime.Now;
-            var pauseDuration = maintenant - (execOf.SuspendedAt ?? maintenant);
-            if (pauseDuration < TimeSpan.Zero) pauseDuration = TimeSpan.Zero;
-
-            execOf.Statut = StatutsExecution.EnCours;
-            execOf.TempsPauseTotalMinutes += pauseDuration.TotalMinutes;
-            execOf.SuspendedAt = null;
-
-            var session = aReprendre;
-            if (session != null && session.Statut == StatutsSession.EnPause)
+            foreach (var poste in aTerminer)
             {
-                var sessionPauseDuration = maintenant - (session.SuspendedAt ?? maintenant);
-                if (sessionPauseDuration < TimeSpan.Zero) sessionPauseDuration = TimeSpan.Zero;
-
-                session.Statut = StatutsSession.EnCours;
-                session.TempsPauseTotalMinutes += sessionPauseDuration.TotalMinutes;
-                session.SuspendedAt = null;
+                poste.EndedAt = maintenant < poste.StartedAt ? poste.StartedAt : maintenant;
+                poste.EndedBy = matricule;
             }
+            // Postes d'abord : une session terminée ne peut plus en tenir (TR_ExecControleOfSession_Consistency).
+            await _operateurRepository.SaveChangesAsync();
+
+            // Dernier poste de l'équipe : sa session se termine ; l'OF reste en cours pour les autres équipes.
+            if (aTerminer.Count == enCours.Count)
+            {
+                session.Statut = StatutsSession.Termine;
+                session.DateFin = maintenant;
+                session.SuspendedAt = null;
+                session.ClosingRequest = null;
+            }
+            AppliquerStatutAssemblage(execOf, ouvertes, maintenant);
+
+            await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId,
+                $"Fin de poste {string.Join(", ", aTerminer.Select(p => p.PosteCode))} (équipe {session.Equipe}).");
 
             await _operateurRepository.SaveChangesAsync();
             return true;
         });
     }
 
-    public async Task<bool> TerminerPosteAsync(Guid execControleOfId)
+    /// <summary>Session ouverte de l'équipe donnée, sinon la seule équipe ouverte sur l'OF.</summary>
+    private static ExecControleOfSession? SessionEquipe(List<ExecControleOfSession> ouvertes, string? equipe)
     {
-        var execOf = await _operateurRepository.GetExecOfByIdAsync(execControleOfId);
-        if (execOf == null || execOf.Statut == StatutsExecution.Cloture) return false;
+        if (!string.IsNullOrWhiteSpace(equipe))
+            return ouvertes.FirstOrDefault(s => string.Equals(s.Equipe, equipe.Trim(), StringComparison.OrdinalIgnoreCase))
+                ?? throw new EtatExecutionInvalideException($"L'équipe {equipe.Trim()} n'a pas de session ouverte sur cet OF.");
+        return ouvertes.Count <= 1 ? ouvertes.FirstOrDefault()
+            : throw new RegleMetierException("Plusieurs équipes travaillent sur cet OF : précisez la vôtre.");
+    }
 
-        var session = await _operateurRepository.GetActiveSessionAsync(execControleOfId);
-        if (session == null) return false;
-
-        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+    /// <summary>
+    /// OF d'assemblage : en pause seulement quand toutes ses équipes ouvertes le sont (les autres continuent de
+    /// produire) ; sans équipe, il reste en cours et attend la suivante.
+    /// </summary>
+    private static void AppliquerStatutAssemblage(ExecControleOf execOf, IEnumerable<ExecControleOfSession> sessions, DateTime maintenant)
+    {
+        var ouvertes = sessions.Where(s => s.Statut is StatutsSession.EnCours or StatutsSession.EnPause).ToList();
+        var enPause = ouvertes.Count > 0 && ouvertes.All(s => s.Statut == StatutsSession.EnPause);
+        if (enPause && execOf.Statut != StatutsExecution.EnPause)
         {
-            var maintenant = DateTime.Now;
-            session.Statut = StatutsSession.Termine;
-            session.DateFin = maintenant;
-            session.SuspendedAt = null;
-
-            // D'autres équipes sont en pause sur l'OF : il reste en pause jusqu'à la reprise de l'une d'elles.
-            var autres = (await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId)).Where(s => s.Id != session.Id).ToList();
-            if (autres.Count > 0 && autres.All(s => s.Statut == StatutsSession.EnPause))
-            {
-                execOf.Statut = StatutsExecution.EnPause;
-                execOf.SuspendedAt = maintenant;
-            }
-
-            // Trace la fin de poste de l'équipe sans clôturer l'OF.
-            await _occurrenceService.AjouterRemarqueTrancheEnCoursAsync(execControleOfId, "Fin de poste équipe (Session clôturée).");
-
-            await _operateurRepository.SaveChangesAsync();
-            return true;
-        });
+            execOf.Statut = StatutsExecution.EnPause;
+            execOf.SuspendedAt = maintenant;
+        }
+        else if (!enPause && execOf.Statut == StatutsExecution.EnPause)
+        {
+            execOf.TempsPauseTotalMinutes += Math.Max(0, (maintenant - (execOf.SuspendedAt ?? maintenant)).TotalMinutes);
+            execOf.Statut = StatutsExecution.EnCours;
+            execOf.SuspendedAt = null;
+        }
     }
 
     public async Task<bool> CloturerOfAsync(Guid execControleOfId)
@@ -291,8 +323,14 @@ public class ExecutionOfService : IExecutionOfService
         {
             var maintenant = DateTime.Now;
             // Toutes les équipes encore ouvertes sont clôturées avec l'OF (une clôture forcée par un
-            // administrateur peut laisser une équipe en pause ; l'assistant l'exige avant).
-            foreach (var session in await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId))
+            // administrateur peut laisser une équipe en pause ; l'assistant l'exige avant) : leurs postes d'abord
+            // (une session terminée ne peut plus en tenir), puis leurs sessions.
+            var ouvertes = await _postes.GetSessionsOuvertesAsync(execControleOfId);
+            foreach (var session in ouvertes)
+                foreach (var poste in await _postes.GetPostesEnCoursAsync(session.Id))
+                    poste.EndedAt = maintenant < poste.StartedAt ? poste.StartedAt : maintenant;
+            await _operateurRepository.SaveChangesAsync();
+            foreach (var session in ouvertes)
             {
                 session.Statut = StatutsSession.Termine;
                 session.DateFin = maintenant;
@@ -312,10 +350,13 @@ public class ExecutionOfService : IExecutionOfService
                 _occurrenceRepository.RemoveIntermediaires(nonRepondues);
             }
 
-            foreach (var s in await _operateurRepository.GetDocumentStatutsAsync(execControleOfId))
+            // Documents de l'équipe fermés avec l'OF. Une vérification machine ou un plan d'assemblage garde son état
+            // réel : « terminé » y signifie « contrôle de fin fait », jamais coché sans saisie (même clôture forcée).
+            foreach (var s in (await _operateurRepository.GetStatutsOfAsync(execControleOfId))
+                         .Where(s => s.TypeDocument is not (TypesDocumentExecution.VerifMachine or TypesDocumentExecution.PlanAssemblage)))
             {
                 s.EstTermine = true;
-                s.DateTermine = maintenant;
+                s.DateTermine ??= maintenant;
             }
 
             await _operateurRepository.SaveChangesAsync();

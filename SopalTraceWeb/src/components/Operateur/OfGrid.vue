@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-wrap gap-6 ml-9">
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
     <OfCard 
       v-for="(of, index) in ofs" 
       :key="index" 
@@ -7,8 +7,8 @@
       @select="$emit('select-of', of)"
     />
     
-    <div v-if="ofs.length === 0 && !loading" class="text-slate-500 mt-4">
-      Aucun OF préparé disponible pour le moment dans cette catégorie.
+    <div v-if="ofs.length === 0 && !loading" class="col-span-full text-slate-500 mt-4">
+      {{ filtreActif ? 'Aucun OF ne correspond à la recherche.' : 'Aucun OF préparé disponible pour le moment dans cette catégorie.' }}
     </div>
   </div>
 </template>
@@ -22,6 +22,10 @@ defineProps({
     required: true
   },
   loading: {
+    type: Boolean,
+    default: false
+  },
+  filtreActif: {
     type: Boolean,
     default: false
   }

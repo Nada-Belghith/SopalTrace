@@ -15,8 +15,16 @@ export default {
   demarrerOf(numeroOf, posteCodes, equipe) {
     return apiClient.post('/Operateur/of/start-assemblage', { numeroOf, posteCodes, equipe })
   },
-  ajouterPostes(execControleOfId, posteCodes, equipe) {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/ajouter-postes`, { posteCodes, equipe })
+  /**
+   * Prise de l'OF par une équipe (une seule à la fois) : elle démarre les postes choisis, ou vient seulement
+   * clôturer l'OF (aucun poste démarré).
+   */
+  ajouterPostes(execControleOfId, posteCodes, equipe, pourCloturer = false) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/ajouter-postes`, { posteCodes, equipe, pourCloturer })
+  },
+  /** L'équipe prend un poste libre de l'OF : ses contrôles de démarrage puis de fin de poste deviennent dus. */
+  demarrerPoste(execControleOfId, posteCode, equipe = null) {
+    return apiClient.post(`/operateur/of/${execControleOfId}/assemblage/postes/${posteCode}/demarrer`, null, { params: { equipe: equipe || undefined } })
   },
 
   // ── Statuts des documents ──
@@ -69,16 +77,21 @@ export default {
   annulerReglage(execControleOfId, posteCode) {
     return apiClient.delete(`/operateur/of/${execControleOfId}/assemblage/reglage`, { params: { posteCode } })
   },
-  /** @param {'FIN_POSTE'|'FIN_OF'} mode */
-  demanderCloture(execControleOfId, mode) {
-    return apiClient.post(`/operateur/of/${execControleOfId}/assemblage/demande-cloture`, { mode })
+  /**
+   * Fin de poste (ce poste seulement : les autres postes de l'équipe continuent) ou clôture de l'OF (tous les
+   * postes ; l'équipe doit être seule sur l'OF).
+   * @param {'FIN_POSTE'|'FIN_OF'} mode
+   */
+  demanderCloture(execControleOfId, mode, posteCode, equipe = null) {
+    return apiClient.post(`/operateur/of/${execControleOfId}/assemblage/demande-cloture`, { mode, posteCode, equipe: equipe || undefined })
   },
-  annulerDemandeCloture(execControleOfId) {
-    return apiClient.delete(`/operateur/of/${execControleOfId}/assemblage/demande-cloture`)
+  /** Annule la clôture de l'OF demandée par l'équipe, sinon la fin de poste demandée sur le poste. */
+  annulerDemandeCloture(execControleOfId, posteCode, equipe = null) {
+    return apiClient.delete(`/operateur/of/${execControleOfId}/assemblage/demande-cloture`, { params: { posteCode, equipe: equipe || undefined } })
   },
-  /** Termine le poste ou clôture l'OF ; refusé par le serveur tant qu'une tâche de fin manque. */
-  terminer(execControleOfId) {
-    return apiClient.post(`/operateur/of/${execControleOfId}/assemblage/terminer`)
+  /** Termine le poste (ou clôture l'OF si elle est demandée) ; refusé par le serveur tant qu'une tâche de fin manque. */
+  terminer(execControleOfId, posteCode, equipe = null) {
+    return apiClient.post(`/operateur/of/${execControleOfId}/assemblage/terminer`, null, { params: { posteCode, equipe: equipe || undefined } })
   },
 
   // ── Plan d'assemblage (contrôles de lot : première / dernière pièce) ──

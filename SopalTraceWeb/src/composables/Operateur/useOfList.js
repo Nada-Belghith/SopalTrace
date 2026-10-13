@@ -52,6 +52,8 @@ export function useOfList(props) {
    * - "NON COMMENCÉ" si aucune opération n'a encore été démarrée
    */
   const getStatutReel = (of) => {
+    // Toutes les opérations clôturées (visible quelques jours en consultation).
+    if (of.dateCloture) return 'CLÔTURÉ';
     if (!of.gammeOperatoire || of.gammeOperatoire.length === 0) return 'NON COMMENCÉ';
     const aUneOperationEnCours = of.gammeOperatoire.some(
       op => op.activeExecControleOfId != null && op.activeExecStatut !== 'CLOTURE'

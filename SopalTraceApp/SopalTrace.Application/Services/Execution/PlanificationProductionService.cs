@@ -16,9 +16,10 @@ namespace SopalTrace.Application.Services.Execution;
 /// Contrôles périodiques planifiés par le serveur (règles : <see cref="CalendrierProduction"/>), que l'écran soit
 /// ouvert ou non :
 /// <list type="bullet">
-/// <item>assemblage : chaque équipe a, sur chaque poste, ses périodes de production ; une période s'ouvre quand
-/// le poste est à l'étape « Production » de l'assistant (même calcul que l'avancement) et se ferme à la pause,
-/// au réglage ou à la fin de poste ;</item>
+/// <item>assemblage : chaque équipe a, sur chaque poste qu'elle tient, ses périodes de production (plusieurs
+/// équipes peuvent produire en même temps sur des postes différents) ; une période s'ouvre quand le poste est à
+/// l'étape « Production » de l'assistant (même calcul que l'avancement) et se ferme à la pause de l'équipe, au
+/// réglage ou à la fin de ce poste ;</item>
 /// <item>fabrication : chaque section de périodicité horaire a ses périodes ; elles suivent l'état de l'OF
 /// (en cours : ouverte ; réglage, pause, clôture : fermée).</item>
 /// </list>
@@ -34,28 +35,30 @@ public class PlanificationProductionService : IPlanificationProductionService
     private readonly IExecPlanAssemblageRepository _plans;
     private readonly IAvancementAssemblageService _avancement;
     private readonly IOccurrenceService _occurrences;
+    private readonly IDemarragePosteRepository _postes;
 
     public PlanificationProductionService(IPlanificationProductionRepository repository, IExecPlanAssemblageRepository plans,
-        IAvancementAssemblageService avancement, IOccurrenceService occurrences)
+        IAvancementAssemblageService avancement, IOccurrenceService occurrences, IDemarragePosteRepository postes)
     {
         _repository = repository;
         _plans = plans;
         _avancement = avancement;
         _occurrences = occurrences;
+        _postes = postes;
     }
 
     /// <summary>Plan d'une équipe sur un poste : sections planifiées, sections de réglage et saisies de réglage.</summary>
     private sealed record PostePlan(string Code, ExecControleOfSession Session, List<Guid> SectionsProduction,
-        List<Guid> SectionsReglage, List<SaisieReglage> SaisiesReglage);
+        List<Guid> SectionsReglage, List<SaisieReglage> SaisiesReglage, double? Intervalle);
 
     /// <summary>Données d'une synchronisation : périodes de l'OF et plans déjà lus.</summary>
     private sealed class Etat
     {
         public required ExecControleOf ExecOf { get; init; }
         public required List<ExecControleOfSession> Sessions { get; init; }
+        /// <summary>Postes tenus par les sessions (assemblage).</summary>
+        public required List<DemarragePoste> Postes { get; init; }
         public required List<ExecProductionPeriod> Periodes { get; init; }
-        /// <summary>Assemblage : minutes entre deux contrôles (60 / effectif par poste).</summary>
-        public required double? Intervalle { get; init; }
         /// <summary>Fabrication : tranches soldées (aucun nouveau contrôle n'y est ajouté).</summary>
         public HashSet<string> TranchesSoldees { get; init; } = new();
         public DateTime Maintenant { get; } = DateTime.Now;
@@ -160,25 +163,29 @@ public class PlanificationProductionService : IPlanificationProductionService
 
     private async Task SynchroniserAssemblageAsync(Etat etat)
     {
-        // 1. Équipes qui ne produisent plus : la période se ferme à l'heure de la pause ou de la fin de poste.
+        // 1. Postes qui ne produisent plus : la période se ferme à l'heure de la fin du poste, de la pause de
+        //    l'équipe ou de la fin de sa session.
         var cloture = etat.ExecOf.Statut == StatutsExecution.Cloture;
         foreach (var periode in etat.Periodes.Where(p => p.EndedAt == null && p.SessionId != null).ToList())
         {
             var session = etat.Sessions.First(s => s.Id == periode.SessionId);
-            if (session.Statut == StatutsSession.EnCours && !cloture) continue;
-            var (fin, motif) = session.Statut == StatutsSession.EnPause
-                ? (session.SuspendedAt ?? etat.Maintenant, MotifsFinPeriode.Pause)
+            var poste = etat.Postes.FirstOrDefault(d => d.SessionId == session.Id && d.PosteCode == periode.PosteCode);
+            if (session.Statut == StatutsSession.EnCours && !cloture && poste is { EnCours: true }) continue;
+            var (fin, motif) = poste?.EndedAt is DateTime finPoste ? (finPoste, MotifsFinPeriode.FinPoste)
+                : session.Statut == StatutsSession.EnPause ? (session.SuspendedAt ?? etat.Maintenant, MotifsFinPeriode.Pause)
                 : (session.DateFin ?? etat.Maintenant, MotifsFinPeriode.FinPoste);
             Clore(etat, periode, fin, motif, (await PlanAsync(etat, session, periode.PosteCode!)).SectionsProduction);
         }
+        if (cloture) return;
 
-        // 2. Équipe en production : chaque poste suit l'étape calculée par l'avancement.
-        var enCours = cloture ? null : etat.Sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnCours);
-        if (enCours != null)
+        // 2. Équipes en production : chaque poste qu'elles tiennent suit l'étape calculée par l'avancement.
+        foreach (var session in etat.Sessions.Where(s => s.Statut == StatutsSession.EnCours))
         {
-            var phases = await _avancement.GetPhasesPostesAsync(etat.ExecOf.Id, enCours.Equipe);
-            foreach (var (posteCode, phase) in phases)
-                SynchroniserPoste(etat, await PlanAsync(etat, enCours, posteCode), phase == PhasesAssemblage.Production);
+            var tenus = etat.Postes.Where(d => d.SessionId == session.Id && d.EnCours).Select(d => d.PosteCode).ToHashSet();
+            if (tenus.Count == 0) continue;
+            var phases = await _avancement.GetPhasesPostesAsync(etat.ExecOf.Id, session.Equipe);
+            foreach (var (posteCode, phase) in phases.Where(p => tenus.Contains(p.Key)))
+                SynchroniserPoste(etat, await PlanAsync(etat, session, posteCode), phase == PhasesAssemblage.Production);
         }
     }
 
@@ -236,7 +243,7 @@ public class PlanificationProductionService : IPlanificationProductionService
     /// </summary>
     private void SynchroniserPoste(Etat etat, PostePlan poste, bool enProduction)
     {
-        var planifiable = enProduction && etat.Intervalle.HasValue && poste.SectionsProduction.Count > 0;
+        var planifiable = enProduction && poste.Intervalle.HasValue && poste.SectionsProduction.Count > 0;
 
         // Plusieurs saisies de réglage peuvent avoir eu lieu depuis la dernière synchronisation.
         for (var tour = 0; tour < 20; tour++)
@@ -274,7 +281,7 @@ public class PlanificationProductionService : IPlanificationProductionService
                 SessionId = poste.Session.Id,
                 PosteCode = poste.Code,
                 StartedAt = debut,
-                IntervalMinutes = etat.Intervalle
+                IntervalMinutes = poste.Intervalle
             });
         }
     }
@@ -341,8 +348,8 @@ public class PlanificationProductionService : IPlanificationProductionService
         {
             ExecOf = execOf,
             Sessions = await _repository.GetSessionsAsync(execControleOfId),
+            Postes = assemblage ? await _postes.GetDemarragesAsync(execControleOfId) : new List<DemarragePoste>(),
             Periodes = await _repository.GetPeriodesAsync(execControleOfId),
-            Intervalle = assemblage ? CalendrierProduction.IntervalleMinutes(await _plans.GetEffectifParPosteAsync(execControleOfId)) : null,
             TranchesSoldees = assemblage ? new HashSet<string>() : await _repository.GetTranchesSoldeesAsync(execControleOfId)
         };
     }
@@ -359,8 +366,10 @@ public class PlanificationProductionService : IPlanificationProductionService
             throw new EtatExecutionInvalideException("Cet OF est clôturé.");
         if (!etat.ExecOf.ExecControleOfPostes.Any(p => p.PosteCode == posteCode))
             throw new RegleMetierException($"Le poste {posteCode} n'est pas affecté à cet OF.");
-        return etat.Sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnCours)
-            ?? throw new EtatExecutionInvalideException("Aucune équipe ne produit sur cet OF : reprenez la production avant un réglage.");
+        // Équipe qui tient le poste, en production.
+        var titulaire = etat.Postes.FirstOrDefault(d => d.PosteCode == posteCode && d.EnCours);
+        return etat.Sessions.FirstOrDefault(s => s.Id == titulaire?.SessionId && s.Statut == StatutsSession.EnCours)
+            ?? throw new EtatExecutionInvalideException($"Aucune équipe ne produit sur le poste {posteCode} : reprenez la production avant un réglage.");
     }
 
     /// <summary>Plan de l'équipe sur le poste : celui qu'elle exécute, sinon celui qui s'applique à l'article.</summary>
@@ -384,7 +393,9 @@ public class PlanificationProductionService : IPlanificationProductionService
             : CalendrierProduction.SaisiesReglage(await _plans.GetReponsesPlanAsync(etat.ExecOf.Id, posteCode), session.Id,
                 reglage.SelectMany(s => s.DocumentLignes.Select(l => (Ligne: l.Id, Section: s.Id))).ToDictionary(x => x.Ligne, x => x.Section));
 
-        var plan = new PostePlan(posteCode, session, production, reglage.Select(s => s.Id).ToList(), saisies);
+        // Intervalle du poste : 60 / effectif par poste de sa fiche d'échantillonnage.
+        var intervalle = CalendrierProduction.IntervalleMinutes(await _plans.GetEffectifParPosteAsync(etat.ExecOf.Id, posteCode));
+        var plan = new PostePlan(posteCode, session, production, reglage.Select(s => s.Id).ToList(), saisies, intervalle);
         etat.Plans[(session.Id, posteCode)] = plan;
         return plan;
     }

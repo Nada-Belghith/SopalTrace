@@ -22,7 +22,10 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? LibellePlan { get; set; }
 
         /// <summary>La session active est la première de l'OF : le contrôle de début d'OF lui revient.</summary>
-        public bool PremiereEquipe { get; set; }
+        /// <summary>L'équipe a démarré ce poste (sinon, seul le contrôle de fin d'OF peut être saisi).</summary>
+        public bool PosteDemarre { get; set; }
+        /// <summary>Premier démarrage du poste sur l'OF : contrôle « début d'OF » attendu.</summary>
+        public bool PremierDemarragePoste { get; set; }
 
         /// <summary>FIN_POSTE ou FIN_OF lorsque l'équipe a demandé la fin ; null en production.</summary>
         public string? DemandeCloture { get; set; }

@@ -18,12 +18,15 @@ public class AssemblageExecutionService : IAssemblageExecutionService
     private readonly IOperateurRepository _operateurRepository;
     private readonly IOccurrenceService _occurrenceService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IDemarragePosteRepository _demarrages;
 
-    public AssemblageExecutionService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IUnitOfWork unitOfWork)
+    public AssemblageExecutionService(IOperateurRepository operateurRepository, IOccurrenceService occurrenceService, IUnitOfWork unitOfWork,
+        IDemarragePosteRepository demarrages)
     {
         _operateurRepository = operateurRepository;
         _occurrenceService = occurrenceService;
         _unitOfWork = unitOfWork;
+        _demarrages = demarrages;
     }
 
     public async Task<IEnumerable<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync()
@@ -31,7 +34,7 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         return await _operateurRepository.GetOfsAssemblageStatutAsync();
     }
 
-    public async Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request)
+    public async Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request, string matricule)
     {
         var of = await _operateurRepository.GetOfAsync(request.NumeroOf)
             ?? throw new RessourceIntrouvableException("OF introuvable.");
@@ -57,12 +60,20 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         {
             execOf.ExecControleOfPostes.Add(new ExecControleOfPoste { PosteCode = posteCode });
         }
-        execOf.ExecControleOfSessions.Add(new ExecControleOfSession
+        // La première équipe démarre les postes choisis (chacun avec son contrôle « début d'OF »).
+        var session = new ExecControleOfSession
         {
+            Id = Guid.NewGuid(),
             Equipe = request.Equipe,
             Statut = StatutsSession.EnCours,
             DateDebut = maintenant
-        });
+        };
+        foreach (var posteCode in postes)
+            session.ExecSessionPosts.Add(new ExecSessionPost
+            {
+                Id = Guid.NewGuid(), ExecControleOf = execOf, PosteCode = posteCode, StartedAt = maintenant, StartedBy = matricule
+            });
+        execOf.ExecControleOfSessions.Add(session);
 
         // OF, postes et session sont enregistrés ensemble ou pas du tout (les contrôles de production sont
         // planifiés par le serveur quand le poste arrive en production).
@@ -83,49 +94,85 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         };
     }
 
-    public async Task AjouterPostesAsync(Guid execControleOfId, AjouterPostesRequest request)
+    /// <summary>
+    /// Prise de postes par une équipe. Plusieurs équipes peuvent travailler en même temps sur l'OF, une seule à la
+    /// fois par poste : un poste tenu par une autre équipe se libère quand elle le termine. L'équipe peut aussi venir
+    /// seulement clôturer l'OF (aucun poste démarré, seuls les contrôles de fin d'OF) si elle est seule sur l'OF.
+    /// Une équipe déjà ouverte en production ajoute des postes à sa session.
+    /// </summary>
+    public async Task AjouterPostesAsync(Guid execControleOfId, AjouterPostesRequest request, string matricule)
     {
         var execOf = await GetExecutionOuverteAsync(execControleOfId);
+        if (!request.PourCloturer && request.PosteCodes.Count == 0)
+            throw new RegleMetierException("Choisissez au moins un poste sur lequel votre équipe travaille.");
 
-        // Une seule équipe en production à la fois : une autre équipe peut rejoindre l'OF pendant la pause
-        // de la précédente, qui retrouvera son étape à son retour.
-        var sessions = await _operateurRepository.GetSessionsOuvertesAsync(execOf.Id);
-        var enProduction = sessions.FirstOrDefault(s => s.Statut == StatutsSession.EnCours);
-        if (enProduction != null && !string.Equals(enProduction.Equipe, request.Equipe, StringComparison.OrdinalIgnoreCase))
-            throw new EtatExecutionInvalideException(
-                $"L'équipe {enProduction.Equipe} produit actuellement sur cet OF : elle doit se mettre en pause ou terminer son poste avant qu'une autre équipe ne prenne la main.");
+        var ouvertes = await _demarrages.GetSessionsOuvertesAsync(execOf.Id);
+        var session = ouvertes.FirstOrDefault(s => string.Equals(s.Equipe, request.Equipe, StringComparison.OrdinalIgnoreCase));
+        var cloture = ouvertes.FirstOrDefault(s => s.ClosingRequest == DemandesCloture.FinOf);
+        if (cloture != null && cloture != session)
+            throw new EtatExecutionInvalideException($"L'équipe {cloture.Equipe} clôture l'OF : aucune autre équipe ne peut commencer.");
+        if (session?.Statut == StatutsSession.EnPause)
+            throw new EtatExecutionInvalideException("Votre équipe est en pause sur cet OF : reprenez la production depuis l'assistant.");
 
-        if (!sessions.Any(s => string.Equals(s.Equipe, request.Equipe, StringComparison.OrdinalIgnoreCase)))
+        var demarrages = await _demarrages.GetDemarragesAsync(execOf.Id);
+        if (request.PourCloturer)
         {
-            var maintenant = DateTime.Now;
-            _operateurRepository.AddSession(new ExecControleOfSession
+            var autres = ouvertes.Where(s => s != session).ToList();
+            if (autres.Count > 0)
+                throw new EtatExecutionInvalideException("Clôture impossible : " + string.Join(" ; ", autres.Select(s =>
+                {
+                    var postes = demarrages.Where(d => d.SessionId == s.Id && d.EnCours).Select(d => d.PosteCode).ToList();
+                    return $"l'équipe {s.Equipe} {(postes.Count > 0 ? $"tient encore {string.Join(", ", postes)}" : "a une session ouverte")}";
+                })) + ". Chaque équipe doit terminer ses postes avant la clôture de l'OF.");
+        }
+
+        var demandes = request.PourCloturer ? new List<string>() : await ValiderPostesAsync(request.PosteCodes);
+        foreach (var poste in demandes)
+        {
+            var titulaire = demarrages.FirstOrDefault(d => d.PosteCode == poste && d.EnCours);
+            if (titulaire != null && titulaire.SessionId != session?.Id)
+                throw new EtatExecutionInvalideException(AvancementAssemblageService.MessagePosteOccupe(poste, titulaire.Equipe));
+            if (titulaire == null && session != null && demarrages.Any(d => d.SessionId == session.Id && d.PosteCode == poste))
+                throw new EtatExecutionInvalideException(
+                    $"Votre équipe a déjà terminé le poste {poste} dans cette prise de poste : terminez vos autres postes, puis ouvrez une nouvelle prise de poste pour le reprendre.");
+        }
+
+        var maintenant = DateTime.Now;
+        if (session == null)
+        {
+            session = new ExecControleOfSession
             {
+                Id = Guid.NewGuid(),
                 ExecControleOfId = execOf.Id,
                 Equipe = request.Equipe,
                 Statut = StatutsSession.EnCours,
-                DateDebut = maintenant
-            });
-            // L'OF repart en production avec la nouvelle équipe (la pause de l'équipe précédente est décomptée).
+                DateDebut = maintenant,
+                ClosingRequest = request.PourCloturer ? DemandesCloture.FinOf : null
+            };
+            _operateurRepository.AddSession(session);
+            // Une équipe en production : l'OF n'est plus en pause (les autres équipes gardent leur pause).
             if (execOf.Statut == StatutsExecution.EnPause)
             {
-                if (execOf.SuspendedAt.HasValue) execOf.TempsPauseTotalMinutes += Math.Max(0, (maintenant - execOf.SuspendedAt.Value).TotalMinutes);
+                execOf.TempsPauseTotalMinutes += Math.Max(0, (maintenant - (execOf.SuspendedAt ?? maintenant)).TotalMinutes);
                 execOf.SuspendedAt = null;
                 execOf.Statut = StatutsExecution.EnCours;
             }
         }
-        // Équipe déjà présente (en pause) : elle reprendra depuis l'assistant (« Reprendre »).
+        else if (request.PourCloturer)
+        {
+            session.ClosingRequest = DemandesCloture.FinOf;
+        }
 
         var postesExistants = (await _operateurRepository.GetPostesForExecutionAsync(execOf.Id)).ToHashSet();
-        var nouveauxPostes = await ValiderPostesAsync(request.PosteCodes.Where(p => !postesExistants.Contains(p)));
+        foreach (var poste in demandes.Where(p => !postesExistants.Contains(p)))
+            _operateurRepository.AddExecControleOfPoste(new ExecControleOfPoste { ExecControleOfId = execOf.Id, PosteCode = poste });
 
-        foreach (var poste in nouveauxPostes)
-        {
-            _operateurRepository.AddExecControleOfPoste(new ExecControleOfPoste
+        var tenus = demarrages.Where(d => d.SessionId == session.Id && d.EnCours).Select(d => d.PosteCode).ToHashSet();
+        foreach (var poste in demandes.Where(p => !tenus.Contains(p)))
+            _demarrages.Ajouter(new ExecSessionPost
             {
-                ExecControleOfId = execOf.Id,
-                PosteCode = poste
+                Id = Guid.NewGuid(), SessionId = session.Id, ExecControleOfId = execOf.Id, PosteCode = poste, StartedAt = maintenant, StartedBy = matricule
             });
-        }
 
         await _operateurRepository.SaveChangesAsync();
     }
@@ -141,14 +188,17 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         var planId = await _operateurRepository.GetPlanVerifMachineActifIdAsync(request.MachineCode)
             ?? throw new RessourceIntrouvableException($"Aucun plan de vérification actif n'a été trouvé pour la machine {request.MachineCode}. Veuillez le signaler au superviseur.");
 
-        var session = await _operateurRepository.GetActiveSessionAsync(execOf.Id);
+        var session = await _demarrages.GetSessionAsync(execOf.Id, request.PosteCode)
+            ?? throw new EtatExecutionInvalideException($"Aucune équipe ne tient le poste {request.PosteCode}.");
+        if (!await _demarrages.EstEnCoursAsync(session.Id, request.PosteCode))
+            throw new EtatExecutionInvalideException(ExecPlanAssemblageService.MessagePosteNonDemarre(request.PosteCode, session.Equipe));
         var aujourdhui = DateTime.Today;
 
-        var existant = (await _operateurRepository.GetDocumentStatutsAsync(execOf.Id)).FirstOrDefault(s =>
+        // Un document par machine, poste et session d'équipe (la session est celle du jour de l'équipe).
+        var existant = (await _operateurRepository.GetDocumentStatutsAsync(execOf.Id, session.Id)).FirstOrDefault(s =>
             s.TypeDocument == TypesDocumentExecution.VerifMachine &&
             s.PosteCode == request.PosteCode &&
-            s.MachineCode == request.MachineCode &&
-            s.DateExecution == aujourdhui);
+            s.MachineCode == request.MachineCode);
         if (existant != null) return existant.Id;
 
         var statut = new ExecControleDocumentStatut
@@ -159,8 +209,8 @@ public class AssemblageExecutionService : IAssemblageExecutionService
             MachineCode = request.MachineCode,
             TypeDocument = TypesDocumentExecution.VerifMachine,
             DocId = planId,
-            SessionId = session?.Id,
-            Equipe = session?.Equipe,
+            SessionId = session.Id,
+            Equipe = session.Equipe,
             DateExecution = aujourdhui,
             MatriculeOperateur = matricule
         };
@@ -171,14 +221,13 @@ public class AssemblageExecutionService : IAssemblageExecutionService
 
     public async Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId, string? equipe = null)
     {
-        // Documents de l'équipe demandée (elle peut être en pause pendant qu'une autre produit), sinon de la session active.
-        Guid? sessionId = null;
-        if (!string.IsNullOrWhiteSpace(equipe))
-        {
-            sessionId = (await _operateurRepository.GetSessionsOuvertesAsync(execControleOfId))
-                .FirstOrDefault(s => string.Equals(s.Equipe, equipe, StringComparison.OrdinalIgnoreCase))?.Id;
-        }
-        var statuts = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId, sessionId)).ToList();
+        // Documents de l'équipe demandée (par défaut la seule équipe ouverte sur l'OF).
+        var ouvertes = await _demarrages.GetSessionsOuvertesAsync(execControleOfId);
+        var session = !string.IsNullOrWhiteSpace(equipe)
+            ? ouvertes.FirstOrDefault(s => string.Equals(s.Equipe, equipe.Trim(), StringComparison.OrdinalIgnoreCase))
+            : ouvertes.Count == 1 ? ouvertes[0] : null;
+        if (session == null) return Enumerable.Empty<DocumentStatutDto>();
+        var statuts = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId, session.Id)).ToList();
 
         // Un document resté ouvert un jour précédent est clôturé automatiquement à minuit.
         var aujourdhui = DateTime.Today;
@@ -290,10 +339,9 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         if (statut.ExecControleOf.Statut == StatutsExecution.Cloture)
             throw new EtatExecutionInvalideException("Cet OF est clôturé : aucune modification n'est possible.");
 
-        // Seuls les documents de l'équipe active sont modifiables ; ceux d'une session terminée sont archivés.
-        var sessionActive = await _operateurRepository.GetActiveSessionAsync(statut.ExecControleOfId);
-        if (statut.SessionId != sessionActive?.Id)
-            throw new EtatExecutionInvalideException("Ce document appartient à une session d'équipe terminée : il ne peut plus être modifié.");
+        // Seuls les documents de l'équipe qui tient le poste sont modifiables ; les autres sont archivés.
+        if (statut.SessionId is not Guid sessionId || statut.PosteCode == null || !await _demarrages.EstEnCoursAsync(sessionId, statut.PosteCode))
+            throw new EtatExecutionInvalideException("Ce document appartient à une équipe qui ne tient plus ce poste : il ne peut plus être modifié.");
 
         return statut;
     }

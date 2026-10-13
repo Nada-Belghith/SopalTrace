@@ -110,7 +110,10 @@ public static class PeriodicitesControle
 }
 
 /// <summary>Types de pause déclarables par l'opérateur.</summary>
-/// <summary>Fin demandée par l'équipe d'assemblage (Exec_ControleOf_Session.ClosingRequest).</summary>
+/// <summary>
+/// Fin demandée par l'équipe d'assemblage : fin de poste sur un poste (Exec_SessionPost.ClosingRequestedAt) ou
+/// clôture de l'OF (Exec_ControleOf_Session.ClosingRequest).
+/// </summary>
 public static class DemandesCloture
 {
     public const string FinPoste = "FIN_POSTE";
@@ -126,6 +129,12 @@ public static class PhasesAssemblage
     public const string Demarrage = "DEMARRAGE";
     public const string Production = "PRODUCTION";
     public const string Pause = "PAUSE";
+    /// <summary>Session ouverte, mais l'équipe n'a pas encore démarré ce poste (aucune autre équipe ne le tient).</summary>
+    public const string NonDemarre = "NON_DEMARRE";
+    /// <summary>Une autre équipe tient ce poste : il se libère quand elle le termine.</summary>
+    public const string PosteOccupe = "POSTE_OCCUPE";
+    /// <summary>L'équipe a terminé ce poste ; ses autres postes continuent.</summary>
+    public const string PosteTermine = "POSTE_TERMINE";
     /// <summary>Retour de pause déjeuner : vérification machine « après pause » avant la production.</summary>
     public const string Reprise = "REPRISE";
     public const string FinPoste = "FIN_POSTE";
@@ -151,6 +160,8 @@ public static class EtatsVerifMachine
 public static class TachesAssemblage
 {
     public const string Echantillonnage = "ECHANTILLONNAGE";
+    /// <summary>Démarrer le poste : ses contrôles de démarrage puis de fin de poste deviennent dus pour l'équipe.</summary>
+    public const string DemarrerPoste = "DEMARRER_POSTE";
     public const string VerifMachine = "VERIF_MACHINE";
     /// <summary>Contrôle de la première pièce (sections LOT_POSTE, et LOT_OF pour la première équipe).</summary>
     public const string PlanPremierePiece = "PLAN_PREMIERE_PIECE";

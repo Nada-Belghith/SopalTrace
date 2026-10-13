@@ -100,7 +100,9 @@ export const useAuthStore = defineStore('auth', {
           for (const o of operateurStore.ofs) {
             if (o.gammeOperatoire) {
               for (const op of o.gammeOperatoire) {
-                if (op.activeExecControleOfId && (op.activeExecStatut === 'EN_COURS' || op.activeExecStatut === 'REGLAGE')) {
+                // Assemblage exclu : la pause y est celle d'une équipe (plusieurs peuvent travailler sur l'OF) et
+                // l'assistant la propose déjà quand l'opérateur le quitte.
+                if (op.activeExecControleOfId && op.operationCode !== 'ASS' && (op.activeExecStatut === 'EN_COURS' || op.activeExecStatut === 'REGLAGE')) {
                   try {
                     await operateurService.mettreEnPause(op.activeExecControleOfId, "Déconnexion de l'opérateur (Pause automatique)");
                   } catch (err) {

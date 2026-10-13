@@ -1,27 +1,22 @@
 <template>
   <div class="p-4 md:p-6 w-full space-y-5">
     <!-- En-tête -->
-    <header class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-      <div class="flex justify-between items-center gap-3 mb-3">
-        <button type="button" @click="retour"
-                class="min-h-[40px] text-blue-700 hover:text-blue-900 text-sm font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center">
-          <i class="pi pi-arrow-left mr-2"></i> Retour à l'assistant
-        </button>
-        <button v-if="!estProduction" type="button" @click="charger" :disabled="isLoading"
-                class="min-h-[40px] text-slate-500 hover:text-slate-700 text-sm font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center">
-          <i class="pi pi-refresh mr-2" :class="{ 'pi-spin': isLoading }"></i> Rafraîchir
-        </button>
-      </div>
-      <h2 class="m-0 text-2xl font-black text-slate-800">{{ titre }}</h2>
-      <p class="m-0 mt-1 text-sm text-slate-500">
+    <EnTetePage :titre="titre" retour libelle-retour="Retour à l'assistant" @retour="retour">
+      <template #sous-titre>
         OF <strong class="text-slate-700">{{ execution?.numeroOf || '—' }}</strong>
         <span class="mx-2 text-slate-300">|</span> Article <strong class="text-slate-700">{{ execution?.codeArticle || '—' }}</strong>
         <span class="mx-2 text-slate-300">|</span> Poste <strong class="text-slate-700">{{ posteCode }}</strong>
         <template v-if="execution?.libellePlan">
           <span class="mx-2 text-slate-300">|</span> {{ execution.libellePlan }}
         </template>
-      </p>
-    </header>
+      </template>
+      <template v-if="!estProduction" #actions>
+        <button type="button" @click="charger" :disabled="isLoading"
+                class="min-h-[44px] px-4 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-sm font-semibold cursor-pointer flex items-center disabled:opacity-50">
+          <i class="pi pi-refresh mr-2" :class="{ 'pi-spin': isLoading }"></i> Rafraîchir
+        </button>
+      </template>
+    </EnTetePage>
 
     <!-- Production : contrôles ECHANTILLONNAGE_2859 dus selon leur périodicité -->
     <section v-if="estProduction" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -186,6 +181,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAppToast } from '@/composables/useAppToast'
 import { useRoute, useRouter } from 'vue-router'
 import AlerteControle from '@/components/Operateur/AlerteControle.vue'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
 import execAssemblageService from '@/services/execAssemblageService'
 import { useSaisieControleLot } from '@/composables/Operateur/assemblage/useSaisieControleLot'
 import { logger } from '@/utils/logger'
@@ -197,11 +193,8 @@ const toast = useAppToast()
 
 const execControleOfId = ref(route.params.execControleOfId)
 const posteCode = ref(route.query.posteCode || '')
-/** Équipe de la tablette (URL, sinon mémorisée par l'assistant pour cet OF). */
-const lireEquipeMemorisee = () => {
-  try { return sessionStorage.getItem(`equipeAssemblage_${route.params.execControleOfId}`) } catch { return null }
-}
-const equipe = ref(route.query.equipe || lireEquipeMemorisee() || null)
+/** Équipe de la session ouverte, transmise par l'assistant (le serveur prend sinon la session ouverte de l'OF). */
+const equipe = ref(route.query.equipe || null)
 /** PREMIERE_PIECE, DERNIERE_PIECE, REGLAGE, 100PCT ou PRODUCTION (choisi par l'assistant). */
 const moment = computed(() => route.query.moment || MOMENTS_LOT.PREMIERE_PIECE)
 const estProduction = computed(() => moment.value === 'PRODUCTION')

@@ -24,10 +24,14 @@ namespace SopalTrace.Application.Services
             if (execOf.Statut == StatutsExecution.Cloture)
                 throw new EtatExecutionInvalideException("Cet OF est clôturé : aucune saisie n'est possible.");
 
-            var session = await _repository.GetActiveSessionAsync(execControleOfId)
-                ?? throw new EtatExecutionInvalideException("Aucune équipe n'est active sur cet OF.");
+            var session = await _demarrages.GetSessionAsync(execControleOfId, request.PosteCode)
+                ?? throw new EtatExecutionInvalideException($"Aucune équipe ne tient le poste {request.PosteCode}.");
             if (session.Statut == StatutsSession.EnPause)
                 throw new EtatExecutionInvalideException("L'OF est en pause : reprenez la production avant de saisir un contrôle.");
+
+            var equipe = await ContexteEquipeAsync(execControleOfId, session, request.PosteCode);
+            if (!equipe.PosteDemarre && equipe.DemandeCloture != DemandesCloture.FinOf)
+                throw new EtatExecutionInvalideException(MessagePosteNonDemarre(request.PosteCode, session.Equipe));
 
             var statut = await _repository.GetStatutPlanAssAsync(execControleOfId, request.PosteCode, session.Id);
             if (statut?.DocId == null)
@@ -52,7 +56,9 @@ namespace SopalTrace.Application.Services
             if (request.LignesControle.Any(l => l.Resultat == ResultatsControle.NonConforme && string.IsNullOrWhiteSpace(l.Nc)))
                 throw new RegleMetierException("Le détail de la non-conformité est obligatoire pour chaque ligne NC.");
 
-            var equipe = await ContexteEquipeAsync(execControleOfId, session);
+            // Poste non démarré par l'équipe : seul le contrôle de fin d'OF (LOT_OF, dernière pièce) se saisit.
+            if (!equipe.PosteDemarre && !(type == SectionTypes.LotOf && request.Moment == ContextesReponse.DernierePiece))
+                throw new EtatExecutionInvalideException(MessagePosteNonDemarre(request.PosteCode, session.Equipe));
             if (!aLaDemande) VerifierMomentAttendu(type, request.Moment, equipe);
 
             var maintenant = DateTime.Now;
@@ -84,10 +90,13 @@ namespace SopalTrace.Application.Services
             await _repository.SaveChangesAsync();
         }
 
+        public static string MessagePosteNonDemarre(string posteCode, string equipe) =>
+            $"Le poste {posteCode} n'est pas démarré par l'équipe {equipe} : démarrez-le depuis l'assistant avant de saisir ses contrôles.";
+
         private static void VerifierMomentAttendu(string typeSection, string moment, ContexteEquipe equipe)
         {
             if (moment == ContextesReponse.PremierePiece && !ControlesLot.PremierePieceRequise(typeSection, equipe))
-                throw new RegleMetierException("L'OF a déjà été démarré par une équipe précédente : le contrôle de début d'OF n'est plus à faire.");
+                throw new RegleMetierException("Ce poste a déjà été démarré sur l'OF par une équipe précédente : le contrôle de début d'OF n'est plus à faire.");
 
             if (moment == ContextesReponse.DernierePiece && !ControlesLot.DernierePieceRequise(typeSection, equipe))
                 throw new RegleMetierException(typeSection == SectionTypes.LotOf

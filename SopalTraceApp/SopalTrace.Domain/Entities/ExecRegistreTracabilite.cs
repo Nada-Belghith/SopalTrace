@@ -21,7 +21,7 @@ public partial class ExecRegistreTracabilite
 
     public string? Equipe { get; set; }
 
-    public string? PosteCode { get; set; }
+    public string PosteCode { get; set; } = null!;
 
     public string? MatriculeOperateur { get; set; }
 
@@ -37,11 +37,11 @@ public partial class ExecRegistreTracabilite
 
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
 
+    public virtual ExecControleOfPoste ExecControleOfPoste { get; set; } = null!;
+
     public virtual ICollection<ExecRegistreTracabiliteComposant> ExecRegistreTracabiliteComposants { get; set; } = new List<ExecRegistreTracabiliteComposant>();
 
     public virtual Autili? MatriculeOperateurNavigation { get; set; }
-
-    public virtual PosteTravail? PosteCodeNavigation { get; set; }
 
     public virtual ExecControleOfSession? Session { get; set; }
 }

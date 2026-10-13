@@ -30,11 +30,13 @@ public class VerifMachinePosteService : IVerifMachinePosteService
 
     private readonly IOperateurRepository _operateur;
     private readonly IAssemblageExecutionService _assemblage;
+    private readonly IDemarragePosteRepository _demarrages;
 
-    public VerifMachinePosteService(IOperateurRepository operateur, IAssemblageExecutionService assemblage)
+    public VerifMachinePosteService(IOperateurRepository operateur, IAssemblageExecutionService assemblage, IDemarragePosteRepository demarrages)
     {
         _operateur = operateur;
         _assemblage = assemblage;
+        _demarrages = demarrages;
     }
 
     public async Task<VerifMachinesPosteDto> GetMachinesAsync(Guid execControleOfId, string posteCode, string periodicite)
@@ -46,10 +48,11 @@ public class VerifMachinePosteService : IVerifMachinePosteService
         if (!postes.Contains(posteCode))
             throw new RegleMetierException($"Le poste {posteCode} n'est pas affecté à cet OF.");
 
-        var session = await _operateur.GetActiveSessionAsync(execControleOfId);
+        // Équipe du poste : celle qui le tient (ses vérifications ne valent que pour elle).
+        var session = await _demarrages.GetSessionAsync(execControleOfId, posteCode);
         var statutsPoste = session == null
             ? new List<ExecControleDocumentStatut>()
-            : (await _operateur.GetDocumentStatutsAsync(execControleOfId)).Where(s => s.PosteCode == posteCode).ToList();
+            : (await _operateur.GetDocumentStatutsAsync(execControleOfId, session.Id)).Where(s => s.PosteCode == posteCode).ToList();
         var cloture = statutsPoste.Any(s => s.TypeDocument == TypesDocumentExecution.ClotureVerifMachinePoste);
         var documents = statutsPoste
             .Where(s => s.TypeDocument == TypesDocumentExecution.VerifMachine && s.MachineCode != null)
@@ -76,7 +79,8 @@ public class VerifMachinePosteService : IVerifMachinePosteService
             PosteCode = posteCode,
             Periodicite = periodicite,
             Equipe = session?.Equipe,
-            Modifiable = execOf.Statut != StatutsExecution.Cloture && session?.Statut == StatutsSession.EnCours,
+            Modifiable = execOf.Statut != StatutsExecution.Cloture && session?.Statut == StatutsSession.EnCours
+                         && await _demarrages.EstEnCoursAsync(session.Id, posteCode),
             Machines = lignes,
             Attendues = attendues.Count,
             Validees = attendues.Count(l => l.Etat == EtatsVerifMachine.Validee)
@@ -221,26 +225,42 @@ public class VerifMachinePosteService : IVerifMachinePosteService
     public async Task<List<VerifMachineHistoriqueDto>> GetHistoriqueAsync(Guid execControleOfId, string posteCode,
         string? machineCode, string? equipe, DateTime? jour)
     {
-        var session = await _operateur.GetActiveSessionAsync(execControleOfId);
-        return (await _operateur.GetStatutsVerifMachineAsync(execControleOfId))
+        var session = await _demarrages.GetSessionAsync(execControleOfId, posteCode);
+        var statuts = (await _operateur.GetStatutsVerifMachineAsync(execControleOfId))
             .Where(s => s.PosteCode == posteCode)
             .Where(s => string.IsNullOrEmpty(machineCode) || s.MachineCode == machineCode)
             .Where(s => string.IsNullOrEmpty(equipe) || string.Equals(s.Equipe, equipe, StringComparison.OrdinalIgnoreCase))
             .Where(s => jour == null || s.DateExecution?.Date == jour.Value.Date)
-            .Select(s => new VerifMachineHistoriqueDto
+            .ToList();
+
+        // Moments prévus par le plan de chaque machine : « fin de poste faite » n'a de sens que si elle est prévue
+        // (sans fin de poste, le document est terminé dès le démarrage).
+        var moments = new Dictionary<string, List<string>>();
+        foreach (var code in statuts.Select(s => s.MachineCode).OfType<string>().Distinct())
+            moments[code] = await _operateur.GetPeriodicitesPlanMachineAsync(code) ?? new List<string>();
+
+        return statuts.Select(s =>
+        {
+            var m = s.MachineCode != null && moments.TryGetValue(s.MachineCode, out var liste) ? liste : new List<string>();
+            var finPrevue = PeriodiciteMachineHelper.AFinPoste(m);
+            var pausePrevue = PeriodiciteMachineHelper.AApresPause(m);
+            return new VerifMachineHistoriqueDto
             {
                 StatutId = s.Id,
                 PlanId = s.DocId,
                 MachineCode = s.MachineCode ?? string.Empty,
                 Equipe = s.Equipe,
                 Jour = s.DateExecution,
-                Demarrage = s.EstDemarrageTermine || s.EstTermine,
-                ApresPause = s.EstPauseTermine,
-                FinPoste = s.EstTermine,
+                DemarragePrevu = PeriodiciteMachineHelper.ADemarrage(m),
+                ApresPausePrevue = pausePrevue,
+                FinPostePrevue = finPrevue,
+                Demarrage = s.EstDemarrageTermine || (s.EstTermine && !pausePrevue && !finPrevue),
+                ApresPause = pausePrevue && s.EstPauseTermine,
+                FinPoste = finPrevue && s.EstTermine,
                 SessionActive = session != null && s.SessionId == session.Id,
                 MatriculeOperateur = s.MatriculeOperateur
-            })
-            .ToList();
+            };
+        }).ToList();
     }
 
     // ───────────────────────────── Outils ─────────────────────────────
@@ -283,9 +303,9 @@ public class VerifMachinePosteService : IVerifMachinePosteService
         if (statut.ExecControleOf.Statut == StatutsExecution.Cloture)
             throw new EtatExecutionInvalideException("Cet OF est clôturé : la vérification machine ne peut plus être modifiée.");
 
-        var session = await _operateur.GetActiveSessionAsync(statut.ExecControleOfId);
-        if (session == null || statut.SessionId != session.Id)
-            throw new EtatExecutionInvalideException("Cette vérification appartient à une session d'équipe terminée : elle reste consultable.");
+        var session = statut.PosteCode == null ? null : await _demarrages.GetSessionAsync(statut.ExecControleOfId, statut.PosteCode);
+        if (session == null || statut.SessionId != session.Id || !await _demarrages.EstEnCoursAsync(session.Id, statut.PosteCode!))
+            throw new EtatExecutionInvalideException("Cette vérification appartient à une équipe qui ne tient plus ce poste : elle reste consultable.");
         if (session.Statut == StatutsSession.EnPause)
             throw new EtatExecutionInvalideException("L'OF est en pause : reprenez la production avant de valider.");
         return statut;

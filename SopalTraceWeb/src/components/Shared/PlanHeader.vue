@@ -1,9 +1,7 @@
 <template>
   <header class="bg-white min-h-[4rem] shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between px-6 py-3 mb-6 rounded-xl gap-4">
     <div class="flex items-center gap-4">
-      <button @click="router.back()" class="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0" title="Retour">
-        <i class="pi pi-arrow-left text-lg"></i>
-      </button>
+      <BoutonRetour class="-ml-2" @click="router.back()" />
       
       <div>
         <h2 class="text-slate-800 font-black tracking-wide text-base md:text-lg flex items-center gap-2">
@@ -47,6 +45,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router';
+import BoutonRetour from './BoutonRetour.vue';
 
 const router = useRouter();
 

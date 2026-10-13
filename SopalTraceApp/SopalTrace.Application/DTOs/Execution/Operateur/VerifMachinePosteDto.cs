@@ -53,6 +53,10 @@ public class VerifMachineHistoriqueDto
     public bool Demarrage { get; set; }
     public bool ApresPause { get; set; }
     public bool FinPoste { get; set; }
+    /// <summary>Moments prévus par le plan de la machine (un moment non prévu n'est ni fait ni à faire).</summary>
+    public bool DemarragePrevu { get; set; }
+    public bool ApresPausePrevue { get; set; }
+    public bool FinPostePrevue { get; set; }
     public bool SessionActive { get; set; }
     public string? MatriculeOperateur { get; set; }
 }

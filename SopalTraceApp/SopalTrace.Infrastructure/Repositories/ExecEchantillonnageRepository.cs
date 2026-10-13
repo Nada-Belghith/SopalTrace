@@ -23,7 +23,9 @@ namespace SopalTrace.Infrastructure.Repositories
         public async Task<ExecEchantillonnage?> GetByExecControleOfIdAndPosteAsync(Guid execControleOfId, string? posteCode)
         {
             return await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
-                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.Include(_context.Set<ExecEchantillonnage>(), x => x.CodeInstruments), 
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.Include(
+                    Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.Include(_context.Set<ExecEchantillonnage>(), x => x.CodeInstruments),
+                    x => x.ExecControleDocumentStatut), 
                 x => x.ExecControleDocumentStatut.ExecControleOfId == execControleOfId 
                      && x.ExecControleDocumentStatut.PosteCode == posteCode
                      && x.ExecControleDocumentStatut.TypeDocument == TypesDocumentExecution.Echantillonnage);

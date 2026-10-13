@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import apiClient from '@/services/apiClient'
-import Button from 'primevue/button'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
 import ProgressSpinner from 'primevue/progressspinner'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
@@ -30,7 +30,7 @@ onMounted(async () => {
 })
 
 const goBack = () => {
-  router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode } })
+  router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode, equipe: route.query.equipe || undefined } })
 }
 
 // Helpers for UI state
@@ -56,13 +56,8 @@ const isModeActive = (mode) => {
 
 <template>
   <div class="p-6 min-h-screen bg-slate-50 font-sans">
-    <div class="flex items-center gap-4 mb-6">
-      <Button icon="pi pi-arrow-left" class="p-button-rounded p-button-text" @click="goBack" />
-      <div>
-        <h1 class="text-3xl font-bold text-gray-800">Fiche d'Échantillonnage (ISO 2859)</h1>
-        <p class="text-gray-500">Plan de contrôle dynamique généré pour l'OF</p>
-      </div>
-    </div>
+    <EnTetePage class="mb-6" titre="Fiche d'échantillonnage" complement="ISO 2859"
+                sous-titre="Plan de contrôle dynamique généré pour l'OF" retour @retour="goBack" />
 
     <div v-if="isLoading" class="flex justify-center p-12">
       <ProgressSpinner />

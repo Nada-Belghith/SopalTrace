@@ -11,6 +11,7 @@ import Dropdown from 'primevue/dropdown'
 import AutoComplete from 'primevue/autocomplete'
 import { useAppToast } from '@/composables/useAppToast'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -54,7 +55,7 @@ const preparerNouvelle = () => {
 const charger = async () => {
   chargement.value = true
   try {
-    const res = await apiClient.get(`/Operateur/tracabilite/${execControleOfId}`)
+    const res = await apiClient.get(`/Operateur/tracabilite/${execControleOfId}`, { params: { posteCode } })
     registre.value = res.data?.data
     preparerNouvelle()
   } catch (err) {
@@ -151,34 +152,25 @@ onMounted(charger)
 
 <template>
   <div class="p-4 md:p-6 w-full space-y-4 pb-28">
-    <header class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-      <button type="button" @click="retour"
-              class="min-h-[40px] text-blue-700 hover:text-blue-900 text-sm font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center mb-2">
-        <i class="pi pi-arrow-left mr-2"></i> Retour à l'assistant
-      </button>
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 class="m-0 text-2xl font-black text-slate-800">Registre de traçabilité</h1>
-          <p class="m-0 mt-1 text-sm text-slate-500">
-            OF <strong class="text-slate-700">{{ ofContexte.numeroOf || '—' }}</strong>
-            <span class="mx-2 text-slate-300">|</span> Article <strong class="text-slate-700">{{ ofContexte.codeArticle || ofContexte.articleCode || '—' }}</strong>
-            <span class="mx-2 text-slate-300">|</span> Poste <strong class="text-slate-700">{{ posteCode }}</strong>
-          </p>
-        </div>
-        <div v-if="registre" class="flex flex-wrap gap-2 text-sm font-semibold">
-          <span v-if="registre.equipeSaisie" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800">
-            <i class="pi pi-users mr-1"></i>Équipe {{ registre.equipeSaisie }}
-            <template v-if="registre.equipeAConfirme"> · lots confirmés</template>
-          </span>
-          <span v-for="c in registre.confirmations" :key="c.equipe + c.date" class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600">
-            <i class="pi pi-check mr-1 text-emerald-600"></i>{{ c.equipe }} confirmée à {{ formatDate(c.date) }}
-          </span>
-        </div>
-      </div>
-      <p v-if="registre && !peutSaisir" class="m-0 mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+    <EnTetePage titre="Registre de traçabilité" retour libelle-retour="Retour à l'assistant" @retour="retour">
+      <template #sous-titre>
+        OF <strong class="text-slate-700">{{ ofContexte.numeroOf || '—' }}</strong>
+        <span class="mx-2 text-slate-300">|</span> Article <strong class="text-slate-700">{{ ofContexte.codeArticle || ofContexte.articleCode || '—' }}</strong>
+        <span class="mx-2 text-slate-300">|</span> Poste <strong class="text-slate-700">{{ posteCode }}</strong>
+      </template>
+      <template v-if="registre" #actions>
+        <span v-if="registre.equipeSaisie" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-sm font-semibold">
+          <i class="pi pi-users mr-1"></i>Équipe {{ registre.equipeSaisie }}
+          <template v-if="registre.equipeAConfirme"> · lots confirmés</template>
+        </span>
+        <span v-for="c in registre.confirmations" :key="c.equipe + c.date" class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-semibold">
+          <i class="pi pi-check mr-1 text-emerald-600"></i>{{ c.equipe }} confirmée à {{ formatDate(c.date) }}
+        </span>
+      </template>
+    </EnTetePage>
+    <p v-if="registre && !peutSaisir" class="m-0 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
         <i class="pi pi-lock mr-1"></i>Lecture seule : {{ registre.motifLectureSeule }}
-      </p>
-    </header>
+    </p>
 
     <div v-if="chargement && !registre" class="py-16 text-center text-slate-500"><i class="pi pi-spin pi-spinner text-3xl"></i></div>
 

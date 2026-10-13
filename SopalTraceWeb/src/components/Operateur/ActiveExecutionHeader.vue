@@ -1,61 +1,63 @@
 <template>
-  <div class="flex justify-between items-start mb-6 pb-4 border-b">
-    <div>
-      <h2 class="text-2xl font-bold text-slate-800">
-        OF: {{ activeOfContext.numeroOf }} 
-        <span class="text-lg text-slate-500 font-normal">({{ activeOfContext.operationCode }})</span>
-      </h2>
-      <p class="text-gray-500">
-        Machine Réelle: <span class="font-bold text-slate-700">{{ activeOfContext.machineCode }}</span>
-      </p>
-      <p class="text-gray-500">Statut: 
-        <span class="font-semibold" 
-              :class="{'text-yellow-600': activeOfContext.statut === 'REGLAGE', 'text-green-600': activeOfContext.statut === 'EN_COURS'}">
-          {{ activeOfContext.statut }}
-        </span>
-      </p>
-    </div>
-    
-    <div class="flex items-center">
-      <button v-if="activeOfContext.statut === 'EN_PAUSE' || activeOfContext.statut === 'REGLAGE' || activeOfContext.estEnReglage" 
-              @click="$emit('reprendre')" 
-              class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 shadow-sm transition mr-2">
-        ▶️ Reprendre la production
-      </button>
-      
-      <button v-if="activeOfContext.statut === 'EN_COURS' && activeOfContext.a_Des_Controles_Reglage && !activeOfContext.estEnReglage" 
-              @click="$emit('mettre-en-reglage')" 
-              class="px-4 py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 shadow-sm transition mr-2">
-        ⚙️ Mettre Aux Réglages
-      </button>
+  <EnTetePage class="mb-6 pb-4 border-b border-slate-100"
+              sur-titre="Fabrication · Ordre de fabrication"
+              :titre="activeOfContext.numeroOf || '—'"
+              :complement="activeOfContext.operationCode"
+              retour libelle-retour="Retour à la liste des OF" @retour="$emit('retour')">
+    <template #sous-titre>
+      Machine <strong class="text-slate-700">{{ activeOfContext.machineCode || '—' }}</strong>
+      <span class="mx-2 text-slate-300">|</span> Statut
+      <strong :class="{ 'text-amber-600': enReglage, 'text-emerald-600': activeOfContext.statut === 'EN_COURS' && !enReglage, 'text-slate-700': activeOfContext.statut === 'EN_PAUSE' }">
+        {{ libelleStatut }}
+      </strong>
+    </template>
 
-      <button v-if="activeOfContext.statut === 'REGLAGE' || activeOfContext.estEnReglage" 
-              @click="$emit('mettre-en-reglage')" 
-              class="px-4 py-2 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 shadow-sm transition mr-2">
-        🔄 Nouveau Réglage
+    <template #actions>
+      <button type="button" @click="$emit('rafraichir')"
+              class="min-h-[48px] px-4 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-semibold cursor-pointer">
+        <i class="pi pi-refresh mr-2"></i>Rafraîchir
       </button>
-      
-      <button v-if="activeOfContext.statut === 'EN_COURS' && !activeOfContext.estEnReglage" 
-              @click="$emit('mettre-en-pause')" 
-              class="px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 shadow-sm transition mr-2">
-        ⏸️ Pause
+      <button v-if="activeOfContext.statut === 'EN_PAUSE' || enReglage" type="button" @click="$emit('reprendre')"
+              class="min-h-[48px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-0 cursor-pointer">
+        <i class="pi pi-play mr-2"></i>Reprendre la production
       </button>
-
-      <button @click="$emit('cloturer')" 
-              class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 shadow-sm transition">
-        ⏹️ Clôturer l'opération
+      <button v-if="activeOfContext.statut === 'EN_COURS' && activeOfContext.a_Des_Controles_Reglage && !activeOfContext.estEnReglage" type="button" @click="$emit('mettre-en-reglage')"
+              class="min-h-[48px] px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold border-0 cursor-pointer">
+        <i class="pi pi-cog mr-2"></i>Mettre aux réglages
       </button>
-    </div>
-  </div>
+      <button v-if="enReglage" type="button" @click="$emit('mettre-en-reglage')"
+              class="min-h-[48px] px-5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold border-0 cursor-pointer">
+        <i class="pi pi-replay mr-2"></i>Nouveau réglage
+      </button>
+      <button v-if="activeOfContext.statut === 'EN_COURS' && !activeOfContext.estEnReglage" type="button" @click="$emit('mettre-en-pause')"
+              class="min-h-[48px] px-5 rounded-xl bg-slate-600 hover:bg-slate-700 text-white font-bold border-0 cursor-pointer">
+        <i class="pi pi-pause mr-2"></i>Pause
+      </button>
+      <button type="button" @click="$emit('cloturer')"
+              class="min-h-[48px] px-5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold border-0 cursor-pointer">
+        <i class="pi pi-stop-circle mr-2"></i>Clôturer l'opération
+      </button>
+    </template>
+  </EnTetePage>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
+
+const props = defineProps({
   activeOfContext: {
     type: Object,
     required: true
   }
 });
 
-defineEmits(['reprendre', 'mettre-en-reglage', 'mettre-en-pause', 'cloturer']);
+defineEmits(['retour', 'rafraichir', 'reprendre', 'mettre-en-reglage', 'mettre-en-pause', 'cloturer']);
+
+const LIBELLES_STATUT = { EN_COURS: 'En cours', EN_PAUSE: 'En pause', REGLAGE: 'En réglage', CLOTURE: 'Clôturé' };
+
+const enReglage = computed(() => props.activeOfContext.statut === 'REGLAGE' || props.activeOfContext.estEnReglage);
+const libelleStatut = computed(() => enReglage.value
+  ? LIBELLES_STATUT.REGLAGE
+  : LIBELLES_STATUT[props.activeOfContext.statut] ?? props.activeOfContext.statut ?? '—');
 </script>

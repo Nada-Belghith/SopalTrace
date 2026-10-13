@@ -1,11 +1,14 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
-import Swal from 'sweetalert2'
+import { confirmer } from '@/composables/useConfirmation'
 
 import { useAppToast } from '@/composables/useAppToast'
 import { useSignalementsAssemblage } from '@/composables/Operateur/assemblage/useSignalementsAssemblage'
 import OFGrid from '@/components/Operateur/Assemblage/OFGrid.vue'
+import EnteteListeOf from '@/components/Operateur/EnteteListeOf.vue'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
+import { useFiltreOfs } from '@/composables/Operateur/useFiltreOfs'
 import EtapesAssemblage from '@/components/Operateur/Assemblage/EtapesAssemblage.vue'
 import TacheAssemblage from '@/components/Operateur/Assemblage/TacheAssemblage.vue'
 import PostesAvancement from '@/components/Operateur/Assemblage/PostesAvancement.vue'
@@ -20,7 +23,7 @@ import execAssemblageService from '@/services/execAssemblageService'
 import { referentielsService } from '@/services/referentielsService'
 import { logger } from '@/utils/logger'
 import {
-  OPERATION_ASSEMBLAGE, STATUTS_EXECUTION_OUVERTS, TYPES_DOCUMENT, PERIODICITES, TYPES_PAUSE,
+  OPERATION_ASSEMBLAGE, STATUTS_EXECUTION, STATUTS_EXECUTION_OUVERTS, TYPES_DOCUMENT, PERIODICITES, TYPES_PAUSE,
   PHASES_ASSEMBLAGE, TACHES_ASSEMBLAGE, ETATS_TACHE, DEMANDES_CLOTURE, MOMENTS_LOT
 } from '@/constants/execution'
 
@@ -35,6 +38,19 @@ const RAFRAICHISSEMENT_MS = 60_000
 
 // ───────────────────────────────── État ─────────────────────────────────
 const ofsStatut = ref([])
+const NON_COMMENCE = 'NON_COMMENCE'
+const { recherche: rechercheOf, statut: statutFiltreOf, optionsStatut: optionsStatutOf, ofsAffiches } = useFiltreOfs(
+  ofsStatut,
+  of => of.statut || NON_COMMENCE,
+  [
+    { valeur: STATUTS_EXECUTION.EN_COURS, libelle: 'En cours' },
+    { valeur: STATUTS_EXECUTION.REGLAGE, libelle: 'En réglage' },
+    { valeur: STATUTS_EXECUTION.EN_PAUSE, libelle: 'En pause' },
+    { valeur: NON_COMMENCE, libelle: 'Non commencés' },
+    { valeur: STATUTS_EXECUTION.CLOTURE, libelle: 'Clôturés' }
+  ],
+  // OF clôturés (7 derniers jours) : en consultation, montrés par leur propre filtre.
+  { masques: [STATUTS_EXECUTION.CLOTURE] })
 const postesDisponibles = ref([])
 const isLoading = ref(false)
 const ofClique = ref(null)
@@ -46,20 +62,13 @@ const isSubmitting = ref(false)
 const execOfIdActif = ref(route.query.execControleOfId || null)
 const selectedPoste = ref(route.query.posteCode || null)
 
-/**
- * Équipe de cette tablette : plusieurs équipes peuvent avoir une session ouverte sur l'OF (une en production,
- * les autres en pause). Gardée dans l'URL et, pour un rechargement, dans la session du navigateur.
- */
-const cleEquipe = (execId) => `equipeAssemblage_${execId}`
-const lireEquipe = (execId) => {
-  try { return execId ? sessionStorage.getItem(cleEquipe(execId)) : null } catch { return null }
-}
-const memoriserEquipe = (execId, equipe) => {
-  try { if (execId && equipe) sessionStorage.setItem(cleEquipe(execId), equipe) } catch { /* stockage indisponible */ }
-}
-const equipeSession = ref(route.query.equipe || lireEquipe(route.query.execControleOfId) || null)
 /** Avancement calculé par le serveur : étape, tâches du poste, postes, fin possible. */
 const avancement = ref(null)
+/**
+ * Équipe de la tablette : portée par l'URL (plusieurs équipes peuvent travailler en même temps sur l'OF, chacune
+ * sur ses postes) ; à défaut, celle que le serveur associe au poste (l'équipe qui le tient).
+ */
+const equipeSession = computed(() => route.query.equipe || avancement.value?.equipe || null)
 const documents = ref([])
 const isLoadingSession = ref(!!execOfIdActif.value)
 const actionEnCours = ref(false)
@@ -84,6 +93,15 @@ const ofActif = computed(() => avancement.value && {
   designationArticle: avancement.value.designationArticle
 })
 const enFin = computed(() => [PHASES_ASSEMBLAGE.FIN_POSTE, PHASES_ASSEMBLAGE.FIN_OF].includes(phase.value))
+/** Le poste est en cours pour l'équipe : sa fin de poste peut être demandée. */
+const posteEnCours = computed(() => [PHASES_ASSEMBLAGE.ECHANTILLONNAGE, PHASES_ASSEMBLAGE.DEMARRAGE, PHASES_ASSEMBLAGE.PRODUCTION,
+  PHASES_ASSEMBLAGE.REPRISE].includes(phase.value))
+/** Autres postes que l'équipe tient encore (elle reste sur l'OF après la fin d'un poste). */
+const autresPostesTenus = computed(() => (avancement.value?.postes ?? [])
+  .filter(p => p.posteCode !== selectedPoste.value && p.equipeTitulaire === equipeSession.value)
+  .map(p => p.posteCode))
+/** Paramètres d'URL communs aux écrans ouverts depuis l'assistant : poste et équipe de la tablette. */
+const queryPoste = (extra = {}) => ({ posteCode: selectedPoste.value, equipe: equipeSession.value || undefined, ...extra })
 const sessionOuverte = computed(() => ![PHASES_ASSEMBLAGE.CLOTURE, PHASES_ASSEMBLAGE.SANS_EQUIPE].includes(phase.value))
 const documentsDuPoste = computed(() => documents.value.filter(d => d.posteCode === selectedPoste.value))
 
@@ -94,22 +112,26 @@ const {
 
 const ENTETES = {
   [PHASES_ASSEMBLAGE.ECHANTILLONNAGE]: ['Échantillonnage', 'Remplissez la fiche d\'échantillonnage de l\'OF : elle est obligatoire avant les contrôles de démarrage.'],
+  [PHASES_ASSEMBLAGE.NON_DEMARRE]: ['Poste non démarré', 'Ce poste est libre : démarrez-le pour faire ses contrôles de démarrage, puis de fin de poste.'],
+  [PHASES_ASSEMBLAGE.POSTE_TERMINE]: ['Poste terminé', 'Votre équipe a terminé ce poste : une autre équipe peut le prendre. Continuez sur vos autres postes.'],
   [PHASES_ASSEMBLAGE.DEMARRAGE]: ['Démarrage du poste', 'Vérifiez les machines du poste et contrôlez la première pièce avant de produire.'],
   [PHASES_ASSEMBLAGE.PRODUCTION]: ['Production en cours', 'Faites les contrôles de production quand ils sont dus et remplissez le contrôle au poste au fil du poste.'],
   [PHASES_ASSEMBLAGE.REPRISE]: ['Reprise après la pause déjeuner', 'Vérifiez les machines prévues « après la pause » avant de reprendre la production.'],
   [PHASES_ASSEMBLAGE.PAUSE]: ['Production en pause', 'Reprenez la production quand l\'équipe est de retour.'],
-  [PHASES_ASSEMBLAGE.FIN_POSTE]: ['Fin de poste', 'Faites les contrôles de fin de poste sur tous les postes, puis terminez le poste.'],
-  [PHASES_ASSEMBLAGE.FIN_OF]: ['Clôture de l\'OF', 'Faites les contrôles de fin de poste et de fin d\'OF sur tous les postes, puis clôturez l\'OF.'],
-  [PHASES_ASSEMBLAGE.SANS_EQUIPE]: ['Aucune équipe active', 'L\'équipe précédente a terminé son poste : rejoignez l\'OF depuis la liste.'],
+  [PHASES_ASSEMBLAGE.FIN_POSTE]: ['Fin de poste', 'Faites les contrôles de fin de ce poste, puis terminez-le : vos autres postes continuent et l\'OF reste en cours.'],
+  [PHASES_ASSEMBLAGE.FIN_OF]: ['Clôture de l\'OF', 'Faites les contrôles de fin de chaque poste que vous tenez et la dernière pièce « fin d\'OF », puis clôturez l\'OF.'],
+  [PHASES_ASSEMBLAGE.SANS_EQUIPE]: ['Aucune équipe sur ce poste', 'Ce poste est libre : prenez-le depuis la liste des OF (commencer votre poste ou seulement clôturer).'],
   [PHASES_ASSEMBLAGE.CLOTURE]: ['OF clôturé', 'Cet OF est terminé : ses documents restent consultables.']
 }
-const entete = computed(() => ENTETES[phase.value] ?? ['', ''])
+const entete = computed(() => phase.value === PHASES_ASSEMBLAGE.POSTE_OCCUPE
+  ? ['Poste tenu par une autre équipe', `L'équipe ${avancement.value?.equipeTitulaire ?? ''} tient ce poste : il se libère quand elle le termine.`]
+  : ENTETES[phase.value] ?? ['', ''])
 const messageSansTache = computed(() => phase.value === PHASES_ASSEMBLAGE.PAUSE
   ? 'Aucune saisie pendant la pause.'
   : 'Rien à faire sur ce poste pour le moment.')
 const libelleTerminer = computed(() => phase.value === PHASES_ASSEMBLAGE.FIN_OF
   ? "Clôturer définitivement l'OF"
-  : "Terminer le poste de l'équipe")
+  : `Terminer le poste ${selectedPoste.value}`)
 const heure = (date) => new Date(date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
 // ────────────────────────────── Chargements ──────────────────────────────
@@ -144,7 +166,7 @@ const chargerSession = async ({ silencieux = false } = {}) => {
   if (!silencieux) isLoadingSession.value = true
   try {
     const [av, docs] = await Promise.all([
-      execAssemblageService.getAvancement(execOfIdActif.value, selectedPoste.value, equipeSession.value),
+      execAssemblageService.getAvancement(execOfIdActif.value, selectedPoste.value, route.query.equipe || null),
       execAssemblageService.getDocuments(execOfIdActif.value, equipeSession.value)
     ])
     avancement.value = av.data
@@ -168,7 +190,6 @@ const synchroniserDepuisRoute = async () => {
   execOfIdActif.value = execId
   const of = ofsStatut.value.find(o => o.execControleOfId?.toLowerCase() === String(execId).toLowerCase())
   selectedPoste.value = route.query.posteCode || selectedPoste.value || of?.postesExistants?.[0] || null
-  equipeSession.value = route.query.equipe || equipeSession.value || lireEquipe(execId)
   await chargerSession()
 }
 
@@ -196,17 +217,16 @@ const selectionnerPoste = (poste) => {
 /** Quitter en production met la session en pause ; la fin de poste passe par ses contrôles. */
 const confirmerDepart = async () => {
   if (!execOfIdActif.value || !sessionOuverte.value || phase.value === PHASES_ASSEMBLAGE.PAUSE) return true
-  const result = await Swal.fire({
-    title: 'Quitter la session ?',
-    text: 'La production sera mise en pause. Pour terminer le poste, utilisez « Terminer » et faites les contrôles de fin.',
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Mettre en pause et quitter',
-    cancelButtonText: 'Rester'
+  const { confirme } = await confirmer({
+    titre: 'Quitter la session ?',
+    message: 'La production sera mise en pause. Pour terminer le poste, utilisez « Fin de poste » et faites les contrôles de fin.',
+    libelleConfirmer: 'Mettre en pause et quitter',
+    libelleAnnuler: 'Rester',
+    icone: 'pi pi-pause'
   })
-  if (!result.isConfirmed) return false
+  if (!confirme) return false
   try {
-    await operateurService.mettreEnPause(execOfIdActif.value, 'Départ opérateur', TYPES_PAUSE.AUTRE)
+    await operateurService.mettreEnPause(execOfIdActif.value, 'Départ opérateur', TYPES_PAUSE.AUTRE, equipeSession.value)
     return true
   } catch (error) {
     toast.error('Erreur', error.message)
@@ -232,6 +252,11 @@ const retourListe = async () => {
 
 // ──────────────────────────── Démarrer / rejoindre un OF ──────────────────────
 const onOfClick = (of) => {
+  // OF clôturé : l'assistant s'ouvre en consultation (frise terminée, documents consultables, aucune saisie).
+  if (of.statut === STATUTS_EXECUTION.CLOTURE && of.execControleOfId) {
+    router.replace({ query: { execControleOfId: of.execControleOfId, posteCode: of.postesExistants?.[0] || undefined } })
+    return
+  }
   ofClique.value = of
   showPostesDialog.value = true
 }
@@ -239,9 +264,17 @@ const onOfClick = (of) => {
 const postesExistants = computed(() => ofClique.value?.postesExistants ?? [])
 const isDejaEnCours = computed(() => STATUTS_EXECUTION_OUVERTS.includes(ofClique.value?.statut))
 
-const confirmerPostes = async ({ postes, equipe }) => {
+/** Ouvre l'assistant de l'équipe sur un OF où elle travaille déjà (sans rien reprendre). */
+const ouvrirOf = ({ equipe }) => {
+  if (!ofClique.value?.execControleOfId) return
+  showPostesDialog.value = false
+  const sesPostes = ofClique.value.equipes?.find(e => e.equipe === equipe)?.postes ?? []
+  router.replace({ query: { execControleOfId: ofClique.value.execControleOfId, posteCode: sesPostes[0] || ofClique.value.postesExistants?.[0] || undefined, equipe } })
+}
+
+const confirmerPostes = async ({ postes, equipe, pourCloturer }) => {
   if (!ofClique.value) return
-  if (!isDejaEnCours.value && postes.length === 0) {
+  if (!pourCloturer && postes.length === 0) {
     toast.warn('Attention', 'Veuillez sélectionner au moins un poste.')
     return
   }
@@ -250,16 +283,14 @@ const confirmerPostes = async ({ postes, equipe }) => {
   try {
     let execId = ofClique.value.execControleOfId
     if (isDejaEnCours.value) {
-      await execAssemblageService.ajouterPostes(execId, postes, equipe)
+      await execAssemblageService.ajouterPostes(execId, postes, equipe, pourCloturer)
     } else {
       execId = (await execAssemblageService.demarrerOf(ofClique.value.numeroOf, postes, equipe)).data.id
     }
     showPostesDialog.value = false
     await fetchOfsStatut()
     const of = ofsStatut.value.find(o => o.execControleOfId?.toLowerCase() === String(execId).toLowerCase())
-    const poste = postes[0] || of?.postesExistants?.[0]
-    equipeSession.value = equipe
-    memoriserEquipe(execId, equipe)
+    const poste = postes[0] || of?.equipes?.find(e => e.equipe === equipe)?.postes?.[0] || of?.postesExistants?.[0]
     router.replace({ query: { execControleOfId: execId, posteCode: poste || undefined, equipe } })
   } catch (error) {
     logger.error('Erreur démarrage OF', error)
@@ -288,8 +319,11 @@ const ouvrirTache = async (tache) => {
   switch (tache.code) {
     case TACHES_ASSEMBLAGE.ECHANTILLONNAGE:
       if (manquant) signalerPlanAssManquant('Plan d\'échantillonnage actif', tache.detail)
-      else if (tache.etat === ETATS_TACHE.FAIT) router.push({ name: 'exec-echantillonnage', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: selectedPoste.value } })
+      else if (tache.etat === ETATS_TACHE.FAIT) router.push({ name: 'exec-echantillonnage', params: { execControleOfId: execOfIdActif.value }, query: queryPoste() })
       else ouvrirInitEchantillonnage()
+      break
+    case TACHES_ASSEMBLAGE.DEMARRER_POSTE:
+      await executer(() => execAssemblageService.demarrerPoste(execOfIdActif.value, selectedPoste.value, equipeSession.value), `Poste ${selectedPoste.value} démarré.`)
       break
     case TACHES_ASSEMBLAGE.VERIF_MACHINE:
       ouvrirVerifMachines(tache.periodicite)
@@ -344,28 +378,29 @@ const ouvrirDocument = (doc) => {
       router.push({
         name: 'operateur-vm-exec',
         params: { id: doc.docId },
-        query: { statutId: doc.id, execControleOfId: execOfIdActif.value, posteCode: selectedPoste.value, assistant: '1', consultation: '1' }
+        query: { statutId: doc.id, execControleOfId: execOfIdActif.value, posteCode: selectedPoste.value, equipe: equipeSession.value || undefined, assistant: '1', consultation: '1' }
       })
       break
     case TYPES_DOCUMENT.RESULTAT_CONTROLE_POSTE:
       setContexteOf()
-      router.push({ name: 'exec-resultat-controle', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: doc.posteCode, statutId: doc.id } })
+      router.push({ name: 'exec-resultat-controle', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: doc.posteCode, statutId: doc.id, equipe: equipeSession.value || undefined } })
       break
     case TYPES_DOCUMENT.ECHANTILLONNAGE:
-      router.push({ name: 'exec-echantillonnage', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: doc.posteCode } })
+      router.push({ name: 'exec-echantillonnage', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: doc.posteCode, equipe: equipeSession.value || undefined } })
       break
     case TYPES_DOCUMENT.PLAN_ASS:
       ouvrirPlan(enFin.value ? MOMENTS_LOT.DERNIERE_PIECE : MOMENTS_LOT.PREMIERE_PIECE)
       break
     case TYPES_DOCUMENT.REGISTRE_TRACA:
-      router.push({ name: 'exec-tracabilite', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: doc.posteCode } })
+      router.push({ name: 'exec-tracabilite', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: doc.posteCode, equipe: equipeSession.value || undefined } })
       break
   }
 }
 
 // ──────────────────────────── Échantillonnage ──────────────────────────────
 const ouvrirInitEchantillonnage = () => {
-  nbPostesInput.value = tousLesPostesActifs.value.length || 1
+  // Une fiche par poste : le poste est traité comme le seul de l'OF (modifiable si l'effectif est réparti).
+  nbPostesInput.value = 1
   showNbPostesDialog.value = true
 }
 
@@ -379,7 +414,7 @@ const initializeEchantillonnage = async () => {
       equipe: avancement.value?.equipe
     })
     showNbPostesDialog.value = false
-    router.push({ name: 'exec-echantillonnage', params: { execControleOfId: execOfIdActif.value }, query: { posteCode: selectedPoste.value } })
+    router.push({ name: 'exec-echantillonnage', params: { execControleOfId: execOfIdActif.value }, query: queryPoste() })
   } catch (error) {
     toast.error('Erreur', `Erreur lors de l'initialisation : ${error.message}`)
   } finally {
@@ -394,7 +429,7 @@ const ouvrirVerifMachines = (periodicite) => {
   router.push({
     name: 'exec-verif-machines',
     params: { execControleOfId: execOfIdActif.value },
-    query: { posteCode: selectedPoste.value, periodicite: periodicite || PERIODICITES.DEMARRAGE }
+    query: queryPoste({ periodicite: periodicite || PERIODICITES.DEMARRAGE })
   })
 }
 
@@ -413,7 +448,7 @@ const executer = async (action, messageSucces) => {
 
 // ──────────────────────────── Pause, fin de poste, fin d'OF ──────────────────────
 const mettreEnPause = () => executer(async () => {
-  await operateurService.mettreEnPause(execOfIdActif.value, 'Pause opérateur', typePauseSelected.value)
+  await operateurService.mettreEnPause(execOfIdActif.value, 'Pause opérateur', typePauseSelected.value, equipeSession.value)
   showPauseDialog.value = false
 }, 'Production mise en pause.')
 
@@ -421,38 +456,45 @@ const reprendre = () => executer(() => operateurService.reprendreDepuisPause(exe
 
 const demanderCloture = async (mode) => {
   const finOf = mode === DEMANDES_CLOTURE.FIN_OF
-  const result = await Swal.fire({
-    title: finOf ? 'Clôturer l\'OF ?' : 'Terminer le poste ?',
-    text: finOf
+  const { confirme } = await confirmer({
+    titre: finOf ? 'Clôturer l\'OF ?' : `Fin de poste ${selectedPoste.value} ?`,
+    message: finOf
       ? 'Les contrôles de fin de poste et de fin d\'OF de tous les postes deviennent à faire. Vous pourrez annuler tant que l\'OF n\'est pas clôturé.'
-      : 'Les contrôles de fin de poste de tous les postes deviennent à faire. Vous pourrez annuler tant que le poste n\'est pas terminé.',
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Continuer',
-    cancelButtonText: 'Annuler'
+      : `Les contrôles de fin de poste de ${selectedPoste.value} deviennent à faire ; vos autres postes continuent. Vous pourrez annuler tant que le poste n'est pas terminé.`,
+    libelleConfirmer: 'Continuer',
+    icone: 'pi pi-arrow-right'
   })
-  if (result.isConfirmed) await executer(() => execAssemblageService.demanderCloture(execOfIdActif.value, mode))
+  if (confirme) await executer(() => execAssemblageService.demanderCloture(execOfIdActif.value, mode, selectedPoste.value, equipeSession.value))
 }
 
-const annulerCloture = () => executer(() => execAssemblageService.annulerDemandeCloture(execOfIdActif.value), 'Retour en production.')
+const annulerCloture = () => executer(() => execAssemblageService.annulerDemandeCloture(execOfIdActif.value, selectedPoste.value, equipeSession.value), 'Retour en production.')
 
 const terminer = async () => {
   const finOf = phase.value === PHASES_ASSEMBLAGE.FIN_OF
-  const result = await Swal.fire({
-    title: finOf ? 'Clôturer définitivement l\'OF ?' : 'Terminer le poste de l\'équipe ?',
-    text: finOf ? 'L\'OF sera clôturé pour toutes les équipes.' : 'La session de l\'équipe sera clôturée ; l\'OF reste ouvert pour l\'équipe suivante.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#dc2626',
-    confirmButtonText: finOf ? 'Clôturer l\'OF' : 'Terminer le poste',
-    cancelButtonText: 'Annuler'
+  const poste = selectedPoste.value
+  const suivants = autresPostesTenus.value
+  const { confirme } = await confirmer({
+    titre: finOf ? 'Clôturer définitivement l\'OF ?' : `Terminer le poste ${poste} ?`,
+    message: finOf
+      ? 'L\'OF sera clôturé pour toutes les équipes.'
+      : suivants.length
+        ? `Le poste ${poste} sera libéré pour une autre équipe ; votre équipe continue sur ${suivants.join(', ')}.`
+        : `Le poste ${poste} sera libéré pour une autre équipe. C'est votre dernier poste : la session de l'équipe se termine, l'OF reste ouvert.`,
+    danger: true,
+    libelleConfirmer: finOf ? 'Clôturer l\'OF' : `Terminer ${poste}`,
+    icone: 'pi pi-stop-circle'
   })
-  if (!result.isConfirmed) return
+  if (!confirme) return
 
   actionEnCours.value = true
   try {
-    await execAssemblageService.terminer(execOfIdActif.value)
-    toast.success('Succès', finOf ? 'L\'OF a été clôturé.' : 'Le poste de l\'équipe est terminé.')
+    await execAssemblageService.terminer(execOfIdActif.value, poste, equipeSession.value)
+    toast.success('Succès', finOf ? 'L\'OF a été clôturé.' : `Le poste ${poste} est terminé.`)
+    // L'équipe tient encore d'autres postes : elle continue sur le suivant.
+    if (!finOf && suivants.length) {
+      router.replace({ query: { ...route.query, posteCode: suivants[0] } })
+      return
+    }
     departConfirme = true
     await router.replace({ name: 'operateur-of-fini' })
     departConfirme = false
@@ -472,13 +514,14 @@ const terminer = async () => {
   <div class="p-4 md:p-6">
     <!-- ──────────────── Liste des OF ──────────────── -->
     <template v-if="!execOfIdActif">
-      <div class="mb-6">
-        <h2 class="text-3xl font-bold text-primary mb-1 flex items-center">
-          <i class="pi pi-wrench mr-3 text-3xl"></i> Exécution Assemblage (Produits Finis)
-        </h2>
-        <p class="text-gray-500 m-0">Choisissez un OF pour le démarrer ou rejoindre la session en cours.</p>
-      </div>
-      <OFGrid :ofsStatut="ofsStatut" :isLoading="isLoading" @select-of="onOfClick" />
+      <EnteteListeOf titre="OF produits finis"
+                     sous-titre="Choisissez un ordre de fabrication d'assemblage pour le démarrer ou rejoindre la session en cours."
+                     v-model:recherche="rechercheOf"
+                     v-model:statut="statutFiltreOf"
+                     :options-statut="optionsStatutOf"
+                     :nombre-affiches="ofsAffiches.length"
+                     :nombre-total="ofsStatut.length" />
+      <OFGrid :ofsStatut="ofsAffiches" :isLoading="isLoading" :filtre-actif="ofsAffiches.length !== ofsStatut.length" @select-of="onOfClick" />
     </template>
 
     <!-- ──────────────── Session ──────────────── -->
@@ -490,32 +533,17 @@ const terminer = async () => {
 
       <template v-else-if="avancement">
         <!-- En-tête : retour, OF, article, équipe, actions -->
-        <header class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          <div class="flex items-start gap-4 min-w-0">
-            <button type="button" @click="retourListe" aria-label="Retour à la liste des OF" title="Retour à la liste des OF"
-                    class="shrink-0 w-12 h-12 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 cursor-pointer flex items-center justify-center transition-colors">
-              <i class="pi pi-arrow-left"></i>
-            </button>
-            <div class="min-w-0">
-              <p class="m-0 text-xs font-bold uppercase tracking-wider text-slate-400">Assemblage · Ordre de fabrication</p>
-              <h2 class="m-0 text-2xl font-black text-slate-800">{{ avancement.numeroOf }}</h2>
-              <p class="m-0 mt-0.5 text-blue-700 font-semibold truncate">{{ avancement.codeArticle }} — {{ avancement.designationArticle }}</p>
-              <div class="mt-2 flex flex-wrap gap-2 text-xs">
-                <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Famille <strong class="text-slate-800">{{ avancement.familleProduitFiniCode || '—' }}</strong></span>
-                <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Type <strong class="text-slate-800">{{ avancement.typeRobinetCode || '—' }}</strong></span>
-                <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Équipe <strong class="text-slate-800">{{ avancement.equipe || equipeSession || '—' }}</strong></span>
-                <span v-if="avancement.equipeEnProduction" class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700">
-                  En production : <strong>{{ avancement.equipeEnProduction }}</strong>
-                </span>
-                <span v-for="eq in avancement.equipesEnPause" :key="eq" class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800">
-                  En pause : <strong>{{ eq }}</strong>
-                </span>
-              </div>
-            </div>
+        <EnTetePage sur-titre="Assemblage · Ordre de fabrication" :titre="avancement.numeroOf"
+                    :sous-titre="`${avancement.codeArticle} — ${avancement.designationArticle}`"
+                    retour libelle-retour="Retour à la liste des OF" @retour="retourListe">
+          <div class="mt-2 flex flex-wrap gap-2 text-xs">
+            <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Famille <strong class="text-slate-800">{{ avancement.familleProduitFiniCode || '—' }}</strong></span>
+            <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Type <strong class="text-slate-800">{{ avancement.typeRobinetCode || '—' }}</strong></span>
+            <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Équipe <strong class="text-slate-800">{{ equipeSession || '—' }}</strong></span>
           </div>
 
-          <div v-if="sessionOuverte" class="flex flex-wrap gap-2 xl:justify-end">
-            <button v-if="phase === PHASES_ASSEMBLAGE.PAUSE" type="button" :disabled="actionEnCours || !!avancement.equipeEnProduction" @click="reprendre"
+          <template v-if="sessionOuverte" #actions>
+            <button v-if="phase === PHASES_ASSEMBLAGE.PAUSE" type="button" :disabled="actionEnCours" @click="reprendre"
                     class="min-h-[48px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-0 cursor-pointer disabled:opacity-50">
               <i class="pi pi-play mr-2"></i>Reprendre
             </button>
@@ -528,17 +556,17 @@ const terminer = async () => {
                       class="min-h-[48px] px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold border-0 cursor-pointer disabled:opacity-50">
                 <i class="pi pi-pause mr-2"></i>Pause
               </button>
-              <button type="button" :disabled="actionEnCours" @click="demanderCloture(DEMANDES_CLOTURE.FIN_POSTE)"
+              <button v-if="posteEnCours" type="button" :disabled="actionEnCours" @click="demanderCloture(DEMANDES_CLOTURE.FIN_POSTE)"
                       class="min-h-[48px] px-5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold border-0 cursor-pointer disabled:opacity-50">
-                <i class="pi pi-users mr-2"></i>Fin de poste
+                <i class="pi pi-flag mr-2"></i>Fin de poste {{ selectedPoste }}
               </button>
               <button type="button" :disabled="actionEnCours" @click="demanderCloture(DEMANDES_CLOTURE.FIN_OF)"
                       class="min-h-[48px] px-5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold border-0 cursor-pointer disabled:opacity-50">
                 <i class="pi pi-stop-circle mr-2"></i>Clôturer l'OF
               </button>
             </template>
-          </div>
-        </header>
+          </template>
+        </EnTetePage>
 
         <EtapesAssemblage :etapes="avancement.etapes" />
 
@@ -560,10 +588,6 @@ const terminer = async () => {
                 <button type="button" @click="ouvrirPlan(MOMENTS_LOT.REGLAGE)"
                         class="min-h-[40px] px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold border-0 cursor-pointer">Continuer le réglage</button>
               </div>
-              <p v-if="phase === PHASES_ASSEMBLAGE.PAUSE && avancement.equipeEnProduction" class="m-0 mt-2 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-900">
-                <i class="pi pi-info-circle mr-1"></i>L'équipe <strong>{{ avancement.equipeEnProduction }}</strong> produit actuellement sur cet OF :
-                vous reprendrez votre étape, telle que vous l'avez laissée, après sa pause ou sa fin de poste.
-              </p>
             </div>
 
             <div class="p-5 space-y-3">
@@ -629,6 +653,7 @@ const terminer = async () => {
       :isDejaEnCours="isDejaEnCours"
       :isSubmitting="isSubmitting"
       @confirmer="confirmerPostes"
+      @ouvrir="ouvrirOf"
     />
 
     <EchantillonnageInitDialog

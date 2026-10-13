@@ -31,8 +31,9 @@ class OperateurService {
     return apiClient.post(`/Operateur/of/${execControleOfId}/mettre-en-reglage`, {});
   }
 
-  mettreEnPause(execControleOfId, raison, typePause = 'AUTRE') {
-    return apiClient.post(`/Operateur/of/${execControleOfId}/pause`, { raison, typePause });
+  /** Assemblage : pause de l'équipe donnée (les autres équipes de l'OF continuent). */
+  mettreEnPause(execControleOfId, raison, typePause = 'AUTRE', equipe = null) {
+    return apiClient.post(`/Operateur/of/${execControleOfId}/pause`, { raison, typePause, equipe: equipe || undefined });
   }
 
   /** Reprise de l'équipe donnée (plusieurs équipes peuvent être en pause sur un OF d'assemblage). */

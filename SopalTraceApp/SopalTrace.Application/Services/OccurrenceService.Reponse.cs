@@ -129,7 +129,7 @@ public partial class OccurrenceService
 
         if (tranche == null)
         {
-            var sessionId = await _occurrenceRepository.GetActiveSessionIdAsync(firstOcc.ExecControleOfid);
+            var sessionId = firstOcc.SessionId;
             _occurrenceRepository.AddTranche(new ExecControleTranche
             {
                 Id = Guid.NewGuid(),
@@ -229,7 +229,8 @@ public partial class OccurrenceService
 
         if (tranche == null)
         {
-            var sessionId = await _occurrenceRepository.GetActiveSessionIdAsync(occurrence.ExecControleOfid);
+            // Tranche rattachée à l'équipe de l'occurrence (assemblage) ; sans équipe en fabrication.
+            var sessionId = occurrence.SessionId;
             var (debut, fin) = ParseHeureTranche(occurrence.TrancheHoraire, occurrence.HeureNotifPrevue);
             _occurrenceRepository.AddTranche(tranche = new ExecControleTranche
             {

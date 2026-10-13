@@ -1,23 +1,24 @@
 <template>
   <div @click="$emit('select', ofItem)"
-       class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 w-[400px] cursor-pointer hover:shadow-md hover:border-blue-300 transition-all flex flex-col justify-between">
+       class="rounded-2xl shadow-sm border p-4 min-w-0 cursor-pointer hover:shadow-md transition-all flex flex-col justify-between"
+       :class="ofItem.dateCloture ? 'bg-slate-50 border-slate-200 opacity-80 hover:border-slate-300' : 'bg-white border-slate-200 hover:border-blue-300'">
     
-    <div class="flex justify-between items-start mb-4">
-      <span class="text-xs font-bold text-blue-600 tracking-wider">OF: {{ ofItem.numeroOf }}</span>
-      <span class="px-2 py-1 font-bold text-[10px] rounded uppercase tracking-wider"
-            :class="statutReel === 'EN COURS' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'">
+    <div class="flex justify-between items-start gap-2 mb-2">
+      <span class="text-xs font-bold text-blue-600 tracking-wider truncate">OF: {{ ofItem.numeroOf }}</span>
+      <span class="shrink-0 px-2 py-0.5 font-bold text-[10px] rounded uppercase tracking-wider"
+            :class="statutReel === 'EN COURS' ? 'bg-green-50 text-green-600' : statutReel === 'CLÔTURÉ' ? 'bg-slate-200 text-slate-700' : 'bg-gray-100 text-gray-500'">
         {{ statutReel }}
       </span>
     </div>
 
-    <div class="mb-4">
-      <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1">{{ ofItem.designationArticle }}</h3>
-      <p class="text-sm text-slate-400 font-medium">{{ ofItem.codeArticle }}</p>
+    <div class="mb-3">
+      <h3 class="text-base font-bold text-slate-800 leading-tight mb-0.5 line-clamp-2" :title="ofItem.designationArticle">{{ ofItem.designationArticle }}</h3>
+      <p class="text-xs text-slate-400 font-medium">{{ ofItem.codeArticle }}</p>
     </div>
 
     <!-- Timeline Gamme Opératoire -->
-    <div v-if="ofItem.gammeOperatoire && ofItem.gammeOperatoire.length > 0" class="mb-4 mt-2">
-      <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-3">Progression des opérations</p>
+    <div v-if="ofItem.gammeOperatoire && ofItem.gammeOperatoire.length > 0" class="mb-3">
+      <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider mb-2">Progression des opérations</p>
       <div class="relative flex items-center justify-between px-2">
         <!-- Ligne de fond -->
         <div class="absolute top-2 left-4 right-4 h-1 bg-slate-100 z-0 rounded-full"></div>
@@ -59,14 +60,14 @@
       </div>
     </div>
 
-    <div class="flex justify-between items-end border-t border-slate-100 pt-4 mt-auto">
+    <div class="flex justify-between items-end border-t border-slate-100 pt-3 mt-auto">
       <div>
         <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Qté lancée</p>
         <p class="text-sm font-bold text-slate-700">{{ ofItem.quantiteLancee }} / {{ ofItem.quantitePrevue }}</p>
       </div>
       <div class="text-right">
-        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Date début</p>
-        <p class="text-sm font-medium text-slate-600">{{ statutReel === 'EN COURS' && ofItem.dateDebut ? formatDate(ofItem.dateDebut) : '-' }}</p>
+        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{{ ofItem.dateCloture ? 'Clôturé le' : 'Date début' }}</p>
+        <p class="text-sm font-medium text-slate-600">{{ ofItem.dateCloture ? formatDate(ofItem.dateCloture) : statutReel === 'EN COURS' && ofItem.dateDebut ? formatDate(ofItem.dateDebut) : '-' }}</p>
       </div>
     </div>
   </div>
@@ -86,6 +87,7 @@ defineEmits(['select']);
 
 const statutReel = computed(() => {
   const of = props.ofItem;
+  if (of.dateCloture) return 'CLÔTURÉ';
   if (!of.gammeOperatoire || of.gammeOperatoire.length === 0) return 'NON COMMENCÉ';
   const aUneOperationEnCours = of.gammeOperatoire.some(
     op => op.activeExecControleOfId != null && op.activeExecStatut !== 'CLOTURE'

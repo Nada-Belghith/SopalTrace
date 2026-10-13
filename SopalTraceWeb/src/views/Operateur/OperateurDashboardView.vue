@@ -1,13 +1,14 @@
 <template>
   <div class="min-h-screen bg-slate-50 flex flex-col p-8">
     <Toast position="top-right" />
-    <header class="mb-8" v-if="!activeOfContext.id">
-      <h1 class="text-3xl font-bold text-slate-800 flex items-center">
-        <svg class="w-6 h-6 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
-        Tableau de Bord Opérateur
-      </h1>
-      <p class="text-slate-500 mt-2 text-sm ml-9">Sélectionnez un Ordre de Fabrication pour démarrer vos contrôles.</p>
-    </header>
+    <EnteteListeOf v-if="!activeOfContext.id"
+                   titre="OF semi-finis"
+                   sous-titre="Choisissez un ordre de fabrication pour démarrer ou reprendre vos contrôles."
+                   v-model:recherche="recherche"
+                   v-model:statut="statutFiltre"
+                   :options-statut="optionsStatut"
+                   :nombre-affiches="ofsAffiches.length"
+                   :nombre-total="filteredOfs.length" />
 
     <div v-if="loading" class="text-center py-10">
       <p class="text-slate-500">Chargement des Ordres de Fabrication...</p>
@@ -15,19 +16,10 @@
 
     <!-- Si l'opérateur est dans l'écran de contrôle actif -->
     <div v-else-if="activeOfContext.id" class="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-[80vh]">
-      <div class="flex justify-between items-center mb-4">
-        <!-- Bouton Retour -->
-        <button @click="quitterExecution" class="text-blue-600 hover:text-blue-800 hover:underline text-sm flex items-center transition-colors font-medium">
-          <i class="pi pi-arrow-left mr-2"></i> Retour à la liste des OFs
-        </button>
-        <!-- Bouton Rafraîchir -->
-        <button @click="chargerOfs" class="text-slate-500 hover:text-slate-700 hover:underline text-sm flex items-center transition-colors font-medium">
-          <i class="pi pi-refresh mr-2"></i> Rafraîchir les contrôles
-        </button>
-      </div>
-
       <ActiveExecutionHeader 
         :activeOfContext="activeOfContext"
+        @retour="quitterExecution"
+        @rafraichir="chargerOfs"
         @reprendre="reprendre"
         @mettre-en-reglage="mettreEnReglage"
         @mettre-en-pause="mettreEnPause"
@@ -46,7 +38,7 @@
     </div>
 
     <!-- Liste des OFs sous forme de Cards -->
-    <OfGrid v-else :ofs="filteredOfs" :loading="loading" @select-of="ouvrirModalDemarrage" />
+    <OfGrid v-else :ofs="ofsAffiches" :loading="loading" :filtre-actif="ofsAffiches.length !== filteredOfs.length" @select-of="ouvrirModalDemarrage" />
 
     <!-- Modale de Démarrage -->
     <StartOfModal 
@@ -150,12 +142,14 @@ import Dialog from 'primevue/dialog';
 
 // Composants Extraits
 import OfGrid from '@/components/Operateur/OfGrid.vue';
+import EnteteListeOf from '@/components/Operateur/EnteteListeOf.vue';
 import StartOfModal from '@/components/Operateur/StartOfModal.vue';
 import ActiveExecutionHeader from '@/components/Operateur/ActiveExecutionHeader.vue';
 import AlerteControle from '@/components/Operateur/AlerteControle.vue';
 
 // Composables (Logique Métier)
 import { useOfList } from '@/composables/Operateur/useOfList';
+import { useFiltreOfs } from '@/composables/Operateur/useFiltreOfs';
 import { useOfControls } from '@/composables/Operateur/useOfControls';
 import { useStartOfForm } from '@/composables/Operateur/useStartOfForm';
 
@@ -174,7 +168,12 @@ const toast = useToast();
 const operateurStore = useOperateurStore();
 
 // 1. Liste et chargement des OFs
-const { loading, filteredOfs, chargerOfs, ofs } = useOfList(props);
+const { loading, filteredOfs, chargerOfs, ofs, getStatutReel } = useOfList(props);
+const { recherche, statut: statutFiltre, optionsStatut, ofsAffiches } = useFiltreOfs(filteredOfs, getStatutReel, [
+  { valeur: 'EN COURS', libelle: 'En cours' },
+  { valeur: 'NON COMMENCÉ', libelle: 'Non commencés' },
+  { valeur: 'CLÔTURÉ', libelle: 'Clôturés' }
+], { masques: ['CLÔTURÉ'] });
 
 // 2. Contrôles de l'exécution active
 const {

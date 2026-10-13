@@ -3,7 +3,9 @@ Assistant de l'opérateur d'assemblage : avancement calculé par le serveur.
 - plan d'assemblage choisi par la famille du produit fini puis le poste (jamais le plan d'une autre famille) ;
 - démarrage : vérification machine + première pièce (LOT_POSTE à chaque équipe, LOT_OF pour la première seulement) ;
 - production : contrôles ECHANTILLONNAGE_2859 ; vérification « après pause » seulement après la pause déjeuner ;
-- fin de poste / fin d'OF : refusée tant qu'une tâche de fin manque, sur tous les postes.
+- fin de poste : poste par poste (les autres postes de l'équipe continuent), refusée tant qu'une tâche de fin du
+  poste manque ; clôture de l'OF : tâches de fin de tous les postes ;
+- plusieurs équipes en même temps sur l'OF, une seule à la fois par poste.
 """
 import base64, hashlib, hmac, json, time, urllib.request, urllib.error
 from configuration import BASE, SECRET, sql
@@ -98,10 +100,16 @@ av = avancement(ofa, 'PAS71')
 check('A : étape 1 = échantillonnage (bloquante)', av.get('phase') == 'ECHANTILLONNAGE' and tache(av, 'ECHANTILLONNAGE').get('etat') == 'A_FAIRE', av)
 check('A : famille et type de robinet déduits de l\'article', (av.get('familleProduitFiniCode'), av.get('typeRobinetCode')) == ('RBGFM', 'MAN'), av)
 st, r = call(OP, 'POST', f'/ExecEchantillonnage/init/{ofa}', {'posteCode': 'PAS71', 'nbPostes': 2, 'instrumentCodes': [], 'equipe': 'E1'})
-check('A : fiche d\'échantillonnage remplie', st == 200, (st, r))
+check('A : fiche d\'échantillonnage de PAS71 remplie', st == 200, (st, r))
+st, r = call(OP, 'POST', f'/ExecEchantillonnage/init/{ofa}', {'posteCode': 'PAS71', 'nbPostes': 1, 'instrumentCodes': [], 'equipe': 'E1'})
+check('A : une seule fiche d\'échantillonnage par poste (seconde refusée)', st == 409 and 'PAS71' in json.dumps(r, ensure_ascii=False), (st, r))
 
 av72 = avancement(ofa, 'PAS72')
-check('A : PAS72 en démarrage', av72.get('phase') == 'DEMARRAGE', av72)
+check('A : PAS72 : sa propre fiche d\'échantillonnage à faire (chaque poste comme s\'il était seul)',
+      av72.get('phase') == 'ECHANTILLONNAGE' and 'PAS72' in tache(av72, 'ECHANTILLONNAGE').get('libelle', ''), av72.get('phase'))
+st, r = call(OP, 'POST', f'/ExecEchantillonnage/init/{ofa}', {'posteCode': 'PAS72', 'nbPostes': 1, 'instrumentCodes': [], 'equipe': 'E1'})
+av72 = avancement(ofa, 'PAS72')
+check('A : fiche de PAS72 remplie → PAS72 en démarrage', st == 200 and av72.get('phase') == 'DEMARRAGE', (st, av72.get('phase')))
 check('A : article manuel sur PAS72 → plan soupape jamais repris (document manquant)',
       tache(av72, 'PLAN_PREMIERE_PIECE').get('etat') == 'MANQUANT', tache(av72, 'PLAN_PREMIERE_PIECE'))
 st, r = call(OP, 'GET', f'/ExecPlanAssemblage/{ofa}?posteCode=PAS72')
@@ -128,16 +136,19 @@ av71 = avancement(ofa, 'PAS71')
 check('A : PAS71 passe en production', av71.get('phase') == 'PRODUCTION', av71)
 check('A : contrôle de production listé, non bloquant', tache(av71, 'CONTROLES_PRODUCTION').get('bloquante') is False, av71)
 
-st, _ = call(OP, 'POST', f'/operateur/of/{ofa}/assemblage/demande-cloture', {'mode': 'FIN_POSTE'})
+st, r = call(OP, 'POST', f'/operateur/of/{ofa}/assemblage/demande-cloture', {'mode': 'FIN_POSTE'})
+check('A : fin de poste sans poste précisé refusée (400)', st == 400, (st, r))
+st, _ = call(OP, 'POST', f'/operateur/of/{ofa}/assemblage/demande-cloture', {'mode': 'FIN_POSTE', 'posteCode': 'PAS71'})
 av71 = avancement(ofa, 'PAS71')
-check('A : fin de poste demandée → étape fin de poste (tenue par le serveur)', st == 204 and av71.get('phase') == 'FIN_POSTE' and av71.get('demandeCloture') == 'FIN_POSTE', av71)
-check('A : plan absent sur PAS72 → signalé mais ne bloque pas la fin',
-      not any(m.startswith('PAS72 : Plan') for m in av71.get('manquants', [])), av71.get('manquants'))
-check('A : manquants listés poste par poste, PAS72 compris',
-      any(m.startswith('PAS72 :') for m in av71.get('manquants', [])) and any(m.startswith('PAS71 :') for m in av71.get('manquants', [])) and not av71.get('peutTerminer'), av71.get('manquants'))
-st, r = call(OP, 'POST', f'/operateur/of/{ofa}/assemblage/terminer')
+check('A : fin de poste demandée sur PAS71 → étape fin de poste (tenue par le serveur)', st == 204 and av71.get('phase') == 'FIN_POSTE' and av71.get('demandeCloture') == 'FIN_POSTE', av71)
+check('A : fin de PAS71 seulement : PAS72 continue son propre parcours (démarrage)', avancement(ofa, 'PAS72').get('phase') == 'DEMARRAGE')
+check('A : manquants du seul poste PAS71',
+      av71.get('manquants') and all(m.startswith('PAS71 :') for m in av71.get('manquants', [])) and not av71.get('peutTerminer'), av71.get('manquants'))
+check('A : badge des postes : PAS71 en fin de poste, PAS72 en démarrage, tenus par E1',
+      {p['posteCode']: (p['phase'], p['equipeTitulaire']) for p in av71.get('postes', [])} == {'PAS71': ('FIN_POSTE', 'E1'), 'PAS72': ('DEMARRAGE', 'E1')}, av71.get('postes'))
+st, r = call(OP, 'POST', f'/operateur/of/{ofa}/assemblage/terminer?posteCode=PAS71')
 check('A : terminer refusé tant que des tâches manquent (400 détaillé)', st == 400 and 'il reste' in json.dumps(r, ensure_ascii=False), (st, r))
-st, _ = call(OP, 'DELETE', f'/operateur/of/{ofa}/assemblage/demande-cloture')
+st, _ = call(OP, 'DELETE', f'/operateur/of/{ofa}/assemblage/demande-cloture?posteCode=PAS71')
 check('A : annulation → retour en production', st == 204 and avancement(ofa, 'PAS71').get('phase') == 'PRODUCTION')
 st, r = call(OP, 'POST', f'/Operateur/of/{ofa}/fin-poste')
 check("A : fin de poste directe refusée à l'opérateur tant que des tâches manquent", st == 400 and 'il reste' in json.dumps(r, ensure_ascii=False), (st, r))
@@ -145,6 +156,12 @@ st, r = call(OP, 'POST', f'/Operateur/of/{ofa}/close')
 check("A : clôture directe refusée à l'opérateur", st == 400, (st, r))
 st, r = call(ADMIN, 'POST', f'/Operateur/of/{ofa}/close')
 check("A : l'administrateur peut forcer la clôture", st == 204, (st, r))
+st, r = call(OP, 'GET', '/Operateur/ofs/assemblage-statut')
+of_a = next((o for o in (r or []) if o.get('numeroOf') == 'OF2607ASS01'), {})
+check('A : OF clôturé encore au tableau de bord (consultation), avec sa date de clôture',
+      of_a.get('statut') == 'CLOTURE' and of_a.get('dateCloture') and of_a.get('execControleOfId', '').lower() == ofa.lower(), of_a)
+av_a = avancement(ofa, 'PAS71')
+check('A : OF clôturé ouvert en consultation : étape clôturée, aucune tâche', av_a.get('phase') == 'CLOTURE' and av_a.get('taches') == [], av_a)
 
 # Plan de famille sans poste : valable sur tous les postes (le plan du poste reste prioritaire).
 plan('RBGFM', None, ['LOT_POSTE'])
@@ -188,6 +205,27 @@ check('B : plan soupape du poste PAS72 retenu', set(sec) == {'LOT_POSTE', 'LOT_O
 saisir(ofb, 'PAS72', sec['LOT_POSTE'], 'PREMIERE_PIECE'); saisir(ofb, 'PAS72', sec['LOT_OF'], 'PREMIERE_PIECE', resultat='C')
 av = avancement(ofb, 'PAS72')
 check('B : production', av.get('phase') == 'PRODUCTION', av)
+
+# Contrôle au poste : la famille soupape a son propre formulaire pour PAS72 ; le document général du poste ne la
+# remplace jamais, même tant que le document soupape n'est pas créé (champ d'application en base, pas de texte).
+LIGNES_RC = [{'ordreAffiche': 1, 'libelleSection': 'Lignes de Contrôle', 'lignes': [{'ordreAffiche': 1, 'libelleAffiche': 'Fuite'}]}]
+st, r = call(SUP, 'POST', '/Document', {'typeDocumentCode': 'CTRL_POSTE', 'nom': 'Contrôle poste PAS72 général', 'posteCode': 'PAS72',
+    'refFormulaireCodeReference': 'FE-RC-PAS72', 'sections': LIGNES_RC})
+check('B : document général de contrôle au poste PAS72 actif', st in (200, 201), (st, r))
+rc = tache(avancement(ofb, 'PAS72'), 'CONTROLE_POSTE')
+check("B : OF soupape : le document général PAS72 n'est pas repris → document manquant (à signaler)",
+      rc.get('etat') == 'MANQUANT' and 'PAS72' in rc.get('detail', ''), rc)
+st, r = call(OP, 'GET', '/ExecRcPoste/' + str(ofb) + '?posteCode=PAS72&equipe=E1')
+check("B : OF soupape : l'écran du contrôle au poste ne propose pas le document général", st == 404, (st, r))
+st, r = call(SUP, 'POST', '/Document', {'typeDocumentCode': 'CTRL_POSTE', 'nom': 'Contrôle poste PAS72 soupape', 'posteCode': 'PAS72',
+    'refFormulaireCodeReference': 'FE-RC-PAS72_SOUPAPE', 'sections': LIGNES_RC})
+check('B : document PAS72 soupape actif', st in (200, 201), (st, r))
+call(OP, 'GET', '/ExecRcPoste/' + str(ofb) + '?posteCode=PAS72&equipe=E1')
+check("B : OF soupape : c'est le document PAS72 soupape qui s'applique",
+      tache(avancement(ofb, 'PAS72'), 'CONTROLE_POSTE').get('etat') == 'A_FAIRE' and sql(
+          f"SELECT DISTINCT ISNULL(d.FamilleProduitFiniCode, 'AUCUNE') FROM Exec_ControleDocumentStatut s JOIN Document_Entete d ON d.Id = s.DocId "
+          f"WHERE s.ExecControleOfId = '{ofb}' AND s.TypeDocument = 'RESULTAT_CONTROLE_POSTE'") == 'RBGFA_SOUPAPE')
+
 check('B : registre de traçabilité à remplir pendant la production (non bloquant)', tache(av, 'TRACABILITE').get('bloquante') is False, av.get('taches'))
 check('B : contrôles à la demande proposés (réglage, toutes les pièces)',
       [c['code'] for c in av.get('controlesALaDemande', [])] == ['REGLAGE', 'TOUTES_PIECES'], av.get('controlesALaDemande'))
@@ -216,33 +254,52 @@ check('B : vérifications « après pause » validées',
       valider(bee46, 'BEE46', 'APRES_PAUSE')[0] == 204 and valider(bee47, 'BEE47', 'APRES_PAUSE')[0] == 204)
 check('B : vérification après pause faite → production', avancement(ofb, 'PAS72').get('phase') == 'PRODUCTION')
 
-call(OP, 'POST', f'/operateur/of/{ofb}/assemblage/demande-cloture', {'mode': 'FIN_POSTE'})
+call(OP, 'POST', f'/operateur/of/{ofb}/assemblage/demande-cloture', {'mode': 'FIN_POSTE', 'posteCode': 'PAS72'})
 st, r = saisir(ofb, 'PAS72', sections(ofb, 'PAS72')['LOT_OF'], 'DERNIERE_PIECE')
 check('B : fin d\'OF non demandée → dernière pièce LOT_OF refusée', st == 400, (st, r))
 saisir(ofb, 'PAS72', sections(ofb, 'PAS72')['LOT_POSTE'], 'DERNIERE_PIECE')
 check('B : vérifications de fin de poste validées',
       valider(bee46, 'BEE46', 'FIN_POSTE')[0] == 204 and valider(bee47, 'BEE47', 'FIN_POSTE')[0] == 204)
-sql(f"INSERT INTO ExecRegistreTracabilite (ExecControleOfId, Version, Corps, Volant) VALUES ('{ofb}', 1, 'C-TEST', 'V-TEST')")
+sql(f"INSERT INTO ExecRegistreTracabilite (ExecControleOfId, Version, Corps, Volant, PosteCode) VALUES ('{ofb}', 1, 'C-TEST', 'V-TEST', 'PAS72')")
+st, r = call(OP, 'GET', f'/Operateur/tracabilite/{ofb}?posteCode=PAS71')
+st72, r72 = call(OP, 'GET', f'/Operateur/tracabilite/{ofb}?posteCode=PAS72')
+check('B : chaque poste a son registre (la ligne de PAS72 n\'apparaît pas dans celui de PAS71)',
+      st == 200 and data(r).get('lignesHistorique') == [] and len(data(r72).get('lignesHistorique', [])) == 1, (st, r, st72))
+# Garanties portées par la base, même en écrivant directement en SQL (sans passer par l'application).
+nb_registre = lambda: sql(f"SELECT COUNT(*) FROM ExecRegistreTracabilite WHERE ExecControleOfId='{ofb}'")
+avant = nb_registre()
+sortie = sql(f"INSERT INTO ExecRegistreTracabilite (ExecControleOfId, Version, Corps, Volant, PosteCode) VALUES ('{ofb}', 1, 'C', 'V', 'PAS78')")
+check("B : base : registre d'un poste absent de l'OF refusé", 'FK_ExecRegistreTracabilite_OfPoste' in sortie and nb_registre() == avant, sortie)
+sortie = sql(f"INSERT INTO ExecRegistreTracabilite (ExecControleOfId, Version, Corps, Volant) VALUES ('{ofb}', 1, 'C', 'V')")
+check('B : base : ligne de registre sans poste refusée', 'PosteCode' in sortie and nb_registre() == avant, sortie)
+autre_session = sql(f"SELECT TOP 1 CAST(Id AS VARCHAR(40)) FROM Exec_ControleOf_Session WHERE ExecControleOfId='{ofa}'")
+sortie = sql(f"INSERT INTO ExecRegistreTracabilite (ExecControleOfId, Version, Corps, Volant, PosteCode, SessionId) "
+             f"VALUES ('{ofb}', 1, 'C', 'V', 'PAS72', '{autre_session}')")
+check("B : base : ligne d'une équipe qui n'a pas tenu ce poste de l'OF refusée", '50114' in sortie and nb_registre() == avant, sortie)
+sortie = sql(f"INSERT INTO Exec_ControleDocumentStatut (ExecControleOfId, TypeDocument, EstTermine) VALUES ('{ofb}', 'REGISTRE_TRACA', 1)")
+check('B : base : confirmation de lots sans poste refusée', 'CK_ExecControleDocumentStatut_RegistrePoste' in sortie, sortie)
 st, r = call(OP, 'POST', f'/Operateur/tracabilite/{ofb}/confirmer?posteCode=PAS72')
 check("B : lots de l'équipe confirmés dans le registre", st == 200, (st, r))
 call(OP, 'POST', f'/ExecRcPoste/{ofb}/cloturer-tous?posteCode=PAS72')
 av = avancement(ofb, 'PAS72')
 check('B : toutes les tâches de fin faites → fin possible', av.get('peutTerminer') is True and av.get('manquants') == [], av.get('manquants'))
-st, r = call(OP, 'POST', f'/operateur/of/{ofb}/assemblage/terminer')
+st, r = call(OP, 'POST', f'/operateur/of/{ofb}/assemblage/terminer?posteCode=PAS72')
 check('B : poste terminé, OF toujours ouvert', st == 204 and sql(f"SELECT Statut FROM Exec_ControleOF WHERE Id='{ofb}'") == 'EN_COURS', (st, r))
+check('B : dernier poste de E1 terminé → sa session aussi', sql(
+    f"SELECT Statut FROM Exec_ControleOf_Session WHERE ExecControleOfId='{ofb}' AND Equipe='E1'") == 'TERMINE')
 check('B : sans équipe active', avancement(ofb, 'PAS72').get('phase') == 'SANS_EQUIPE')
 
-st, r = call(OP, 'POST', f'/Operateur/of/{ofb}/ajouter-postes', {'posteCodes': [], 'equipe': 'E2'})
-check('B : l\'équipe E2 rejoint l\'OF', st in (200, 204), (st, r))
+st, r = call(OP, 'POST', f'/Operateur/of/{ofb}/ajouter-postes', {'posteCodes': ['PAS72'], 'equipe': 'E2'})
+check('B : l\'équipe E2 prend l\'OF après la fin de poste de E1 (poste PAS72)', st in (200, 204), (st, r))
 av = avancement(ofb, 'PAS72')
-check('B : échantillonnage déjà fait par E1 → E2 commence au démarrage', av.get('phase') == 'DEMARRAGE' and not av.get('premiereEquipe'), av)
+check('B : échantillonnage déjà fait par E1 → E2 commence au démarrage du poste', av.get('phase') == 'DEMARRAGE' and av.get('posteDemarre') and not av.get('premierDemarragePoste'), av)
 sec = sections(ofb, 'PAS72')
 check('B : E2 → début de poste attendu, début d\'OF non attendu',
       sec['LOT_POSTE']['premierePiece']['requis'] and not sec['LOT_POSTE']['premierePiece']['fait']
       and not sec['LOT_OF']['premierePiece']['requis'], sec)
 st, r = saisir(ofb, 'PAS72', sec['LOT_OF'], 'PREMIERE_PIECE')
 check('B : E2 → contrôle de début d\'OF refusé (OF déjà démarré)', st == 400, (st, r))
-st, r = call(OP, 'POST', f'/operateur/of/{ofb}/assemblage/demande-cloture', {'mode': 'FIN_OF'})
+st, r = call(OP, 'POST', f'/operateur/of/{ofb}/assemblage/demande-cloture', {'mode': 'FIN_OF', 'posteCode': 'PAS72'})
 check('B : E2 demande la clôture de l\'OF', st == 204 and avancement(ofb, 'PAS72').get('phase') == 'FIN_OF', (st, r))
 check('B : fin d\'OF → dernière pièce LOT_OF attendue', sections(ofb, 'PAS72')['LOT_OF']['dernierePiece']['requis'])
 call(ADMIN, 'POST', f'/Operateur/of/{ofb}/close')
@@ -263,50 +320,120 @@ check('C : seules les vérifications machine peuvent retenir le démarrage',
 call(OP, 'POST', f'/Operateur/of/{ofc}/verif-machine/cloturer-tous?posteCode=PAS78')
 av = avancement(ofc, 'PAS78')
 check('C : vérifications machine faites → production directement', av.get('phase') == 'PRODUCTION', av)
-call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_POSTE'})
+call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_POSTE', 'posteCode': 'PAS78'})
 av = avancement(ofc, 'PAS78')
 check('C : fin de poste : pas de « dernière pièce » attendue',
       not any('dernière pièce' in m for m in av.get('manquants', [])) and 'PLAN_DERNIERE_PIECE' not in [t['code'] for t in av.get('taches', [])], av)
-# ───────────── D. Deux équipes : E1 en pause, E2 prend la main, E1 reprend son étape ─────────────
+# ───────────── D. Une équipe à la fois par poste ; plusieurs équipes sur l'OF ; clôture seule ─────────────
 def avancement_equipe(exec_id, poste, equipe):
     st, r = call(OP, 'GET', f'/operateur/of/{exec_id}/assemblage/avancement?posteCode={poste}&equipe={equipe}')
     return r if st == 200 else {'erreur': (st, r)}
+def liste_d():
+    st, r = call(OP, 'GET', '/Operateur/ofs/assemblage-statut')
+    of_d = next((o for o in (r or []) if o.get('numeroOf') == 'OF26041131'), {})
+    return {e['equipe']: (e['enPause'], e['postes']) for e in of_d.get('equipes', [])}
 
-call(OP, 'DELETE', f'/operateur/of/{ofc}/assemblage/demande-cloture')
+call(OP, 'DELETE', f'/operateur/of/{ofc}/assemblage/demande-cloture?posteCode=PAS78')
 call(OP, 'POST', f'/Operateur/of/{ofc}/pause', {'raison': 'Changement', 'typePause': 'AUTRE'})
-st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': [], 'equipe': 'E2'})
-check("D : E2 rejoint l'OF pendant la pause de E1", st in (200, 204), (st, r))
-e2 = avancement_equipe(ofc, 'PAS78', 'E2'); e1 = avancement_equipe(ofc, 'PAS78', 'E1')
-check('D : E2 en production, E1 vue en pause avec E2 en production',
-      e2.get('phase') == 'PRODUCTION' and e1.get('phase') == 'PAUSE' and e1.get('equipeEnProduction') == 'E2' and e2.get('equipesEnPause') == ['E1'], (e1, e2))
-st, r = call(OP, 'GET', '/Operateur/ofs/assemblage-statut')
-of_d = next((o for o in (r or []) if o.get('numeroOf') == 'OF26041131'), {})
-check('D : liste des OF : E2 a la main, E1 en pause', (of_d.get('equipeActuelle'), of_d.get('equipesEnPause')) == ('E2', ['E1']), of_d)
-st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/reprendre?equipe=E1')
-check('D : E1 ne peut pas reprendre pendant que E2 produit', st == 409 and 'E2' in json.dumps(r, ensure_ascii=False), (st, r))
-st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': [], 'equipe': 'E3'})
-check('D : une troisième équipe ne prend pas la main pendant que E2 produit', st == 409, (st, r))
-call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_OF'})
-e2 = avancement_equipe(ofc, 'PAS78', 'E2')
-check("D : clôture de l'OF : E1 (en pause) doit d'abord faire sa fin de poste",
-      any(m.startswith('Équipe E1') for m in e2.get('manquants', [])) and not e2.get('peutTerminer'), e2.get('manquants'))
-call(OP, 'DELETE', f'/operateur/of/{ofc}/assemblage/demande-cloture')
-call(OP, 'POST', f'/Operateur/of/{ofc}/pause', {'raison': 'Relève', 'typePause': 'AUTRE'})
-st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/reprendre?equipe=E1')
-e1 = avancement_equipe(ofc, 'PAS78', 'E1')
-check("D : E1 reprend son étape telle qu'elle l'avait laissée", st == 204 and e1.get('phase') == 'PRODUCTION' and e1.get('equipesEnPause') == ['E2'], (st, r, e1))
-call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_POSTE'})
-sql(f"INSERT INTO ExecRegistreTracabilite (ExecControleOfId, Version, Corps, Volant) VALUES ('{ofc}', 1, 'C-TEST', 'V-TEST')")
-call(OP, 'POST', f'/Operateur/tracabilite/{ofc}/confirmer?posteCode=PAS78')
-call(OP, 'POST', f'/ExecRcPoste/{ofc}/cloturer-tous?posteCode=PAS78')
-st, r = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/terminer')
-check("D : fin de poste de E1 → l'OF reste en pause (E2 en pause)",
-      st == 204 and sql(f"SELECT Statut FROM Exec_ControleOF WHERE Id='{ofc}'") == 'EN_PAUSE', (st, r))
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': ['PAS78'], 'equipe': 'E2'})
+check("D : E2 ne prend pas PAS78 tant que E1 le tient (même en pause)", st == 409 and 'E1' in json.dumps(r, ensure_ascii=False), (st, r))
+check('D : liste des OF : E1 en pause sur PAS78', liste_d() == {'E1': (True, ['PAS78'])}, liste_d())
 st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/reprendre?equipe=E2')
-call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_OF'})
-e2 = avancement_equipe(ofc, 'PAS78', 'E2')
-check("D : E1 a terminé son poste → plus de blocage d'équipe pour la clôture",
-      st == 204 and not any(m.startswith('Équipe') for m in e2.get('manquants', [])), (st, e2.get('manquants')))
-call(ADMIN, 'POST', f'/Operateur/of/{ofc}/close')
+check("D : une équipe sans session ne reprend pas celle de E1", st == 409, (st, r))
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/reprendre?equipe=E1')
+check("D : E1 reprend son étape telle qu'elle l'avait laissée", st == 204 and avancement_equipe(ofc, 'PAS78', 'E1').get('phase') == 'PRODUCTION', (st, r))
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': ['PAS71'], 'equipe': 'E1'})
+check('D : E1 démarre aussi PAS71 (poste ajouté à l\'OF)', st in (200, 204) and avancement_equipe(ofc, 'PAS71', 'E1').get('posteDemarre'), (st, r))
+
+# Fin de poste de PAS78 seulement : PAS71 continue ; le poste libéré peut être pris par une autre équipe.
+st, _ = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_POSTE', 'posteCode': 'PAS78', 'equipe': 'E1'})
+check('D : fin de poste demandée sur PAS78 : PAS71 de E1 garde son étape (échantillonnage)',
+      st == 204 and avancement_equipe(ofc, 'PAS78', 'E1').get('phase') == 'FIN_POSTE' and avancement_equipe(ofc, 'PAS71', 'E1').get('phase') == 'ECHANTILLONNAGE')
+st, r = call(ADMIN, 'POST', f'/Operateur/of/{ofc}/fin-poste?equipe=E1&posteCode=PAS78')
+check('D : PAS78 terminé par E1 : sa session reste ouverte pour PAS71', st == 204 and sql(
+    f"SELECT Statut FROM Exec_ControleOf_Session WHERE ExecControleOfId='{ofc}' AND Equipe='E1'") == 'EN_COURS', (st, r))
+check('D : E1 sur PAS78 → « poste terminé »', avancement_equipe(ofc, 'PAS78', 'E1').get('phase') == 'POSTE_TERMINE')
+st, r = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_POSTE', 'posteCode': 'PAS78', 'equipe': 'E1'})
+check('D : un poste terminé n\'a plus de fin de poste à demander', st == 409, (st, r))
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': ['PAS78'], 'equipe': 'E2'})
+check('D : E2 prend PAS78 pendant que E1 continue sur PAS71', st in (200, 204), (st, r))
+check('D : liste des OF : E1 sur PAS71, E2 sur PAS78', liste_d() == {'E1': (False, ['PAS71']), 'E2': (False, ['PAS78'])}, liste_d())
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': ['PAS71'], 'equipe': 'E2'})
+check('D : E2 ne prend pas PAS71 tant que E1 ne l\'a pas terminé', st == 409 and 'E1' in json.dumps(r, ensure_ascii=False), (st, r))
+st, r = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/postes/PAS71/demarrer?equipe=E2')
+check('D : « Démarrer le poste » PAS71 refusé à E2 (tenu par E1)', st == 409, (st, r))
+e2_71 = avancement_equipe(ofc, 'PAS71', 'E2')
+check('D : E2 voit PAS71 occupé par E1', (e2_71.get('phase'), e2_71.get('equipeTitulaire'), e2_71.get('taches')) == ('POSTE_OCCUPE', 'E1', []), e2_71)
+e2_78 = avancement_equipe(ofc, 'PAS78', 'E2')
+check("D : E2 sur PAS78 : début de poste, pas de « début d'OF » (poste déjà démarré)",
+      e2_78.get('posteDemarre') and e2_78.get('premierDemarragePoste') is False and e2_78.get('phase') in ('DEMARRAGE', 'PRODUCTION'), e2_78)
+st, r = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_OF', 'posteCode': 'PAS78', 'equipe': 'E2'})
+check("D : clôture refusée tant qu'une autre équipe tient un poste", st == 409 and 'E1' in json.dumps(r, ensure_ascii=False) and 'PAS71' in json.dumps(r, ensure_ascii=False), (st, r))
+call(OP, 'POST', f'/Operateur/of/{ofc}/pause', {'raison': 'Relève', 'typePause': 'AUTRE', 'equipe': 'E1'})
+check('D : pause de E1 : E2 continue, l\'OF reste en cours',
+      avancement_equipe(ofc, 'PAS71', 'E1').get('phase') == 'PAUSE' and avancement_equipe(ofc, 'PAS78', 'E2').get('phase') != 'PAUSE'
+      and sql(f"SELECT Statut FROM Exec_ControleOF WHERE Id='{ofc}'") == 'EN_COURS')
+etapes_e1 = {e['code']: e['etat'] for e in avancement_equipe(ofc, 'PAS71', 'E1').get('etapes', [])}
+check("D : en pause, la frise reste sur l'étape où le poste a été laissé (échantillonnage)",
+      etapes_e1 == {'ECHANTILLONNAGE': 'EN_COURS', 'DEMARRAGE': 'A_VENIR', 'PRODUCTION': 'A_VENIR', 'FIN': 'A_VENIR'}, etapes_e1)
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/pause', {'raison': 'Relève', 'typePause': 'AUTRE'})
+check("D : pause sans préciser l'équipe refusée quand plusieurs équipes travaillent", st == 400, (st, r))
+call(OP, 'POST', f'/Operateur/of/{ofc}/reprendre?equipe=E1')
+check("D : deux équipes tiennent chacune un poste de l'OF", sql(
+    f"SELECT COUNT(*) FROM Exec_SessionPost WHERE ExecControleOfId='{ofc}' AND EndedAt IS NULL") == '2')
+
+st, r = call(ADMIN, 'POST', f'/Operateur/of/{ofc}/fin-poste?equipe=E1')
+check("D : fin de poste de E1 (PAS71) → OF toujours en cours, PAS71 libre",
+      st == 204 and sql(f"SELECT Statut FROM Exec_ControleOF WHERE Id='{ofc}'") == 'EN_COURS' and avancement(ofc, 'PAS71').get('phase') == 'SANS_EQUIPE', (st, r))
+check("D : l'échantillonnage reste fait pour l'OF", sql(f"SELECT COUNT(*) FROM Exec_ControleDocumentStatut WHERE ExecControleOfId='{ofc}' AND TypeDocument='ECHANTILLONNAGE'") == '1')
+
+# PAS71 libre : E2 voit « Démarrer le poste » ; sa fin de poste de PAS78 ne touche pas PAS71.
+e2_71 = avancement_equipe(ofc, 'PAS71', 'E2')
+check('D : PAS71 libre, non démarré par E2 → « Démarrer le poste »',
+      e2_71.get('phase') == 'NON_DEMARRE' and [t['code'] for t in e2_71.get('taches', [])] == ['DEMARRER_POSTE'] and not e2_71.get('posteDemarre'), e2_71)
+st, r = call(OP, 'POST', f'/operateur/of/{ofc}/poste/PAS71/verif-machines', {'machineCode': 'MAS26'})
+check('D : vérification machine refusée sur un poste que personne ne tient', st == 409, (st, r))
+call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/demande-cloture', {'mode': 'FIN_POSTE', 'posteCode': 'PAS78', 'equipe': 'E2'})
+e2_71 = avancement_equipe(ofc, 'PAS71', 'E2')
+check('D : fin de poste de PAS78 : PAS71 non concerné (toujours « Démarrer le poste »)',
+      [t['code'] for t in e2_71.get('taches', [])] == ['DEMARRER_POSTE'] and not e2_71.get('manquants'), (e2_71.get('taches'), e2_71.get('manquants')))
+call(OP, 'DELETE', f'/operateur/of/{ofc}/assemblage/demande-cloture?posteCode=PAS78&equipe=E2')
+st, _ = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/postes/PAS71/demarrer?equipe=E2')
+e2_71 = avancement_equipe(ofc, 'PAS71', 'E2')
+check("D : E2 démarre PAS71 → d'abord la fiche d'échantillonnage de PAS71 (pas encore remplie sur cet OF)",
+      st == 204 and e2_71.get('posteDemarre') and e2_71.get('phase') == 'ECHANTILLONNAGE', (st, e2_71.get('phase')))
+call(ADMIN, 'POST', f'/Operateur/of/{ofc}/fin-poste?equipe=E2')
+check('D : fin de poste forcée de E2 : ses deux postes et sa session terminés', sql(
+    f"SELECT COUNT(*) FROM Exec_SessionPost WHERE ExecControleOfId='{ofc}' AND EndedAt IS NULL") == '0' and sql(
+    f"SELECT COUNT(*) FROM Exec_ControleOf_Session WHERE ExecControleOfId='{ofc}' AND Statut <> 'TERMINE'") == '0')
+
+# E1 revient plus tard (nouvelle session de la même équipe), puis E3 vient seulement clôturer.
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': ['PAS78'], 'equipe': 'E1'})
+check("D : E1 ouvre une nouvelle session quand elle veut", st in (200, 204) and sql(
+    f"SELECT COUNT(*) FROM Exec_ControleOf_Session WHERE ExecControleOfId='{ofc}' AND Equipe='E1'") == '2', (st, r))
+check("D : nouvelle session de E1 → PAS78 au démarrage (pas de « début d'OF » : poste déjà démarré)",
+      avancement_equipe(ofc, 'PAS78', 'E1').get('premierDemarragePoste') is False)
+call(ADMIN, 'POST', f'/Operateur/of/{ofc}/fin-poste?equipe=E1')
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': [], 'equipe': 'E3', 'pourCloturer': True})
+e3 = avancement_equipe(ofc, 'PAS78', 'E3')
+check('D : E3 vient seulement clôturer → étape clôture, aucun contrôle de démarrage ni de fin de poste',
+      st in (200, 204) and e3.get('phase') == 'FIN_OF' and not e3.get('posteDemarre')
+      and all(t['code'] not in ('VERIF_MACHINE', 'CONTROLE_POSTE', 'TRACABILITE') for t in e3.get('taches', [])), (st, e3.get('phase'), e3.get('taches')))
+st, r = call(OP, 'POST', f'/Operateur/of/{ofc}/ajouter-postes', {'posteCodes': ['PAS78'], 'equipe': 'E2'})
+check("D : pendant la clôture, aucune autre équipe ne commence", st == 409 and 'E3' in json.dumps(r, ensure_ascii=False), (st, r))
+e3_71 = avancement_equipe(ofc, 'PAS71', 'E3')
+check("D : E3 : sur PAS71 (démarré sur l'OF), seule la dernière pièce « fin d'OF »",
+      [t['code'] for t in e3_71.get('taches', [])] == ['PLAN_DERNIERE_PIECE'] and "fin d'OF" in e3_71['taches'][0].get('detail', ''), e3_71.get('taches'))
+st, r = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/terminer?posteCode=PAS78&equipe=E3')
+check("D : clôture refusée tant que la fin d'OF de PAS71 manque", st == 400 and 'PAS71' in json.dumps(r, ensure_ascii=False), (st, r))
+sec71 = sections(ofc, 'PAS71')
+check('D : E3 : dernière pièce de fin de poste non demandée (poste non démarré)', saisir(ofc, 'PAS71', sec71['LOT_POSTE'], 'DERNIERE_PIECE')[0] == 409)
+st, r = saisir(ofc, 'PAS71', sec71['LOT_OF'], 'DERNIERE_PIECE')
+check("D : E3 saisit la dernière pièce « fin d'OF » de PAS71", st == 204, (st, r))
+st, r = call(OP, 'POST', f'/operateur/of/{ofc}/assemblage/terminer?posteCode=PAS78&equipe=E3')
+check("D : clôture de l'OF par E3", st == 204 and sql(f"SELECT Statut FROM Exec_ControleOF WHERE Id='{ofc}'") == 'CLOTURE', (st, r))
+check("D : toutes les sessions et tous les postes terminés avec l'OF", sql(
+    f"SELECT COUNT(*) FROM Exec_SessionPost WHERE ExecControleOfId='{ofc}' AND EndedAt IS NULL") == '0' and sql(
+    f"SELECT COUNT(*) FROM Exec_ControleOf_Session WHERE ExecControleOfId='{ofc}' AND Statut <> 'TERMINE'") == '0')
 
 print(f'e2e64: {ok} OK / {ko} KO')

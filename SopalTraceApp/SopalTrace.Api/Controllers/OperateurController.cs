@@ -100,7 +100,7 @@ public class OperateurController : ControllerBase
     [HttpPost("of/{execControleOfId:guid}/pause")]
     public async Task<IActionResult> MettreEnPause(Guid execControleOfId, [FromBody] PauseOfRequest request)
     {
-        if (!await _executionOfService.MettreEnPauseAsync(execControleOfId, request.Raison, request.TypePause))
+        if (!await _executionOfService.MettreEnPauseAsync(execControleOfId, request.Raison, request.TypePause, request.Equipe))
             return BadRequest(new { message = "Impossible de mettre l'OF en pause." });
         return NoContent();
     }
@@ -116,12 +116,18 @@ public class OperateurController : ControllerBase
         return BadRequest(new { message = resultReglage.Message });
     }
 
+    /// <summary>
+    /// Fin de poste directe d'une équipe : le poste donné, sinon tous les postes qu'elle tient (contrôles de fin
+    /// vérifiés, sauf pour un administrateur qui force la fin).
+    /// </summary>
     [HttpPost("of/{execControleOfId:guid}/fin-poste")]
-    public async Task<IActionResult> FinPoste(Guid execControleOfId)
+    public async Task<IActionResult> FinPoste(
+        Guid execControleOfId,
+        [FromQuery, StringLength(10)] string? equipe = null,
+        [FromQuery, RegularExpression(FormatsEntree.Code, ErrorMessage = FormatsEntree.MessageCodeInvalide)] string? posteCode = null)
     {
-        await VerifierFinAssemblageAsync(execControleOfId, DemandesCloture.FinPoste);
-        if (!await _executionOfService.TerminerPosteAsync(execControleOfId))
-            return BadRequest(new { message = "Impossible de clôturer la session de l'équipe." });
+        await _avancementAssemblage.TerminerPostesDirectementAsync(execControleOfId, equipe, posteCode, User.GetMatricule(),
+            verifier: !User.IsInRole(RolesApp.Admin));
         return NoContent();
     }
 
@@ -186,13 +192,13 @@ public class OperateurController : ControllerBase
     [HttpPost("of/start-assemblage")]
     public async Task<IActionResult> DemarrerOfAssemblage([FromBody] DemarrerOfAssemblageRequest request)
     {
-        return Ok(await _assemblageExecutionService.DemarrerOfAssemblageAsync(request));
+        return Ok(await _assemblageExecutionService.DemarrerOfAssemblageAsync(request, User.GetMatricule()));
     }
 
     [HttpPost("of/{execControleOfId:guid}/ajouter-postes")]
     public async Task<IActionResult> AjouterPostes(Guid execControleOfId, [FromBody] AjouterPostesRequest request)
     {
-        await _assemblageExecutionService.AjouterPostesAsync(execControleOfId, request);
+        await _assemblageExecutionService.AjouterPostesAsync(execControleOfId, request, User.GetMatricule());
         return NoContent();
     }
 

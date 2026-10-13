@@ -2,18 +2,9 @@
   <div class="h-full flex flex-col bg-slate-50 text-slate-800 p-8 overflow-y-auto custom-scrollbar">
 
     <!-- En-tête -->
-    <div class="bg-white rounded-xl border border-slate-200 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm mb-8 gap-4">
-      <div class="flex items-center gap-4">
-        <div class="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
-          <i class="pi pi-chart-line text-blue-600 text-2xl"></i>
-        </div>
-        <div>
-          <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Administrateur</h1>
-          <p class="text-sm text-slate-500 mt-1">Comptes, sessions et connexions de SopalTrace</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3">
+    <EnTetePage class="mb-8" titre="Tableau de bord" complement="Administrateur"
+                sous-titre="Comptes, sessions et connexions de SopalTrace">
+      <template #actions>
         <router-link :to="{ name: 'admin-habilitations' }"
                      class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm">
           <i class="pi pi-shield"></i> Gérer les habilitations
@@ -22,8 +13,8 @@
                 class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50">
           <i class="pi pi-refresh" :class="{ 'pi-spin': chargement }"></i> Actualiser
         </button>
-      </div>
-    </div>
+      </template>
+    </EnTetePage>
 
     <!-- Indicateurs -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -140,6 +131,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import adminService from '@/services/adminService';
 import { useAppToast } from '@/composables/useAppToast';
 import { ACTIONS_JOURNAL, formaterDate } from '@/constants/comptes';

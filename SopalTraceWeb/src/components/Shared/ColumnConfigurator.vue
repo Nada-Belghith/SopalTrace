@@ -74,7 +74,7 @@
 
               <!-- COLONNES ACTIVES -->
               <div class="space-y-4">
-                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Colonnes actives ({{ customOnlyColumns.length }})</h3>
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Colonnes actives · {{ customOnlyColumns.length }}</h3>
                 <div class="bg-[#1e293b]/50 border border-slate-700/50 rounded-xl h-[240px] p-4 flex flex-col gap-2 overflow-y-auto">
                   <div v-if="customOnlyColumns.length === 0" class="m-auto text-center text-slate-500 text-xs flex flex-col items-center gap-2">
                     <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>

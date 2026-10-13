@@ -53,6 +53,8 @@ public partial class ExecControleOf
 
     public virtual ICollection<ExecRegistreTracabilite> ExecRegistreTracabilites { get; set; } = new List<ExecRegistreTracabilite>();
 
+    public virtual ICollection<ExecSessionPost> ExecSessionPosts { get; set; } = new List<ExecSessionPost>();
+
     public virtual Machine? MachineCodeNavigation { get; set; }
 
     public virtual Machine? MachineCodePrevuNavigation { get; set; }

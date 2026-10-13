@@ -21,7 +21,7 @@ public partial class PosteTravail
 
     public virtual ICollection<ExecProductionPeriod> ExecProductionPeriods { get; set; } = new List<ExecProductionPeriod>();
 
-    public virtual ICollection<ExecRegistreTracabilite> ExecRegistreTracabilites { get; set; } = new List<ExecRegistreTracabilite>();
+    public virtual ICollection<ExecSessionPost> ExecSessionPosts { get; set; } = new List<ExecSessionPost>();
 
     public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
 

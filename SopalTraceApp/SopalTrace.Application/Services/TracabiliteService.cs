@@ -22,19 +22,23 @@ namespace SopalTrace.Application.Services
     {
         private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Verrous = new();
         private readonly ITracabiliteRepository _tracabiliteRepository;
+        private readonly IDemarragePosteRepository _demarrages;
 
-        public TracabiliteService(ITracabiliteRepository tracabiliteRepository)
+        public TracabiliteService(ITracabiliteRepository tracabiliteRepository, IDemarragePosteRepository demarrages)
         {
             _tracabiliteRepository = tracabiliteRepository;
+            _demarrages = demarrages;
         }
 
-        public async Task<RegistreTracabiliteDto> GetRegistreTracabiliteAsync(Guid execControleOfId)
+        public async Task<RegistreTracabiliteDto> GetRegistreTracabiliteAsync(Guid execControleOfId, string? posteCode = null)
         {
             var execOf = await ExecOfAsync(execControleOfId);
-            var historique = await _tracabiliteRepository.GetHistoriqueAsync(execControleOfId);
-            var session = await _tracabiliteRepository.GetSessionEnCoursAsync(execControleOfId);
-            var confirmations = await _tracabiliteRepository.GetConfirmationsAsync(execControleOfId);
-            var motif = MotifLectureSeule(execOf, session);
+            // Chaque poste de l'OF a son registre : lignes, versions et confirmations du poste.
+            var historique = await _tracabiliteRepository.GetHistoriqueAsync(execControleOfId, posteCode);
+            var session = await _demarrages.GetSessionAsync(execControleOfId, posteCode);
+            var confirmations = (await _tracabiliteRepository.GetConfirmationsAsync(execControleOfId))
+                .Where(c => posteCode == null || c.PosteCode == posteCode).ToList();
+            var motif = MotifLectureSeule(execOf, session, posteCode);
 
             return new RegistreTracabiliteDto
             {
@@ -44,7 +48,7 @@ namespace SopalTrace.Application.Services
                 EquipeSaisie = session?.Equipe,
                 PeutSaisir = motif == null,
                 MotifLectureSeule = motif,
-                EquipeAConfirme = session != null && confirmations.Any(c => c.SessionId == session.Id),
+                EquipeAConfirme = session != null && confirmations.Any(c => c.SessionId == session.Id && (posteCode == null || c.PosteCode == posteCode)),
                 Confirmations = confirmations.Select(c => new ConfirmationTracabiliteDto
                 {
                     Equipe = c.Equipe, PosteCode = c.PosteCode, Date = c.DateTermine, MatriculeOperateur = c.MatriculeOperateur
@@ -61,22 +65,21 @@ namespace SopalTrace.Application.Services
             return await SousVerrouAsync(dto.ExecControleOfId, async () =>
             {
                 var execOf = await ExecOfAsync(dto.ExecControleOfId);
-                var session = await SessionSaisieAsync(execOf);
-                VerifierPoste(execOf, dto.PosteCode);
+                var session = await SessionSaisieAsync(execOf, dto.PosteCode);
+                await VerifierPosteAsync(execOf, session, dto.PosteCode);
 
                 var corps = dto.Corps?.Trim();
                 var volant = dto.Volant?.Trim();
                 if (string.IsNullOrEmpty(corps) || string.IsNullOrEmpty(volant))
                     throw new RegleMetierException("Le lot du corps et le lot du volant sont obligatoires.");
                 var article = execOf.NumeroOfNavigation.CodeArticle;
-                if (!await _tracabiliteRepository.IsLotValideAsync(corps, NaturesArticle.Corps, article))
-                    throw new RegleMetierException($"Le lot de corps « {corps} » n'est pas reconnu pour l'article {article}.");
-                if (!await _tracabiliteRepository.IsLotValideAsync(volant, NaturesArticle.Volant, article))
-                    throw new RegleMetierException($"Le lot de volant « {volant} » n'est pas reconnu pour l'article {article}.");
+                await VerifierLotAsync(corps, NaturesArticle.Corps, "corps", article);
+                await VerifierLotAsync(volant, NaturesArticle.Volant, "volant", article);
 
                 var composants = ComposantsValides(dto.Composants, await LotsDisponiblesAsync(execOf.NumeroOf));
 
-                var historique = await _tracabiliteRepository.GetHistoriqueAsync(execOf.Id);
+                // Version propre au registre du poste : elle augmente quand un lot change sur ce poste.
+                var historique = await _tracabiliteRepository.GetHistoriqueAsync(execOf.Id, dto.PosteCode);
                 var derniere = historique.Where(l => l.CancelledAt == null).MaxBy(l => l.DateHeure);
                 var version = derniere == null ? 1 : derniere.Version + (MemesLots(derniere, corps, volant, composants) ? 0 : 1);
 
@@ -107,21 +110,22 @@ namespace SopalTrace.Application.Services
         }
 
         /// <summary>
-        /// L'équipe en production confirme ses lots : sans ligne de sa part, la dernière ligne valide est reprise
-        /// à son nom (mêmes lots). Sa tâche « registre de traçabilité » est faite ; le registre reste ouvert.
+        /// L'équipe qui tient le poste confirme ses lots sur ce poste : sans ligne de sa part pour le poste, la
+        /// dernière ligne valide est reprise à son nom (mêmes lots). Sa tâche « registre de traçabilité » du poste est
+        /// faite ; le registre reste ouvert.
         /// </summary>
         public async Task ConfirmerEquipeAsync(Guid execControleOfId, string posteCode, string matriculeOperateur)
         {
             await SousVerrouAsync(execControleOfId, async () =>
             {
                 var execOf = await ExecOfAsync(execControleOfId);
-                var session = await SessionSaisieAsync(execOf);
-                VerifierPoste(execOf, posteCode);
-                if ((await _tracabiliteRepository.GetConfirmationsAsync(execOf.Id)).Any(c => c.SessionId == session.Id)) return true;
+                var session = await SessionSaisieAsync(execOf, posteCode);
+                await VerifierPosteAsync(execOf, session, posteCode);
+                if ((await _tracabiliteRepository.GetConfirmationsAsync(execOf.Id)).Any(c => c.SessionId == session.Id && c.PosteCode == posteCode)) return true;
 
-                var actives = (await _tracabiliteRepository.GetHistoriqueAsync(execOf.Id)).Where(l => l.CancelledAt == null).ToList();
+                var actives = (await _tracabiliteRepository.GetHistoriqueAsync(execOf.Id, posteCode)).Where(l => l.CancelledAt == null).ToList();
                 var derniere = actives.MaxBy(l => l.DateHeure)
-                    ?? throw new RegleMetierException("Ajoutez d'abord la ligne des lots utilisés (corps, volant, composants).");
+                    ?? throw new RegleMetierException($"Ajoutez d'abord la ligne des lots utilisés sur le poste {posteCode} (corps, volant, composants).");
                 var maintenant = DateTime.Now;
                 if (!actives.Any(l => l.SessionId == session.Id))
                 {
@@ -169,7 +173,7 @@ namespace SopalTrace.Application.Services
             await SousVerrouAsync(ligne.ExecControleOfId, async () =>
             {
                 var execOf = await ExecOfAsync(ligne.ExecControleOfId);
-                await SessionSaisieAsync(execOf);
+                await SessionSaisieAsync(execOf, ligne.PosteCode);
                 if (ligne.CancelledAt != null) throw new RegleMetierException("Cette ligne est déjà annulée.");
                 if (string.IsNullOrWhiteSpace(raison) || raison.Trim().Length < 3)
                     throw new RegleMetierException("Le motif de l'annulation est obligatoire.");
@@ -199,27 +203,48 @@ namespace SopalTrace.Application.Services
 
         private sealed record ComposantSaisi(string CodeArticle, string Designation, string Lot);
 
+        /// <summary>
+        /// Corps ou volant : OF d'usinage d'un article de cette nature présent dans la nomenclature du produit fini
+        /// (jamais un article hors nomenclature, même si elle est incomplète).
+        /// </summary>
+        private async Task VerifierLotAsync(string lot, string nature, string libelle, string article)
+        {
+            if (await _tracabiliteRepository.IsLotValideAsync(lot, nature, article)) return;
+            if (!await _tracabiliteRepository.NomenclatureContientAsync(nature, article))
+                throw new RegleMetierException(
+                    $"La nomenclature de l'article {article} ne contient aucun {libelle} : aucun lot de {libelle} ne peut être accepté. Signalez-le au responsable (nomenclature ERP).");
+            throw new RegleMetierException(
+                $"Le lot de {libelle} « {lot} » n'est pas reconnu pour l'article {article} : il doit être un OF d'usinage d'un {libelle} de sa nomenclature.");
+        }
+
         private async Task<ExecControleOf> ExecOfAsync(Guid execControleOfId) =>
             await _tracabiliteRepository.GetExecOfAsync(execControleOfId)
             ?? throw new RessourceIntrouvableException("Exécution OF introuvable.");
 
-        private static string? MotifLectureSeule(ExecControleOf execOf, ExecControleOfSession? session) =>
+        private static string? MotifLectureSeule(ExecControleOf execOf, ExecControleOfSession? session, string? posteCode) =>
             execOf.Statut == StatutsExecution.Cloture ? "OF clôturé : le registre est en lecture seule."
-            : session == null ? "Aucune équipe ne produit sur cet OF : reprenez la production pour saisir."
+            : session == null ? (posteCode == null
+                ? "Ouvrez le registre depuis le poste de votre équipe pour saisir."
+                : $"Aucune équipe ne tient le poste {posteCode} : démarrez-le pour saisir.")
+            : session.Statut != StatutsSession.EnCours ? $"L'équipe {session.Equipe} est en pause : reprenez la production pour saisir."
             : null;
 
-        private async Task<ExecControleOfSession> SessionSaisieAsync(ExecControleOf execOf)
+        /// <summary>Équipe en production qui tient le poste (seule à pouvoir saisir pour ce poste).</summary>
+        private async Task<ExecControleOfSession> SessionSaisieAsync(ExecControleOf execOf, string? posteCode)
         {
-            var session = await _tracabiliteRepository.GetSessionEnCoursAsync(execOf.Id);
-            var motif = MotifLectureSeule(execOf, session);
+            var session = string.IsNullOrEmpty(posteCode) ? null : await _demarrages.GetSessionAsync(execOf.Id, posteCode);
+            var motif = MotifLectureSeule(execOf, session, posteCode);
             if (motif != null) throw new EtatExecutionInvalideException(motif);
             return session!;
         }
 
-        private static void VerifierPoste(ExecControleOf execOf, string posteCode)
+        /// <summary>Poste de l'OF démarré par l'équipe en production (elle n'enregistre des lots que pour ses postes).</summary>
+        private async Task VerifierPosteAsync(ExecControleOf execOf, ExecControleOfSession session, string posteCode)
         {
             if (!execOf.ExecControleOfPostes.Any(p => p.PosteCode == posteCode))
                 throw new RegleMetierException($"Le poste {posteCode} n'est pas affecté à cet OF.");
+            if (!await _demarrages.EstEnCoursAsync(session.Id, posteCode))
+                throw new EtatExecutionInvalideException(ExecPlanAssemblageService.MessagePosteNonDemarre(posteCode, session.Equipe));
         }
 
         /// <summary>Lots scannés par le magasinier pour l'OF, par article de composant.</summary>

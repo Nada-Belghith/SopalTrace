@@ -19,9 +19,20 @@ public static class DbUpdateExceptionExtensions
     /// <summary>Donnée refusée par une règle métier portée par un trigger (ex. valeur de colonne invalide).</summary>
     public const int ErreurRegleMetier = 50003;
 
+    /// <summary>Règles d'exécution portées par des triggers (50100 à 50199) : messages rédigés pour l'utilisateur.</summary>
+    private const int PremiereErreurExecution = 50100;
+    private const int DerniereErreurExecution = 50199;
+
     private const int ErreurIndexUnique = 2601;
     private const int ErreurContrainteUnique = 2627;
     private const int ErreurContrainteReference = 547;
+
+    /// <summary>Index uniques dont la violation a un sens métier précis (deux tablettes au même instant).</summary>
+    private static readonly IReadOnlyDictionary<string, string> MessagesIndexUniques = new Dictionary<string, string>
+    {
+        ["UX_ExecSessionPost_OneTeamPerPoste"] = "Ce poste vient d'être pris par une autre équipe : rafraîchissez l'écran.",
+        ["UX_ExecControleOfSession_OneOpenSessionPerTeam"] = "Votre équipe a déjà une session ouverte sur cet OF : rafraîchissez l'écran."
+    };
 
     public static bool IsUniqueConstraintViolation(this DbUpdateException ex)
         => ex.InnerException is SqlException sqlEx && sqlEx.Number is ErreurIndexUnique or ErreurContrainteUnique or ErreurUniciteMetier;
@@ -32,7 +43,8 @@ public static class DbUpdateExceptionExtensions
     /// </summary>
     public static Exception ToDomainExceptionOrSelf(this DbUpdateException ex, string details)
     {
-        if (ex.InnerException is SqlException { Number: ErreurUniciteMetier or ErreurOperationInterdite or ErreurRegleMetier })
+        if (ex.InnerException is SqlException { Number: ErreurUniciteMetier or ErreurOperationInterdite or ErreurRegleMetier
+                or (>= PremiereErreurExecution and <= DerniereErreurExecution) })
             return TraduireErreurBase(ex);
 
         return ex.IsUniqueConstraintViolation()
@@ -62,7 +74,10 @@ public static class DbUpdateExceptionExtensions
             ErreurUniciteMetier => new EtatExecutionInvalideException(sql.Message),
             ErreurOperationInterdite => new EtatExecutionInvalideException(sql.Message),
             ErreurRegleMetier => new RegleMetierException(sql.Message),
-            ErreurIndexUnique or ErreurContrainteUnique => new ConflitConcurrenceException("Cette donnée existe déjà ou vient d'être enregistrée par un autre utilisateur."),
+            >= PremiereErreurExecution and <= DerniereErreurExecution => new EtatExecutionInvalideException(sql.Message),
+            ErreurIndexUnique or ErreurContrainteUnique => new ConflitConcurrenceException(
+                MessagesIndexUniques.FirstOrDefault(m => sql.Message.Contains(m.Key, StringComparison.Ordinal)).Value
+                ?? "Cette donnée existe déjà ou vient d'être enregistrée par un autre utilisateur."),
             ErreurContrainteReference => new RegleMetierException("Opération refusée : une donnée référencée est inconnue ou encore utilisée."),
             _ => exception
         };

@@ -27,11 +27,11 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .FirstOrDefaultAsync(e => e.Id == execControleOfId);
         }
 
-        public async Task<List<ExecRegistreTracabilite>> GetHistoriqueAsync(Guid execControleOfId)
+        public async Task<List<ExecRegistreTracabilite>> GetHistoriqueAsync(Guid execControleOfId, string? posteCode)
         {
             return await _context.ExecRegistreTracabilites
                 .Include(r => r.ExecRegistreTracabiliteComposants)
-                .Where(r => r.ExecControleOfId == execControleOfId)
+                .Where(r => r.ExecControleOfId == execControleOfId && (posteCode == null || r.PosteCode == posteCode))
                 .OrderBy(r => r.DateHeure)
                 .ToListAsync();
         }
@@ -54,13 +54,6 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
 
         public void AddLigne(ExecRegistreTracabilite ligne) => _context.ExecRegistreTracabilites.Add(ligne);
 
-        public async Task<ExecControleOfSession?> GetSessionEnCoursAsync(Guid execControleOfId)
-        {
-            return await _context.ExecControleOfSessions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.ExecControleOfId == execControleOfId && s.Statut == StatutsSession.EnCours);
-        }
-
         public async Task<List<ExecControleDocumentStatut>> GetConfirmationsAsync(Guid execControleOfId)
         {
             return await _context.ExecControleDocumentStatuts
@@ -72,19 +65,27 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
 
         public void AddStatut(ExecControleDocumentStatut statut) => _context.ExecControleDocumentStatuts.Add(statut);
 
+        /// <summary>Articles de cette nature (corps, volant) dans la nomenclature du produit fini.</summary>
+        private IQueryable<string> ComposantsNomenclature(string natureArticleCode, string codeArticleProduitFini) => _context.BomdNomenclatures
+            .Where(b => b.ArticleParent == codeArticleProduitFini && b.CodeComposantNavigation.NatureArticleCode == natureArticleCode)
+            .Select(b => b.CodeComposant);
+
+        /// <summary>
+        /// Lots possibles : OF d'usinage (en cours ou clôturé) d'un article de cette nature présent dans la
+        /// nomenclature du produit fini. Une nomenclature sans article de cette nature n'en accepte aucun.
+        /// </summary>
         private IQueryable<ExecControleOf> LotsPossibles(string natureArticleCode, string codeArticleProduitFini)
         {
-            // Composants de cette nature dans la nomenclature du produit fini (vide si elle ne les connaît pas).
-            var composantsNomenclature = _context.BomdNomenclatures
-                .Where(b => b.ArticleParent == codeArticleProduitFini && b.CodeComposantNavigation.NatureArticleCode == natureArticleCode)
-                .Select(b => b.CodeComposant);
-
+            var composantsNomenclature = ComposantsNomenclature(natureArticleCode, codeArticleProduitFini);
             return _context.ExecControleOfs
                 .Where(e => e.OperationCode == CodesOperation.Usinage &&
                             (e.Statut == StatutsExecution.EnCours || e.Statut == StatutsExecution.Cloture) &&
                             e.NumeroOfNavigation.CodeArticleNavigation.NatureArticleCode == natureArticleCode &&
-                            (!composantsNomenclature.Any() || composantsNomenclature.Contains(e.NumeroOfNavigation.CodeArticle)));
+                            composantsNomenclature.Contains(e.NumeroOfNavigation.CodeArticle));
         }
+
+        public async Task<bool> NomenclatureContientAsync(string natureArticleCode, string codeArticleProduitFini) =>
+            await ComposantsNomenclature(natureArticleCode, codeArticleProduitFini).AnyAsync();
 
         public async Task<bool> IsLotValideAsync(string numeroLot, string natureArticleCode, string codeArticleProduitFini)
         {

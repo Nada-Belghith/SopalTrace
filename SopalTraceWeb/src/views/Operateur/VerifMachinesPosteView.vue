@@ -1,13 +1,14 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import Swal from 'sweetalert2'
+import { confirmer } from '@/composables/useConfirmation'
 import execAssemblageService from '@/services/execAssemblageService'
 import operateurService from '@/services/operateurService'
 import { useAppToast } from '@/composables/useAppToast'
 import { useSignalementsAssemblage } from '@/composables/Operateur/assemblage/useSignalementsAssemblage'
 import DocumentManquantDialog from '@/components/Operateur/Assemblage/Dialogs/DocumentManquantDialog.vue'
 import { logger } from '@/utils/logger'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
 import { ETATS_VERIF_MACHINE, LIBELLES_PERIODICITE, PERIODICITES } from '@/constants/execution'
 
 /**
@@ -98,7 +99,7 @@ onMounted(async () => {
 watch(onglet, (valeur) => { if (valeur === 'historique') chargerHistorique() })
 watch(filtres, chargerHistorique, { deep: true })
 
-const retour = () => router.push({ name: 'operateur-of-fini', query: { execControleOfId, posteCode: posteCode.value || undefined } })
+const retour = () => router.push({ name: 'operateur-of-fini', query: { execControleOfId, posteCode: posteCode.value || undefined, equipe: route.query.equipe || undefined } })
 
 /** Ouvre l'écran de saisie de la machine (création du document à la première ouverture). */
 const ouvrir = async (machine, { consultation = false } = {}) => {
@@ -122,15 +123,13 @@ const ouvrir = async (machine, { consultation = false } = {}) => {
 }
 
 const corriger = async (machine) => {
-  const result = await Swal.fire({
-    title: `Corriger la vérification de ${machine.machineCode} ?`,
-    text: `La vérification « ${libelleMoment.value} » repasse à faire jusqu'à sa nouvelle validation.`,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Corriger',
-    cancelButtonText: 'Annuler'
+  const { confirme } = await confirmer({
+    titre: `Corriger la vérification de ${machine.machineCode} ?`,
+    message: `La vérification « ${libelleMoment.value} » repasse à faire jusqu'à sa nouvelle validation.`,
+    libelleConfirmer: 'Corriger',
+    icone: 'pi pi-pencil'
   })
-  if (!result.isConfirmed) return
+  if (!confirme) return
   enCours.value = true
   try {
     await execAssemblageService.corrigerVerifMachine(machine.statutId, periodicite.value)
@@ -168,19 +167,12 @@ const consulterHistorique = (h) => router.push({
 <template>
   <div class="p-4 md:p-6 w-full space-y-5">
     <!-- En-tête -->
-    <header class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-      <div class="flex items-start gap-4 min-w-0">
-        <button type="button" @click="retour" aria-label="Retour à l'assistant" title="Retour à l'assistant"
-                class="shrink-0 w-12 h-12 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 cursor-pointer flex items-center justify-center">
-          <i class="pi pi-arrow-left"></i>
-        </button>
-        <div>
-          <p class="m-0 text-xs font-bold uppercase tracking-wider text-slate-400">Vérification machine · OF {{ verif?.numeroOf || '…' }}</p>
-          <h2 class="m-0 text-2xl font-black text-slate-800">{{ libelleMoment }} <span class="text-slate-400 font-semibold">· poste {{ posteCode }}</span></h2>
-          <p class="m-0 mt-1 text-sm text-slate-500">Équipe <strong class="text-slate-700">{{ verif?.equipe || '—' }}</strong></p>
-        </div>
-      </div>
-      <div v-if="verif" class="min-w-[240px]">
+    <EnTetePage :titre="libelleMoment" :complement="`poste ${posteCode}`"
+                :sur-titre="`Vérification machine · OF ${verif?.numeroOf || '…'}`"
+                retour libelle-retour="Retour à l'assistant" @retour="retour">
+      <template #sous-titre>Équipe <strong class="text-slate-700">{{ verif?.equipe || '—' }}</strong></template>
+      <template v-if="verif" #actions>
+      <div class="min-w-[240px]">
         <div class="flex justify-between text-sm font-bold text-slate-700 mb-1">
           <span>Machines validées</span><span>{{ verif.validees }} / {{ verif.attendues }}</span>
         </div>
@@ -188,7 +180,8 @@ const consulterHistorique = (h) => router.push({
           <div class="h-full bg-emerald-500 transition-all" :style="{ width: progression + '%' }"></div>
         </div>
       </div>
-    </header>
+      </template>
+    </EnTetePage>
 
     <div v-if="verif && !verif.modifiable" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
       <i class="pi pi-lock mr-2"></i>Saisie impossible pour le moment (OF en pause, clôturé ou sans équipe active) : les vérifications restent consultables.
@@ -310,7 +303,7 @@ const consulterHistorique = (h) => router.push({
               <td class="px-4 py-3">{{ jour(h.jour) }}</td>
               <td class="px-4 py-3">
                 <span class="inline-flex gap-1 flex-wrap">
-                  <span v-for="v in [{ ok: h.demarrage, l: 'Démarrage' }, { ok: h.apresPause, l: 'Après pause' }, { ok: h.finPoste, l: 'Fin de poste' }]" :key="v.l"
+                  <span v-for="v in [{ ok: h.demarrage, prevu: h.demarragePrevu, l: 'Démarrage' }, { ok: h.apresPause, prevu: h.apresPausePrevue, l: 'Après pause' }, { ok: h.finPoste, prevu: h.finPostePrevue, l: 'Fin de poste' }].filter(x => x.prevu)" :key="v.l"
                         class="px-2 py-0.5 rounded-full text-[11px] font-bold"
                         :class="v.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'">{{ v.l }}</span>
                 </span>

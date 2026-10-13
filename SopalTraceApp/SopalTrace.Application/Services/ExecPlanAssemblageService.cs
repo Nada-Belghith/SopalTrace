@@ -18,10 +18,12 @@ namespace SopalTrace.Application.Services
     public partial class ExecPlanAssemblageService : IExecPlanAssemblageService
     {
         private readonly IExecPlanAssemblageRepository _repository;
+        private readonly IDemarragePosteRepository _demarrages;
 
-        public ExecPlanAssemblageService(IExecPlanAssemblageRepository repository)
+        public ExecPlanAssemblageService(IExecPlanAssemblageRepository repository, IDemarragePosteRepository demarrages)
         {
             _repository = repository;
+            _demarrages = demarrages;
         }
 
         public static string MessagePlanIntrouvable(string codeArticle, string posteCode) =>
@@ -32,7 +34,8 @@ namespace SopalTrace.Application.Services
             var execOf = await GetExecOfAsync(execControleOfId);
             VerifierPosteAffecte(execOf, posteCode);
             var codeArticle = execOf.NumeroOfNavigation.CodeArticle;
-            var session = await _repository.GetActiveSessionAsync(execControleOfId);
+            // Équipe du poste : celle qui le tient (ou qui clôture l'OF).
+            var session = await _demarrages.GetSessionAsync(execControleOfId, posteCode);
 
             var statut = session == null ? null : await _repository.GetStatutPlanAssAsync(execControleOfId, posteCode, session.Id);
             var planId = statut?.DocId ?? await _repository.TrouverPlanAssemblageIdAsync(codeArticle, posteCode)
@@ -40,11 +43,13 @@ namespace SopalTrace.Application.Services
             var plan = await _repository.GetDocumentByIdAsync(planId)
                 ?? throw new RessourceIntrouvableException("Le plan d'assemblage associé à cette exécution n'existe plus.");
 
-            var equipe = await ContexteEquipeAsync(execControleOfId, session);
+            var equipe = await ContexteEquipeAsync(execControleOfId, session, posteCode);
             var reponses = await _repository.GetReponsesPlanAsync(execControleOfId, posteCode);
             var sections = SectionsLot(plan, equipe, reponses);
 
-            if (session != null && execOf.Statut != StatutsExecution.Cloture)
+            // Le statut du plan (version figée) naît avec le démarrage du poste, ou pour le contrôle de fin d'OF.
+            if (session != null && execOf.Statut != StatutsExecution.Cloture &&
+                (equipe.PosteDemarre || equipe.DemandeCloture == DemandesCloture.FinOf))
             {
                 statut ??= NouveauStatut(execOf.Id, posteCode, session);
                 statut.DocId ??= plan.Id;
@@ -62,7 +67,8 @@ namespace SopalTrace.Application.Services
                 Statut = execOf.Statut,
                 DateDebut = execOf.DateDebut,
                 LibellePlan = plan.Designation ?? plan.Nom,
-                PremiereEquipe = equipe.PremiereEquipe,
+                PosteDemarre = equipe.PosteDemarre,
+                PremierDemarragePoste = equipe.PremierDemarrage,
                 DemandeCloture = equipe.DemandeCloture,
                 Sections = sections,
                 SectionsALaDemande = SectionsALaDemande(plan, equipe, reponses)
@@ -81,12 +87,9 @@ namespace SopalTrace.Application.Services
                 throw new RegleMetierException($"Le poste {posteCode} n'est pas affecté à cet OF.");
         }
 
-        private async Task<ContexteEquipe> ContexteEquipeAsync(Guid execControleOfId, ExecControleOfSession? session)
-        {
-            if (session == null) return new ContexteEquipe(Guid.Empty, false, null);
-            var premiere = await _repository.GetPremiereSessionIdAsync(execControleOfId);
-            return new ContexteEquipe(session.Id, premiere == session.Id, session.ClosingRequest);
-        }
+        private async Task<ContexteEquipe> ContexteEquipeAsync(Guid execControleOfId, ExecControleOfSession? session, string posteCode) =>
+            session == null ? ContexteEquipe.SansSession
+                : ContexteEquipe.Pour(session, posteCode, await _demarrages.GetDemarragesAsync(execControleOfId));
 
         /// <summary>Statut du plan pour le poste et l'équipe active : il fige la version du plan utilisée.</summary>
         private ExecControleDocumentStatut NouveauStatut(Guid execControleOfId, string posteCode, ExecControleOfSession session)

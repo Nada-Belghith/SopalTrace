@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRoute } from 'vue-router';
+import LogoSopalTrace from '@/components/Shared/LogoSopalTrace.vue';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -55,7 +56,7 @@ const toggleMobileMenu = () => {
           <i class="pi pi-bars text-xl"></i>
         </button>
         <div class="flex items-center gap-2">
-          <i class="pi pi-cog text-emerald-400 text-lg animate-spin-slow"></i>
+          <LogoSopalTrace class="w-7 h-7 shrink-0" />
           <span class="font-black tracking-wide text-xs uppercase text-white">Sopal Trace</span>
         </div>
       </div>
@@ -82,7 +83,7 @@ const toggleMobileMenu = () => {
       <!-- Header Sidebar -->
       <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-[#0f172a]">
         <div class="flex items-center gap-3">
-          <i class="pi pi-cog text-emerald-400 text-xl animate-spin-slow"></i>
+          <LogoSopalTrace class="w-8 h-8 shrink-0" />
           <span class="font-black text-white tracking-wide text-sm uppercase">Sopal Trace</span>
         </div>
         <!-- Close button on Mobile drawer -->

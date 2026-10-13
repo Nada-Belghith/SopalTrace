@@ -2,7 +2,7 @@
   <aside class="sidebar" :class="{ 'sidebar-collapsed': isCollapsed }">
     <div class="sidebar-header">
       <div class="logo">
-        <i class="pi pi-shield logo-icon text-emerald-400"></i>
+        <LogoSopalTrace class="logo-icon" />
         <span v-show="!isCollapsed" class="logo-text">SOPAL TRACE</span>
       </div>
       <button class="toggle-btn" @click="toggleSidebar">
@@ -157,6 +157,7 @@ import { useRouter } from 'vue-router'
 import Avatar from 'primevue/avatar'
 import ContextMenu from 'primevue/contextmenu'
 import { useAuthStore } from '@/stores/authStore'
+import LogoSopalTrace from '@/components/Shared/LogoSopalTrace.vue'
 
 defineOptions({
   name: 'TheSidebar'
@@ -265,7 +266,9 @@ const isActive = (path) => {
 }
 
 .logo-icon {
-  font-size: 1.5rem;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
 }
 
 .logo-text {

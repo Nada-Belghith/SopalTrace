@@ -11,6 +11,8 @@ public class OperateurOfDto
     public decimal QuantitePrevue { get; set; }
     public decimal QuantiteLancee { get; set; }
     public DateTime? DateDebut { get; set; }
+    /// <summary>Toutes les opérations clôturées : date de la dernière clôture (OF en consultation seule).</summary>
+    public DateTime? DateCloture { get; set; }
     
     public List<OperateurOperationDto> GammeOperatoire { get; set; } = new();
 }

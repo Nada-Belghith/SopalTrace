@@ -31,15 +31,12 @@ public class OccurrenceRepository : IOccurrenceRepository
             .FirstOrDefaultAsync(o => o.Id == execControleOfId);
     }
 
-    public async Task<Guid?> GetActiveSessionIdAsync(Guid execControleOfId)
+    public async Task<Guid?> GetSessionIdDuPosteAsync(Guid execControleOfId, string posteCode)
     {
-        // Session qui a la main : l'équipe en production, sinon la plus récemment mise en pause.
-        var session = await _context.ExecControleOfSessions
-            .Where(s => s.ExecControleOfId == execControleOfId && (s.Statut == StatutsSession.EnCours || s.Statut == StatutsSession.EnPause))
-            .OrderBy(s => s.Statut == StatutsSession.EnCours ? 0 : 1)
-            .ThenByDescending(s => s.DateDebut)
+        return await _context.ExecSessionPosts
+            .Where(p => p.ExecControleOfId == execControleOfId && p.PosteCode == posteCode && p.EndedAt == null)
+            .Select(p => (Guid?)p.SessionId)
             .FirstOrDefaultAsync();
-        return session?.Id;
     }
 
     public async Task<List<DocumentSection>> GetSectionsActivesAsync(Guid planEnteteId)

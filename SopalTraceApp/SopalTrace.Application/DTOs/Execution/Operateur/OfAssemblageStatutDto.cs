@@ -21,14 +21,25 @@ public class OfAssemblageStatutDto
     /// </summary>
     public Guid? ExecControleOfId { get; set; }
     
-    /// <summary>Équipe qui a la main sur l'OF (en production, sinon la dernière mise en pause).</summary>
-    public string? EquipeActuelle { get; set; }
+    /// <summary>Équipes ouvertes sur l'OF (plusieurs à la fois, une par poste), avec les postes qu'elles tiennent.</summary>
+    public List<EquipeOfAssemblageDto> Equipes { get; set; } = new();
 
-    /// <summary>Équipes en pause sur l'OF : elles reprendront leur étape à leur retour.</summary>
-    public List<string> EquipesEnPause { get; set; } = new();
+    /// <summary>Assemblage clôturé (OF en consultation seule, visible quelques jours au tableau de bord).</summary>
+    public DateTime? DateCloture { get; set; }
 
     /// <summary>
     /// Postes déjà enregistrés dans Exec_ControleOf_Poste (vide si non commencé)
     /// </summary>
     public List<string> PostesExistants { get; set; } = new();
+}
+
+/// <summary>Équipe ouverte sur un OF d'assemblage.</summary>
+public class EquipeOfAssemblageDto
+{
+    public string Equipe { get; set; } = null!;
+    public bool EnPause { get; set; }
+    /// <summary>L'équipe clôture l'OF : aucune autre équipe ne peut commencer.</summary>
+    public bool ClotureDemandee { get; set; }
+    /// <summary>Postes que l'équipe tient (non terminés).</summary>
+    public List<string> Postes { get; set; } = new();
 }

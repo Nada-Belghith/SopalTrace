@@ -199,9 +199,22 @@ check('E1 valide ses heures', st == 200 and [v['equipe'] for v in r.get('validat
 check('contrôle au poste fait pour E1', tache(avancement(of), 'CONTROLE_POSTE').get('etat') == 'FAIT')
 
 # ───────────── Registre de traçabilité : lots vérifiés, lignes par équipe, annulation, confirmation ─────────────
-for of_usinage in ('OF26080157', 'OF26050439'):   # corps 2903201-1, volant 3028S01-1
+for of_usinage in ('OF26080157', 'OF26050439', 'OF26021488'):   # corps 2903201-1, volants 3028S01-1 et 31B5201-1
     sql(f"INSERT INTO Exec_ControleOF (NumeroOF, OperationCode, TypeOf, Statut) VALUES ('{of_usinage}', 'USINAG', 'FAB', 'EN_COURS')")
-st, r = call(OP, 'GET', f'/Operateur/tracabilite/{of}')
+# Corps et volant de l'article sont lus dans sa nomenclature : un volant hors nomenclature n'est jamais accepté.
+sql("INSERT INTO BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative, QuantiteRequise) VALUES ('2511A01-1', '2903201-1', 9, 1)")
+st, r = call(OP, 'POST', '/Operateur/tracabilite/ligne', {'execControleOfId': of, 'posteCode': POSTE, 'corps': 'OF26080157', 'volant': 'OF26050439',
+    'composants': [{'codeArticle': '2903201-1', 'lotSelectionne': 'LOT-CORPS-01'}]})
+check("registre : nomenclature sans volant → aucun volant accepté (message explicite)",
+      st == 400 and 'ne contient aucun volant' in json.dumps(r, ensure_ascii=False), (st, r))
+sql("INSERT INTO BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative, QuantiteRequise) VALUES ('2511A01-1', '3028S01-1', 9, 1)")
+st, r = call(OP, 'POST', '/Operateur/tracabilite/ligne', {'execControleOfId': of, 'posteCode': POSTE, 'corps': 'OF26080157', 'volant': 'OF26021488',
+    'composants': [{'codeArticle': '2903201-1', 'lotSelectionne': 'LOT-CORPS-01'}]})
+check("registre : volant d'un autre article que celui de la nomenclature refusé",
+      st == 400 and 'OF26021488' in json.dumps(r, ensure_ascii=False) and 'nomenclature' in json.dumps(r, ensure_ascii=False), (st, r))
+st, r = call(OP, 'GET', f'/Operateur/tracabilite/{of}/search-lots?type=VOLANT&query=OF')
+check('registre : seuls les volants de la nomenclature sont proposés', st == 200 and data(r) == ['OF26050439'], (st, r))
+st, r = call(OP, 'GET', f'/Operateur/tracabilite/{of}?posteCode={POSTE}')
 reg = data(r) if st == 200 else {}
 dispo = {c['codeArticle']: c['lotsDisponibles'] for c in reg.get('composantsDisponibles', [])}
 check('registre : E1 peut saisir, composants scannés par le magasin (par code article)',
@@ -228,20 +241,29 @@ check('registre : annulation sans motif refusée', call(OP, 'POST', f"/Operateur
 check('registre : à confirmer par E1', tache(avancement(of), 'TRACABILITE').get('etat') == 'A_FAIRE')
 st, r = call(OP, 'POST', f'/Operateur/tracabilite/{of}/confirmer?posteCode={POSTE}')
 check("registre : E1 confirme ses lots (tâche faite, registre toujours ouvert)", st == 200 and tache(avancement(of), 'TRACABILITE').get('etat') == 'FAIT'
-      and data(call(OP, 'GET', f'/Operateur/tracabilite/{of}')[1]).get('peutSaisir'), (st, r))
+      and data(call(OP, 'GET', f'/Operateur/tracabilite/{of}?posteCode={POSTE}')[1]).get('peutSaisir'), (st, r))
 
 # ───────────── Deuxième équipe : ses propres contrôles et ses heures ─────────────
 call(OP, 'POST', f'/Operateur/of/{of}/pause', {'raison': 'Relève', 'typePause': 'AUTRE'})
-st, r = call(OP, 'POST', f'/Operateur/of/{of}/ajouter-postes', {'posteCodes': [], 'equipe': 'E2'})
-check("E2 prend la main pendant la pause de E1", st in (200, 204), (st, r))
-e1_avant = len(alertes(of, 'E1'))
+st, r = call(OP, 'POST', f'/Operateur/of/{of}/ajouter-postes', {'posteCodes': [POSTE], 'equipe': 'E2'})
+check("E2 ne commence pas pendant la pause de E1", st == 409, (st, r))
+call(OP, 'POST', f'/Operateur/of/{of}/reprendre?equipe=E1')
+e1_avant = int(sql(f"SELECT COUNT(*) FROM Exec_Prelevement_Intermediaire WHERE ExecControleOFId='{of}' AND EstRepondu=0 "
+                   f"AND SessionId=(SELECT TOP 1 Id FROM Exec_ControleOf_Session WHERE ExecControleOfId='{of}' AND Equipe='E1')") or 0)
+call(ADMIN, 'POST', f'/Operateur/of/{of}/fin-poste')
+st, r = call(OP, 'POST', f'/Operateur/of/{of}/ajouter-postes', {'posteCodes': [POSTE], 'equipe': 'E2'})
+check("E2 prend l'OF après la fin de poste de E1", st in (200, 204), (st, r))
 call(OP, 'POST', f'/Operateur/of/{of}/verif-machine/cloturer-tous?posteCode={POSTE}')
 av2 = avancement(of, 'E2')
 check('E2 en production : sa propre période', av2.get('phase') == 'PRODUCTION' and sql(
     f"SELECT COUNT(DISTINCT SessionId) FROM Exec_ProductionPeriod WHERE ExecControleOfId='{of}'") == '2', (av2.get('phase'), periodes(of)))
 check('E2 : aucun contrôle hérité de E1', alertes(of, 'E2') == [] and tache(av2, 'CONTROLES_PRODUCTION').get('compteur') == 0,
       tache(av2, 'CONTROLES_PRODUCTION'))
-check('E1 (en pause) garde ses contrôles à faire', e1_avant > 0 and len(alertes(of, 'E1')) == e1_avant, (e1_avant, len(alertes(of, 'E1'))))
+check("contrôles de E1 conservés après sa fin de poste (rien n'est effacé)", e1_avant > 0 and sql(
+    f"SELECT COUNT(*) FROM Exec_Prelevement_Intermediaire WHERE ExecControleOFId='{of}' AND EstRepondu=0 "
+    f"AND SessionId=(SELECT TOP 1 Id FROM Exec_ControleOf_Session WHERE ExecControleOfId='{of}' AND Equipe='E1')") == str(e1_avant), e1_avant)
+check("période de E1 fermée par sa fin de poste", 'END_OF_SHIFT' in sql(f"SELECT STRING_AGG(EndReason, ',') FROM Exec_ProductionPeriod p "
+      f"JOIN Exec_ControleOf_Session s ON s.Id=p.SessionId WHERE p.ExecControleOfId='{of}' AND s.Equipe='E1'"))
 avancer(of, 1.2)
 occ2 = alertes(of, 'E2')
 check('E2 : premier contrôle numéroté #1 (numérotation par équipe)', [o['numeroOccurrence'] for o in occ2] == [1], [o['numeroOccurrence'] for o in occ2])

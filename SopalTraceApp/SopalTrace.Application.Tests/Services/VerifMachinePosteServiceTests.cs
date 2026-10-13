@@ -40,8 +40,7 @@ namespace SopalTrace.Application.Tests.Services
 
             _repo.Setup(r => r.GetExecOfByIdAsync(_execId)).ReturnsAsync(execOf);
             _repo.Setup(r => r.GetPostesForExecutionAsync(_execId)).ReturnsAsync(new[] { Poste });
-            _repo.Setup(r => r.GetActiveSessionAsync(_execId)).ReturnsAsync(_session);
-            _repo.Setup(r => r.GetDocumentStatutsAsync(_execId, It.IsAny<Guid?>())).ReturnsAsync(new[] { _statut });
+            _repo.Setup(r => r.GetDocumentStatutsAsync(_execId, _session.Id)).ReturnsAsync(new[] { _statut });
             _repo.Setup(r => r.GetDocumentStatutByIdAsync(_statut.Id)).ReturnsAsync(_statut);
             _repo.Setup(r => r.GetPosteWithMachinesAsync(Poste)).ReturnsAsync(new PosteTravail
             {
@@ -64,7 +63,10 @@ namespace SopalTrace.Application.Tests.Services
                 .Callback<IEnumerable<ExecVerifMachineReponse>>(r => _reponses.AddRange(r));
             _repo.Setup(r => r.GetPeriodicitesPlanMachineAsync("BEE46")).ReturnsAsync(new List<string> { PeriodicitesControle.Demarrage, PeriodicitesControle.FinPoste });
 
-            _service = new VerifMachinePosteService(_repo.Object, Mock.Of<IAssemblageExecutionService>());
+            var demarrages = new Mock<IDemarragePosteRepository>();
+            demarrages.Setup(d => d.GetSessionAsync(_execId, Poste, null)).ReturnsAsync(_session);
+            demarrages.Setup(d => d.EstEnCoursAsync(_session.Id, Poste)).ReturnsAsync(true);
+            _service = new VerifMachinePosteService(_repo.Object, Mock.Of<IAssemblageExecutionService>(), demarrages.Object);
         }
 
         private static ExecVerifMachineReponseDto Reponse(Guid point, bool? conforme, string? observation = null) =>

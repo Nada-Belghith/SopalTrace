@@ -53,6 +53,12 @@ export const PHASES_ASSEMBLAGE = Object.freeze({
   DEMARRAGE: 'DEMARRAGE',
   PRODUCTION: 'PRODUCTION',
   PAUSE: 'PAUSE',
+  /** Session ouverte, mais l'équipe n'a pas encore démarré ce poste (aucune autre équipe ne le tient). */
+  NON_DEMARRE: 'NON_DEMARRE',
+  /** Une autre équipe tient ce poste : il se libère quand elle le termine. */
+  POSTE_OCCUPE: 'POSTE_OCCUPE',
+  /** L'équipe a terminé ce poste ; ses autres postes continuent. */
+  POSTE_TERMINE: 'POSTE_TERMINE',
   REPRISE: 'REPRISE',
   FIN_POSTE: 'FIN_POSTE',
   FIN_OF: 'FIN_OF',
@@ -63,6 +69,7 @@ export const PHASES_ASSEMBLAGE = Object.freeze({
 /** Tâches de l'assistant (TachesAssemblage côté serveur). */
 export const TACHES_ASSEMBLAGE = Object.freeze({
   ECHANTILLONNAGE: 'ECHANTILLONNAGE',
+  DEMARRER_POSTE: 'DEMARRER_POSTE',
   VERIF_MACHINE: 'VERIF_MACHINE',
   PLAN_PREMIERE_PIECE: 'PLAN_PREMIERE_PIECE',
   CONTROLES_PRODUCTION: 'CONTROLES_PRODUCTION',

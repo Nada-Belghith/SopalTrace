@@ -1,11 +1,8 @@
 <template>
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
     <div>
-      <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-        {{ title }}
-        
-      </h1>
-      <p class="text-sm text-slate-500 mt-1">{{ subtitle }}</p>
+      <h1 class="m-0 text-2xl md:text-3xl font-bold text-slate-800 leading-tight">{{ title }}</h1>
+      <p v-if="subtitle" class="m-0 mt-1 text-sm text-slate-500">{{ subtitle }}</p>
       <div class="mt-2 flex items-center gap-4 text-sm text-slate-600">
         <div class="flex items-center gap-2">
           <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Statut</span>

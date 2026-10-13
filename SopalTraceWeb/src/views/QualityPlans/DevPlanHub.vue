@@ -3,13 +3,7 @@
     <Toast position="top-right" />
     <ConfirmDialog></ConfirmDialog>
 
-    <div class="mb-4 md:mb-0">
-      <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-        <i class="pi pi-th-large text-blue-600"></i>
-        Plans par Article
-      </h1>
-      <p class="text-slate-500 text-sm mt-1">Visualisez et gérez vos plans de contrôle instanciés par article.</p>
-    </div>
+    <EnTetePage class="mb-4 md:mb-0" titre="Plans par article" sous-titre="Visualisez et gérez vos plans de contrôle instanciés par article." />
 
     <!-- ========================================== -->
     <!-- BARRE DE CONTRÔLE : Onglets & Filtres      -->
@@ -195,6 +189,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import { useRouter } from 'vue-router';
 import { useAppToast } from '@/composables/useAppToast';
 import { useAppConfirm } from '@/composables/useAppConfirm';

@@ -13,5 +13,7 @@ public partial class ExecControleOfPoste
 
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
 
+    public virtual ICollection<ExecRegistreTracabilite> ExecRegistreTracabilites { get; set; } = new List<ExecRegistreTracabilite>();
+
     public virtual PosteTravail PosteCodeNavigation { get; set; } = null!;
 }

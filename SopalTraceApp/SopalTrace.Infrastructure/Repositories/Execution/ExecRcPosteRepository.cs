@@ -93,26 +93,26 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                             p.Statut == StatutsPlan.Actif)
                 .ToListAsync();
                 
-            // Une famille qui a ses propres documents de contrôle au poste (ex. avec soupape : un document par poste)
-            // n'utilise que ceux-là ; les autres familles utilisent le document général du poste (sans famille).
-            // Le document d'une autre famille n'est jamais retenu ; à égalité, celui du poste passe avant celui sans
-            // poste. Sans document, pas de contrôle : on n'exécute jamais un document qui n'existe pas.
-            var familleAvecDocuments = !string.IsNullOrEmpty(familleCode) && await _context.DocumentEntetes.AnyAsync(d =>
-                d.TypeDocumentCode == TypesDocument.ControlePoste && d.Statut == StatutsPlan.Actif && d.FamilleProduitFiniCode == familleCode);
+            // Une famille qui a son propre contrôle au poste (ex. avec soupape : formulaire « PAS71 soupape ») n'utilise
+            // que les documents de sa famille, même tant qu'aucun n'est encore créé : le document général du poste ne
+            // la remplace jamais. Elle le sait par le champ d'application enregistré en base (poste et famille du
+            // formulaire, ou d'un document déjà créé), jamais par le code ou la désignation. Les autres familles
+            // utilisent le document général du poste (sans famille). À égalité, celui du poste passe avant celui sans
+            // poste. Sans document, pas de contrôle : la tâche est signalée « document manquant ».
+            var familleDediee = !string.IsNullOrEmpty(familleCode) && (
+                await _context.RefFormulaires.AnyAsync(f =>
+                    f.Role == RolesFormulaire.ResultatControlePoste && f.Statut != StatutsPlan.Archive &&
+                    f.FamilleProduitFiniCode == familleCode && (f.PosteCode == null || f.PosteCode == posteCode))
+                || await _context.DocumentEntetes.AnyAsync(d =>
+                    d.TypeDocumentCode == TypesDocument.ControlePoste && d.Statut == StatutsPlan.Actif &&
+                    d.FamilleProduitFiniCode == familleCode && (d.PosteCode == null || d.PosteCode == posteCode)));
 
             return plans
-                .Where(p => familleAvecDocuments
+                .Where(p => familleDediee
                     ? string.Equals(p.FamilleProduitFiniCode, familleCode, StringComparison.OrdinalIgnoreCase)
                     : string.IsNullOrEmpty(p.FamilleProduitFiniCode))
                 .OrderBy(p => p.PosteCode == null ? 1 : 0)
                 .FirstOrDefault();
-        }
-
-        public async Task<ExecControleOfSession?> GetSessionEnCoursAsync(Guid execControleOfId)
-        {
-            return await _context.ExecControleOfSessions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.ExecControleOfId == execControleOfId && s.Statut == StatutsSession.EnCours);
         }
 
         public async Task<List<ExecControleDocumentStatut>> GetValidationsEquipesAsync(Guid execControleOfId, string posteCode, DateTime? jour = null)

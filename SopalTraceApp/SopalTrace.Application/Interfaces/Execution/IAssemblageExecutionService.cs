@@ -8,8 +8,8 @@ namespace SopalTrace.Application.Interfaces.Execution;
 public interface IAssemblageExecutionService
 {
     Task<IEnumerable<OfAssemblageStatutDto>> GetOfsAssemblageStatutAsync();
-    Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request);
-    Task AjouterPostesAsync(Guid execControleOfId, AjouterPostesRequest request);
+    Task<ExecControleOfDto> DemarrerOfAssemblageAsync(DemarrerOfAssemblageRequest request, string matricule);
+    Task AjouterPostesAsync(Guid execControleOfId, AjouterPostesRequest request, string matricule);
 
     /// <summary>Crée (ou retrouve) le statut du document de vérification machine du jour et renvoie son identifiant.</summary>
     Task<Guid> InitVerifMachineAsync(Guid execControleOfId, InitVerifMachineRequest request, string matricule);

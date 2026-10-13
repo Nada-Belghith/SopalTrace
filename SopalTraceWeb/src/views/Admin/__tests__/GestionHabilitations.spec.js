@@ -6,7 +6,7 @@ import ToastService from 'primevue/toastservice'
 
 vi.mock('@/router', () => ({ default: { push: vi.fn() } }))
 vi.mock('@/services/authService', () => ({ authService: {} }))
-vi.mock('sweetalert2', () => ({ default: { fire: vi.fn().mockResolvedValue({ isConfirmed: true }) } }))
+vi.mock('@/composables/useConfirmation', () => ({ confirmer: vi.fn().mockResolvedValue({ confirme: true, valeur: null }) }))
 vi.mock('@/services/adminService', () => ({
   default: {
     getRoles: vi.fn(),

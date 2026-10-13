@@ -21,20 +21,21 @@ public class AvancementAssemblageDto
     /// <summary>Valeur de PhasesAssemblage.</summary>
     public string Phase { get; set; } = string.Empty;
     public string? Equipe { get; set; }
-    public bool PremiereEquipe { get; set; }
-    /// <summary>FIN_POSTE ou FIN_OF lorsque l'équipe a demandé la fin.</summary>
+    /// <summary>L'équipe a démarré ce poste.</summary>
+    public bool PosteDemarre { get; set; }
+    /// <summary>Premier démarrage du poste sur l'OF : contrôle « début d'OF » attendu.</summary>
+    public bool PremierDemarragePoste { get; set; }
+    /// <summary>FIN_POSTE (fin de ce poste demandée) ou FIN_OF (clôture de l'OF demandée par l'équipe).</summary>
     public string? DemandeCloture { get; set; }
+    /// <summary>Équipe qui tient ce poste (null s'il est libre).</summary>
+    public string? EquipeTitulaire { get; set; }
     public DateTime? EnPauseDepuis { get; set; }
     public bool PauseDejeunerPrise { get; set; }
 
     /// <summary>Réglage en cours sur le poste : contrôles de production suspendus jusqu'à un réglage conforme.</summary>
     public bool ReglageEnCours { get; set; }
 
-    /// <summary>Autre équipe en production sur l'OF : l'équipe consultée (en pause) reprendra après sa pause ou sa fin de poste.</summary>
-    public string? EquipeEnProduction { get; set; }
 
-    /// <summary>Autres équipes en pause sur l'OF (elles doivent faire leur fin de poste avant la clôture de l'OF).</summary>
-    public List<string> EquipesEnPause { get; set; } = new();
 
     public string PosteCode { get; set; } = string.Empty;
 
@@ -50,7 +51,7 @@ public class AvancementAssemblageDto
     /// <summary>Tâches bloquantes restantes de l'étape courante, poste par poste.</summary>
     public List<PosteAvancementDto> Postes { get; set; } = new();
 
-    /// <summary>En fin de poste / fin d'OF : toutes les tâches de fin de tous les postes sont faites.</summary>
+    /// <summary>En fin de poste : tâches de fin du poste faites ; en fin d'OF : celles de tous les postes.</summary>
     public bool PeutTerminer { get; set; }
     /// <summary>Ce qui manque pour terminer (« PAS71 : Vérification machine fin de poste »).</summary>
     public List<string> Manquants { get; set; } = new();
@@ -83,7 +84,13 @@ public class TacheAssemblageDto
 
 public class PosteAvancementDto
 {
+    /// <summary>L'équipe a démarré ce poste.</summary>
+    public bool Demarre { get; set; }
     public string PosteCode { get; set; } = string.Empty;
+    /// <summary>Étape du poste pour l'équipe (valeur de PhasesAssemblage).</summary>
+    public string Phase { get; set; } = string.Empty;
+    /// <summary>Équipe qui tient le poste (null s'il est libre).</summary>
+    public string? EquipeTitulaire { get; set; }
     public int TachesRestantes { get; set; }
 }
 
@@ -92,4 +99,12 @@ public class DemandeClotureRequest
     /// <summary>FIN_POSTE ou FIN_OF.</summary>
     [Required, RegularExpression("^(FIN_POSTE|FIN_OF)$", ErrorMessage = "La demande de fin doit valoir FIN_POSTE ou FIN_OF.")]
     public string Mode { get; set; } = null!;
+
+    /// <summary>Poste dont la fin est demandée (FIN_POSTE) ou depuis lequel la clôture est demandée (FIN_OF).</summary>
+    [Required, StringLength(30), RegularExpression("^[A-Za-z0-9_-]+$", ErrorMessage = "Code de poste invalide.")]
+    public string PosteCode { get; set; } = null!;
+
+    /// <summary>Équipe de la tablette (par défaut celle qui tient le poste).</summary>
+    [StringLength(10)]
+    public string? Equipe { get; set; }
 }

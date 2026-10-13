@@ -7,9 +7,7 @@
     <div class="w-full max-w-md animate-in fade-in zoom-in duration-700">
       <!-- Logo / Header -->
       <div class="text-center mb-10">
-        <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl shadow-2xl shadow-blue-500/20 mb-6 rotate-3">
-          <i class="pi pi-shield text-4xl text-white"></i>
-        </div>
+        <LogoSopalTrace class="inline-block w-20 h-20 mb-6 drop-shadow-2xl" />
         <h1 class="text-4xl font-black text-white tracking-tight mb-2">Sopal<span class="text-blue-500">Trace</span></h1>
         <p class="text-slate-400 font-medium">Système de Traçabilité & Qualité</p>
       </div>
@@ -104,6 +102,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'primevue/usetoast';
+import LogoSopalTrace from '@/components/Shared/LogoSopalTrace.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();

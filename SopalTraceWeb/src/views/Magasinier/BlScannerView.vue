@@ -145,7 +145,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import Swal from 'sweetalert2';
+import { confirmer } from '@/composables/useConfirmation';
 import { useAuthStore } from '@/stores/authStore';
 import magasinService from '@/services/magasinService';
 import { useScanDouchette } from '@/composables/Magasinier/useScanDouchette';
@@ -208,15 +208,13 @@ const retirer = async (of) => {
 };
 
 const terminer = async () => {
-  const reponse = await Swal.fire({
-    title: `Valider l'expédition du BL ${expedition.value.numeroBl} ?`,
-    text: `${expedition.value.ofs.length} OF. L'expédition ne pourra plus être modifiée.`,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Valider',
-    cancelButtonText: 'Continuer à scanner'
+  const { confirme } = await confirmer({
+    titre: `Valider l'expédition du BL ${expedition.value.numeroBl} ?`,
+    message: `${expedition.value.ofs.length} OF. L'expédition ne pourra plus être modifiée.`,
+    libelleConfirmer: 'Valider',
+    libelleAnnuler: 'Continuer à scanner'
   });
-  if (!reponse.isConfirmed) return scanOf.focus();
+  if (!confirme) return scanOf.focus();
   try {
     expedition.value = await magasinService.terminerExpedition(expedition.value.id);
     afficher(true, `Expédition du BL ${expedition.value.numeroBl} validée.`);

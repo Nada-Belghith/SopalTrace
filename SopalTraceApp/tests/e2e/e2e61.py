@@ -135,7 +135,8 @@ check('jeton signé mais rôle différent du compte (opérateur « ADMIN ») : r
 sql("""INSERT INTO AUTILIS (USR_0, INTUSR_0, ENAFLG_0, CODMET_0, ADDEML_0) VALUES
        ('81001', 'Demandeur Approuve', 2, 'TECHNICIEN', 'demandeur1@s.com'),
        ('81002', 'Demandeur Refuse', 2, 'OPERATEUR', 'demandeur2@s.com'),
-       ('81003', 'Employe Preattribue', 2, 'TECHNICIEN', 'demandeur3@s.com')""")
+       ('81003', 'Employe Preattribue', 2, 'TECHNICIEN', 'demandeur3@s.com'),
+       ('81004', 'Meme E-mail Que 77777', 2, 'OPERATEUR', 'nada.belghith@enis.u-sfax.tn')""")
 def demander(mat, email):
     st, r, _ = call('POST', '/Auth/register', {'matricule': mat, 'email': email})
     return st, msg(r)
@@ -146,7 +147,7 @@ def statut(mat):
 st, neutre = demander('81001', 'pirate@exemple.com')
 check("e-mail différent de l'ERP : 200, aucun compte créé", st == 200 and statut('81001') == '', (st, neutre))
 check('matricule inconnu : exactement la même réponse', demander('99998', 'x@exemple.com') == (200, neutre))
-check('e-mail partagé par deux employés (77777 / 22223) : même réponse, aucun compte',
+check('e-mail partagé par deux employés (77777 / 81004) : même réponse, aucun compte',
       demander('77777', 'nada.belghith@enis.u-sfax.tn') == (200, neutre) and statut('77777') == '')
 check('motifs réels tracés dans le journal', int(sql("SELECT COUNT(*) FROM JournalConnexions WHERE Action='INSCRIPTION_REFUSEE' AND Matricule IN ('81001','99998','77777')")) == 3)
 

@@ -1,6 +1,7 @@
 <script setup>
 import { RouterView, useRouter } from 'vue-router'
 import Toast from 'primevue/toast'
+import ModaleConfirmation from '@/components/Shared/ModaleConfirmation.vue'
 
 const router = useRouter();
 const goToOf = (execId) => {
@@ -27,6 +28,9 @@ const goToOf = (execId) => {
       </template>
     </Toast>
     
+    <!-- Boîte de confirmation commune (useConfirmation) -->
+    <ModaleConfirmation />
+
     <!-- Le router-view affiche la page correspondante à l'URL actuelle -->
     <RouterView :key="$route.fullPath" />
   </div>

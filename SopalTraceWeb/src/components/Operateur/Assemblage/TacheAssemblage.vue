@@ -14,6 +14,7 @@ const emit = defineEmits(['ouvrir'])
 
 const ICONES = {
   [TACHES_ASSEMBLAGE.ECHANTILLONNAGE]: 'pi pi-chart-pie',
+  [TACHES_ASSEMBLAGE.DEMARRER_POSTE]: 'pi pi-play',
   [TACHES_ASSEMBLAGE.VERIF_MACHINE]: 'pi pi-cog',
   [TACHES_ASSEMBLAGE.PLAN_PREMIERE_PIECE]: 'pi pi-flag',
   [TACHES_ASSEMBLAGE.CONTROLES_PRODUCTION]: 'pi pi-clock',
@@ -44,6 +45,7 @@ const action = computed(() => {
   if (estManquante.value) return 'Signaler'
   if (aLaDemande.value) return 'Saisir'
   if (estFaite.value) return 'Consulter'
+  if (props.tache.code === TACHES_ASSEMBLAGE.DEMARRER_POSTE) return 'Démarrer le poste'
   return props.tache.code === TACHES_ASSEMBLAGE.CONTROLES_PRODUCTION ? 'Saisir les contrôles' : 'Commencer'
 })
 

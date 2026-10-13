@@ -10,6 +10,7 @@ import apiClient from '@/services/apiClient'
 import execAssemblageService from '@/services/execAssemblageService'
 import { useAppToast } from '@/composables/useAppToast'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -200,31 +201,25 @@ onUnmounted(() => clearInterval(minuteur))
 </script>
 
 <template>
-  <div class="p-4 md:p-6 w-full space-y-4 pb-28">
+  <div class="p-4 md:p-6 w-full min-w-0 space-y-4">
     <!-- En-tête -->
-    <header class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-      <button type="button" @click="retour"
-              class="min-h-[40px] text-blue-700 hover:text-blue-900 text-sm font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center mb-2">
-        <i class="pi pi-arrow-left mr-2"></i> Retour à l'assistant
-      </button>
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 class="m-0 text-2xl font-black text-slate-800">Contrôle au poste {{ posteCode }}</h1>
-          <p class="m-0 mt-1 text-sm text-slate-500">
-            OF <strong class="text-slate-700">{{ ofContexte.numeroOf || '—' }}</strong>
-            <span class="mx-2 text-slate-300">|</span> Article <strong class="text-slate-700">{{ ofContexte.codeArticle || ofContexte.articleCode || '—' }}</strong>
-            <template v-if="doc?.planNom"><span class="mx-2 text-slate-300">|</span> {{ doc.planNom }}</template>
-          </p>
-        </div>
-        <div v-if="doc" class="flex flex-wrap items-center gap-2 text-sm font-semibold">
-          <span class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800"><i class="pi pi-calendar mr-1"></i>Journée du {{ formatJour(doc.jourProduction) }}</span>
-          <span v-if="equipeSaisie" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800">
-            <i class="pi pi-pencil mr-1"></i>Saisie : {{ equipeSaisie.nom }} ({{ equipeSaisie.code }}) · {{ libelleHeures(equipeSaisie) }}
-          </span>
-        </div>
-      </div>
+    <EnTetePage titre="Contrôle au poste" :complement="posteCode" retour libelle-retour="Retour à l'assistant" @retour="retour">
+      <template #sous-titre>
+        OF <strong class="text-slate-700">{{ ofContexte.numeroOf || '—' }}</strong>
+        <span class="mx-2 text-slate-300">|</span> Article <strong class="text-slate-700">{{ ofContexte.codeArticle || ofContexte.articleCode || '—' }}</strong>
+        <template v-if="doc?.planNom"><span class="mx-2 text-slate-300">|</span> {{ doc.planNom }}</template>
+      </template>
+      <template v-if="doc" #actions>
+        <span class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800 text-sm font-semibold"><i class="pi pi-calendar mr-1"></i>Journée du {{ formatJour(doc.jourProduction) }}</span>
+        <span v-if="equipeSaisie" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-sm font-semibold">
+          <i class="pi pi-pencil mr-1"></i>Saisie : {{ equipeSaisie.nom }} · {{ equipeSaisie.code }} · {{ libelleHeures(equipeSaisie) }}
+        </span>
+      </template>
+    </EnTetePage>
 
-      <p v-if="doc && !peutSaisir" class="m-0 mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+    <div v-if="(doc && !peutSaisir) || doc?.equipesParDefaut || conflit">
+
+      <p v-if="doc && !peutSaisir" class="m-0 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
         <i class="pi pi-lock mr-1"></i>Lecture seule : {{ doc.motifLectureSeule }}
       </p>
       <p v-if="doc?.equipesParDefaut" class="m-0 mt-2 text-xs text-slate-500 italic">
@@ -235,7 +230,7 @@ onUnmounted(() => clearInterval(minuteur))
         <button type="button" @click="charger(doc.execControleDocumentStatutId)"
                 class="min-h-[40px] px-4 rounded-lg bg-red-600 text-white font-bold border-0 cursor-pointer">Recharger</button>
       </div>
-    </header>
+    </div>
 
     <div v-if="chargement && !doc" class="py-16 text-center text-slate-500"><i class="pi pi-spin pi-spinner text-3xl"></i></div>
 
@@ -279,19 +274,19 @@ onUnmounted(() => clearInterval(minuteur))
       <!-- Tableau : défile dans sa carte, la colonne des défauts reste visible -->
       <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="min-w-max w-full text-sm border-collapse">
+          <table class="w-full text-sm border-collapse">
             <thead>
               <tr class="bg-slate-800 text-white">
-                <th rowspan="2" class="sticky left-0 z-20 bg-slate-800 px-4 py-3 text-left min-w-[260px] border-r border-slate-700">Non-conformité</th>
+                <th rowspan="2" class="sticky left-0 z-20 bg-slate-800 px-3 py-2 text-left w-[220px] min-w-[180px] border-r border-slate-700">Non-conformité</th>
                 <th v-for="e in equipes" :key="e.code" :colspan="e.tranches.length"
-                    class="px-3 py-2 text-center border-r border-slate-700"
+                    class="px-2 py-1.5 text-center text-xs border-r border-slate-700 whitespace-nowrap"
                     :class="e.code === doc.equipeSaisie ? 'bg-emerald-700' : ''">
                   {{ e.nom }} ({{ e.code }}) <span class="font-normal opacity-80">· {{ libelleHeures(e) }}</span>
                 </th>
-                <th rowspan="2" class="px-3 py-3 text-center min-w-[80px]">Total</th>
+                <th rowspan="2" class="px-2 py-2 text-center text-xs w-12">Total</th>
               </tr>
-              <tr class="bg-slate-100 text-slate-700 text-xs">
-                <th v-for="c in colonnes" :key="c.tranche" class="px-2 py-2 text-center min-w-[64px] border-r border-slate-200 font-semibold"
+              <tr class="bg-slate-100 text-slate-700 text-[11px]">
+                <th v-for="c in colonnes" :key="c.tranche" class="px-0.5 py-1.5 text-center min-w-[42px] border-r border-slate-200 font-semibold whitespace-nowrap"
                     :class="[estHeureCourante(c.tranche) && modifiable(c.tranche) ? 'bg-emerald-200 text-emerald-900' : '', modifiable(c.tranche) ? 'text-emerald-800' : '']">
                   {{ c.tranche }}
                 </th>
@@ -299,40 +294,40 @@ onUnmounted(() => clearInterval(minuteur))
             </thead>
             <tbody>
               <tr v-for="l in doc.lignes" :key="l.docLigneId" class="border-b border-slate-100 hover:bg-slate-50/60">
-                <td class="sticky left-0 z-10 bg-white px-4 py-2 border-r border-slate-200">
-                  <div class="font-semibold text-slate-800">{{ l.libelleAffiche }}</div>
-                  <div v-if="l.machineCode && l.machineCode !== '-'" class="text-[11px] text-slate-500">Machine {{ l.machineCode }}</div>
+                <td class="sticky left-0 z-10 bg-white px-3 py-1.5 border-r border-slate-200">
+                  <div class="text-xs font-semibold text-slate-800 leading-tight">{{ l.libelleAffiche }}</div>
+                  <div v-if="l.machineCode && l.machineCode !== '-'" class="text-[10px] text-slate-500">Machine {{ l.machineCode }}</div>
                 </td>
-                <td v-for="c in colonnes" :key="c.tranche" class="px-1 py-1 text-center border-r border-slate-100"
+                <td v-for="c in colonnes" :key="c.tranche" class="p-0.5 text-center border-r border-slate-100"
                     :class="modifiable(c.tranche) ? 'bg-emerald-50/40' : ''">
                   <input v-if="modifiable(c.tranche)" type="number" min="0" inputmode="numeric"
                          :value="heures[l.docLigneId]?.[c.tranche] ?? ''"
                          @input="saisirDefauts(l.docLigneId, c.tranche, $event.target.value)"
-                         class="w-14 min-h-[40px] text-center rounded-lg border border-slate-300 bg-white font-semibold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none" />
+                         class="case-saisie" />
                   <span v-else class="text-slate-500">{{ heures[l.docLigneId]?.[c.tranche] ?? '' }}</span>
                 </td>
-                <td class="px-3 text-center font-bold text-slate-800">{{ totalLigne(l.docLigneId) }}</td>
+                <td class="px-1 text-center text-xs font-bold text-slate-800">{{ totalLigne(l.docLigneId) }}</td>
               </tr>
             </tbody>
             <tfoot class="text-xs">
               <tr class="bg-slate-50 border-t-2 border-slate-200">
-                <td class="sticky left-0 z-10 bg-slate-50 px-4 py-2 font-bold text-slate-700 border-r border-slate-200">Total des défauts</td>
+                <td class="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 font-bold text-slate-700 border-r border-slate-200">Total des défauts</td>
                 <td v-for="c in colonnes" :key="c.tranche" class="text-center font-semibold text-slate-700 border-r border-slate-100">{{ totalDefautsTranche(c.tranche) || '' }}</td>
                 <td class="text-center font-bold">{{ bilan.defauts }}</td>
               </tr>
               <tr class="bg-white">
-                <td class="sticky left-0 z-10 bg-white px-4 py-2 font-bold text-slate-700 border-r border-slate-200">Pièces réalisées</td>
-                <td v-for="c in colonnes" :key="c.tranche" class="px-1 py-1 text-center border-r border-slate-100"
+                <td class="sticky left-0 z-10 bg-white px-3 py-1.5 font-bold text-slate-700 border-r border-slate-200">Pièces réalisées</td>
+                <td v-for="c in colonnes" :key="c.tranche" class="p-0.5 text-center border-r border-slate-100"
                     :class="modifiable(c.tranche) ? 'bg-emerald-50/40' : ''">
                   <input v-if="modifiable(c.tranche)" type="number" min="0" inputmode="numeric"
                          :value="realisees[c.tranche] ?? ''" @input="saisirRealisees(c.tranche, $event.target.value)"
-                         class="w-14 min-h-[40px] text-center rounded-lg border border-slate-300 bg-white font-semibold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none" />
+                         class="case-saisie" />
                   <span v-else class="text-slate-500">{{ realisees[c.tranche] ?? '' }}</span>
                 </td>
                 <td></td>
               </tr>
               <tr class="bg-slate-50">
-                <td class="sticky left-0 z-10 bg-slate-50 px-4 py-2 font-bold text-slate-700 border-r border-slate-200">Pièces testées</td>
+                <td class="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 font-bold text-slate-700 border-r border-slate-200">Pièces testées</td>
                 <td v-for="c in colonnes" :key="c.tranche" class="text-center text-slate-700 border-r border-slate-100">{{ testeesTranche(c.tranche) || '' }}</td>
                 <td class="text-center font-bold">{{ bilan.testees }}</td>
               </tr>
@@ -352,7 +347,7 @@ onUnmounted(() => clearInterval(minuteur))
           <label v-if="peutSaisir" class="mt-2 flex items-center gap-2 text-xs text-slate-600">
             dont {{ doc.equipeSaisie }}
             <input type="number" min="0" :value="rebutsEquipe ?? ''" @input="saisirRebuts($event.target.value)"
-                   class="w-20 min-h-[36px] text-center rounded-lg border border-slate-300 font-semibold" />
+                   class="case-saisie w-14" />
           </label>
         </div>
         <div class="bg-white rounded-2xl border border-slate-200 p-4"><p class="m-0 text-xs font-bold uppercase text-slate-500">Conformes</p><p class="m-0 mt-1 text-2xl font-black text-emerald-700">{{ bilan.conformes }}</p></div>
@@ -364,7 +359,7 @@ onUnmounted(() => clearInterval(minuteur))
       </section>
 
       <!-- Actions : toujours visibles -->
-      <div v-if="peutSaisir" class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 px-4 md:px-6 py-3 flex flex-wrap items-center justify-end gap-3">
+      <div v-if="peutSaisir" class="sticky bottom-0 z-30 -mx-4 md:-mx-6 bg-white/95 backdrop-blur border-t border-slate-200 px-4 md:px-6 py-3 flex flex-wrap items-center justify-end gap-3">
         <span class="mr-auto text-sm font-semibold" :class="modifie ? 'text-amber-700' : 'text-slate-500'">
           <i class="pi" :class="modifie ? 'pi-circle-fill text-[8px]' : 'pi-check'"></i>
           {{ modifie ? 'Modifications non enregistrées' : 'Tout est enregistré' }}
@@ -382,3 +377,31 @@ onUnmounted(() => clearInterval(minuteur))
     </template>
   </div>
 </template>
+
+<style scoped>
+/* Case de saisie compacte, à la taille d'un nombre de 1 à 3 chiffres, sans flèches. */
+.case-saisie {
+  width: 2.5rem;
+  height: 1.875rem;
+  padding: 0 0.125rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1e293b;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  outline: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.case-saisie:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 1px #10b981;
+}
+.case-saisie::-webkit-outer-spin-button,
+.case-saisie::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+</style>

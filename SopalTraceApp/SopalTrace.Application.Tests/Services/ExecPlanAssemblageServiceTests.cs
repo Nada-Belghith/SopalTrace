@@ -34,9 +34,12 @@ namespace SopalTrace.Application.Tests.Services
         private readonly DocumentSection _reglage;
         private readonly DocumentSection _toutesPieces;
         private readonly Mock<IExecPlanAssemblageRepository> _repository = new();
+        private readonly Mock<IDemarragePosteRepository> _demarrages = new();
         private readonly ExecPlanAssemblageService _service;
         private readonly List<ExecControleLigneReponse> _reponsesAjoutees = new();
         private Guid _premiereSession;
+        /// <summary>Fin de poste demandée sur le poste par l'équipe (null en production).</summary>
+        private DateTime? _finDePosteDemandee;
 
         public ExecPlanAssemblageServiceTests()
         {
@@ -59,8 +62,11 @@ namespace SopalTrace.Application.Tests.Services
             foreach (var s in new[] { _lotPoste, _lotOf, _production, _reglage, _toutesPieces }) plan.DocumentSections.Add(s);
 
             _repository.Setup(r => r.GetExecOfAsync(_execId)).ReturnsAsync(_execOf);
-            _repository.Setup(r => r.GetActiveSessionAsync(_execId)).ReturnsAsync(_session);
-            _repository.Setup(r => r.GetPremiereSessionIdAsync(_execId)).ReturnsAsync(() => _premiereSession);
+            _demarrages.Setup(d => d.GetSessionAsync(_execId, Poste, null)).ReturnsAsync(_session);
+            // Démarrages du poste : par la session seule (premier démarrage), ou d'abord par une équipe précédente.
+            _demarrages.Setup(d => d.GetDemarragesAsync(_execId)).ReturnsAsync(() => _premiereSession == _session.Id
+                ? new List<DemarragePoste> { new(_session.Id, Poste, DateTime.Now, "E1", _finDePosteDemandee) }
+                : new List<DemarragePoste> { new(_premiereSession, Poste, DateTime.Now.AddHours(-8), "E0", EndedAt: DateTime.Now.AddHours(-1)), new(_session.Id, Poste, DateTime.Now, "E1", _finDePosteDemandee) });
             _repository.Setup(r => r.GetStatutPlanAssAsync(_execId, Poste, _session.Id)).ReturnsAsync(_statut);
             _repository.Setup(r => r.GetDocumentByIdAsync(_planId)).ReturnsAsync(plan);
             _repository.Setup(r => r.GetReponsesPlanAsync(_execId, Poste)).ReturnsAsync(() => _reponsesAjoutees
@@ -69,7 +75,7 @@ namespace SopalTrace.Application.Tests.Services
             _repository.Setup(r => r.AddLigneReponses(It.IsAny<IEnumerable<ExecControleLigneReponse>>()))
                 .Callback<IEnumerable<ExecControleLigneReponse>>(r => _reponsesAjoutees.AddRange(r));
 
-            _service = new ExecPlanAssemblageService(_repository.Object);
+            _service = new ExecPlanAssemblageService(_repository.Object, _demarrages.Object);
         }
 
         private static DocumentSection Section(string type, int ordre)
@@ -135,7 +141,7 @@ namespace SopalTrace.Application.Tests.Services
         [Fact]
         public async Task FinDePoste_DernierePieceDuPosteTermineLeStatut()
         {
-            _session.ClosingRequest = DemandesCloture.FinPoste;
+            _finDePosteDemandee = DateTime.Now;
 
             await Assert.ThrowsAsync<RegleMetierException>(() => _service.SaveResultatAsync(_execId, Demande(_lotOf, ContextesReponse.DernierePiece), "M1"));
             await _service.SaveResultatAsync(_execId, Demande(_lotPoste, ContextesReponse.DernierePiece), "M1");
@@ -249,7 +255,8 @@ namespace SopalTrace.Application.Tests.Services
 
             Assert.Equal(new[] { SectionTypes.LotPoste, SectionTypes.LotOf }, dto.Sections.Select(s => s.TypeSection));
             Assert.Equal(new[] { ContextesReponse.Reglage, ContextesReponse.CentPourCent }, dto.SectionsALaDemande.Select(s => s.Contexte));
-            Assert.False(dto.PremiereEquipe);
+            Assert.True(dto.PosteDemarre);
+            Assert.False(dto.PremierDemarragePoste);
             Assert.True(dto.Sections[0].PremierePiece.Requis);
             Assert.False(dto.Sections[1].PremierePiece.Requis);
             // Équipe suivante sans section de début d'OF à faire : le démarrage ne dépend que du début de poste.
