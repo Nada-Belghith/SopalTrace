@@ -17,6 +17,7 @@
 --   - Ref_Caracteristique : LibelleNormalise fourni par le backend C# (pas de PERSISTED)
 --   - Colonnes propres à un formulaire : tables *_ExtraColonne (définies par Ref_Formulaire_ColonneDef)
 --   - Nouveau type de document = INSERT INTO TypeDocument, zéro DDL
+--   - Documents générés (PDF) depuis les modèles Excel de Sopal : PARTIE 17
 -- ================================================================================
 
 -- Requis pour les index filtrés (une seule session active par OF, un seul assemblage actif par OF).
@@ -554,6 +555,27 @@ GO
 -- PARTIE 8 : FORMULAIRES DE CONTRÔLE
 -- ================================================================================
 
+-- Rôle d'un formulaire : le type de document qu'il désigne et les critères qui forment son champ d'application. Un
+-- nouveau type de document s'ajoute ici (avec son écran de saisie et, s'il est mis en forme, son modèle Excel).
+-- La nature d'article et le type de robinet ne désignent un formulaire que sans famille (la famille les porte déjà).
+-- Nature du type : DOCUMENT (document gérable : le superviseur qualité en définit le contenu, ses versions suivent les
+-- documents) ou RESPONSE_SHEET (fiche de réponse : simple gabarit rempli par les réponses des opérateurs, aucun document
+-- à gérer). Tous ont un code, une version et un modèle Excel dédié.
+CREATE TABLE dbo.FormRole (
+    Code               VARCHAR(50)   NOT NULL PRIMARY KEY,
+    Label              NVARCHAR(100) NOT NULL,
+    DisplayOrder       INT           NOT NULL DEFAULT 0,
+    Nature             VARCHAR(20)   NOT NULL DEFAULT 'DOCUMENT'
+        CONSTRAINT CK_FormRole_Nature CHECK (Nature IN ('DOCUMENT', 'RESPONSE_SHEET')),
+    ScopeByFamily      BIT           NOT NULL DEFAULT 0,
+    ScopeByWorkstation BIT           NOT NULL DEFAULT 0,
+    ScopeByMachine     BIT           NOT NULL DEFAULT 0,
+    ScopeByNature      BIT           NOT NULL DEFAULT 0,
+    ScopeByValveType   BIT           NOT NULL DEFAULT 0,
+    Active             BIT           NOT NULL DEFAULT 1
+);
+GO
+
 CREATE TABLE dbo.Ref_Formulaire (
     Id                        UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
     CodeReference             VARCHAR(30)  NOT NULL,
@@ -566,15 +588,48 @@ CREATE TABLE dbo.Ref_Formulaire (
     ModifiePar                VARCHAR(20) REFERENCES dbo.AUTILIS(USR_0),
     ModifieLe                 DATETIME2(3),
     -- Rôle métier du formulaire (constantes RolesFormulaire côté C#).
-    Role                      VARCHAR(50)
-        CHECK (Role IN ('EN_COURS_DE_FABRICATION','EN_COURS_DE_ASSEMBLAGE','PRODUIT_FINI','RESULTAT_CONTROLE_CF','RESULTAT_CONTROLE_POSTE','VERIF_MACHINE','ECHANTILLONNAGE')),
-    -- Champ d'application des documents construits sur ce formulaire (ex. contrôle au poste « PAS71 soupape ») :
-    -- poste, et famille de produit fini (NULL = toutes les familles). Un document créé sur ce formulaire reprend
-    -- ce poste et, si elle est renseignée, cette famille : aucune déduction depuis le code ou la désignation.
+    -- RESULTAT_CONTROLE_ASSEMBLAGE : résultats du contrôle en cours d'assemblage remplis par les opérateurs.
+    Role                      VARCHAR(50) REFERENCES dbo.FormRole(Code),
+    -- Champ d'application : avec le rôle, il désigne le formulaire d'un document, sans jamais déduire quoi que ce soit
+    -- du code (le code, choisi par le superviseur qualité, est un simple libellé). Seuls les critères qui existent sont
+    -- renseignés : famille et poste d'un plan d'assemblage (nature PISTON pour le piston, sans famille), famille d'un plan
+    -- produit fini, poste et famille d'un contrôle au poste, machine d'une vérification machine, type de robinet ou
+    -- poste et famille des résultats d'assemblage. Un document créé sur ce formulaire en reprend le poste et la famille.
     PosteCode                 VARCHAR(30) NULL REFERENCES dbo.PosteTravail(CodePoste),
     FamilleProduitFiniCode    VARCHAR(30) NULL REFERENCES dbo.FamilleProduitFini(Code),
+    TypeRobinetCode           VARCHAR(10) NULL REFERENCES dbo.TypeRobinet(Code),
+    MachineCode               VARCHAR(30) NULL REFERENCES dbo.Machine(CodeMachine),
+    NatureArticleCode         VARCHAR(20) NULL REFERENCES dbo.NatureArticle(Code),
+    -- Identifiant commun à toutes les lignes d'un même formulaire (ses versions et ses changements de code) : il relie
+    -- FEMANU.0, FEMANU.1 et DEMANU.1 (modèle hérité, numéro de la prochaine version).
+    VersionGroupId            UNIQUEIDENTIFIER NOT NULL CONSTRAINT DF_RefFormulaire_VersionGroupId DEFAULT NEWID(),
+    -- Ordre de création dans la séquence des documents (DF_RefFormulaire_CreationOrder) : situe DEMANU.1 après FEMANU.1.
+    CreationOrder             BIGINT       NOT NULL,
+    -- Une ligne = une identité figée (code + version) dès qu'un document ou une fiche l'utilise
+    -- (TR_RefFormulaire_Identity) : changer de code crée une nouvelle ligne, même version.
     UNIQUE (CodeReference, Version)
 );
+GO
+
+-- Journal des changements de code : la ligne remplacée (archivée, avec ses documents) et celle qui la remplace (même
+-- version, nouveau code). Une ligne n'est remplacée qu'une fois. Jamais modifié ni supprimé.
+CREATE TABLE dbo.FormCodeChange (
+    Id             BIGINT IDENTITY(1,1) PRIMARY KEY,
+    PreviousFormId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Ref_Formulaire(Id),
+    NewFormId      UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Ref_Formulaire(Id),
+    ChangedBy      VARCHAR(20)      NULL REFERENCES dbo.AUTILIS(USR_0),
+    ChangedAt      DATETIME2(3)     NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT UX_FormCodeChange_PreviousForm UNIQUE (PreviousFormId),
+    CONSTRAINT UX_FormCodeChange_NewForm UNIQUE (NewFormId),
+    CONSTRAINT CK_FormCodeChange_DifferentForms CHECK (PreviousFormId <> NewFormId)
+);
+GO
+
+-- Un seul formulaire en cours (brouillon ou actif) par rôle et champ d'application, et par code : un document trouve
+-- toujours un formulaire unique, et un code ne désigne jamais deux formulaires différents.
+CREATE UNIQUE INDEX UX_RefFormulaire_ChampApplication ON dbo.Ref_Formulaire
+    (Role, FamilleProduitFiniCode, PosteCode, TypeRobinetCode, MachineCode, NatureArticleCode) WHERE Statut IN ('BROUILLON', 'ACTIF');
+CREATE UNIQUE INDEX UX_RefFormulaire_CodeEnCours ON dbo.Ref_Formulaire (CodeReference) WHERE Statut IN ('BROUILLON', 'ACTIF');
 GO
 
 CREATE TABLE dbo.Ref_Formulaire_ColonneDef (
@@ -637,6 +692,35 @@ AS BEGIN
 END;
 GO
 
+-- Recopie la structure d'un formulaire (colonnes propres, valeurs proposées, équipes) sur une nouvelle ligne de
+-- formulaire sans structure (changement de code, nouvelle version de même structure).
+CREATE PROCEDURE dbo.CopyFormStructure
+    @SourceFormId UNIQUEIDENTIFIER,
+    @TargetFormId UNIQUEIDENTIFIER
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    IF EXISTS (SELECT 1 FROM dbo.Ref_Formulaire_ColonneDef WHERE FormulaireId = @TargetFormId)
+       OR EXISTS (SELECT 1 FROM dbo.Ref_Formulaire_Equipe WHERE FormulaireId = @TargetFormId)
+        THROW 50004, N'Le formulaire cible a déjà une structure.', 1;
+
+    INSERT INTO dbo.Ref_Formulaire_ColonneDef (FormulaireId, CleColonne, LabelAffiche, TypeValeur, InsertAfter, TargetTable, Actif)
+    SELECT @TargetFormId, CleColonne, LabelAffiche, TypeValeur, InsertAfter, TargetTable, Actif
+    FROM dbo.Ref_Formulaire_ColonneDef WHERE FormulaireId = @SourceFormId;
+
+    INSERT INTO dbo.ColumnAllowedValue (ColumnDefinitionId, Value, DisplayOrder, Active)
+    SELECT cible.Id, v.Value, v.DisplayOrder, v.Active
+    FROM dbo.ColumnAllowedValue v
+    JOIN dbo.Ref_Formulaire_ColonneDef source ON source.Id = v.ColumnDefinitionId AND source.FormulaireId = @SourceFormId
+    JOIN dbo.Ref_Formulaire_ColonneDef cible ON cible.FormulaireId = @TargetFormId AND cible.CleColonne = source.CleColonne;
+
+    INSERT INTO dbo.Ref_Formulaire_Equipe (FormulaireId, TeamCode, NomEquipe, HeureDebut, HeureFin, OrdreAffiche, Actif)
+    SELECT @TargetFormId, TeamCode, NomEquipe, HeureDebut, HeureFin, OrdreAffiche, Actif
+    FROM dbo.Ref_Formulaire_Equipe WHERE FormulaireId = @SourceFormId;
+END;
+GO
+
 
 -- ================================================================================
 -- PARTIE 9 : RÉFÉRENTIEL ISO 2859-1 (tables d'échantillonnage)
@@ -677,6 +761,12 @@ GO
 -- à partir d'un générique (DocumentSourceId renseigné) ou directement (DocumentSourceId NULL).
 -- ================================================================================
 
+-- Ordre de création : une seule séquence de la base numérote, dans l'ordre réel de leur enregistrement, les documents
+-- qualité, les documents d'exécution et les affectations de modèles de rapport. « Le modèle en vigueur à la création
+-- d'un document » se lit sur cet ordre, sans comparer d'horloges (l'API et la base peuvent ne pas être à la même heure).
+CREATE SEQUENCE dbo.CreationOrderSequence AS BIGINT START WITH 1 INCREMENT BY 1;
+GO
+
 CREATE TABLE dbo.Document_Entete (
     Id                     UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
     TypeDocumentCode       VARCHAR(30)  NOT NULL REFERENCES dbo.TypeDocument(Code),
@@ -709,6 +799,8 @@ CREATE TABLE dbo.Document_Entete (
     PosteCode              VARCHAR(30)  REFERENCES dbo.PosteTravail(CodePoste),
     -- PLAN_FAB : machine prévue par défaut ; VERIF_MACHINE : machine vérifiée (obligatoire)
     MachineCode            VARCHAR(30)  REFERENCES dbo.Machine(CodeMachine),
+    -- Attribué par la base à l'enregistrement (DF_DocumentEntete_CreationOrder), jamais modifié (TR_DocumentEntete_CreationOrder).
+    CreationOrder          BIGINT       NOT NULL,
     RowVersion ROWVERSION NOT NULL,
     CONSTRAINT CK_DocumentEntete_Portee CHECK (
         (Portee = 'SPECIFIQUE' AND CodeArticleSageVersionne IS NOT NULL)
@@ -722,6 +814,95 @@ GO
 CREATE INDEX IX_Document_Entete_TypeStatut ON dbo.Document_Entete(TypeDocumentCode, Statut);
 CREATE INDEX IX_Document_Entete_Article    ON dbo.Document_Entete(CodeArticleSageVersionne) WHERE CodeArticleSageVersionne IS NOT NULL;
 CREATE INDEX IX_Document_Entete_Machine    ON dbo.Document_Entete(MachineCode) WHERE MachineCode IS NOT NULL;
+CREATE UNIQUE INDEX UX_Document_Entete_CreationOrder ON dbo.Document_Entete(CreationOrder);
+-- Ordre de création des formulaires, dans la même séquence que les documents (déclaré ici : la séquence est créée avec
+-- la table des documents).
+ALTER TABLE dbo.Ref_Formulaire ADD CONSTRAINT DF_RefFormulaire_CreationOrder DEFAULT (NEXT VALUE FOR dbo.CreationOrderSequence) FOR CreationOrder;
+CREATE INDEX IX_RefFormulaire_VersionGroup ON dbo.Ref_Formulaire (VersionGroupId, CreationOrder);
+-- Un document générique actif par formulaire (code + version) ; les modèles de fabrication partagent le formulaire de
+-- leur rôle, les documents spécifiques celui de leur document générique.
+CREATE UNIQUE INDEX UX_DocumentEntete_GenericActiveForm ON dbo.Document_Entete (FormulaireId)
+    WHERE Statut = 'ACTIF' AND Portee = 'GENERIQUE' AND TypeDocumentCode <> 'MODELE_FAB' AND FormulaireId IS NOT NULL;
+-- Hors du CREATE TABLE : SQL Server refuse NEXT VALUE FOR après une contrainte CHECK de colonne dans la même instruction.
+ALTER TABLE dbo.Document_Entete ADD CONSTRAINT DF_DocumentEntete_CreationOrder DEFAULT (NEXT VALUE FOR dbo.CreationOrderSequence) FOR CreationOrder;
+GO
+
+CREATE TRIGGER TR_FormCodeChange_Immutable ON dbo.FormCodeChange
+AFTER UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    THROW 50002, N'L''historique des codes de formulaire ne peut être ni modifié ni supprimé (ISO 9001).', 1;
+END;
+GO
+
+-- Identité d'un formulaire : une fois utilisée par un document ou une fiche, la ligne garde son code, sa version, son
+-- rôle, son champ d'application et sa lignée. Un formulaire n'est archivé qu'après ses documents génériques actifs.
+CREATE TRIGGER TR_RefFormulaire_Identity ON dbo.Ref_Formulaire
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id
+               WHERE (i.CodeReference <> d.CodeReference OR i.Version <> d.Version OR i.VersionGroupId <> d.VersionGroupId
+                      OR i.CreationOrder <> d.CreationOrder
+                      OR ISNULL(i.Role, '') <> ISNULL(d.Role, '')
+                      OR ISNULL(i.PosteCode, '') <> ISNULL(d.PosteCode, '')
+                      OR ISNULL(i.FamilleProduitFiniCode, '') <> ISNULL(d.FamilleProduitFiniCode, '')
+                      OR ISNULL(i.TypeRobinetCode, '') <> ISNULL(d.TypeRobinetCode, '')
+                      OR ISNULL(i.MachineCode, '') <> ISNULL(d.MachineCode, '')
+                      OR ISNULL(i.NatureArticleCode, '') <> ISNULL(d.NatureArticleCode, ''))
+                 AND (EXISTS (SELECT 1 FROM dbo.Document_Entete x WHERE x.FormulaireId = i.Id)
+                      OR EXISTS (SELECT 1 FROM dbo.Exec_ControleDocumentStatut s WHERE s.FormId = i.Id)))
+        THROW 50003, N'Ce formulaire est déjà utilisé : son code, sa version et son champ d''application ne changent plus. Changer de code crée un nouveau formulaire.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i
+               JOIN dbo.Document_Entete x ON x.FormulaireId = i.Id
+               WHERE i.Statut = 'ARCHIVE' AND x.Statut = 'ACTIF' AND x.Portee = 'GENERIQUE')
+        THROW 50003, N'Un formulaire n''est archivé qu''après ses documents génériques actifs.', 1;
+END;
+GO
+
+-- Champ d'application d'un formulaire : seulement les critères de son rôle ; nature et type de robinet seulement sans
+-- famille ; avec une famille, le type de robinet est toujours celui de la famille (jamais saisi à part).
+CREATE TRIGGER TR_RefFormulaire_Scope ON dbo.Ref_Formulaire
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.FamilleProduitFini f ON f.Code = i.FamilleProduitFiniCode
+               WHERE ISNULL(i.TypeRobinetCode, '') <> f.TypeRobinetCode)
+        THROW 50003, N'Le type de robinet d''un formulaire avec famille est celui de sa famille.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.FormRole r ON r.Code = i.Role
+               WHERE (i.FamilleProduitFiniCode IS NOT NULL AND r.ScopeByFamily = 0)
+                  OR (i.PosteCode IS NOT NULL AND r.ScopeByWorkstation = 0)
+                  OR (i.MachineCode IS NOT NULL AND r.ScopeByMachine = 0)
+                  OR (i.NatureArticleCode IS NOT NULL AND (r.ScopeByNature = 0 OR i.FamilleProduitFiniCode IS NOT NULL))
+                  OR (i.TypeRobinetCode IS NOT NULL AND i.FamilleProduitFiniCode IS NULL AND r.ScopeByValveType = 0))
+        THROW 50003, N'Ce champ d''application utilise un critère que le rôle du formulaire ne prévoit pas.', 1;
+END;
+GO
+
+-- Un document générique actif s'appuie toujours sur un formulaire en cours (brouillon ou actif).
+CREATE TRIGGER TR_DocumentEntete_FormInProgress ON dbo.Document_Entete
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i
+               JOIN dbo.Ref_Formulaire f ON f.Id = i.FormulaireId
+               WHERE i.Statut = 'ACTIF' AND i.Portee = 'GENERIQUE' AND f.Statut = 'ARCHIVE')
+        THROW 50003, N'Un document générique actif s''appuie sur un formulaire en cours, jamais sur un formulaire archivé.', 1;
+END;
+GO
+
+CREATE TRIGGER TR_DocumentEntete_CreationOrder ON dbo.Document_Entete
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF UPDATE(CreationOrder) AND EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id WHERE i.CreationOrder <> d.CreationOrder)
+        THROW 50003, N'L''ordre de création d''un document ne change jamais.', 1;
+END;
 GO
 
 
@@ -854,6 +1035,81 @@ CREATE TABLE dbo.Document_VerifMachine_MatricePiece (
     PieceRefId UNIQUEIDENTIFIER REFERENCES dbo.PieceReference(Id),
     UNIQUE (EcheanceId, FamilleId, RoleVerif, PieceRefId)
 );
+GO
+
+-- Recrée un document à l'identique sur une autre ligne de formulaire (changement de code, nouveau logo) : en-tête
+-- (même nom, même version que le formulaire cible), sections, lignes, valeurs des colonnes propres, croquis, paramètres
+-- d'échantillonnage, familles, échéances et matrice de vérification machine. Le document source n'est pas modifié (le
+-- service l'archive avant). À compléter si une table de structure de document est ajoutée.
+CREATE PROCEDURE dbo.CopyDocumentToForm
+    @SourceDocumentId UNIQUEIDENTIFIER,
+    @FormId           UNIQUEIDENTIFIER,
+    @Status           VARCHAR(20),
+    @CreatedBy        VARCHAR(20),
+    @VersionComment   NVARCHAR(MAX),
+    @NewDocumentId    UNIQUEIDENTIFIER OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    IF NOT EXISTS (SELECT 1 FROM dbo.Document_Entete WHERE Id = @SourceDocumentId)
+        THROW 50004, N'Document à recréer introuvable.', 1;
+
+    SET @NewDocumentId = NEWID();
+    INSERT INTO dbo.Document_Entete (Id, TypeDocumentCode, Portee, CodeArticleSageVersionne, DocumentSourceId, Nom, Designation,
+        Version, Statut, OperationCode, FormulaireId, LegendeMoyens, Remarques, CommentaireVersion, CreePar,
+        NatureArticleCode, FamilleProduitFiniCode, PosteCode, MachineCode)
+    SELECT @NewDocumentId, d.TypeDocumentCode, d.Portee, d.CodeArticleSageVersionne, d.DocumentSourceId, d.Nom, d.Designation,
+        f.Version, @Status, d.OperationCode, f.Id, d.LegendeMoyens, d.Remarques, @VersionComment, @CreatedBy,
+        d.NatureArticleCode, d.FamilleProduitFiniCode, d.PosteCode, d.MachineCode
+    FROM dbo.Document_Entete d CROSS JOIN dbo.Ref_Formulaire f
+    WHERE d.Id = @SourceDocumentId AND f.Id = @FormId;
+
+    DECLARE @Sections TABLE (OldId UNIQUEIDENTIFIER PRIMARY KEY, NewId UNIQUEIDENTIFIER NOT NULL);
+    INSERT INTO @Sections SELECT Id, NEWID() FROM dbo.Document_Section WHERE EnteteId = @SourceDocumentId;
+    INSERT INTO dbo.Document_Section (Id, EnteteId, OrdreAffiche, LibelleSection, TypeSectionId, PeriodiciteId, Notes, NqaId)
+    SELECT m.NewId, @NewDocumentId, s.OrdreAffiche, s.LibelleSection, s.TypeSectionId, s.PeriodiciteId, s.Notes, s.NqaId
+    FROM dbo.Document_Section s JOIN @Sections m ON m.OldId = s.Id;
+
+    DECLARE @Lines TABLE (OldId UNIQUEIDENTIFIER PRIMARY KEY, NewId UNIQUEIDENTIFIER NOT NULL);
+    INSERT INTO @Lines SELECT Id, NEWID() FROM dbo.Document_Ligne WHERE EnteteId = @SourceDocumentId;
+    INSERT INTO dbo.Document_Ligne (Id, EnteteId, SectionId, OrdreAffiche, CaracteristiqueId, LibelleAffiche, TypeCaracteristiqueId,
+        TypeControleId, MoyenControleId, MoyenTexteLibre, InstrumentCode, PeriodiciteId, LimiteSpecTexte, EstCritique,
+        Instruction, Observations, MachineCode, RisqueDefautId, TypeLigne)
+    SELECT m.NewId, @NewDocumentId, ms.NewId, l.OrdreAffiche, l.CaracteristiqueId, l.LibelleAffiche, l.TypeCaracteristiqueId,
+        l.TypeControleId, l.MoyenControleId, l.MoyenTexteLibre, l.InstrumentCode, l.PeriodiciteId, l.LimiteSpecTexte, l.EstCritique,
+        l.Instruction, l.Observations, l.MachineCode, l.RisqueDefautId, l.TypeLigne
+    FROM dbo.Document_Ligne l JOIN @Lines m ON m.OldId = l.Id LEFT JOIN @Sections ms ON ms.OldId = l.SectionId;
+
+    INSERT INTO dbo.Document_Ligne_ExtraColonne (LigneId, CleColonne, ValeurColonne, OrdreAffiche)
+    SELECT m.NewId, v.CleColonne, v.ValeurColonne, v.OrdreAffiche
+    FROM dbo.Document_Ligne_ExtraColonne v JOIN @Lines m ON m.OldId = v.LigneId;
+
+    INSERT INTO dbo.DocumentLineImage (LineId, ContentType, Content)
+    SELECT m.NewId, i.ContentType, i.Content FROM dbo.DocumentLineImage i JOIN @Lines m ON m.OldId = i.LineId;
+
+    INSERT INTO dbo.SamplingPlan (DocumentId, InspectionLevelCode, SamplingType, InspectionSeverity, AcceptableQualityLevelId,
+        AcceptanceNumber, RejectionNumber)
+    SELECT @NewDocumentId, InspectionLevelCode, SamplingType, InspectionSeverity, AcceptableQualityLevelId, AcceptanceNumber, RejectionNumber
+    FROM dbo.SamplingPlan WHERE DocumentId = @SourceDocumentId;
+
+    DECLARE @Families TABLE (OldId UNIQUEIDENTIFIER PRIMARY KEY, NewId UNIQUEIDENTIFIER NOT NULL);
+    INSERT INTO @Families SELECT Id, NEWID() FROM dbo.Document_VerifMachine_Famille WHERE EnteteId = @SourceDocumentId;
+    INSERT INTO dbo.Document_VerifMachine_Famille (Id, EnteteId, OrdreAffiche, RefFamilleCorpsId)
+    SELECT m.NewId, @NewDocumentId, f.OrdreAffiche, f.RefFamilleCorpsId
+    FROM dbo.Document_VerifMachine_Famille f JOIN @Families m ON m.OldId = f.Id;
+
+    DECLARE @Deadlines TABLE (OldId UNIQUEIDENTIFIER PRIMARY KEY, NewId UNIQUEIDENTIFIER NOT NULL);
+    INSERT INTO @Deadlines SELECT e.Id, NEWID() FROM dbo.Document_VerifMachine_Echeance e JOIN @Lines m ON m.OldId = e.LigneId;
+    INSERT INTO dbo.Document_VerifMachine_Echeance (Id, LigneId, PeriodiciteMachineId, RefMoyenDetectionId, OrdreAffiche)
+    SELECT me.NewId, ml.NewId, e.PeriodiciteMachineId, e.RefMoyenDetectionId, e.OrdreAffiche
+    FROM dbo.Document_VerifMachine_Echeance e JOIN @Deadlines me ON me.OldId = e.Id JOIN @Lines ml ON ml.OldId = e.LigneId;
+
+    INSERT INTO dbo.Document_VerifMachine_MatricePiece (EcheanceId, FamilleId, RoleVerif, PieceRefId)
+    SELECT me.NewId, mf.NewId, p.RoleVerif, p.PieceRefId
+    FROM dbo.Document_VerifMachine_MatricePiece p JOIN @Deadlines me ON me.OldId = p.EcheanceId
+    LEFT JOIN @Families mf ON mf.OldId = p.FamilleId;
+END;
 GO
 
 -- ================================================================================
@@ -1093,8 +1349,48 @@ CREATE TABLE dbo.Exec_ControleDocumentStatut (
     Equipe VARCHAR(10) NULL REFERENCES dbo.Team(Code),
     DateExecution DATETIME2(3) NULL,
     MatriculeOperateur VARCHAR(20) NULL REFERENCES dbo.AUTILIS(USR_0),
+    -- Formulaire (code + version) d'une fiche de réponse, fixé à sa création (TR_ExecControleDocumentStatut_Form) :
+    -- résultats du contrôle en cours d'assemblage ou de fabrication, registre de traçabilité. Les autres documents
+    -- d'exécution ont le formulaire du document appliqué (DocId).
+    FormId UNIQUEIDENTIFIER NULL REFERENCES dbo.Ref_Formulaire(Id),
+    -- Attribué par la base à l'enregistrement, jamais modifié : fixe le modèle de rapport en vigueur pour ce document.
+    CreationOrder BIGINT NOT NULL,
     RowVersion ROWVERSION NOT NULL
 );
+GO
+
+CREATE UNIQUE INDEX UX_ExecControleDocumentStatut_CreationOrder ON dbo.Exec_ControleDocumentStatut(CreationOrder);
+ALTER TABLE dbo.Exec_ControleDocumentStatut ADD CONSTRAINT DF_ExecControleDocumentStatut_CreationOrder
+    DEFAULT (NEXT VALUE FOR dbo.CreationOrderSequence) FOR CreationOrder;
+GO
+
+-- Formulaire d'une fiche de réponse : seulement sur une fiche de son type (résultats d'assemblage, résultats en cours de
+-- fabrication, registre de traçabilité), et jamais changé une fois fixé (le modèle du document en dépend).
+CREATE TRIGGER TR_ExecControleDocumentStatut_Form ON dbo.Exec_ControleDocumentStatut
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i LEFT JOIN dbo.Ref_Formulaire f ON f.Id = i.FormId
+               WHERE i.FormId IS NOT NULL
+                 AND NOT ((i.TypeDocument = 'PLAN_ASS' AND f.Role = 'RESULTAT_CONTROLE_ASSEMBLAGE')
+                       OR (i.TypeDocument = 'RESULTAT_CONTROLE_CF' AND f.Role = 'RESULTAT_CONTROLE_CF')
+                       OR (i.TypeDocument = 'REGISTRE_TRACA' AND f.Role = 'REGISTRE_TRACABILITE')))
+        THROW 50003, N'Une fiche ne reçoit qu''un formulaire de son type (résultats d''assemblage, résultats en cours de fabrication, registre).', 1;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id
+               WHERE d.FormId IS NOT NULL AND (i.FormId IS NULL OR i.FormId <> d.FormId))
+        THROW 50003, N'Le formulaire d''un document d''exécution ne change jamais.', 1;
+END;
+GO
+
+CREATE TRIGGER TR_ExecControleDocumentStatut_CreationOrder ON dbo.Exec_ControleDocumentStatut
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF UPDATE(CreationOrder) AND EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id WHERE i.CreationOrder <> d.CreationOrder)
+        THROW 50003, N'L''ordre de création d''un document d''exécution ne change jamais.', 1;
+END;
 GO
 
 CREATE INDEX IX_ExecControleDocumentStatut_ExecSession
@@ -1759,6 +2055,265 @@ BEGIN
                JOIN dbo.Exec_ControleOF o ON o.Id = ds.ExecControleOfId
                WHERE o.Statut = 'CLOTURE')
         THROW 50002, 'Données d''un OF clôturé : suppression interdite (ISO 9001).', 1;
+END;
+GO
+
+-- ================================================================================
+-- PARTIE 17 : MODÈLES DE RAPPORT ET DOCUMENTS GÉNÉRÉS
+--
+-- Un modèle de rapport (ReportTemplate) met en forme un type de document qualité (PLAN_ASS…) ou un type de document
+-- d'exécution rempli par les opérateurs (fiche d'échantillonnage, contrôle au poste…) à partir d'un fichier Excel de
+-- Sopal contenant des champs nommés ({{Date}}, {{Section.Libelle}}, {{Ligne.Caracteristique}}…). Une variante
+-- (ex. machine BEE46) peut avoir son propre modèle : il est rattaché au formulaire du document (FE-VM-BEE46).
+-- Chaque fichier envoyé est une version (ReportTemplateVersion) : brouillon (vérifié, aperçu possible), puis publiée
+-- par une affectation. Le contenu d'une version ne change jamais.
+-- Chaque formulaire (Ref_Formulaire) reçoit son modèle dédié : une version de modèle appartient à un seul formulaire
+-- (FormGroupId = VersionGroupId de ses lignes : ses versions et ses changements de code), porte un nom propre à ce
+-- formulaire et est numérotée dans ce formulaire. Un même fichier Excel est rattaché à nouveau pour chaque formulaire.
+-- ReportTemplate est le type de modèle : les champs que le fichier peut utiliser. Les affectations (ReportTemplateAssignment)
+-- forment un historique jamais modifié :
+--   DEFAULT        : modèle des documents sans formulaire (type de modèle sans FormRole seulement) ;
+--   FORM_STRUCTURE : modèle d'une version de formulaire ; il vaut aussi pour ses documents créés avant lui ;
+--   FORM_REVISION  : révision d'un modèle pour un formulaire (logo…) : seulement pour les documents créés après.
+-- Une nouvelle version de formulaire aux mêmes colonnes garde le modèle de la version précédente ; une version dont les
+-- colonnes changent n'en hérite pas : son modèle doit être rattaché (PDF refusé d'ici là).
+-- Le modèle d'un document se déduit de son ordre de création (CreationOrder) et de cet historique : un document garde
+-- le modèle en vigueur à sa création (règles : ResolutionModeleRapport côté application).
+-- Les modèles livrés sont rattachés à l'import aux formulaires listés dans ReportTemplateInitialForm.
+-- Un document généré (GeneratedDocument) est produit à la demande (consultation, impression) puis conservé : PDF et
+-- Excel rempli, version du modèle utilisée et empreinte des données du document ; il n'est jamais modifié ni
+-- supprimé (ISO 9001).
+-- Les empreintes SHA-256 sont calculées par la base (colonnes calculées) : elles ne peuvent pas mentir.
+-- ================================================================================
+
+CREATE TABLE dbo.ReportTemplate (
+    Code                      VARCHAR(30)   PRIMARY KEY,
+    Name                      NVARCHAR(150) NOT NULL,
+    -- Type mis en forme : document qualité OU document d'exécution.
+    DocumentTypeCode          VARCHAR(30)   NULL REFERENCES dbo.TypeDocument(Code),
+    ExecutionDocumentTypeCode VARCHAR(50)   NULL REFERENCES dbo.ExecutionDocumentType(Code),
+    -- Rôle des formulaires dont ce modèle met en forme les documents ; NULL : documents sans formulaire (registre).
+    FormRole                  VARCHAR(50)   NULL REFERENCES dbo.FormRole(Code),
+    CONSTRAINT CK_ReportTemplate_Source CHECK (
+        (DocumentTypeCode IS NOT NULL AND ExecutionDocumentTypeCode IS NULL) OR (DocumentTypeCode IS NULL AND ExecutionDocumentTypeCode IS NOT NULL))
+);
+GO
+
+-- Formulaires qui reçoivent la version livrée d'un modèle à son import (rattachements de départ) : un formulaire n'est
+-- listé qu'une fois. Les rattachements suivants se font depuis l'écran des modèles.
+CREATE TABLE dbo.ReportTemplateInitialForm (
+    FormCodeReference  VARCHAR(30) PRIMARY KEY,
+    ReportTemplateCode VARCHAR(30) NOT NULL REFERENCES dbo.ReportTemplate(Code)
+);
+GO
+
+CREATE TABLE dbo.ReportTemplateVersion (
+    Id                 UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+    ReportTemplateCode VARCHAR(30)    NOT NULL REFERENCES dbo.ReportTemplate(Code),
+    -- Formulaire propriétaire (VersionGroupId de ses lignes) ; NULL : modèle par défaut des documents sans formulaire.
+    FormGroupId        UNIQUEIDENTIFIER NULL,
+    -- Nom du modèle, propre à son formulaire (ex. « Plan de contrôle d'assemblage (FE0594) — FE-ASS-MANU »).
+    Name               NVARCHAR(200)  NOT NULL,
+    -- Numéro dans son formulaire (dans son type de modèle pour un modèle par défaut).
+    VersionNumber      INT            NOT NULL CHECK (VersionNumber > 0),
+    FileName           NVARCHAR(200)  NOT NULL,
+    Content            VARBINARY(MAX) NOT NULL,
+    ContentSha256      AS CONVERT(CHAR(64), HASHBYTES('SHA2_256', Content), 2) PERSISTED,
+    Status             VARCHAR(20)    NOT NULL DEFAULT 'DRAFT'
+        CONSTRAINT CK_ReportTemplateVersion_Status CHECK (Status IN ('DRAFT', 'PUBLISHED')),
+    -- Avertissements de la vérification du fichier (JSON), acceptés à la publication.
+    ValidationWarnings NVARCHAR(MAX)  NULL,
+    Comment            NVARCHAR(500)  NULL,
+    -- NULL : modèle livré avec l'application.
+    UploadedBy         VARCHAR(20)    NULL REFERENCES dbo.AUTILIS(USR_0),
+    UploadedAt         DATETIME2(3)   NOT NULL DEFAULT SYSDATETIME(),
+    PublishedBy        VARCHAR(20)    NULL REFERENCES dbo.AUTILIS(USR_0),
+    PublishedAt        DATETIME2(3)   NULL,
+    CONSTRAINT CK_ReportTemplateVersion_Published CHECK (
+        (Status = 'DRAFT' AND PublishedAt IS NULL) OR (Status = 'PUBLISHED' AND PublishedAt IS NOT NULL))
+);
+GO
+
+CREATE UNIQUE INDEX UX_ReportTemplateVersion_FormNumber ON dbo.ReportTemplateVersion(FormGroupId, VersionNumber) WHERE FormGroupId IS NOT NULL;
+CREATE UNIQUE INDEX UX_ReportTemplateVersion_DefaultNumber ON dbo.ReportTemplateVersion(ReportTemplateCode, VersionNumber) WHERE FormGroupId IS NULL;
+GO
+
+CREATE TABLE dbo.ReportTemplateAssignment (
+    Id                      BIGINT IDENTITY(1,1) PRIMARY KEY,
+    ReportTemplateVersionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.ReportTemplateVersion(Id),
+    Kind                    VARCHAR(20)      NOT NULL CONSTRAINT CK_ReportTemplateAssignment_Kind
+        CHECK (Kind IN ('DEFAULT', 'FORM_STRUCTURE', 'FORM_REVISION')),
+    -- Version de formulaire concernée (NULL pour DEFAULT).
+    FormId                  UNIQUEIDENTIFIER NULL REFERENCES dbo.Ref_Formulaire(Id),
+    CreationOrder           BIGINT           NOT NULL,
+    Comment                 NVARCHAR(500)    NULL,
+    -- NULL : modèle livré avec l'application.
+    AssignedBy              VARCHAR(20)      NULL REFERENCES dbo.AUTILIS(USR_0),
+    AssignedAt              DATETIME2(3)     NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT CK_ReportTemplateAssignment_Form CHECK (
+        (Kind = 'DEFAULT' AND FormId IS NULL) OR (Kind <> 'DEFAULT' AND FormId IS NOT NULL))
+);
+GO
+
+CREATE UNIQUE INDEX UX_ReportTemplateAssignment_CreationOrder ON dbo.ReportTemplateAssignment(CreationOrder);
+ALTER TABLE dbo.ReportTemplateAssignment ADD CONSTRAINT DF_ReportTemplateAssignment_CreationOrder
+    DEFAULT (NEXT VALUE FOR dbo.CreationOrderSequence) FOR CreationOrder;
+CREATE INDEX IX_ReportTemplateAssignment_Form ON dbo.ReportTemplateAssignment(FormId) WHERE FormId IS NOT NULL;
+CREATE INDEX IX_ReportTemplateAssignment_Version ON dbo.ReportTemplateAssignment(ReportTemplateVersionId);
+GO
+
+CREATE TABLE dbo.GeneratedDocument (
+    Id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+    -- Source : un document qualité OU un document d'exécution (réponses des opérateurs).
+    DocumentEnteteId        UNIQUEIDENTIFIER NULL REFERENCES dbo.Document_Entete(Id),
+    ExecControleDocumentStatutId UNIQUEIDENTIFIER NULL REFERENCES dbo.Exec_ControleDocumentStatut(Id),
+    ReportTemplateVersionId UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.ReportTemplateVersion(Id),
+    -- Empreinte des données du document mises en forme : une même donnée n'est générée qu'une fois par version du modèle.
+    SourceDataSha256        CHAR(64)       NOT NULL,
+    FileName                NVARCHAR(200)  NOT NULL,
+    PdfContent              VARBINARY(MAX) NOT NULL,
+    PdfSha256               AS CONVERT(CHAR(64), HASHBYTES('SHA2_256', PdfContent), 2) PERSISTED,
+    WorkbookContent         VARBINARY(MAX) NOT NULL,
+    GeneratedAt             DATETIME2(3)   NOT NULL DEFAULT SYSDATETIME(),
+    -- Utilisateur qui a consulté ou imprimé le document (NULL : génération par l'application).
+    RequestedBy             VARCHAR(20)    NULL REFERENCES dbo.AUTILIS(USR_0),
+    CONSTRAINT CK_GeneratedDocument_Source CHECK (
+        (DocumentEnteteId IS NOT NULL AND ExecControleDocumentStatutId IS NULL) OR (DocumentEnteteId IS NULL AND ExecControleDocumentStatutId IS NOT NULL))
+);
+GO
+
+-- Une même donnée n'est générée qu'une fois par version du modèle, pour chaque source.
+CREATE UNIQUE INDEX UX_GeneratedDocument_Document ON dbo.GeneratedDocument(DocumentEnteteId, ReportTemplateVersionId, SourceDataSha256) WHERE DocumentEnteteId IS NOT NULL;
+CREATE UNIQUE INDEX UX_GeneratedDocument_Execution ON dbo.GeneratedDocument(ExecControleDocumentStatutId, ReportTemplateVersionId, SourceDataSha256) WHERE ExecControleDocumentStatutId IS NOT NULL;
+CREATE INDEX IX_GeneratedDocument_Document ON dbo.GeneratedDocument(DocumentEnteteId, GeneratedAt DESC);
+CREATE INDEX IX_GeneratedDocument_Execution ON dbo.GeneratedDocument(ExecControleDocumentStatutId, GeneratedAt DESC);
+GO
+
+-- Demandes de modèle : ce que l'administrateur doit rattacher, et pourquoi. Une demande naît d'un nouveau formulaire
+-- (NEW_FORM), d'une nouvelle version dont la structure change (NEW_STRUCTURE) ou du superviseur qualité (SUPERVISOR,
+-- avec son choix : même version ou version suivante). Une seule demande en attente par formulaire ; une demande traitée
+-- garde l'affectation qui l'a satisfaite (traçabilité ISO 9001).
+CREATE TABLE dbo.ReportTemplateRequest (
+    Id            BIGINT IDENTITY(1,1) PRIMARY KEY,
+    FormId        UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.Ref_Formulaire(Id),
+    Origin        VARCHAR(20)    NOT NULL
+        CONSTRAINT CK_ReportTemplateRequest_Origin CHECK (Origin IN ('NEW_FORM', 'NEW_STRUCTURE', 'SUPERVISOR')),
+    Reason        NVARCHAR(500)  NULL,
+    -- Choix du superviseur (demande SUPERVISOR seulement) : appliqué tel quel au rattachement.
+    VersionChange VARCHAR(20)    NULL
+        CONSTRAINT CK_ReportTemplateRequest_VersionChange CHECK (VersionChange IN ('SAME_VERSION', 'NEXT_VERSION')),
+    Status        VARCHAR(20)    NOT NULL DEFAULT 'PENDING'
+        CONSTRAINT CK_ReportTemplateRequest_Status CHECK (Status IN ('PENDING', 'DONE', 'CANCELLED')),
+    RequestedBy   VARCHAR(20)    NULL REFERENCES dbo.AUTILIS(USR_0),
+    RequestedAt   DATETIME2(3)   NOT NULL DEFAULT SYSDATETIME(),
+    HandledBy     VARCHAR(20)    NULL REFERENCES dbo.AUTILIS(USR_0),
+    HandledAt     DATETIME2(3)   NULL,
+    AssignmentId  BIGINT         NULL REFERENCES dbo.ReportTemplateAssignment(Id),
+    CONSTRAINT CK_ReportTemplateRequest_VersionChoice CHECK (
+        (Origin = 'SUPERVISOR' AND VersionChange IS NOT NULL) OR (Origin <> 'SUPERVISOR' AND VersionChange IS NULL)),
+    CONSTRAINT CK_ReportTemplateRequest_Handled CHECK (
+        (Status = 'PENDING' AND HandledAt IS NULL AND AssignmentId IS NULL)
+        OR (Status = 'DONE' AND HandledAt IS NOT NULL AND AssignmentId IS NOT NULL)
+        OR (Status = 'CANCELLED' AND HandledAt IS NOT NULL))
+);
+GO
+
+CREATE UNIQUE INDEX UX_ReportTemplateRequest_Pending ON dbo.ReportTemplateRequest(FormId) WHERE Status = 'PENDING';
+GO
+
+-- Le fichier d'une version ne change jamais ; une version n'est jamais supprimée et ne redevient pas brouillon.
+CREATE TRIGGER TR_ReportTemplateVersion_Immutable ON dbo.ReportTemplateVersion
+AFTER UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted) AND EXISTS (SELECT 1 FROM deleted)
+        THROW 50002, N'Une version de modèle de rapport ne peut pas être supprimée (ISO 9001).', 1;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id
+               WHERE i.ReportTemplateCode <> d.ReportTemplateCode OR i.VersionNumber <> d.VersionNumber
+                  OR ISNULL(i.FormGroupId, '00000000-0000-0000-0000-000000000000') <> ISNULL(d.FormGroupId, '00000000-0000-0000-0000-000000000000')
+                  OR i.Name <> d.Name
+                  OR i.FileName <> d.FileName OR i.ContentSha256 <> d.ContentSha256
+                  OR ISNULL(i.UploadedBy, '') <> ISNULL(d.UploadedBy, '') OR i.UploadedAt <> d.UploadedAt)
+        THROW 50003, N'Le fichier d''une version de modèle ne peut pas être modifié : envoyez une nouvelle version.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN deleted d ON d.Id = i.Id
+               WHERE d.Status = 'PUBLISHED' AND (i.Status <> 'PUBLISHED' OR i.PublishedAt <> d.PublishedAt
+                                                 OR ISNULL(i.PublishedBy, '') <> ISNULL(d.PublishedBy, '')))
+        THROW 50003, N'Une version de modèle publiée ne change plus.', 1;
+END;
+GO
+
+-- Une version de modèle appartient à un formulaire du rôle que son type met en forme ; un type sans formulaire
+-- (modèle par défaut) n'a pas de formulaire propriétaire.
+CREATE TRIGGER TR_ReportTemplateVersion_Owner ON dbo.ReportTemplateVersion
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.ReportTemplate t ON t.Code = i.ReportTemplateCode
+               WHERE (t.FormRole IS NULL AND i.FormGroupId IS NOT NULL)
+                  OR (i.FormGroupId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.Ref_Formulaire f
+                                                               WHERE f.VersionGroupId = i.FormGroupId AND f.Role = t.FormRole)))
+        THROW 50003, N'Un modèle appartient à un formulaire dont son type met en forme les documents (même rôle).', 1;
+END;
+GO
+
+-- Historique des affectations : jamais modifié ni supprimé. Une affectation utilise une version publiée ; une
+-- affectation à un formulaire vise un modèle de document qualité et une version de formulaire non archivée.
+CREATE TRIGGER TR_ReportTemplateAssignment_Rules ON dbo.ReportTemplateAssignment
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM deleted)
+        THROW 50002, N'L''historique des affectations de modèles ne peut être ni modifié ni supprimé (ISO 9001).', 1;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.ReportTemplateVersion v ON v.Id = i.ReportTemplateVersionId
+               WHERE v.Status <> 'PUBLISHED')
+        THROW 50003, N'Seule une version de modèle publiée peut être affectée.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i
+               JOIN dbo.ReportTemplateVersion v ON v.Id = i.ReportTemplateVersionId
+               JOIN dbo.ReportTemplate t ON t.Code = v.ReportTemplateCode
+               JOIN dbo.Ref_Formulaire f ON f.Id = i.FormId
+               WHERE f.Statut = 'ARCHIVE' OR t.FormRole IS NULL OR f.Role IS NULL OR f.Role <> t.FormRole)
+        THROW 50003, N'Un modèle n''est rattaché qu''à une version de formulaire non archivée dont il met en forme les documents (même rôle).', 1;
+    IF EXISTS (SELECT 1 FROM inserted i
+               JOIN dbo.ReportTemplateVersion v ON v.Id = i.ReportTemplateVersionId
+               JOIN dbo.ReportTemplate t ON t.Code = v.ReportTemplateCode
+               WHERE i.Kind = 'DEFAULT' AND t.FormRole IS NOT NULL)
+        THROW 50003, N'Un modèle des documents d''un formulaire se rattache au formulaire, pas comme modèle par défaut.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i
+               JOIN dbo.ReportTemplateVersion v ON v.Id = i.ReportTemplateVersionId
+               LEFT JOIN dbo.Ref_Formulaire f ON f.Id = i.FormId
+               WHERE (i.Kind = 'DEFAULT' AND v.FormGroupId IS NOT NULL)
+                  OR (i.Kind <> 'DEFAULT' AND ISNULL(v.FormGroupId, '00000000-0000-0000-0000-000000000000') <> f.VersionGroupId))
+        THROW 50003, N'Un modèle n''est rattaché qu''au formulaire auquel il est dédié.', 1;
+END;
+GO
+
+-- Un document généré est figé ; il est produit par une version publiée du modèle de son type de document.
+CREATE TRIGGER TR_GeneratedDocument_Immutable ON dbo.GeneratedDocument
+AFTER UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    THROW 50002, N'Un document généré ne peut être ni modifié ni supprimé (ISO 9001).', 1;
+END;
+GO
+
+CREATE TRIGGER TR_GeneratedDocument_Template ON dbo.GeneratedDocument
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i
+               JOIN dbo.ReportTemplateVersion v ON v.Id = i.ReportTemplateVersionId
+               JOIN dbo.ReportTemplate t ON t.Code = v.ReportTemplateCode
+               LEFT JOIN dbo.Document_Entete e ON e.Id = i.DocumentEnteteId
+               LEFT JOIN dbo.Exec_ControleDocumentStatut s ON s.Id = i.ExecControleDocumentStatutId
+               WHERE v.Status <> 'PUBLISHED'
+                  OR (i.DocumentEnteteId IS NOT NULL AND ISNULL(t.DocumentTypeCode, '') <> e.TypeDocumentCode)
+                  OR (i.ExecControleDocumentStatutId IS NOT NULL AND ISNULL(t.ExecutionDocumentTypeCode, '') <> s.TypeDocument))
+        THROW 50003, N'Un document généré utilise une version publiée du modèle de son type de document.', 1;
 END;
 GO
 

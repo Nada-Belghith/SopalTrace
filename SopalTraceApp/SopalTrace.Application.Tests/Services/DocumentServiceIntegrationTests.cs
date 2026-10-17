@@ -28,6 +28,8 @@ namespace SopalTrace.Application.Tests.Services
         {
             var options = RowVersionEnMemoire.Activer(new DbContextOptionsBuilder<SopalTraceDbContext>())
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                // Base en mémoire sans transactions : la création d'un document (transactionnelle en SQL Server) s'y exécute sans.
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
                 .Options;
 
             _context = new SopalTraceDbContext(options);

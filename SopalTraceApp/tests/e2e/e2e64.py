@@ -37,11 +37,18 @@ def check(label, cond, info=''):
 
 TYPE = {t: sql(f"SELECT Id FROM TypeSection WHERE TypeNormalise='{t}'") for t in ('LOT_POSTE', 'LOT_OF', 'ECHANTILLONNAGE_2859', 'REGLAGE', 'TOUS_PIECES')}
 
+def code_formulaire(famille, poste):
+    """Formulaire du champ d'application s'il existe (le serveur le trouve seul) ; sinon le code d'un nouveau formulaire."""
+    existe = sql("SELECT COUNT(*) FROM Ref_Formulaire WHERE Role='EN_COURS_DE_ASSEMBLAGE' AND Statut IN ('BROUILLON','ACTIF') AND "
+                 + (f"FamilleProduitFiniCode='{famille}'" if famille else 'FamilleProduitFiniCode IS NULL') + ' AND '
+                 + (f"PosteCode='{poste}'" if poste else 'PosteCode IS NULL') + ' AND NatureArticleCode IS NULL AND MachineCode IS NULL')
+    return None if existe == '1' else f'FE-ASS-{famille}-{poste or "FAMILLE"}'
+
 def plan(famille, poste, types):
     sections = [{'ordreAffiche': i + 1, 'libelleSection': t, 'typeSectionId': TYPE[t],
                  'lignes': [{'ordreAffiche': 1, 'libelleAffiche': f'Étanchéité {t}'}]} for i, t in enumerate(types)]
     st, r = call(SUP, 'POST', '/Document', {'typeDocumentCode': 'PLAN_ASS', 'nom': f'Plan {famille} {poste or "famille"}', 'familleProduitFiniCode': famille,
-                                            'posteCode': poste, 'refFormulaireCodeReference': f'FE-ASS-{famille}-{poste or "FAMILLE"}', 'sections': sections})
+                                            'posteCode': poste, 'refFormulaireCodeReference': code_formulaire(famille, poste), 'sections': sections})
     doc = data(r).get('id') if isinstance(data(r), dict) else None
     statut = sql(f"SELECT Statut FROM Document_Entete WHERE Id='{doc}'")
     check(f'plan d\'assemblage {famille} / {poste} créé directement actif (document générique)', st in (200, 201) and statut == 'ACTIF', (st, statut, r))
@@ -162,6 +169,10 @@ check('A : OF clôturé encore au tableau de bord (consultation), avec sa date d
       of_a.get('statut') == 'CLOTURE' and of_a.get('dateCloture') and of_a.get('execControleOfId', '').lower() == ofa.lower(), of_a)
 av_a = avancement(ofa, 'PAS71')
 check('A : OF clôturé ouvert en consultation : étape clôturée, aucune tâche', av_a.get('phase') == 'CLOTURE' and av_a.get('taches') == [], av_a)
+st, r = call(OP, 'GET', f'/Operateur/of/{ofa}/assemblage-documents')
+types_a = sorted({d['typeDocument'] for d in (r or []) if d.get('posteCode') == 'PAS71'})
+check("A : OF clôturé : ses documents restent consultables (toutes équipes)", st == 200 and 'ECHANTILLONNAGE' in types_a, (st, types_a))
+check("A : OF clôturé : postes affichés « clôturé »", {p['phase'] for p in av_a.get('postes', [])} == {'CLOTURE'}, av_a.get('postes'))
 
 # Plan de famille sans poste : valable sur tous les postes (le plan du poste reste prioritaire).
 plan('RBGFM', None, ['LOT_POSTE'])
@@ -435,5 +446,128 @@ check("D : clôture de l'OF par E3", st == 204 and sql(f"SELECT Statut FROM Exec
 check("D : toutes les sessions et tous les postes terminés avec l'OF", sql(
     f"SELECT COUNT(*) FROM Exec_SessionPost WHERE ExecControleOfId='{ofc}' AND EndedAt IS NULL") == '0' and sql(
     f"SELECT COUNT(*) FROM Exec_ControleOf_Session WHERE ExecControleOfId='{ofc}' AND Statut <> 'TERMINE'") == '0')
+
+# ── R : documents d'exécution mis en forme à la demande ─────────────────────────
+import io, zipfile
+def binaire(tok, chemin):
+    req = urllib.request.Request(BASE + chemin, headers={'Authorization': 'Bearer ' + tok})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+RQ_R = jwt('22222', 'RESPONSABLE_QUALITE')
+check("R aucun PDF produit en arrière-plan (OF clôturé) : seulement à la consultation", sql(
+    "SELECT COUNT(*) FROM GeneratedDocument g JOIN Exec_ControleDocumentStatut s ON s.Id = g.ExecControleDocumentStatutId "
+    "WHERE s.ExecControleOfId = '" + ofc + "'") == '0')
+numero_of = sql("SELECT NumeroOF FROM Exec_ControleOF WHERE Id='" + ofc + "'")
+st, r = call(SUP, 'GET', f'/rapports/tracabilite/{numero_of}')
+cartes = (r.get('data') or {}).get('documents', []) if isinstance(r, dict) else []
+check("R traçabilité de l'OF : chaque document est disponible (avec le modèle en vigueur à sa création) ou manquant avec sa raison",
+      st == 200 and cartes and all((c.get('etat') == 'DISPONIBLE' and c.get('modele')) or (c.get('etat') == 'MANQUANT' and c.get('raisonManquant'))
+                                   for c in cartes), (st, [(c['typeCode'], c.get('etat'), c.get('raisonManquant')) for c in cartes]))
+check("R traçabilité de l'OF : seulement les fiches remplies, jamais les clôtures de poste ni un plan déjà représenté par ses fiches",
+      not any(c['typeCode'].startswith('CLOTURE_') for c in cartes)
+      and not any(c['categorie'] == 'QUALITE' and not c.get('contratDisponible') and c.get('etat') == 'DISPONIBLE' for c in cartes),
+      [(c['categorie'], c['typeCode'], c.get('etat')) for c in cartes])
+# Chaque fiche reçoit le modèle de son formulaire : résultats d'assemblage selon le formulaire de résultats fixé à sa
+# création (poste 71 / auto : FE0816 ; postes 72 et 78 / manuel : FE0817), vérification machine selon la machine.
+MODELE_DU_FORMULAIRE = {'FE-RC-ENCF-ASS-AUTO': 'PLAN_ASS_RESULTATS', 'FE-RC-ENCF-ASS-PAS71_SOUPAPE': 'PLAN_ASS_RESULTATS',
+                        'FE-RC-ENCF-ASS-MANU': 'PLAN_ASS_RESULTATS_PAS72', 'FE-RC-ENCF-ASS-PAS72_SOUPAPE': 'PLAN_ASS_RESULTATS_PAS72',
+                        'FE-RC-ENCF-ASS-PAS78_SOUPAPE': 'PLAN_ASS_RESULTATS_PAS72'}
+data_ok = lambda reponse: (reponse[1].get('data') or []) if isinstance(reponse[1], dict) else []
+MODELE_DE_LA_MACHINE = {'BEE22': 'VERIF_MACHINE', 'BEE46': 'VERIF_MACHINE', 'BEE47': 'VERIF_MACHINE', 'MAS19': 'VERIF_MACHINE_MAS',
+                        'MAS22': 'VERIF_MACHINE_MAS22', 'MAS26': 'VERIF_MACHINE_MAS26', 'SER05': 'VERIF_MACHINE_SER05'}
+fiches = [c for c in cartes if c['categorie'] == 'EXECUTION' and c['typeCode'] == 'PLAN_ASS']
+check("R résultats d'assemblage : chaque fiche a son formulaire de résultats (FE-RC-ENCF-ASS-*) et le modèle rattaché à ce formulaire",
+      fiches and all((c.get('formulaire') or '').split(' version')[0] in MODELE_DU_FORMULAIRE
+                     and (c.get('modele') or {}).get('codeModele') == MODELE_DU_FORMULAIRE[c['formulaire'].split(' version')[0]] for c in fiches),
+      [(c['poste'], c.get('formulaire'), (c.get('modele') or {}).get('codeModele')) for c in fiches])
+verifs = data_ok(call(SUP, 'GET', '/rapports/documents?categorie=EXECUTION&type=VERIF_MACHINE'))
+check('R vérifications machine : chaque fiche a le modèle rattaché au formulaire de sa machine (FE-VM-machine)',
+      verifs and all((c.get('modele') or {}).get('codeModele') == MODELE_DE_LA_MACHINE.get(c['machine']) for c in verifs),
+      [(c['machine'], c.get('formulaire'), (c.get('modele') or {}).get('codeModele')) for c in verifs])
+for type_execution, libelle in (('ECHANTILLONNAGE', "fiche d'échantillonnage"), ('RESULTAT_CONTROLE_POSTE', 'résultat de contrôle au poste'),
+                                ('VERIF_MACHINE', 'rapport de vérification machine'), ('PLAN_ASS', "résultats du contrôle d'assemblage du poste"),
+                                ('REGISTRE_TRACA', 'registre de traçabilité du poste')):
+    st, r = call(SUP, 'GET', f'/rapports/documents?categorie=EXECUTION&type={type_execution}')
+    liste = (r.get('data') or []) if isinstance(r, dict) else []
+    source = next((d for d in liste if d.get('modele')), None)
+    check(f'R {libelle} : listé avec son modèle (version 1, en vigueur à sa création)',
+          st == 200 and source and source['modele']['numeroVersion'] == 1 and source['modele']['regle'] == 'EN_VIGUEUR_A_LA_CREATION', (st, liste[:1]))
+    if not source: continue
+    statut = source['execControleDocumentStatutId']
+    st, pdf = binaire(SUP, f'/rapports/documents/par-execution/{statut}/pdf')
+    genere = sql(f"SELECT TOP 1 Id FROM GeneratedDocument WHERE ExecControleDocumentStatutId='{statut}'")
+    check(f'R {libelle} : PDF produit au clic (signature %PDF), conservé avec son demandeur et son empreinte',
+          st == 200 and pdf[:5] == b'%PDF-' and sql(f"SELECT RequestedBy FROM GeneratedDocument WHERE Id='{genere}'") == '44444'
+          and sql(f"SELECT PdfSha256 FROM GeneratedDocument WHERE Id='{genere}'") == hashlib.sha256(pdf).hexdigest().upper(), st)
+    st, pdf2 = binaire(RQ_R, f'/rapports/documents/par-execution/{statut}/pdf')
+    check(f'R {libelle} : deuxième consultation (responsable qualité) : même PDF, rien de reproduit',
+          st == 200 and pdf2 == pdf and sql(f"SELECT COUNT(*) FROM GeneratedDocument WHERE ExecControleDocumentStatutId='{statut}'") == '1', st)
+    st, xlsx = binaire(SUP, f'/rapports/documents/par-execution/{statut}/excel')
+    feuille = __import__('openpyxl').load_workbook(io.BytesIO(xlsx)).active if st == 200 and zipfile.is_zipfile(io.BytesIO(xlsx)) else None
+    restants = [c.value for ligne in (feuille.iter_rows() if feuille else []) for c in ligne if isinstance(c.value, str) and '{{' in c.value]
+    check(f'R {libelle} : Excel rempli, aucun champ {{}} restant', feuille is not None and not restants, restants[:5])
+    st, r = call(SUP, 'GET', f'/rapports/documents/par-execution/{statut}')
+    etat = r.get('data', {}) if isinstance(r, dict) else {}
+    check(f"R {libelle} : état du document (son modèle, son PDF dans l'historique)",
+          st == 200 and etat.get('source', {}).get('modele') and len(etat.get('documents', [])) == 1, (st, r))
+    st, modele = binaire(SUP, f'/rapports/documents/par-execution/{statut}/modele')
+    check(f'R {libelle} : Excel du modèle du document téléchargeable (superviseur)', st == 200 and zipfile.is_zipfile(io.BytesIO(modele)), st)
+    if type_execution == 'RESULTAT_CONTROLE_POSTE' and feuille is not None:
+        check('R résultat de contrôle au poste : défauts du document et pied de page « formulaire.version »',
+              feuille['A8'].value == '1' and feuille['C8'].value and (feuille.oddFooter.right.text or '').count('.') == 1,
+              (feuille['A8'].value, feuille['C8'].value, feuille.oddFooter.right.text))
+    if type_execution == 'ECHANTILLONNAGE':
+        check("R opérateur : PDF des documents d'exécution refusé (403)", binaire(OP, f'/rapports/documents/par-execution/{statut}/pdf')[0] == 403)
+        check('R responsable qualité : Excel du modèle réservé au superviseur (403)', binaire(RQ_R, f'/rapports/documents/par-execution/{statut}/modele')[0] == 403)
+
+# ── S. Un OF garde le modèle en vigueur à la première utilisation de son formulaire, même si le modèle change ensuite ──
+import uuid, openpyxl
+def envoyer_modele(code, nom, contenu, formulaire):
+    limite = 'e2e' + uuid.uuid4().hex
+    fin_ligne = '\r\n'
+    corps = (f'--{limite}{fin_ligne}Content-Disposition: form-data; name="fichier"; filename="{nom}"{fin_ligne}'
+             f'Content-Type: application/octet-stream{fin_ligne}{fin_ligne}').encode()
+    corps += contenu + (f'{fin_ligne}--{limite}{fin_ligne}Content-Disposition: form-data; name="formulaireId"{fin_ligne}{fin_ligne}'
+                        f'{formulaire}{fin_ligne}--{limite}--{fin_ligne}').encode()
+    req = urllib.request.Request(BASE + f'/rapports/modeles/{code}/versions', data=corps, method='POST',
+        headers={'Authorization': 'Bearer ' + ADMIN, 'Content-Type': f'multipart/form-data; boundary={limite}'})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r: return r.status, json.loads(r.read().decode())
+    except urllib.error.HTTPError as e: return e.code, {}
+
+def modele_fiche(statut_id):
+    r = data(call(SUP, 'GET', f'/rapports/documents/par-execution/{statut_id}')[1]) or {}
+    return (r.get('source', {}).get('modele') or {}).get('versionId', ''), (r.get('modeleActuel') or {}).get('versionId', '')
+
+fiche_1, of_1, form_1, doc_1 = (sql("SELECT TOP 1 CONCAT(LOWER(CAST(s.Id AS VARCHAR(36))), '|', LOWER(CAST(s.ExecControleOfId AS VARCHAR(36))), '|', "
+    "LOWER(CAST(d.FormulaireId AS VARCHAR(36))), '|', LOWER(CAST(s.DocId AS VARCHAR(36)))) FROM Exec_ControleDocumentStatut s "
+    "JOIN Document_Entete d ON d.Id = s.DocId WHERE s.TypeDocument = 'RESULTAT_CONTROLE_POSTE' ORDER BY s.CreationOrder") or '|||').split('|')
+modele_avant, _ = modele_fiche(fiche_1)
+st, r = call(SUP, 'POST', f'/rapports/formulaires/{form_1}/demande-modele', {'motif': 'Mise en page pendant un OF', 'changementVersion': 'SAME_VERSION'})
+demande = data(r) if st == 200 else None
+st_f, fichier = binaire(ADMIN, f'/rapports/modeles/versions/{modele_avant}/fichier')
+classeur = openpyxl.load_workbook(io.BytesIO(fichier)) if st_f == 200 else None
+if classeur:
+    classeur.active['Z1'] = 'Mise en page OF'
+sortie = io.BytesIO(); classeur and classeur.save(sortie)
+st_e, r_e = envoyer_modele('RESULTAT_CONTROLE_POSTE', 'mise_en_page_of.xlsx', sortie.getvalue(), form_1)
+nouveau = ((r_e.get('data') or {}).get('version') or {}).get('id', '')
+st_t, r_t = call(ADMIN, 'POST', f'/rapports/demandes-modele/{demande}/traiter', {'versionId': nouveau})
+# Deux fiches créées après ce changement : l'une dans le même OF (formulaire déjà utilisé), l'autre dans un autre OF.
+autre_of = sql(f"SELECT TOP 1 LOWER(CAST(o.Id AS VARCHAR(36))) FROM Exec_ControleOF o WHERE o.Id <> '{of_1}' AND NOT EXISTS "
+               f"(SELECT 1 FROM Exec_ControleDocumentStatut s WHERE s.ExecControleOfId = o.Id AND s.DocId = '{doc_1}')")
+for of_cible in (of_1, autre_of):
+    sql(f"INSERT INTO Exec_ControleDocumentStatut (ExecControleOfId, TypeDocument, PosteCode, MachineCode, DocId) "
+        f"SELECT '{of_cible}', TypeDocument, PosteCode, MachineCode, DocId FROM Exec_ControleDocumentStatut WHERE Id = '{fiche_1}'")
+fiche_meme_of = sql(f"SELECT TOP 1 LOWER(CAST(Id AS VARCHAR(36))) FROM Exec_ControleDocumentStatut WHERE ExecControleOfId='{of_1}' AND DocId='{doc_1}' ORDER BY CreationOrder DESC")
+fiche_autre_of = sql(f"SELECT TOP 1 LOWER(CAST(Id AS VARCHAR(36))) FROM Exec_ControleDocumentStatut WHERE ExecControleOfId='{autre_of}' AND DocId='{doc_1}' ORDER BY CreationOrder DESC")
+meme_of, actuel = modele_fiche(fiche_meme_of)
+autre, _ = modele_fiche(fiche_autre_of)
+check("S nouveau modèle (même version) pendant un OF : une fiche créée ensuite dans cet OF garde le modèle de l'OF ; un autre OF prend le nouveau",
+      (st, st_t) == (200, 200) and bool(nouveau) and fiche_meme_of != fiche_1 and meme_of.lower() == modele_avant.lower()
+      and actuel.lower() == nouveau.lower() and autre.lower() == nouveau.lower(), (st, st_e, st_t, r_t, modele_avant, meme_of, autre, nouveau))
 
 print(f'e2e64: {ok} OK / {ko} KO')

@@ -133,6 +133,29 @@ builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IPlanific
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IPlanificationProductionService, SopalTrace.Application.Services.Execution.PlanificationProductionService>();
 // Contrôles de production de l'assemblage planifiés chaque minute, que les écrans soient ouverts ou non.
 builder.Services.AddHostedService<SopalTrace.Api.TachesDeFond.PlanificationProductionWorker>();
+// Documents générés à la demande : modèle Excel de Sopal en vigueur à la création du document, rempli depuis la base,
+// converti en PDF par Gotenberg, conservé en base.
+var parametresRapports = builder.Configuration.GetSection("Rapports").Get<SopalTrace.Application.Settings.RapportsSettings>()
+    ?? new SopalTrace.Application.Settings.RapportsSettings();
+builder.Services.AddSingleton(parametresRapports);
+builder.Services.AddSingleton<SopalTrace.Application.Interfaces.Rapports.IMoteurModeleExcel, SopalTrace.Infrastructure.Rapports.MoteurModeleExcel>();
+builder.Services.AddSingleton<SopalTrace.Application.Interfaces.Rapports.IModelesLivres>(sp =>
+    new SopalTrace.Infrastructure.Rapports.ModelesLivres(sp.GetRequiredService<SopalTrace.Application.Settings.RapportsSettings>().DossierModelesLivres));
+builder.Services.AddSingleton<SopalTrace.Application.Rapports.IDefinitionRapport>(new SopalTrace.Application.Rapports.DefinitionRapportPlan(SopalTrace.Domain.Constants.TypesDocument.PlanAssemblage));
+builder.Services.AddHttpClient<SopalTrace.Application.Interfaces.Rapports.IConvertisseurPdf, SopalTrace.Infrastructure.Rapports.ConvertisseurPdfGotenberg>(client =>
+    client.Timeout = TimeSpan.FromSeconds(Math.Max(10, parametresRapports.DelaiConversionSecondes)));
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Rapports.IModeleRapportRepository, SopalTrace.Infrastructure.Repositories.Rapports.ModeleRapportRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Rapports.IDocumentGenereRepository, SopalTrace.Infrastructure.Repositories.Rapports.DocumentGenereRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDonneesExecutionRepository, SopalTrace.Infrastructure.Repositories.Rapports.DonneesExecutionRepository>();
+// Documents d'exécution mis en forme : valeurs lues par les mêmes services que les écrans des opérateurs.
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportEchantillonnage>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportControlePoste>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportVerifMachine>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportResultatsAssemblage>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportRegistre>();
+builder.Services.AddScoped<SopalTrace.Application.Services.Rapports.IModeleRapportService, SopalTrace.Application.Services.Rapports.ModeleRapportService>();
+builder.Services.AddScoped<SopalTrace.Application.Services.Rapports.IGenerationDocumentService, SopalTrace.Application.Services.Rapports.GenerationDocumentService>();
+builder.Services.AddHostedService<SopalTrace.Api.TachesDeFond.ImportModelesLivresWorker>();
 builder.Services.AddScoped<IErpService, SqlErpService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();

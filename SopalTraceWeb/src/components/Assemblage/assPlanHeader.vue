@@ -22,7 +22,7 @@
           </option>
         </select>
         <span class="text-xs font-bold text-blue-500 italic hidden md:block">
-          La sélection du formulaire remplira automatiquement les champs suivants.
+          Famille, article et poste sont ceux du formulaire choisi (verrouillés).
         </span>
       </div>
     </div>
@@ -34,8 +34,8 @@
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Famille *</label>
         <select 
           v-model="store.entete.familleProduitCode" 
-          :disabled="isEditMode || isReadOnly || isPiston" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || isPiston) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :disabled="isEditMode || isReadOnly || isPiston || champVerrouille" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || isPiston || champVerrouille) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Sélectionner --</option>
           <option v-for="fam in famillesFiltrees" :key="fam.code" :value="fam.code">
             {{ fam.code }}
@@ -60,8 +60,8 @@
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Article *</label>
         <select 
           v-model="store.entete.natureComposantCode" 
-          :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
+          :disabled="isEditMode || isReadOnly || champVerrouille" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || champVerrouille) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
           <option value="">-- Sélectionner --</option>
           <option v-for="nat in composantsFiltres" :key="nat.code" :value="nat.code">{{ nat.libelle }}</option>
         </select>
@@ -72,8 +72,8 @@
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Poste</label>
         <select 
           v-model="store.entete.posteCode" 
-          :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :disabled="isEditMode || isReadOnly || champVerrouille" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || champVerrouille) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Tous les postes --</option>
           <option v-for="p in postesDisponibles" :key="p.code" :value="p.code">
            {{ p.libelle }}
@@ -93,16 +93,7 @@
           :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
-      <div class="pt-4">
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Version de départ</label>
-        <input 
-          v-model.number="store.entete.versionInitiale" 
-          type="number" 
-          min="0" 
-          placeholder="Ex: 0"
-          :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
-      </div>
+      
 
     </div>
 
@@ -133,23 +124,25 @@ const props = defineProps({
 const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['EN_COURS_DE_ASSEMBLAGE'] || []);
 const refFormulaireSelected = ref('');
 const isAutoFilling = ref(false);
+const formulaireChoisi = computed(() => formulairesReferences.value.find(r => r.id === refFormulaireSelected.value) ?? null);
+// Le formulaire est trouvé par son champ d'application exact : famille, article et poste sont les siens.
+const champVerrouille = computed(() => !!formulaireChoisi.value);
 
 watch(refFormulaireSelected, async (newRefId) => {
   if (!newRefId) return;
   const refObj = formulairesReferences.value.find(r => r.id === newRefId);
   if (!refObj) return;
 
-  const designation = refObj.designation || '';
   isAutoFilling.value = true;
 
-  const parsed = parseDesignation(designation, refStore.famillesProduit || [], [], refStore.postes || []);
-
-  if (parsed.familleCode !== '') store.entete.familleProduitCode = parsed.familleCode;
-  else store.entete.familleProduitCode = '';
-
-  store.entete.natureComposantCode = parsed.natureComposantCode;
-  store.entete.operationCode = parsed.operationCode;
-  store.entete.posteCode = parsed.posteCode;
+  // Champ d'application du formulaire (référentiel) : une famille désigne un plan de produit fini, sans famille sa
+  // nature (ex. PISTON).
+  store.entete.familleProduitCode = refObj.familleProduitFiniCode || '';
+  store.entete.natureComposantCode = refObj.familleProduitFiniCode ? 'PF' : (refObj.natureArticleCode || '');
+  store.entete.posteCode = refObj.posteCode || '';
+  // L'opération ne fait pas partie du champ d'application : proposée d'après le nom du formulaire, modifiable.
+  const parsed = parseDesignation(refObj.designation || '', refStore.famillesProduit || [], [], refStore.postes || []);
+  if (parsed.operationCode) store.entete.operationCode = parsed.operationCode;
 
   store.entete.refFormulaireCodeReference = refObj.codeReference || '';
   
@@ -179,10 +172,13 @@ const onLibelleBlur = () => {
   isAutoFilling.value = true;
   const parsed = parseDesignation(lib, refStore.famillesProduit || [], [], refStore.postes || []);
   
-  if (parsed.familleCode) store.entete.familleProduitCode = parsed.familleCode;
-  if (parsed.natureComposantCode) store.entete.natureComposantCode = parsed.natureComposantCode;
+  // Avec un formulaire choisi, son champ d'application ne change pas.
+  if (!champVerrouille.value) {
+    if (parsed.familleCode) store.entete.familleProduitCode = parsed.familleCode;
+    if (parsed.natureComposantCode) store.entete.natureComposantCode = parsed.natureComposantCode;
+    if (parsed.posteCode) store.entete.posteCode = parsed.posteCode;
+  }
   if (parsed.operationCode) store.entete.operationCode = parsed.operationCode;
-  if (parsed.posteCode) store.entete.posteCode = parsed.posteCode;
   
   setTimeout(() => {
     isAutoFilling.value = false;
@@ -193,8 +189,8 @@ const afficherPoste = computed(() => {
   const famille = (refStore.famillesProduit || []).find(f => f.code === store.entete.familleProduitCode);
   const article = String(store.entete.natureComposantCode || '').trim().toUpperCase();
 
-  // Famille dont les plans sont propres à chaque poste (FamilleProduitFini.PlanParPoste)
-  return !!famille?.planParPoste && article === 'PF';
+  // Famille dont les plans sont propres à chaque poste (FamilleProduitFini.PlanParPoste), ou poste du formulaire choisi
+  return (!!famille?.planParPoste && article === 'PF') || !!formulaireChoisi.value?.posteCode;
 });
 
 const isPiston = computed(() => {

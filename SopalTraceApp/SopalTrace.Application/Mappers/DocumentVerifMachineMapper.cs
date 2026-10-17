@@ -17,7 +17,8 @@ public static class DocumentVerifMachineMapper
             TypeDocumentCode = TypesDocument.VerifMachine,
             MachineCode = dto.MachineCode,
             Nom = dto.Nom,
-            Version = dto.VersionInitiale ?? 1,
+            // Version du formulaire, posée par le service.
+            Version = 0,
             Statut = DocumentStatuts.Brouillon,
             CreePar = user,
             CreeLe = DateTime.Now,

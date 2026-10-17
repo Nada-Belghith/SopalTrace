@@ -22,7 +22,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     legendeMoyens: '',
     posteCode: '',
     familleProduitCode: '',
-    versionInitiale: null,
     refFormulaireCodeReference: '',  // Code du formulaire ref sélectionné (ex: PRC)
     configurationColonnes: []
   });
@@ -242,7 +241,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       familleProduitFiniCode: entete.value.familleProduitCode || null,
       remarques: entete.value.notes || "",
       legendeMoyens: legendeMoyens || '',
-      versionInitiale: entete.value.versionInitiale,
       colonneDefs: typeof configCols === 'string' ? JSON.parse(configCols) : configCols,
       refFormulaireCodeReference: codeRef,
       sections: sections.value.map((s, idx) => ({

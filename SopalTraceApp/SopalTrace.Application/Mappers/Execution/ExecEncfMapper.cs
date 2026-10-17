@@ -7,8 +7,9 @@ namespace SopalTrace.Application.Mappers.Execution
     public static class ExecEncfMapper
     {
         /// <param name="entity">Exécution de l'OF (pièces types et résultats par tranche).</param>
-        /// <param name="statut">Statut ENCF du poste sur cette exécution : fournit le poste et le document appliqué.</param>
-        public static ExecEncfDto ToDto(ExecControleOf entity, ExecControleDocumentStatut? statut)
+        /// <param name="statut">Statut ENCF du poste sur cette exécution : fournit le poste.</param>
+        /// <param name="planId">Plan dont la fiche affiche les lignes (plan suivi par l'OF, plan d'assemblage du poste).</param>
+        public static ExecEncfDto ToDto(ExecControleOf entity, ExecControleDocumentStatut? statut, Guid? planId)
         {
             return new ExecEncfDto
             {
@@ -17,8 +18,8 @@ namespace SopalTrace.Application.Mappers.Execution
                 OperationCode = entity.OperationCode,
                 PosteCode = statut?.PosteCode ?? entity.ExecControleOfPostes?.FirstOrDefault()?.PosteCode,
                 MachineCode = entity.MachineCode,
-                // Document « résultat contrôle en cours de fabrication » appliqué (affiché par le formulaire ENCF)
-                PlanSourceId = statut?.DocId,
+                // Plan dont les lignes sont affichées par le formulaire ENCF
+                PlanSourceId = planId,
                 TypeOf = entity.TypeOf,
                 Statut = entity.Statut,
                 DateDebut = entity.DateDebut,

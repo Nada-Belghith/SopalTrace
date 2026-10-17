@@ -194,6 +194,32 @@ st, r = call(OP, 'PUT', f'/ExecRcPoste/{statut}', {'execControleDocumentStatutId
 check("E1 enregistre ses heures (équipe et opérateur gardés)", st == 200 and sql(
     f"SELECT STRING_AGG(TrancheHoraire+'='+CAST(Quantite AS VARCHAR)+'/'+ISNULL(Equipe,'-'), ',') FROM Exec_ControleLigne_Reponse "
     f"WHERE ExecControleDocumentStatutId='{statut}'") == '06-07=2/E1', (st, r))
+check("cumul des pièces conformes de l'OF sur le poste affiché avec la quantité lancée",
+      (r.get('cumulPiecesConformes'), r.get('quantiteLancee'), r.get('quantiteLanceeDepassee')) == (40, 1000, False), r)
+st, r2 = call(OP, 'PUT', f'/ExecRcPoste/{statut}', {'execControleDocumentStatutId': statut, 'nbPiecesRebuteesEquipe': 2,
+    'derniereSaisieEquipe': r.get('derniereSaisieEquipe'),
+    'lignes': [{'docLigneId': ligne, 'heures': [{'trancheHoraire': '06-07', 'nbNcParHeure': 2}]}],
+    'reponses': [{'trancheHoraire': '06-07', 'totalRealiseHeure': 2000}]})
+check("plus de pièces conformes que la quantité lancée de l'OF : saisie refusée",
+      st == 400 and 'quantité lancée' in json.dumps(r2, ensure_ascii=False) and sql(
+          f"SELECT TotalRealiseHeure FROM Exec_RC_Poste_Reponse WHERE ExecControleDocumentStatutId='{statut}'") == '40', (st, r2))
+# Deux tablettes de E1 enregistrent au même instant : le verrou du poste les fait passer l'une après l'autre,
+# la seconde voit la saisie de la première (409 « rechargez ») au lieu de l'écraser ou de dépasser la quantité.
+import threading
+resultats = []
+def enregistrer(realisees):
+    resultats.append(call(OP, 'PUT', f'/ExecRcPoste/{statut}', {'execControleDocumentStatutId': statut, 'nbPiecesRebuteesEquipe': 2,
+        'derniereSaisieEquipe': r.get('derniereSaisieEquipe'),
+        'lignes': [{'docLigneId': ligne, 'heures': [{'trancheHoraire': '06-07', 'nbNcParHeure': 2}]}],
+        'reponses': [{'trancheHoraire': '06-07', 'totalRealiseHeure': realisees}]})[0])
+fils = [threading.Thread(target=enregistrer, args=(n,)) for n in (41, 42)]
+for f in fils: f.start()
+for f in fils: f.join()
+check("deux enregistrements simultanés du poste : un seul passe, l'autre doit recharger", sorted(resultats) == [200, 409], resultats)
+call(OP, 'PUT', f'/ExecRcPoste/{statut}', {'execControleDocumentStatutId': statut, 'nbPiecesRebuteesEquipe': 2,
+    'derniereSaisieEquipe': call(OP, 'GET', f'/ExecRcPoste/{of}?posteCode={POSTE}&equipe=E1')[1].get('derniereSaisieEquipe'),
+    'lignes': [{'docLigneId': ligne, 'heures': [{'trancheHoraire': '06-07', 'nbNcParHeure': 2}]}],
+    'reponses': [{'trancheHoraire': '06-07', 'totalRealiseHeure': 40}]})
 st, r = call(OP, 'POST', f'/ExecRcPoste/{statut}/valider-equipe')
 check('E1 valide ses heures', st == 200 and [v['equipe'] for v in r.get('validations', [])] == ['E1'], (st, r))
 check('contrôle au poste fait pour E1', tache(avancement(of), 'CONTROLE_POSTE').get('etat') == 'FAIT')

@@ -36,22 +36,24 @@ check('ENCF refusé tant que l\'OF n\'est pas démarré (400, message clair)', s
 st, r = call(OP, 'POST', '/operateur/of/start-assemblage', {'numeroOf': 'OF2607ASS01', 'posteCodes': ['PAS71'], 'equipe': 'E1'})
 exec_id = (r or {}).get('id') if isinstance(r, dict) else None
 check('démarrage OF assemblage', st == 200, (st, r))
-st, r = call(OP, 'GET', '/exec/encf/by-of/OF2607ASS01/poste/PAS71')
-check('sans document RESULTAT_CF actif : 404 explicite', st == 404 and 'résultat contrôle en cours de fabrication' in texte(r), (st, r))
-
-st, r = call(SUP, 'POST', '/Document', {'typeDocumentCode': 'RESULTAT_CF', 'nom': 'Résultat CF PAS71', 'posteCode': 'PAS71',
+# Fiche de réponse : aucun document « résultat CF » à créer ; son formulaire (famille, type de robinet, poste) est fixé à
+# sa création et ses lignes viennent du plan d'assemblage du poste suivi par l'OF (ici, le plan de la famille de l'article).
+famille = sql("SELECT p.FamilleProduitFiniCode FROM MFGHEAD_OrdreFabrication o JOIN ProduitFini p ON p.CodeArticle = o.CodeArticle WHERE o.NumeroOF='OF2607ASS01'")
+st, r = call(SUP, 'POST', '/Document', {'typeDocumentCode': 'PLAN_ASS', 'nom': f'Plan {famille} E2E 54', 'familleProduitFiniCode': famille,
     'sections': [{'ordreAffiche': 1, 'libelleSection': 'Contrôles', 'lignes': [{'ordreAffiche': 1, 'libelleAffiche': 'Aspect'}]}]})
-doc = data(r).get('id') if isinstance(data(r), dict) else None
-check('document RESULTAT_CF créé', st in (200, 201) and doc, (st, r))
-st, r = call(SUP, 'PUT', f'/hub/modeles/RCCF/{doc}/statut?statut=ACTIF')
-check('document activé depuis le Hub', st == 200 and sql(f"SELECT Statut FROM Document_Entete WHERE Id='{doc}'") == 'ACTIF', (st, r))
-
+plan_famille = str((data(r) or {}).get('id', '')).lower() if st in (200, 201) and isinstance(data(r), dict) else ''
+check("plan d'assemblage de la famille de l'article créé (actif)", bool(plan_famille)
+      and sql(f"SELECT Statut FROM Document_Entete WHERE Id='{plan_famille}'") == 'ACTIF', (famille, st, r))
 st, r = call(OP, 'GET', '/exec/encf/by-of/OF2607ASS01/poste/PAS71')
-check('ENCF ouvert sur la vraie exécution de l\'OF', st == 200 and r['id'] == exec_id and r['planSourceId'] == doc, (st, r))
+form_encf = sql("SELECT LOWER(CAST(Id AS VARCHAR(36))) FROM Ref_Formulaire WHERE CodeReference='FE-RC-ENCF' AND Statut <> 'ARCHIVE'")
+check('ENCF ouvert sur la vraie exécution de l\'OF, sans document « résultat CF » à créer', st == 200 and r['id'] == exec_id, (st, r))
 check('aucune fausse exécution créée (une seule pour l\'OF)', sql("SELECT COUNT(*) FROM Exec_ControleOF WHERE NumeroOF='OF2607ASS01'") == '1')
-check('document de l\'OF tracé (RESULTAT_CONTROLE_CF vers RESULTAT_CF)', sql(
-    f"SELECT COUNT(*) FROM Exec_ControleDocumentStatut WHERE ExecControleOfId='{exec_id}' AND TypeDocument='RESULTAT_CONTROLE_CF' AND DocId='{doc}'") == '1')
-check('document lisible par le formulaire ENCF', call(OP, 'GET', f'/Document/{doc}')[0] == 200)
+check('fiche de réponse : son formulaire (FE-RC-ENCF) fixé à sa création, aucun document appliqué', sql(
+    f"SELECT CONCAT(LOWER(CAST(FormId AS VARCHAR(36))), '|', ISNULL(CAST(DocId AS VARCHAR(36)), '-')) FROM Exec_ControleDocumentStatut "
+    f"WHERE ExecControleOfId='{exec_id}' AND TypeDocument='RESULTAT_CONTROLE_CF'") == f'{form_encf}|-')
+plan = (r or {}).get('planSourceId') if isinstance(r, dict) else None
+check("lignes de la fiche : plan d'assemblage du poste suivi par l'OF (celui de la famille), lisible par le formulaire ENCF",
+      str(plan or '').lower() == plan_famille and call(OP, 'GET', f'/Document/{plan}')[0] == 200, (plan, plan_famille))
 
 enc = dict(r, statut='CLOTURE',
     piecesTypes=[{'resultat': 'C', 'remarque': 'Première pièce', 'matriculeOperateur': 'PIRATE'}],

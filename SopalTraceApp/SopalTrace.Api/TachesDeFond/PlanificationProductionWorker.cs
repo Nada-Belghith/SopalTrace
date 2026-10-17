@@ -42,14 +42,15 @@ public class PlanificationProductionWorker : BackgroundService
         try
         {
             List<Guid> ofs;
-            using (var scope = _scopes.CreateScope())
+            // Portées libérées en asynchrone : certains services (UnitOfWork) ne sont libérables qu'ainsi.
+            await using (var scope = _scopes.CreateAsyncScope())
                 ofs = await scope.ServiceProvider.GetRequiredService<IPlanificationProductionService>().GetOfsAPlanifierAsync();
 
             foreach (var execControleOfId in ofs)
             {
                 if (stoppingToken.IsCancellationRequested) return;
                 // Un contexte par OF : l'échec d'un OF n'empêche pas les autres d'être planifiés.
-                using var scope = _scopes.CreateScope();
+                await using var scope = _scopes.CreateAsyncScope();
                 try
                 {
                     await scope.ServiceProvider.GetRequiredService<IPlanificationProductionService>().SynchroniserAsync(execControleOfId);

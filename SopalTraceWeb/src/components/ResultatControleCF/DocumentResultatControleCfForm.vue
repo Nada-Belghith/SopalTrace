@@ -265,7 +265,8 @@
         :is-loading="store.isLoading"
         :is-read-only="isReadOnly"
         @save-direct="handleSaveDirect"
-        @save-correction="handleSaveCorrection"
+        :correction-possible="!colonnesModifiees(store.entete.configurationJson, store.entete.colonnesChargees)"
+          @save-correction="handleSaveCorrection"
         @save-new-version="handleSaveNewVersion"
         @cancel="() => $router.push('/dev/hub')"
       />
@@ -294,6 +295,7 @@ import Dropdown from 'primevue/dropdown';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
+import { colonnesModifiees } from '@/utils/colonnesUtils';
 import PlanSectionHeader from '@/components/Shared/PlanSectionHeader.vue';
 
 defineProps({

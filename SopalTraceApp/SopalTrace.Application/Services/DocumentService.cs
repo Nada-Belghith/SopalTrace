@@ -49,22 +49,25 @@ public class DocumentService : IDocumentService
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <inheritdoc/>
-    public async Task<Guid> CreateDocumentAsync(CreateDocumentRequestDto request)
+    /// <remarks>
+    /// Tout ou rien : le formulaire (nouvelle version, archivage de l'ancien document) et le document s'enregistrent dans
+    /// une même transaction ; un document refusé (valeur de colonne invalide…) ne laisse aucun changement.
+    /// </remarks>
+    public Task<Guid> CreateDocumentAsync(CreateDocumentRequestDto request) =>
+        _unitOfWork.ExecuteInTransactionAsync(() => CreerDocumentAsync(request));
+
+    /// <inheritdoc/>
+    public Task<Guid> CreateNewVersionAsync(NouvelleVersionDocumentRequestDto request) =>
+        _unitOfWork.ExecuteInTransactionAsync(() => CreerNouvelleVersionAsync(request));
+
+    private async Task<Guid> CreerDocumentAsync(CreateDocumentRequestDto request)
     {
         var user = _currentUserService.MatriculeRequis;
 
-        // Calculer d'abord le formCodeRef effectif (même logique que ResolverFormulaireAsync)
-        // afin de ne chercher les doublons que parmi les documents liés au MÊME formulaire.
-        // Cela évite le cas où FE-RC-PAS78 et FE-RC-PAS78_SOUPAPE s'influencent mutuellement.
-        var effectiveFormCodeRef = !string.IsNullOrWhiteSpace(request.RefFormulaireCodeReference)
-            ? request.RefFormulaireCodeReference
-            : request.TypeDocumentCode switch
-            {
-                TypesDocument.ControlePoste   when !string.IsNullOrWhiteSpace(request.PosteCode)             => $"FE-RC-{request.PosteCode.Trim()}",
-                TypesDocument.PlanProduitFini when !string.IsNullOrWhiteSpace(request.FamilleProduitFiniCode) => $"FE-PF-{request.FamilleProduitFiniCode.Trim()}",
-                TypesDocument.PlanAssemblage  when !string.IsNullOrWhiteSpace(request.NatureArticleCode)     => $"FE-ASS-{request.NatureArticleCode.Trim()}",
-                _ => null
-            };
+        // Formulaire du document : celui indiqué, sinon celui de son champ d'application (famille, poste…). Les doublons
+        // ne sont cherchés que parmi les documents de ce formulaire (PAS78 et PAS78 soupape ne s'influencent pas).
+        var effectiveFormCodeRef = await CodeFormulaireAsync(request.TypeDocumentCode, request.RefFormulaireCodeReference,
+            request.FamilleProduitFiniCode, request.PosteCode, request.NatureArticleCode);
 
         var docsExistants = await ChargerDocsExistantsAsync(
             request.TypeDocumentCode, request.NatureArticleCode,
@@ -78,9 +81,8 @@ public class DocumentService : IDocumentService
             (effectiveFormCodeRef == null || string.Equals(d.Formulaire?.CodeReference, effectiveFormCodeRef, StringComparison.OrdinalIgnoreCase)));
 
         var (formulaireId, formCodeRef, formVersion, formStatut) = await ResolverFormulaireAsync(
-            request.TypeDocumentCode, request.RefFormulaireCodeReference,
-            request.PosteCode, request.FamilleProduitFiniCode, request.NatureArticleCode,
-            request.ConfigurationColonnesJson, request.ColonneDefs, versionInitiale: 0,
+            request.TypeDocumentCode, effectiveFormCodeRef,
+            request.ConfigurationColonnesJson, request.ColonneDefs,
             forceNouvelleVersion: forceNouvelleVersion);
 
         var entite = BuildDocumentEntite(request, user, formulaireId, formVersion);
@@ -95,8 +97,7 @@ public class DocumentService : IDocumentService
         return entite.Id;
     }
 
-    /// <inheritdoc/>
-    public async Task<Guid> CreateNewVersionAsync(NouvelleVersionDocumentRequestDto request)
+    private async Task<Guid> CreerNouvelleVersionAsync(NouvelleVersionDocumentRequestDto request)
     {
         var user = _currentUserService.MatriculeRequis;
 
@@ -106,12 +107,18 @@ public class DocumentService : IDocumentService
         // Le FormulaireStructureService gère l'archivage automatique des documents liés
         // lorsque le formulaire passe à une nouvelle version.
 
+        // Colonnes de l'ancienne version : une colonne retirée peut encore avoir des valeurs dans les lignes envoyées.
+        var colonnesPrecedentes = ancienDoc.FormulaireId is { } ancienFormulaire
+            ? (await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(ancienFormulaire) ?? new())
+                .Select(c => c.CleColonne).ToHashSet(StringComparer.Ordinal)
+            : new HashSet<string>(StringComparer.Ordinal);
+
+        // Une nouvelle version reste sur le formulaire de l'ancien document (sauf formulaire indiqué).
         var (formulaireId, _, formVersion, formStatut) = await ResolverFormulaireAsync(
             request.TypeDocumentCode,
-            request.RefFormulaireCodeReference ?? await GetCodeRefDepuisDocAsync(ancienDoc),
-            request.PosteCode, request.FamilleProduitFiniCode, request.NatureArticleCode,
+            request.RefFormulaireCodeReference ?? await GetCodeRefDepuisDocAsync(ancienDoc)
+                ?? await CodeFormulaireAsync(request.TypeDocumentCode, null, request.FamilleProduitFiniCode, request.PosteCode, request.NatureArticleCode),
             request.ConfigurationColonnesJson, request.ColonneDefs,
-            versionInitiale: 0,
             forceNouvelleVersion: true);
 
         var nouveauDoc = BuildDocumentEntite(request, user, formulaireId, formVersion);
@@ -119,7 +126,7 @@ public class DocumentService : IDocumentService
         nouveauDoc.Statut = formStatut;
         NommerAvecVersion(nouveauDoc);
 
-        await SyncExtraColonnesAsync(nouveauDoc, formulaireId);
+        await SyncExtraColonnesAsync(nouveauDoc, formulaireId, colonnesPrecedentes);
         await CompleterReferencesAsync(nouveauDoc.DocumentSections);
         await PersisterNouveauDocumentAsync(nouveauDoc);
 
@@ -137,8 +144,7 @@ public class DocumentService : IDocumentService
         // Mise à jour de la structure du formulaire en mode "Correction Mineure"
         await ResolverFormulaireAsync(
             doc.TypeDocumentCode, doc.Formulaire?.CodeReference,
-            doc.PosteCode, doc.FamilleProduitFiniCode, doc.NatureArticleCode,
-            request.ConfigurationColonnesJson, null, doc.Version,
+            request.ConfigurationColonnesJson, null,
             isCorrectionMineure: true);
 
         MergerSections(doc, request.Sections);
@@ -213,31 +219,26 @@ public class DocumentService : IDocumentService
     /// Résout le formulaire associé (RefFormulaire).
     /// Retourne (formulaireId, codeReference) en créant ou mettant à jour le formulaire si nécessaire.
     /// </summary>
+    /// <summary>
+    /// Code du formulaire d'un document : celui indiqué, sinon celui de son champ d'application (jamais fabriqué). Null pour
+    /// un type de document sans formulaire de ce service.
+    /// </summary>
+    private async Task<string?> CodeFormulaireAsync(string typeCode, string? codeIndique, string? familleCode, string? posteCode, string? natureCode)
+    {
+        var champ = ChampsFormulaire.PourDocument(typeCode, familleCode, posteCode, null, natureCode);
+        return champ == null ? codeIndique : await _formulaireStructureService.CodeFormulaireAsync(champ, codeIndique);
+    }
+
     private async Task<(Guid? formulaireId, string? codeRef, int version, string statut)> ResolverFormulaireAsync(
         string typeCode,
         string? formCodeRef,
-        string? posteCode,
-        string? familleCode,
-        string? natureCode,
         string? configColonnesJson,
         IEnumerable<ColonneJsonDto>? colonneDefs,
-        int versionInitiale,
         bool isCorrectionMineure = false,
         bool forceNouvelleVersion = false)
     {
         int version = 0;
         string statut = "BROUILLON";
-
-        if (string.IsNullOrWhiteSpace(formCodeRef))
-        {
-            formCodeRef = typeCode switch
-            {
-                TypesDocument.ControlePoste   when !string.IsNullOrWhiteSpace(posteCode)   => $"FE-RC-{posteCode.Trim()}",
-                TypesDocument.PlanProduitFini when !string.IsNullOrWhiteSpace(familleCode) => $"FE-PF-{familleCode.Trim()}",
-                TypesDocument.PlanAssemblage  when !string.IsNullOrWhiteSpace(natureCode)  => $"FE-ASS-{natureCode.Trim()}",
-                _ => null
-            };
-        }
 
         if (string.IsNullOrWhiteSpace(formCodeRef))
             return (null, null, version, statut);
@@ -248,7 +249,7 @@ public class DocumentService : IDocumentService
         var colsJson = BuildColonnesJson(configColonnesJson, colonneDefs);
 
         var result = await _formulaireStructureService.UpdateFormulaireStructureAsync(
-            role, colsJson, formCodeRef, versionInitiale, isCorrectionMineure, forceNouvelleVersion);
+            role, colsJson, formCodeRef, isCorrectionMineure, forceNouvelleVersion);
 
         Guid? formulaireId = null;
         if (result.HasValue)
@@ -338,31 +339,32 @@ public class DocumentService : IDocumentService
     /// </summary>
     private static void NommerAvecVersion(DocumentEntete doc)
     {
-        doc.Nom = AppliquerNumeroVersionAuTexte(doc.Nom, doc.Version);
+        doc.Nom = NomsDocument.AvecVersion(doc.Nom, doc.Version);
         if (!string.IsNullOrWhiteSpace(doc.Designation))
-            doc.Designation = AppliquerNumeroVersionAuTexte(doc.Designation, doc.Version);
+            doc.Designation = NomsDocument.AvecVersion(doc.Designation, doc.Version);
     }
 
-    /// <summary>Remplace ou ajoute le suffixe "V{n}" dans un texte.</summary>
-    private static string AppliquerNumeroVersionAuTexte(string texte, int version)
-    {
-        if (string.IsNullOrWhiteSpace(texte)) return texte;
-        var regex = new System.Text.RegularExpressions.Regex(
-            @"([ -]*)V\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        return regex.IsMatch(texte)
-            ? regex.Replace(texte, $"$1V{version}")
-            : $"{texte.TrimEnd('-').TrimEnd()} V{version}";
-    }
-
-    /// <summary>Ajoute les colonnes extra manquantes sur toutes les lignes de l'entité.</summary>
-    private async Task SyncExtraColonnesAsync(DocumentEntete entite, Guid? formulaireId)
+    /// <summary>
+    /// Ajoute les colonnes extra manquantes sur toutes les lignes de l'entité. Nouvelle version : les valeurs d'une
+    /// colonne de l'ancienne version retirée du formulaire sont abandonnées (une colonne inconnue reste refusée par la base).
+    /// </summary>
+    private async Task SyncExtraColonnesAsync(DocumentEntete entite, Guid? formulaireId, IReadOnlySet<string>? colonnesPrecedentes = null)
     {
         if (!formulaireId.HasValue) return;
 
         var activeCols = await _unitOfWork.RefFormulaireRepository
-            .GetColonnesActivesByFormulaireIdAsync(formulaireId.Value);
+            .GetColonnesActivesByFormulaireIdAsync(formulaireId.Value) ?? new();
 
-        if (activeCols == null || !activeCols.Any()) return;
+        if (colonnesPrecedentes is { Count: > 0 })
+        {
+            var cles = activeCols.Select(c => c.CleColonne).ToHashSet(StringComparer.Ordinal);
+            foreach (var ligne in entite.DocumentSections.SelectMany(s => s.DocumentLignes))
+            foreach (var retiree in ligne.DocumentLigneExtraColonnes
+                         .Where(ec => colonnesPrecedentes.Contains(ec.CleColonne) && !cles.Contains(ec.CleColonne)).ToList())
+                ligne.DocumentLigneExtraColonnes.Remove(retiree);
+        }
+
+        if (activeCols.Count == 0) return;
 
         foreach (var section in entite.DocumentSections)
         foreach (var ligne   in section.DocumentLignes)

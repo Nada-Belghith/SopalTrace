@@ -15,6 +15,8 @@ const emit = defineEmits(['selectionner'])
 const badge = (p) => {
   if (p.phase === PHASES_ASSEMBLAGE.POSTE_OCCUPE) return { texte: `tenu par ${p.equipeTitulaire ?? 'une autre équipe'}`, neutre: true }
   if (p.phase === PHASES_ASSEMBLAGE.POSTE_TERMINE) return { texte: 'terminé', termine: true }
+  if (p.phase === PHASES_ASSEMBLAGE.CLOTURE) return { texte: 'clôturé', termine: true }
+  if (p.phase === PHASES_ASSEMBLAGE.SANS_EQUIPE) return { texte: 'libre', neutre: true }
   if (!p.demarre) return { texte: 'non démarré', neutre: true }
   if (p.tachesRestantes > 0) return { texte: `${p.tachesRestantes} à faire`, aFaire: true }
   return { termine: true }

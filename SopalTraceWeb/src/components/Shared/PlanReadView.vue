@@ -7,9 +7,6 @@
         <i class="pi pi-eye text-blue-400"></i>
         Mode consultation — Vue Plan
       </span>
-      <button @click="imprimer" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all">
-        <i class="pi pi-print text-slate-500"></i> Imprimer
-      </button>
     </div>
 
     <!-- ───────── TABLEAU ───────── -->
@@ -210,37 +207,4 @@ function resolveMoyenControle(ligne) {
   return mc ? (mc.libelle || mc.Libelle || mc.code || mc.Code || '—') : '—';
 }
 
-// ─── Impression ───
-function imprimer() {
-  const zone = document.getElementById('plan-print-zone');
-  if (!zone) return;
-
-  const remarquesHtml = [
-    props.remarques ? `<p style="font-size:10px;margin-top:6px"><strong>Notes :</strong> ${props.remarques}</p>` : '',
-    props.legendeMoyens ? `<p style="font-size:10px;margin-top:4px"><strong>Légende :</strong> ${props.legendeMoyens}</p>` : ''
-  ].join('');
-
-  const w = window.open('', '_blank');
-  w.document.write(`
-    <html><head>
-      <title>Plan Qualité</title>
-      <style>
-        * { margin:0; padding:0; box-sizing:border-box; font-family: Arial, sans-serif; }
-        body { padding: 20px; font-size: 11px; }
-        table { width:100%; border-collapse:collapse; }
-        th, td { border: 1px solid #333; padding: 5px 8px; }
-        thead tr th { background:#1e3a5f; color:white; text-align:center; font-weight:bold; }
-        .section-row td { background:#dbeafe; font-weight:bold; text-align:center; font-size:12px; color:#1e3a5f; border-top: 2px solid #1e3a5f; }
-        .section-notes-row td { background:#f0f7ff; font-style:italic; text-align:center; font-size:11px; color:#1e5aad; }
-        tr:nth-child(even) td { background:#f8fafc; }
-        .section-row:nth-child(even) td { background:#dbeafe !important; }
-      </style>
-    </head><body>
-      ${zone.innerHTML}
-      ${remarquesHtml ? `<hr style="margin:10px 0;border-color:#ccc"/>${remarquesHtml}` : ''}
-    </body></html>
-  `);
-  w.document.close();
-  setTimeout(() => w.print(), 300);
-}
 </script>

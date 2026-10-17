@@ -43,6 +43,10 @@ public partial class Autili
 
     public virtual ICollection<ExecVerifMachineReponse> ExecVerifMachineReponses { get; set; } = new List<ExecVerifMachineReponse>();
 
+    public virtual ICollection<FormCodeChange> FormCodeChanges { get; set; } = new List<FormCodeChange>();
+
+    public virtual ICollection<GeneratedDocument> GeneratedDocuments { get; set; } = new List<GeneratedDocument>();
+
     public virtual ICollection<MagExpeditionBl> MagExpeditionBls { get; set; } = new List<MagExpeditionBl>();
 
     public virtual ICollection<MagPreparationOf> MagPreparationOfs { get; set; } = new List<MagPreparationOf>();
@@ -52,6 +56,12 @@ public partial class Autili
     public virtual ICollection<RefFormulaire> RefFormulaireCreeParNavigations { get; set; } = new List<RefFormulaire>();
 
     public virtual ICollection<RefFormulaire> RefFormulaireModifieParNavigations { get; set; } = new List<RefFormulaire>();
+
+    public virtual ICollection<ReportTemplateAssignment> ReportTemplateAssignments { get; set; } = new List<ReportTemplateAssignment>();
+
+    public virtual ICollection<ReportTemplateVersion> ReportTemplateVersionPublishedByNavigations { get; set; } = new List<ReportTemplateVersion>();
+
+    public virtual ICollection<ReportTemplateVersion> ReportTemplateVersionUploadedByNavigations { get; set; } = new List<ReportTemplateVersion>();
 
     public virtual UtilisateursApp? UtilisateursApp { get; set; }
 }

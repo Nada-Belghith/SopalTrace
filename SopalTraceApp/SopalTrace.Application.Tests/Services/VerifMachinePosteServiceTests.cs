@@ -48,8 +48,8 @@ namespace SopalTrace.Application.Tests.Services
                 CodeMachines = { new Machine { CodeMachine = "BEE46", Actif = true }, new Machine { CodeMachine = "MAS26", Actif = true }, new Machine { CodeMachine = "MAS99", Actif = true } }
             });
             _repo.Setup(r => r.GetMachineLabelsAsync(It.IsAny<IEnumerable<string>>())).ReturnsAsync(new Dictionary<string, string>());
-            _repo.Setup(r => r.GetPlanVerifMachineActifIdAsync("MAS26")).ReturnsAsync(Guid.NewGuid());
-            _repo.Setup(r => r.GetPlanVerifMachineActifIdAsync("MAS99")).ReturnsAsync((Guid?)null);
+            _repo.Setup(r => r.GetPlanVerifMachinePourOfAsync(It.IsAny<Guid>(), "MAS26")).ReturnsAsync(Guid.NewGuid());
+            _repo.Setup(r => r.GetPlanVerifMachinePourOfAsync(It.IsAny<Guid>(), "MAS99")).ReturnsAsync((Guid?)null);
             _repo.Setup(r => r.GetEcheancesPlanVerifMachineAsync(It.Is<Guid>(g => g != _planBee46))).ReturnsAsync(new List<(Guid, string)>
             {
                 (Guid.NewGuid(), PeriodicitesControle.FinPoste)

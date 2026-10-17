@@ -43,6 +43,8 @@ public partial class Machine
 
     public virtual Operation OperationCodeNavigation { get; set; } = null!;
 
+    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
+
     public virtual ICollection<PosteTravail> CodePostes { get; set; } = new List<PosteTravail>();
 
     public virtual ICollection<RefFamilleCorp> RefFamilleCorps { get; set; } = new List<RefFamilleCorp>();

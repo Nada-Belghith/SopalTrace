@@ -36,7 +36,7 @@ PORT = re.search(r':(\d+)/', BASE).group(1)
 # Chaque groupe part d'une base neuve : les suites d'un même groupe partagent les OF de démonstration.
 GROUPES = [
     ['e2e41', 'e2e44', 'e2e45', 'e2e55'],
-    ['e2e43'], ['e2e42'], ['e2e40'], ['e2e52'], ['e2e54'], ['e2e60'], ['e2e61'], ['e2e62'], ['e2e63'], ['e2e64'], ['e2e65'], ['e2e66'],
+    ['e2e43'], ['e2e42'], ['e2e40'], ['e2e52'], ['e2e54'], ['e2e60'], ['e2e61'], ['e2e62'], ['e2e63'], ['e2e64'], ['e2e65'], ['e2e66'], ['e2e67'],
 ]
 
 
@@ -68,6 +68,9 @@ def demarrer_api(journal):
                    'E2E_CONNECTION', f'Server=(localdb)\\MSSQLLocalDB;Database={DB};Trusted_Connection=True;TrustServerCertificate=True'),
                Jwt__Secret=SECRET.decode(),
                Auth__RequetesParMinute='40',
+               # Modèles Excel de test importés au démarrage (l'application n'en livre aucun).
+               Rapports__ImporterModelesLivres='true',
+               Rapports__DossierModelesLivres=str(RACINE / 'tests' / 'fixtures' / 'modeles'),
                ASPNETCORE_ENVIRONMENT='Development',
                ASPNETCORE_URLS=f'http://127.0.0.1:{PORT}')
     api = subprocess.Popen(['dotnet', str(dll)], cwd=dll.parent, env=env, stdout=journal, stderr=subprocess.STDOUT)
@@ -75,11 +78,27 @@ def demarrer_api(journal):
         try:
             with urllib.request.urlopen(BASE + '/health', timeout=2) as r:
                 if r.status == 200:
+                    attendre_modeles_de_test()
                     return api
         except Exception:
             time.sleep(2)
     api.kill()
     raise SystemExit("L'API n'a pas démarré (voir le journal).")
+
+
+def attendre_modeles_de_test(secondes=120):
+    """L'API importe en tâche de fond le modèle dédié de chaque formulaire de départ : les suites ne commencent qu'une
+    fois cet import terminé (sinon une suite peut archiver un formulaire avant qu'il reçoive son modèle)."""
+    attendus = ("SELECT COUNT(*) FROM ReportTemplateInitialForm i WHERE EXISTS "
+                "(SELECT 1 FROM Ref_Formulaire f WHERE f.CodeReference = i.FormCodeReference AND f.Statut <> 'ARCHIVE')")
+    faits = ("SELECT COUNT(*) FROM ReportTemplateInitialForm i WHERE EXISTS (SELECT 1 FROM ReportTemplateAssignment a "
+             "JOIN Ref_Formulaire f ON f.Id = a.FormId WHERE f.CodeReference = i.FormCodeReference)")
+    fin = time.time() + secondes
+    while time.time() < fin:
+        if sql(faits) == sql(attendus):
+            return
+        time.sleep(1)
+    print("   import des modèles de test incomplet après l'attente (voir le journal de l'API)")
 
 
 def executer(groupe):
@@ -109,6 +128,11 @@ def executer(groupe):
         journal.seek(0)
         erreurs = len(re.findall(r'\[ERR\]| 500 ', journal.read()))
     print(f'   erreurs serveur : {erreurs}')
+    # Journal de l'API gardé seulement en cas d'échec (à lire), sinon supprimé : il ne s'accumule pas dans le dossier temporaire.
+    if echecs + erreurs:
+        print(f"   journal de l'API : {journal.name}")
+    else:
+        os.remove(journal.name)
     return echecs + erreurs
 
 

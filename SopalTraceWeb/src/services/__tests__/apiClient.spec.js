@@ -49,6 +49,16 @@ describe('apiClient : messages d\'erreur montrés à l\'utilisateur', () => {
     expect((await echec()).message).toContain('Trop de requêtes')
   })
 
+  it("503 : le message du serveur explique l'indisponibilité (conversion PDF arrêtée)", async () => {
+    repondre(503, { message: 'Le service de conversion PDF ne répond pas : la génération reprendra automatiquement.' })
+    expect((await echec()).message).toContain('conversion PDF')
+  })
+
+  it('téléchargement de fichier en erreur : le message JSON contenu dans le Blob est relu', async () => {
+    repondre(400, new Blob([JSON.stringify({ message: 'Seul un document actif peut être généré à nouveau.' })], { type: 'application/json' }))
+    expect((await echec()).message).toBe('Seul un document actif peut être généré à nouveau.')
+  })
+
   it('500 : message générique avec l\'identifiant de trace, sans détail technique', async () => {
     repondre(500, { traceId: 'abc123', message: 'NullReferenceException at ...' })
     const e = await echec()

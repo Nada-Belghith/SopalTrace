@@ -75,6 +75,14 @@ const bilan = computed(() => {
   }
 })
 
+/**
+ * Pièces conformes cumulées du poste sur tous les documents (jours) de l'OF, saisie en cours comprise : elles ne
+ * peuvent pas dépasser la quantité lancée (le serveur refuse l'enregistrement qui la dépasserait).
+ */
+const cumulConformes = computed(() => !doc.value ? 0
+  : (doc.value.cumulPiecesConformes ?? 0) - (doc.value.bilan?.nbPieceConforme ?? 0) + (bilan.value?.conformes ?? 0))
+const quantiteDepassee = computed(() => (doc.value?.quantiteLancee ?? 0) > 0 && cumulConformes.value > doc.value.quantiteLancee)
+
 const appliquer = (data) => {
   doc.value = data
   const h = {}
@@ -351,6 +359,28 @@ onUnmounted(() => clearInterval(minuteur))
           </label>
         </div>
         <div class="bg-white rounded-2xl border border-slate-200 p-4"><p class="m-0 text-xs font-bold uppercase text-slate-500">Conformes</p><p class="m-0 mt-1 text-2xl font-black text-emerald-700">{{ bilan.conformes }}</p></div>
+      </section>
+
+      <!-- Cumul de l'OF sur le poste : jamais plus de pièces conformes que la quantité lancée -->
+      <section v-if="doc.quantiteLancee > 0" class="rounded-2xl border p-4 flex flex-wrap items-center gap-3"
+               :class="quantiteDepassee ? 'bg-red-50 border-red-300' : 'bg-white border-slate-200'">
+        <i class="pi text-xl" :class="quantiteDepassee ? 'pi-exclamation-triangle text-red-600' : 'pi-box text-slate-400'"></i>
+        <div class="flex-1 min-w-[220px]">
+          <p class="m-0 text-xs font-bold uppercase" :class="quantiteDepassee ? 'text-red-700' : 'text-slate-500'">
+            Pièces conformes de l'OF sur le poste {{ doc.posteCode }} (tous les jours)
+          </p>
+          <p class="m-0 mt-1 text-lg font-black" :class="quantiteDepassee ? 'text-red-700' : 'text-slate-800'">
+            {{ cumulConformes }} / {{ doc.quantiteLancee }} <span class="text-sm font-semibold">lancées</span>
+          </p>
+          <p v-if="quantiteDepassee" class="m-0 mt-1 text-sm text-red-800">
+            Plus de pièces conformes que la quantité lancée : vérifiez les pièces réalisées et rebutées.
+            Si la quantité est réelle, signalez-le au superviseur (risque de non-conformité).
+          </p>
+        </div>
+        <div class="w-full md:w-56 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-full transition-all" :class="quantiteDepassee ? 'bg-red-500' : 'bg-emerald-500'"
+               :style="{ width: Math.min(100, Math.round(cumulConformes * 100 / doc.quantiteLancee)) + '%' }"></div>
+        </div>
       </section>
 
       <section v-if="doc.planRemarques || doc.planLegendeMoyens" class="bg-white rounded-2xl border border-slate-200 p-4 text-sm text-slate-600 space-y-1">

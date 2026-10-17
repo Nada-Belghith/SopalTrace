@@ -31,7 +31,9 @@ public static class DbUpdateExceptionExtensions
     private static readonly IReadOnlyDictionary<string, string> MessagesIndexUniques = new Dictionary<string, string>
     {
         ["UX_ExecSessionPost_OneTeamPerPoste"] = "Ce poste vient d'être pris par une autre équipe : rafraîchissez l'écran.",
-        ["UX_ExecControleOfSession_OneOpenSessionPerTeam"] = "Votre équipe a déjà une session ouverte sur cet OF : rafraîchissez l'écran."
+        ["UX_ExecControleOfSession_OneOpenSessionPerTeam"] = "Votre équipe a déjà une session ouverte sur cet OF : rafraîchissez l'écran.",
+        ["UX_ReportTemplateVersion_OneActive"] = "Une autre version de ce modèle vient d'être activée : rafraîchissez l'écran.",
+        ["UQ_ReportTemplateVersion_Number"] = "Une autre version de ce modèle vient d'être envoyée : rafraîchissez l'écran puis réessayez."
     };
 
     public static bool IsUniqueConstraintViolation(this DbUpdateException ex)

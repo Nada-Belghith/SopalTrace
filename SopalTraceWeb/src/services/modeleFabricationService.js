@@ -12,7 +12,6 @@ const versRequeteModele = (payload) => ({
   operationCode: payload.operationCode,
   posteCode: payload.posteCode,
   familleProduitCode: payload.familleProduitFiniCode,
-  versionInitiale: payload.versionInitiale || 1,
   legendeMoyens: payload.legendeMoyens,
   notes: payload.notes || payload.designation,
   refFormulaireCodeReference: payload.refFormulaireCodeReference || 'PRC',

@@ -19,6 +19,9 @@
           :is-restoring="isVersioningSaving"
         />
 
+        <!-- Fiche que rempliront les opérateurs, mise en forme avec son modèle (consultation) -->
+        <PdfDocumentQualite v-if="store.entete?.id" :document-id="store.entete.id" class="mb-6" />
+
         <!-- SECTION 1 : CONFIGURATION GÉNÉRALE -->
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-6">
           <div class="bg-[#1e293b] text-white px-6 py-4 flex items-center justify-between">
@@ -208,6 +211,7 @@ import { useToast } from 'primevue/usetoast';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
+import PdfDocumentQualite from '@/components/Qualite/PdfDocumentQualite.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
 import { useDocumentEchantillonnageStore } from '@/stores/documentEchantillonnageStore';

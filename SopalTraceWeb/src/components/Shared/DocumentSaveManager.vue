@@ -14,6 +14,7 @@
       :visible="showVersioningDialog"
       mode="new-version"
       :is-loading="isSaving"
+      :correction-possible="correctionPossible"
       @confirm="onVersioningConfirm"
       @cancel="showVersioningDialog = false"
       @update:visible="showVersioningDialog = $event" 
@@ -31,7 +32,9 @@ const props = defineProps({
   statut: { type: String, default: 'ACTIF' },
   isLoading: { type: Boolean, default: false },
   isReadOnly: { type: Boolean, default: false },
-  isSaving: { type: Boolean, default: false }
+  isSaving: { type: Boolean, default: false },
+  // false : les colonnes ont changé depuis le chargement, la correction mineure n'est pas proposée.
+  correctionPossible: { type: Boolean, default: true }
 });
 
 const emit = defineEmits(['save-direct', 'save-correction', 'save-new-version', 'cancel']);

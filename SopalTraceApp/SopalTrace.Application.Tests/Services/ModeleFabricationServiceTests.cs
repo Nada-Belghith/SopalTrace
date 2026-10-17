@@ -50,8 +50,7 @@ namespace SopalTrace.Application.Tests.Services
                 TypeRobinetCode = "ROB1",
                 NatureComposantCode = "NAT",
                 FamilleProduitCode = "FAM",
-                OperationCode = "OP1",
-                VersionInitiale = 3 // Demande version 3
+                OperationCode = "OP1"
             };
 
             var existingDoc = new DocumentEntete
@@ -87,7 +86,7 @@ namespace SopalTrace.Application.Tests.Services
 
             _mockUnitOfWork.Verify(u => u.ModeleFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()), Times.Once); // Nouveau ajouté
             Assert.NotNull(savedModele);
-            Assert.Equal(3, savedModele.Version); // VersionInitiale a pris le relais (3 > 2)
+            Assert.Equal(3, savedModele.Version); // Version du formulaire (sa version de départ se donne à la création du code)
             Assert.Equal("ACTIF", savedModele.Statut); // Actif par défaut car pas de formulaire parent
         }
 

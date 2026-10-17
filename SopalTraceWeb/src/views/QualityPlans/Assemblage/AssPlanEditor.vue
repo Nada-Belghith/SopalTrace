@@ -22,6 +22,9 @@
           </div>
         </template>
       </PlanHeader>
+
+      <!-- PDF généré depuis le modèle de Sopal (FE0594), relu après chaque enregistrement -->
+      <PdfDocumentQualite v-if="modeleEditionId" ref="pdfDocument" :document-id="modeleEditionId" class="mb-4" />
       
       <div class="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
         <div class="bg-[#1e293b] text-white px-5 py-3.5 flex justify-between items-center">
@@ -129,6 +132,7 @@
              :statut="statut"
              :is-loading="isLoading"
              :is-read-only="isReadOnly"
+             :correction-possible="!colonnesModifiees"
              @save-direct="handleSaveDirect"
              @save-correction="handleSaveCorrection"
              @save-new-version="handleSaveNewVersion"
@@ -148,7 +152,7 @@
 
 <script setup>
 import { periodiciteAvecLibelle } from '@/utils/frequencyUtils';
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAssPlanStore } from '@/stores/assPlanStore';
 import { useToast } from 'primevue/usetoast';
@@ -160,10 +164,12 @@ import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmati
 import { documentService as assPlanService } from '@/services/documentService';
 import { planFabricationService as fabPlanService } from '@/services/planFabricationService';
 import { createModeleSnapshot } from '@/utils/modelMapper';
+import { colonnesDepuisDocument, signatureColonnes } from '@/utils/colonnesUtils';
 import { messageImportExcel } from '@/utils/importExcelResultat';
 import { prepareSectionsForBackend, hydrateSectionFromBackend } from '@/utils/sectionUtils';
 
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
+import PdfDocumentQualite from '@/components/Qualite/PdfDocumentQualite.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import PlanReadView from '@/components/Shared/PlanReadView.vue';
 import assPlanHeader from '@/components/Assemblage/assPlanHeader.vue';
@@ -201,6 +207,10 @@ const groupes = sections;
 const modeleEditionId = ref(null);
 const codeOriginal = ref('');
 const statut = computed(() => store.entete?.statut || 'BROUILLON');
+// Colonnes du document chargé : si elles changent, seule une nouvelle version est possible.
+const colonnesChargees = ref(null);
+const colonnesModifiees = computed(() => colonnesChargees.value !== null
+  && signatureColonnes(store.entete.configurationColonnes) !== colonnesChargees.value);
 const version = ref(0);
 const showColumnModal = ref(false);
 
@@ -265,6 +275,9 @@ import { useDocumentSaveManager } from '@/composables/useDocumentSaveManager';
 const isLoading = computed(() => store.isLoading || isSaving.value);
 
 const isEditMode = computed(() => !!modeleEditionId.value);
+// Après un enregistrement (nouvelle RowVersion), le PDF est régénéré par le serveur : son état est relu.
+const pdfDocument = ref(null);
+watch(() => store.entete?.rowVersion, (nouvelle, ancienne) => { if (ancienne && nouvelle !== ancienne) pdfDocument.value?.recharger(); });
 const { isReadOnly, isArchived, isForcedView } = useDocumentHeaderMeta(route, store);
 
 const codeAffiche = computed(() => {
@@ -345,6 +358,8 @@ onMounted(async () => {
 
 const chargerModelePourEdition = async (id) => {
   store.isLoading = true;
+  // Les enchaînements de l'en-tête (famille → opération → nature → poste) ne doivent pas vider les valeurs du plan chargé.
+  store.isBeingLoaded = true;
   try {
     const res = await assPlanService.getById(id);
     const data = res?.data?.data || res?.data || res;
@@ -362,7 +377,11 @@ const chargerModelePourEdition = async (id) => {
     store.entete.legendeMoyens = data.legendeMoyens || '';
     store.entete.posteCode = data.posteCode || '';
     store.entete.familleProduitCode = data.familleProduitFiniCode || '';
-    
+    // Formulaire et colonnes propres du document : sans eux, une nouvelle version perdrait ses colonnes.
+    store.entete.refFormulaireCodeReference = data.formulaireCodeReference || '';
+    store.entete.configurationColonnes = colonnesDepuisDocument(data.colonneDefs);
+    colonnesChargees.value = signatureColonnes(store.entete.configurationColonnes);
+
     const sortedSections = [...(data.sections || [])].sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0));
     groupes.value = sortedSections.map(sec => hydrateSectionFromBackend(sec, refStore.periodicites));
     
@@ -378,6 +397,9 @@ const chargerModelePourEdition = async (id) => {
       life: 6000
     });
   } finally {
+    // Les observateurs de l'en-tête s'exécutent après ce chargement : la protection est levée une fois qu'ils sont passés.
+    await nextTick();
+    store.isBeingLoaded = false;
     store.isLoading = false;
   }
 };

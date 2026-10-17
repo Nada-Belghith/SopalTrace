@@ -35,16 +35,16 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
     public async Task<Guid> CreateDocumentAsync(CreateDocumentVerifMachineRequestDto request)
     {
         var user = _currentUserService.MatriculeRequis;
-        
+
         var docsExistants = await _unitOfWork.DocumentVerifMachineEnteteRepository.GetByMachineCodeAsync(request.MachineCode);
-        
+
         bool forceNouvelleVersion = docsExistants.Any(d => d.Statut == DocumentStatuts.Actif);
 
         // 1. Gérer le formulaire
         var (formulaireId, formVersion, formStatut) = await ResolveFormulaireAsync(
-            request.RefFormulaireCodeReference, request.ColonneDefs, 
+            request.RefFormulaireCodeReference, request.MachineCode, request.ColonneDefs,
             isCorrectionMineure: false, forceNouvelleVersion: forceNouvelleVersion);
-        
+
         // 2. Construire l'entité
         var entite = DocumentVerifMachineMapper.ToEntity(request, user, formulaireId);
         entite.Statut = formStatut;
@@ -71,8 +71,8 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
 
         // 1. Gérer le formulaire (incrémentation de version du formulaire)
         var (formulaireId, formVersion, formStatut) = await ResolveFormulaireAsync(
-            request.Donnees.RefFormulaireCodeReference, request.Donnees.ColonneDefs, 
-            versionInitiale: 0, isCorrectionMineure: false, forceNouvelleVersion: true);
+            request.Donnees.RefFormulaireCodeReference ?? ancienDoc.Formulaire?.CodeReference, request.Donnees.MachineCode, request.Donnees.ColonneDefs,
+            isCorrectionMineure: false, forceNouvelleVersion: true);
 
         // 2. Construire
         var entite = DocumentVerifMachineMapper.ToEntity(request.Donnees, user, formulaireId);
@@ -96,7 +96,8 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         var user = _currentUserService.MatriculeRequis;
 
         // 1. Gérer le formulaire (correction mineure)
-        var (formulaireId, formVersion, formStatut) = await ResolveFormulaireAsync(request.RefFormulaireCodeReference, request.ColonneDefs, null, isCorrectionMineure: true);
+        var (formulaireId, formVersion, formStatut) = await ResolveFormulaireAsync(
+            request.RefFormulaireCodeReference ?? existingDoc.Formulaire?.CodeReference, request.MachineCode, request.ColonneDefs, isCorrectionMineure: true);
 
         // 2. Mettre à jour l'en-tête (ne modifie ni la version ni le statut)
         existingDoc.MachineCode = request.MachineCode;
@@ -141,10 +142,13 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         return VersionsDocument.EnTexte(existingDoc.RowVersion) ?? string.Empty;
     }
 
+    /// <summary>
+    /// Formulaire du plan : celui indiqué, sinon celui de la machine (champ d'application) ; jamais de code fabriqué.
+    /// </summary>
     private async Task<(Guid? FormulaireId, int? Version, string Statut)> ResolveFormulaireAsync(
-        string? refFormulaireCodeReference, 
-        IEnumerable<object>? colonneDefs, 
-        int? versionInitiale = null, 
+        string? refFormulaireCodeReference,
+        string? machineCode,
+        IEnumerable<object>? colonneDefs,
         bool isCorrectionMineure = false,
         bool forceNouvelleVersion = false)
     {
@@ -152,17 +156,19 @@ public class DocumentVerifMachineService : IDocumentVerifMachineService
         int version = 0;
         string statut = DocumentStatuts.Brouillon;
 
+        var champ = ChampsFormulaire.PourDocument(TypesDocument.VerifMachine, null, null, machineCode, null)!;
+        refFormulaireCodeReference = await _formulaireStructureService.CodeFormulaireAsync(champ, refFormulaireCodeReference);
         if (!string.IsNullOrWhiteSpace(refFormulaireCodeReference))
         {
             var form = await _unitOfWork.RefFormulaireRepository.GetFormulaireActifByCodeReferenceAsync(refFormulaireCodeReference);
             string role = form?.Role ?? RolesFormulaire.VerifMachine;
-            
+
             var colsJson = colonneDefs != null && colonneDefs.Any()
                 ? System.Text.Json.JsonSerializer.Serialize(colonneDefs, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })
                 : null;
-                
+
             var result = await _formulaireStructureService.UpdateFormulaireStructureAsync(
-                role, colsJson, refFormulaireCodeReference, versionInitiale, isCorrectionMineure: isCorrectionMineure, forceNouvelleVersion: forceNouvelleVersion
+                role, colsJson, refFormulaireCodeReference, isCorrectionMineure: isCorrectionMineure, forceNouvelleVersion: forceNouvelleVersion
             );
 
             if (result.HasValue)

@@ -17,11 +17,15 @@
   >
     <!-- Options de mise à jour pour les documents ACTIFS -->
     <div v-if="mode === 'new-version'" class="flex flex-col gap-3 my-2 bg-slate-50 p-4 rounded-lg border border-slate-200">
-      <div class="flex items-start gap-2">
+      <p v-if="!correctionPossible" class="m-0 text-sm text-amber-800">
+        Les colonnes du document ont changé : une nouvelle version est obligatoire (les documents déjà créés gardent leur structure).
+      </p>
+      <div v-if="correctionPossible" class="flex items-start gap-2">
         <RadioButton v-model="updateAction" inputId="action1" name="action" value="correction" />
         <label for="action1" class="cursor-pointer text-sm font-medium text-slate-700 leading-tight">
           Correction mineure <br/>
-          <span class="text-xs font-normal text-slate-500">Mettre à jour le document actuel sans changer de version (maintient le statut ACTIF).</span>
+          <span class="text-xs font-normal text-slate-500">Mettre à jour le document actuel sans changer de version (maintient le statut ACTIF).</span><br/>
+          <span class="text-xs font-normal text-amber-700">Impossible si la configuration des colonnes a changé : une nouvelle version est alors obligatoire.</span>
         </label>
       </div>
       <div class="flex items-start gap-2">
@@ -53,6 +57,11 @@ const props = defineProps({
   isLoading: {
     type: Boolean,
     default: false
+  },
+  // false : les colonnes ont changé, seule une nouvelle version est possible.
+  correctionPossible: {
+    type: Boolean,
+    default: true
   }
 });
 
@@ -62,7 +71,7 @@ const updateAction = ref('correction');
 
 watch(() => props.visible, (newVal) => {
   if (newVal) {
-    updateAction.value = 'correction';
+    updateAction.value = props.correctionPossible ? 'correction' : 'new-version';
   }
 });
 

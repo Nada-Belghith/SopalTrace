@@ -29,7 +29,7 @@
                     </Dropdown>
                 </div>
                 <p class="text-xs text-emerald-600/80 font-medium italic">
-                  Le poste et la famille sont ceux du formulaire choisi (ex. « PAS71 soupape » : poste PAS71, famille avec soupape).
+                  Le poste et la famille sont ceux du formulaire choisi (verrouillés) : « PAS71 soupape » donne le poste PAS71 et la famille avec soupape.
                 </p>
               </div>
 
@@ -55,7 +55,7 @@
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Famille de produit fini</label>
                 <Dropdown v-model="store.entete.familleProduitFiniCode" :options="refStore.famillesProduit" optionLabel="libelle" optionValue="code"
-                          placeholder="Toutes les familles" showClear class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id || !!formulaireChoisi?.familleProduitFiniCode"
+                          placeholder="Toutes les familles" showClear class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id || !!formulaireChoisi"
                           :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                     <template #option="slotProps">
                         <div class="text-sm">{{ slotProps.option.code }} - {{ slotProps.option.libelle }}</div>
@@ -63,13 +63,7 @@
                 </Dropdown>
               </div>
 
-              <!-- VERSION DE DEPART -->
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Version de départ</label>
-                <input type="number" v-model.number="store.entete.versionInitiale" :disabled="isReadOnly || !!store.entete.id" min="0" max="99"
-                  class="w-full border border-slate-200 rounded-lg py-2.5 px-4 text-sm focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-medium bg-white shadow-sm disabled:opacity-70" />
-                  <p class="text-[10px] text-slate-400 mt-1 italic">Définit la version initiale de ce formulaire.</p>
-              </div>
+              
               
               <div v-if="!isReadOnly" class="col-span-full flex justify-end gap-3 mt-4">
                   <button @click="$refs.fileInput.click()" 
@@ -242,7 +236,8 @@
               :is-loading="store.isLoading"
               :is-read-only="isReadOnly"
               @save-direct="handleSaveDirect"
-              @save-correction="handleSaveCorrection"
+              :correction-possible="!colonnesModifiees(store.entete.configurationColonnes?.customCols, store.entete.colonnesChargees)"
+          @save-correction="handleSaveCorrection"
               @save-new-version="handleSaveNewVersion"
               @cancel="onCancel"
           />
@@ -371,6 +366,7 @@ import { useReferentielStore } from '@/stores/referentielStore';
 import { useToast } from 'primevue/usetoast';
 
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
+import { colonnesModifiees } from '@/utils/colonnesUtils';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';

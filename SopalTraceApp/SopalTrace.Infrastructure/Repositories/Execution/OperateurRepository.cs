@@ -426,6 +426,10 @@ public class OperateurRepository : IOperateurRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<Guid?> GetPlanVerifMachinePourOfAsync(Guid execControleOfId, string machineCode) =>
+        await DocumentsDeLOf.DocumentDejaUtiliseAsync(_context, execControleOfId, TypesDocumentExecution.VerifMachine, machineCode: machineCode)
+        ?? await GetPlanVerifMachineActifIdAsync(machineCode);
+
     public async Task<List<(Guid EcheanceId, string Periodicite)>> GetEcheancesPlanVerifMachineAsync(Guid planId)
     {
         var echeances = await _context.DocumentVerifMachineEcheances

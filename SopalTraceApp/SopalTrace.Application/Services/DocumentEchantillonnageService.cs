@@ -17,8 +17,6 @@ namespace SopalTrace.Application.Services;
 /// </summary>
 public class DocumentEchantillonnageService : IDocumentEchantillonnageService
 {
-    private const string FormulaireParDefaut = "FE-ECHAN-01";
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFormulaireStructureService _formulaireStructureService;
     private readonly ICurrentUserService _currentUserService;
@@ -46,14 +44,13 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
     }
 
     /// <summary>
-    /// Crée un plan directement ACTIF, à la version du formulaire FE-ECHAN-01.
+    /// Crée un plan directement ACTIF, sur le formulaire d'échantillonnage (celui indiqué, sinon le formulaire en cours).
     /// S'il existe déjà un plan actif, le formulaire passe à la version suivante et l'ancien plan est archivé.
     /// </summary>
     public async Task<Guid> CreateDocumentAsync(CreateDocumentEchantillonnageRequestDto request)
     {
         var planActif = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
-        var formulaire = await ResoudreFormulaireAsync(request.RefFormulaireCodeReference, versionInitiale: 0,
-            forceNouvelleVersion: planActif != null);
+        var formulaire = await ResoudreFormulaireAsync(request.RefFormulaireCodeReference, forceNouvelleVersion: planActif != null);
         var niveauQualiteAcceptableId = await ResoudreNiveauQualiteAcceptableAsync(request.NqaId, request.ValeurNqa);
 
         var plan = DocumentEchantillonnageMapper.NouveauPlan(request, niveauQualiteAcceptableId);
@@ -102,7 +99,7 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
         plan.UpdateEntity(request, await ResoudreNiveauQualiteAcceptableAsync(request.NqaId, request.ValeurNqa));
 
         await _formulaireStructureService.UpdateFormulaireStructureAsync(
-            RolesFormulaire.Echantillonnage, null, request.RefFormulaireCodeReference ?? FormulaireParDefaut, null,
+            RolesFormulaire.Echantillonnage, null, await CodeFormulaireAsync(request.RefFormulaireCodeReference),
             isCorrectionMineure: true, forceNouvelleVersion: false);
 
         await _unitOfWork.CommitAsync();
@@ -118,8 +115,7 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
             throw new RegleMetierException("Ce plan est déjà archivé.");
         _unitOfWork.VerifierVersionDocument(ancienPlan, request.RowVersion, obligatoire: false);
 
-        var formulaire = await ResoudreFormulaireAsync(request.Donnees.RefFormulaireCodeReference, versionInitiale: null,
-            forceNouvelleVersion: true);
+        var formulaire = await ResoudreFormulaireAsync(request.Donnees.RefFormulaireCodeReference, forceNouvelleVersion: true);
         var niveauQualiteAcceptableId = await ResoudreNiveauQualiteAcceptableAsync(request.Donnees.NqaId, request.Donnees.ValeurNqa);
 
         var plan = DocumentEchantillonnageMapper.NouveauPlan(request.Donnees, niveauQualiteAcceptableId, request.MotifModification);
@@ -156,10 +152,14 @@ public class DocumentEchantillonnageService : IDocumentEchantillonnageService
         return nouveauPlan.Id;
     }
 
-    private async Task<RefFormulaire> ResoudreFormulaireAsync(string? codeReference, int? versionInitiale, bool forceNouvelleVersion)
+    /// <summary>Formulaire d'échantillonnage : celui indiqué, sinon le formulaire en cours (jamais de code fabriqué).</summary>
+    private Task<string> CodeFormulaireAsync(string? codeReference) =>
+        _formulaireStructureService.CodeFormulaireAsync(ChampsFormulaire.PourDocument(TypesDocument.PlanEchantillonnage, null, null, null, null)!, codeReference);
+
+    private async Task<RefFormulaire> ResoudreFormulaireAsync(string? codeReference, bool forceNouvelleVersion)
     {
         var resultat = await _formulaireStructureService.UpdateFormulaireStructureAsync(
-            RolesFormulaire.Echantillonnage, null, codeReference ?? FormulaireParDefaut, versionInitiale,
+            RolesFormulaire.Echantillonnage, null, await CodeFormulaireAsync(codeReference),
             isCorrectionMineure: false, forceNouvelleVersion: forceNouvelleVersion);
 
         if (!resultat.HasValue)

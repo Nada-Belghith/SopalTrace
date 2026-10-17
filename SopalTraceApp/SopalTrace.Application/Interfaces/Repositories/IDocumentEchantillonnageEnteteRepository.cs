@@ -10,6 +10,8 @@ public interface IDocumentEchantillonnageEnteteRepository
 {
     Task<DocumentEntete?> GetByIdAsync(Guid id, bool includeRelations = true);
     Task<DocumentEntete?> GetPlanActifAsync();
+    /// <summary>Plan d'échantillonnage de l'OF : celui de sa première fiche (même archivé depuis), sinon le plan actif.</summary>
+    Task<DocumentEntete?> GetPlanPourOfAsync(Guid execControleOfId);
     Task<IEnumerable<DocumentEntete>> GetAllWithRelationsAsync();
     Task AddAsync(DocumentEntete entity);
     Task UpdateAsync(DocumentEntete entity);

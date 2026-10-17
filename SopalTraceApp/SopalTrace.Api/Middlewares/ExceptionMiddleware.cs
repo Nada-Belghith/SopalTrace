@@ -55,6 +55,7 @@ public class ExceptionMiddleware
         AuthException => (int)HttpStatusCode.Unauthorized,
         RessourceIntrouvableException => (int)HttpStatusCode.NotFound,
         ConflitConcurrenceException or EtatExecutionInvalideException or ScanEnDoubleException => (int)HttpStatusCode.Conflict,
+        ServiceConversionIndisponibleException => (int)HttpStatusCode.ServiceUnavailable,
         DomainException => (int)HttpStatusCode.BadRequest,
         _ => (int)HttpStatusCode.InternalServerError
     };

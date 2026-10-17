@@ -16,5 +16,18 @@ public partial class SopalTraceDbContext
         // nomenclature (parent fabriqué) : EF interdit une clé recalculée à chaque mise à jour, on la
         // déclare générée à l'insertion seulement (l'application ne modifie pas les articles Sage).
         modelBuilder.Entity<Article>().Property(a => a.Origin).ValueGeneratedOnAdd();
+
+        // Ordre de création : attribué par la base (séquence) et jamais envoyé par l'application, ni à l'insertion
+        // ni aux mises à jour (une entité détachée remise à jour ne peut pas l'écraser).
+        OrdreDeCreationParLaBase(modelBuilder.Entity<DocumentEntete>().Property(d => d.CreationOrder));
+        OrdreDeCreationParLaBase(modelBuilder.Entity<ExecControleDocumentStatut>().Property(s => s.CreationOrder));
+        OrdreDeCreationParLaBase(modelBuilder.Entity<ReportTemplateAssignment>().Property(a => a.CreationOrder));
+    }
+
+    private static void OrdreDeCreationParLaBase(Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<long> propriete)
+    {
+        propriete.ValueGeneratedOnAdd();
+        propriete.Metadata.SetBeforeSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
+        propriete.Metadata.SetAfterSaveBehavior(Microsoft.EntityFrameworkCore.Metadata.PropertySaveBehavior.Ignore);
     }
 }

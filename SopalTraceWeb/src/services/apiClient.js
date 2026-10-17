@@ -12,6 +12,16 @@ const apiClient = axios.create({
   timeout: 10000
 });
 
+/** Texte d'un Blob (FileReader si Blob.text() n'existe pas). */
+const lireTexte = (blob) => typeof blob.text === 'function'
+  ? blob.text()
+  : new Promise((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onload = () => resolve(lecteur.result);
+    lecteur.onerror = () => reject(lecteur.error);
+    lecteur.readAsText(blob);
+  });
+
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -114,6 +124,15 @@ apiClient.interceptors.response.use(
       details: []
     };
 
+    // Téléchargement de fichier (réponse attendue en Blob) : le message d'erreur JSON de l'API est relu.
+    if (typeof Blob !== 'undefined' && error.response?.data instanceof Blob) {
+      try {
+        error.response.data = JSON.parse(await lireTexte(error.response.data));
+      } catch {
+        error.response.data = {};
+      }
+    }
+
     if (error.response) {
       const data = error.response.data || {};
       // Erreurs de validation ASP.NET (ProblemDetails) : { errors: { Champ: ["message"] } }
@@ -142,6 +161,11 @@ apiClient.interceptors.response.use(
           break;
         case 429:
           apiError.message = "Trop de requêtes. Patientez quelques instants puis réessayez.";
+          break;
+        case 503:
+          // Service indisponible (ex. conversion PDF arrêtée) : le message de l'API explique quoi faire.
+          apiError.message = data.message || data.error || "Service momentanément indisponible. Réessayez dans quelques instants.";
+          logger.warn('Service indisponible (503)', apiError.message);
           break;
         case 500:
           apiError.message = data.traceId

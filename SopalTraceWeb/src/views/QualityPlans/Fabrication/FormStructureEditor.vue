@@ -22,14 +22,9 @@
           </div>
           <span class="text-slate-300">|</span>
           <div class="flex items-center gap-1.5">
-            <span class="text-[10px] font-black text-slate-400 uppercase">Version de départ :</span>
-            <input 
-              v-model.number="formVersion" 
-              type="number" 
-              min="1" 
-              class="w-16 bg-white border border-slate-200 rounded px-2 py-1 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all" 
-              :disabled="isViewOnly" 
-            />
+                        <!-- La version de départ se donne à la création du code (page Formulaires), puis augmente toute seule. -->
+            <span class="text-[10px] font-black text-slate-400 uppercase">Version :</span>
+            <span class="font-mono font-bold text-sm text-slate-700">{{ formVersion }}</span>
           </div>
           <span v-if="formStatut === 'ACTIF'" class="bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-emerald-500/20">ACTIF</span>
           <span v-else-if="formStatut === 'BROUILLON'" class="bg-slate-500/10 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-slate-500/20">BROUILLON</span>
@@ -396,8 +391,7 @@ const saveStructure = async () => {
   isSaving.value = true
   try {
     const payload = {
-      configurationStructureJson: JSON.stringify(customColumns.value),
-      versionInitiale: formVersion.value
+      configurationStructureJson: JSON.stringify(customColumns.value)
     }
     const res = await apiClient.put('/referentiels/formulaires/role/EN_COURS_DE_FABRICATION', payload)
     

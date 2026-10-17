@@ -83,7 +83,8 @@ public static class ModeleFabricationMapper
             FamilleProduitFiniCode = string.IsNullOrWhiteSpace(dto.FamilleProduitCode) ? null : dto.FamilleProduitCode,
             Remarques = dto.Notes,
             LegendeMoyens = dto.LegendeMoyens,
-            Version = dto.VersionInitiale ?? 0,
+            // Version du formulaire, posée par le service.
+            Version = 0,
             Statut = DocumentStatuts.Actif,
             FormulaireId = formulaireId,
             CreePar = user,

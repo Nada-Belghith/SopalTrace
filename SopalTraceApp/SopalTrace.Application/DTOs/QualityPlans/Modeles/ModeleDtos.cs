@@ -20,7 +20,6 @@ public record CreateModeleRequestDto
     public string? Notes { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
     public string? CreePar { get; init; } = "SYSTEM";
-    public int? VersionInitiale { get; init; }
     public string? ConfigurationColonnesJson { get; init; } = null;
     /// <summary>Code du formulaire référence sélectionné par l'utilisateur (ex: FE-ASS-PISTON). Permet de versionner le bon formulaire.</summary>
     public string? RefFormulaireCodeReference { get; init; } = null;
@@ -113,7 +112,6 @@ public record NouvelleVersionModeleRequestDto
     public string? FamilleProduitCode { get; init; } = null;
     public string? Notes { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
-    public int? VersionInitiale { get; init; }
     public List<SectionModeleEditDto> Sections { get; init; } = new();
     public string? ConfigurationColonnesJson { get; init; } = null;
     /// <summary>Code du formulaire référence sélectionné (ex: FE-ASS-PISTON). Permet de versionner le bon formulaire spécifiquement.</summary>

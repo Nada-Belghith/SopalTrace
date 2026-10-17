@@ -105,4 +105,18 @@ public static class ColonneJsonMapper
     {
         return DeserializeRoot(json).CustomCols;
     }
+
+    /// <summary>
+    /// Empreinte de la configuration des colonnes propres (clé, libellé, type, position, tableau, valeurs proposées),
+    /// indépendante de l'ordre d'envoi : deux configurations identiques ont la même empreinte. Les colonnes sans clé ou
+    /// sans libellé ne sont pas enregistrées et sont ignorées.
+    /// </summary>
+    public static string SignatureColonnes(IEnumerable<ColonneJsonDto> colonnes) => string.Join("\n", colonnes
+        .Where(c => !string.IsNullOrWhiteSpace(c.Key) && !string.IsNullOrWhiteSpace(c.Label))
+        .OrderBy(c => c.Key, StringComparer.OrdinalIgnoreCase)
+        .Select(c => string.Join("|", c.Key.Trim().ToUpperInvariant(), c.Label.Trim(), SopalTrace.Domain.Constants.TypesValeurColonne.Normaliser(c.Type),
+            c.InsertAfter?.Trim() ?? "", c.TargetTable?.Trim() ?? "", string.Join(";", c.Options.Select(o => o.Trim())))));
+
+    public static string SignatureColonnes(IEnumerable<RefFormulaireColonneDef> colonnes) =>
+        SignatureColonnes(Deserialize(Serialize(colonnes)));
 }

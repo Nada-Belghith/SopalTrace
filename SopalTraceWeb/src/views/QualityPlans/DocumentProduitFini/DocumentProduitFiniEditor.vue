@@ -134,6 +134,7 @@
                :statut="statut"
                :is-loading="isSaving"
                :is-read-only="isReadOnly"
+               :correction-possible="!colonnesModifiees"
                @save-direct="handleSaveDirect"
                @save-correction="handleSaveCorrection"
                @save-new-version="handleSaveNewVersion"
@@ -175,6 +176,7 @@ import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import Toast from 'primevue/toast';
 import { messageImportExcel } from '@/utils/importExcelResultat';
+import { signatureColonnes } from '@/utils/colonnesUtils';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
 
 const route = useRoute();
@@ -185,6 +187,10 @@ const refStore = useReferentielStore();
 const { confirmArchivagePlanActif } = useActivePlanConfirmation();
 
 const planId = ref(route.params.id === 'nouveau' ? null : route.params.id);
+// Colonnes du document chargé : si elles changent, seule une nouvelle version est possible.
+const colonnesChargees = ref(null);
+const colonnesModifiees = computed(() => colonnesChargees.value !== null
+  && signatureColonnes(store.entete.configurationColonnes) !== colonnesChargees.value);
 // isForcedView is now provided by useDocumentHeaderMeta
 const isLoadingData = ref(false);
 const isSaving = ref(false);
@@ -303,6 +309,7 @@ onMounted(async () => {
     isLoadingData.value = true;
     try {
       await store.getPlan(planId.value);
+      colonnesChargees.value = signatureColonnes(store.entete.configurationColonnes);
       // Synchroniser le state local des sections
       sections.value = JSON.parse(JSON.stringify(store.sections));
     } catch (error) {

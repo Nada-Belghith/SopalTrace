@@ -14,4 +14,6 @@ public partial class TypeDocument
     public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
 
     public virtual ICollection<ExecutionDocumentType> ExecutionDocumentTypes { get; set; } = new List<ExecutionDocumentType>();
+
+    public virtual ICollection<ReportTemplate> ReportTemplates { get; set; } = new List<ReportTemplate>();
 }

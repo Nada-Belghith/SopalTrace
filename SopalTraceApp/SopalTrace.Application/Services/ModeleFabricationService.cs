@@ -101,7 +101,6 @@ public class ModeleFabricationService : IModeleFabricationService
             NatureComposantCode = !string.IsNullOrWhiteSpace(request.NatureComposantCode) ? request.NatureComposantCode : (existingModele.NatureArticleCode ?? ""),
             FamilleProduitCode = request.FamilleProduitCode ?? existingModele.FamilleProduitFiniCode,
             OperationCode = !string.IsNullOrWhiteSpace(request.OperationCode) ? request.OperationCode : (existingModele.OperationCode ?? ""),
-            VersionInitiale = request.VersionInitiale,
             LegendeMoyens = request.LegendeMoyens ?? existingModele.LegendeMoyens,
             Notes = request.Notes ?? existingModele.Remarques,
             RefFormulaireCodeReference = request.RefFormulaireCodeReference ?? existingModele.Formulaire?.CodeReference,

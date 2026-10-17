@@ -68,7 +68,7 @@ public class VerifMachinePosteService : IVerifMachinePosteService
         foreach (var code in codes)
         {
             documents.TryGetValue(code, out var statut);
-            lignes.Add(await LigneAsync(code, libelles.GetValueOrDefault(code), !parDefaut.Contains(code), statut, periodicite, cloture));
+            lignes.Add(await LigneAsync(execControleOfId, code, libelles.GetValueOrDefault(code), !parDefaut.Contains(code), statut, periodicite, cloture));
         }
 
         var attendues = lignes.Where(l => l.Etat is EtatsVerifMachine.AFaire or EtatsVerifMachine.EnCours or EtatsVerifMachine.Validee).ToList();
@@ -87,7 +87,7 @@ public class VerifMachinePosteService : IVerifMachinePosteService
         };
     }
 
-    private async Task<VerifMachinePosteLigneDto> LigneAsync(string machineCode, string? libelle, bool ajoutee,
+    private async Task<VerifMachinePosteLigneDto> LigneAsync(Guid execControleOfId, string machineCode, string? libelle, bool ajoutee,
         ExecControleDocumentStatut? statut, string periodicite, bool cloture)
     {
         var ligne = new VerifMachinePosteLigneDto
@@ -95,8 +95,8 @@ public class VerifMachinePosteService : IVerifMachinePosteService
             MachineCode = machineCode, Libelle = libelle, Ajoutee = ajoutee, StatutId = statut?.Id
         };
 
-        // Version du plan figée par le document de l'équipe, sinon plan actif de la machine.
-        ligne.PlanId = statut?.DocId ?? await _operateur.GetPlanVerifMachineActifIdAsync(machineCode);
+        // Version du plan figée par le document de l'équipe, sinon celle avec laquelle l'OF a commencé, sinon le plan actif.
+        ligne.PlanId = statut?.DocId ?? await _operateur.GetPlanVerifMachinePourOfAsync(execControleOfId, machineCode);
         if (ligne.PlanId == null)
         {
             ligne.Etat = EtatsVerifMachine.PlanManquant;

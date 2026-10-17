@@ -1124,6 +1124,16 @@ VALUES
 GO
 GO
 
+-- Plans de vérification de démonstration : chacun sur le formulaire de sa machine (FE-VM-<machine>), qui porte son modèle.
+UPDATE d SET FormulaireId = f.Id
+FROM dbo.Document_Entete d
+JOIN dbo.Ref_Formulaire f ON f.CodeReference = 'FE-VM-' + d.MachineCode AND f.Statut <> 'ARCHIVE'
+WHERE d.TypeDocumentCode = 'VERIF_MACHINE' AND d.FormulaireId IS NULL;
+UPDATE f SET Statut = 'ACTIF'
+FROM dbo.Ref_Formulaire f
+WHERE f.Statut = 'BROUILLON' AND EXISTS (SELECT 1 FROM dbo.Document_Entete d WHERE d.FormulaireId = f.Id);
+GO
+
 -- ================================================================================
 -- Rôles pré-attribués aux employés de test : à leur inscription (matricule + e-mail de l'ERP),
 -- ils reçoivent directement leur lien d'activation. Le matricule 77777 n'en a pas : sa demande

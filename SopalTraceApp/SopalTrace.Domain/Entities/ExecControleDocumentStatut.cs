@@ -33,6 +33,10 @@ public partial class ExecControleDocumentStatut
 
     public string? MatriculeOperateur { get; set; }
 
+    public Guid? FormId { get; set; }
+
+    public long CreationOrder { get; set; }
+
     public byte[] RowVersion { get; set; } = null!;
 
     public virtual DocumentEntete? Doc { get; set; }
@@ -50,6 +54,10 @@ public partial class ExecControleDocumentStatut
     public virtual ICollection<ExecRcPosteReponse> ExecRcPosteReponses { get; set; } = new List<ExecRcPosteReponse>();
 
     public virtual ICollection<ExecVerifMachineReponse> ExecVerifMachineReponses { get; set; } = new List<ExecVerifMachineReponse>();
+
+    public virtual RefFormulaire? Form { get; set; }
+
+    public virtual ICollection<GeneratedDocument> GeneratedDocuments { get; set; } = new List<GeneratedDocument>();
 
     public virtual Machine? MachineCodeNavigation { get; set; }
 

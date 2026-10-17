@@ -43,14 +43,30 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<DocumentEntete?> GetDocumentActifAsync(string posteCode)
+        public async Task<Guid?> TrouverFormulaireAsync(string? codeArticle, string? posteCode)
         {
-            return await _context.DocumentEntetes
-                .Where(d => d.TypeDocumentCode == TypesDocument.ResultatCF && d.Statut == DocumentStatuts.Actif
-                            && (d.PosteCode == posteCode || d.PosteCode == null))
-                .OrderByDescending(d => d.PosteCode == posteCode)   // le document du poste avant le document commun
-                .ThenByDescending(d => d.Version)
+            // Famille (et son type de robinet) d'un produit fini ; un composant n'en a pas.
+            var article = await _context.ProduitFinis.AsNoTracking()
+                .Where(p => p.CodeArticle == codeArticle)
+                .Select(p => new { p.FamilleProduitFiniCode, p.FamilleProduitFiniCodeNavigation!.TypeRobinetCode })
                 .FirstOrDefaultAsync();
+            return await FormulairesResultats.TrouverAsync(_context, RolesFormulaire.ResultatControleCf, posteCode,
+                article?.FamilleProduitFiniCode, article?.TypeRobinetCode);
+        }
+
+        public async Task<Guid?> TrouverPlanAsync(ExecControleOf execution, string? posteCode)
+        {
+            if (execution.PlanSourceId is { } planFabrication) return planFabrication;
+            var applique = await _context.ExecControleDocumentStatuts.AsNoTracking()
+                .Where(s => s.ExecControleOfId == execution.Id && s.TypeDocument == TypesDocumentExecution.PlanAssemblage
+                            && s.DocId != null && (posteCode == null || s.PosteCode == posteCode))
+                .OrderBy(s => s.CreationOrder)
+                .Select(s => s.DocId)
+                .FirstOrDefaultAsync();
+            if (applique != null || posteCode == null) return applique;
+            // L'OF (et son article) est chargé avec l'exécution.
+            var codeArticle = execution.NumeroOfNavigation?.CodeArticle;
+            return codeArticle == null ? null : await new ExecPlanAssemblageRepository(_context).TrouverPlanAssemblageIdAsync(codeArticle, posteCode);
         }
 
         public void AddStatut(ExecControleDocumentStatut statut) => _context.ExecControleDocumentStatuts.Add(statut);

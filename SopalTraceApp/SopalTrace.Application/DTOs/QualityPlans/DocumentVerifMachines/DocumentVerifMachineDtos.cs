@@ -9,7 +9,6 @@ public class CreateDocumentVerifMachineRequestDto
 {
     public string Nom { get; set; } = string.Empty;
     public string MachineCode { get; set; } = string.Empty;
-    public int? VersionInitiale { get; set; }
     public bool AfficheConformite { get; set; }
     public bool AfficheMoyenDetectionRisques { get; set; }
     public bool AfficheFamilles { get; set; }

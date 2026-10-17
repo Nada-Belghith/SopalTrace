@@ -66,18 +66,21 @@ ctrl('CP manuel', 'RBGFM', 'FE-RC-PAS71-RBGFM')
 st, r = call(OP, 'GET', f'/ExecRcPoste/{exec_id}?posteCode=PAS71&equipe=E1')
 check("le document d'une autre famille n'est jamais pris (404)", st == 404, (st, r.get('planNom') if isinstance(r, dict) else r))
 ctrl('CP générique', None, 'FE-RC-PAS71')
-ctrl('CP soupape', 'RBGFA_SOUPAPE', 'FE-RC-PAS71-SOUPAPE')
+ctrl('CP soupape', 'RBGFA_SOUPAPE', None)       # formulaire de son champ d'application : FE-RC-PAS71_SOUPAPE
 st, r = call(OP, 'GET', f'/ExecRcPoste/{exec_id}?posteCode=PAS71&equipe=E1')
 check('document de la famille prioritaire sur le générique', st == 200 and (r.get('planNom') or '').startswith('CP soupape'), (st, r.get('planNom') if isinstance(r, dict) else r))
 check('les trois documents restent actifs ensemble', sql("SELECT COUNT(*) FROM Document_Entete WHERE TypeDocumentCode='CTRL_POSTE' AND PosteCode='PAS71' AND Statut='ACTIF'") == '3')
 
 # ── Faille 5 : l'ENCF est un document du poste, visible dans la liste des documents de l'OF ──
-st, r = call(SUP, 'POST', '/Document', {'typeDocumentCode': 'RESULTAT_CF', 'nom': 'Résultat CF PAS71', 'posteCode': 'PAS71',
-    'sections': [{'ordreAffiche': 1, 'libelleSection': 'Contrôles', 'lignes': [{'ordreAffiche': 1, 'libelleAffiche': 'Aspect'}]}]})
-doc = data(r).get('id') if isinstance(data(r), dict) else None
-call(SUP, 'PUT', f'/hub/modeles/RCCF/{doc}/statut?statut=ACTIF')
+# Formulaire des résultats en cours de fabrication de la famille de l'article : il l'emporte sur le formulaire générique.
+famille = sql("SELECT p.FamilleProduitFiniCode FROM MFGHEAD_OrdreFabrication o JOIN ProduitFini p ON p.CodeArticle = o.CodeArticle WHERE o.NumeroOF='OF2607ASS02'")
+st, r = call(SUP, 'POST', '/referentiels/formulaires', {'role': 'RESULTAT_CONTROLE_CF', 'code': 'FE-RC-ENCF-60', 'familleProduitFiniCode': famille})
+form_famille = str(data(r)).lower() if st == 200 else ''
 st, r = call(OP, 'GET', '/exec/encf/by-of/OF2607ASS02/poste/PAS71')
 check('ENCF ouvert par l\'opérateur depuis le poste', st == 200, (st, r))
+check('formulaire de la famille de l\'article (type de robinet compris) préféré au formulaire générique', bool(form_famille) and sql(
+    f"SELECT LOWER(CAST(FormId AS VARCHAR(36))) FROM Exec_ControleDocumentStatut WHERE ExecControleOfId='{exec_id}' AND TypeDocument='RESULTAT_CONTROLE_CF'") == form_famille,
+    (famille, form_famille))
 st, r = call(OP, 'GET', f'/Operateur/of/{exec_id}/assemblage-documents')
 check("l'ENCF figure dans les documents de l'OF (catégorie de l'assistant)", st == 200 and any(d['typeDocument'] == 'RESULTAT_CONTROLE_CF' and d['posteCode'] == 'PAS71' for d in r), (st, r))
 

@@ -106,8 +106,11 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(formResult);
 
             _mockFormulaireStructureService.Setup(s => s.UpdateFormulaireStructureAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), false, false))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), false, false))
                 .ReturnsAsync(new (Guid Id, int Version)?((formResultId, 3)));
+            // Formulaire indiqué : son code est repris tel quel (jamais fabriqué).
+            _mockFormulaireStructureService.Setup(s => s.CodeFormulaireAsync(It.IsAny<SopalTrace.Application.Helpers.ChampFormulaire>(), "REF-MAC-02"))
+                .ReturnsAsync("REF-MAC-02");
 
             _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formResultId))
                 .ReturnsAsync(formResult); 

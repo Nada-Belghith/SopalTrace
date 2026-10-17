@@ -325,6 +325,7 @@ INSERT INTO dbo.TypeDocument (Code, Libelle) VALUES
     ('PLAN_ASS',     'Plan Assemblage'),
     ('PLAN_PF',      'Plan Produit Fini');
 
+
 -- Types d'exécution et type de document qualité appliqué (NULL = pas de document).
 INSERT INTO dbo.ExecutionDocumentType (Code, Label, DocumentTypeCode) VALUES
 ('VERIF_MACHINE', 'Vérification machine', 'VERIF_MACHINE'),
@@ -336,58 +337,123 @@ INSERT INTO dbo.ExecutionDocumentType (Code, Label, DocumentTypeCode) VALUES
 ('ECHANTILLONNAGE', 'Fiche d''échantillonnage', 'PLAN_ECHANTILLONNAGE'),
 ('REGISTRE_TRACA', 'Registre de traçabilité', NULL);
 
+-- Rôles des formulaires : type de document et critères de leur champ d'application.
+-- Nature : DOCUMENT (contenu défini par le superviseur qualité) ou RESPONSE_SHEET (fiche de réponse remplie par les
+-- opérateurs, aucun document à gérer).
+INSERT INTO dbo.FormRole (Code, Label, DisplayOrder, Nature, ScopeByFamily, ScopeByWorkstation, ScopeByMachine, ScopeByNature, ScopeByValveType) VALUES
+    ('EN_COURS_DE_ASSEMBLAGE', N'Plans d''assemblage', 10, 'DOCUMENT', 1, 1, 0, 1, 0),
+    ('PRODUIT_FINI', N'Plans produit fini', 20, 'DOCUMENT', 1, 0, 0, 0, 0),
+    ('RESULTAT_CONTROLE_POSTE', N'Contrôles au poste', 30, 'DOCUMENT', 1, 1, 0, 0, 0),
+    ('RESULTAT_CONTROLE_ASSEMBLAGE', N'Résultats du contrôle en cours d''assemblage', 40, 'RESPONSE_SHEET', 1, 1, 0, 0, 1),
+    ('VERIF_MACHINE', N'Vérifications machine', 50, 'DOCUMENT', 0, 0, 1, 0, 0),
+    ('ECHANTILLONNAGE', N'Plan d''échantillonnage', 60, 'DOCUMENT', 0, 0, 0, 0, 0),
+    ('RESULTAT_CONTROLE_CF', N'Résultats du contrôle en cours de fabrication', 70, 'RESPONSE_SHEET', 1, 1, 0, 0, 1),
+    ('EN_COURS_DE_FABRICATION', N'Modèles de fabrication', 80, 'DOCUMENT', 0, 0, 0, 0, 0),
+    ('REGISTRE_TRACABILITE', N'Registre de traçabilité', 90, 'RESPONSE_SHEET', 0, 0, 0, 0, 0);
+
+-- Types de modèles de rapport : les champs qu'un fichier Excel peut utiliser pour les documents d'un rôle (FormRole).
+-- L'administrateur envoie à chaque formulaire son modèle dédié (page « Modèles Excel ») ; les tests importent les
+-- fichiers de tests/fixtures/modeles pour les formulaires de ReportTemplateInitialForm.
+INSERT INTO dbo.ReportTemplate (Code, Name, DocumentTypeCode, FormRole) VALUES
+    ('PLAN_ASS', N'Plan de contrôle d''assemblage (FE0594)', 'PLAN_ASS', 'EN_COURS_DE_ASSEMBLAGE');
+INSERT INTO dbo.ReportTemplate (Code, Name, ExecutionDocumentTypeCode, FormRole) VALUES
+    ('ECHANTILLONNAGE', N'Fiche d''échantillonnage (FE0591)', 'ECHANTILLONNAGE', 'ECHANTILLONNAGE'),
+    ('RESULTAT_CONTROLE_POSTE', N'Résultat de contrôle au poste (FE0794)', 'RESULTAT_CONTROLE_POSTE', 'RESULTAT_CONTROLE_POSTE'),
+    ('VERIF_MACHINE', N'Rapport de vérification banc d''essai BEE (FE0795)', 'VERIF_MACHINE', 'VERIF_MACHINE'),
+    ('VERIF_MACHINE_MAS', N'Rapport de vérification machine d''assemblage MAS19 (FE0820)', 'VERIF_MACHINE', 'VERIF_MACHINE'),
+    ('VERIF_MACHINE_MAS22', N'Rapport de vérification machine d''assemblage MAS22 (FE0529)', 'VERIF_MACHINE', 'VERIF_MACHINE'),
+    ('VERIF_MACHINE_MAS26', N'Rapport de vérification machine d''assemblage MAS26 (FE0525)', 'VERIF_MACHINE', 'VERIF_MACHINE'),
+    ('VERIF_MACHINE_SER05', N'Rapport de vérification machine de marquage SER05 (FE0798)', 'VERIF_MACHINE', 'VERIF_MACHINE'),
+    ('PLAN_ASS_RESULTATS', N'Résultats du contrôle en cours d''assemblage — poste 71 (FE0816)', 'PLAN_ASS', 'RESULTAT_CONTROLE_ASSEMBLAGE'),
+    ('PLAN_ASS_RESULTATS_PAS72', N'Résultats du contrôle en cours d''assemblage — postes 72 et 78 (FE0817)', 'PLAN_ASS', 'RESULTAT_CONTROLE_ASSEMBLAGE'),
+    ('REGISTRE_TRACA', N'Registre de traçabilité assemblage (FE0129)', 'REGISTRE_TRACA', 'REGISTRE_TRACABILITE');
+
 -- =================================================================================
 -- 23. SEED DATA - FORMULAIRES DE REFERENCE
 -- =================================================================================
+-- Champ d'application (famille et son type de robinet, poste, machine, nature PISTON) : seuls les critères qui existent sont renseignés. Les
+-- codes sont des libellés que le superviseur qualité remplace par les codes Sopal ; l'application ne les fabrique pas.
 -- Formulaire commun pour Semi-Finis (Corps, Volant, Piston)
-INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut, CreeLe, Role) VALUES
-('D3C2A4F4-1B0A-4F9E-B4FF-67E97A135593', 'PRC', 'Formulaire PRC', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_FABRICATION'),
-('A1B2C3D4-1111-4444-5555-666677778888', 'FE-ASS-PISTON', 'Plan Ass Piston', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
-('B2C3D4E5-2222-4444-5555-666677778888', 'FE-ASS-MANU', 'Plan Ass PF Manu', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
-(NEWID(), 'FE-ASS-RBGFA-BAC-01', 'Plan ASS RBGFA-BAC-01', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
-(NEWID(), 'FE-ASS-RBGFA-BAC-02', 'Plan ASS RBGFA-BAC-02', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
-(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS71', 'Plan PF RBGFA_SOUPAPE PAS71 ', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
-(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS72', 'Plan PF RBGFA_SOUPAPE PAS72 ', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
-(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS78', 'Plan PF RBGFA_SOUPAPE PAS78 ', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE'),
-(NEWID(), 'FE-PF-RBGFA_SOUPAPE', 'Plan PF RBGFA_SOUPAPE', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI'),
-(NEWID(), 'FE-PF-RBGFA', 'Plan PF RBGFA', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI'),
-(NEWID(), 'FE-PF-RBGFA-BAC-01', 'Plan PF RBGFA-BAC-01', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI'),
-(NEWID(), 'FE-PF-RBGFA-BAC-02', 'Plan PF RBGFA-BAC-02', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI'),
-(NEWID(), 'FE-PF-RBGFM', 'Plan PF RBGFM', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI'),
-(NEWID(), 'FE-VM-MAS19', 'Formulaire Verif Machine MAS19', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-VM-MAS20', 'Formulaire Verif Machine MAS20', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-VM-MAS22', 'Formulaire Verif Machine MAS22', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-VM-MAS26', 'Formulaire Verif Machine MAS26', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-VM-BEE22', 'Formulaire Verif Machine BEE22', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-VM-BEE46', 'Formulaire Verif Machine BEE46', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-VM-BEE47', 'Formulaire Verif Machine BEE47', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-ECHAN-01', 'Formulaire Echantillonnage', 0, 'BROUILLON', GETDATE(), 'ECHANTILLONNAGE'),
-(NEWID(), 'FE-VM-SER05', 'Formulaire Verif Machine SER05', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE'),
-(NEWID(), 'FE-RC-PAS71', 'Formulaire Résultat Contrôle PAS71', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-PAS72', 'Formulaire Résultat Contrôle PAS72', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-PAS78', 'Formulaire Résultat Contrôle PAS78', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-PAS71_SOUPAPE', 'Formulaire Résultat Contrôle PAS71 Soupape', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-PAS72_SOUPAPE', 'Formulaire Résultat Contrôle PAS72 Soupape', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-PAS78_SOUPAPE', 'Formulaire Résultat Contrôle PAS78 Soupape', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-PAS79', 'Formulaire Résultat Contrôle PAS79', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE'),
-(NEWID(), 'FE-RC-ENCF', 'Résultats du contrôle en cours de fabrication (Usi/Esp/Trn)', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_CF'),
-(NEWID(), 'FE-RC-ENCF-ASS', 'Résultats du contrôle en cours de fabrication Assemblage', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_CF'),
-(NEWID(), 'FE-RC-ENCF-ASS-PAS71_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS71', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_CF'),
-(NEWID(), 'FE-RC-ENCF-ASS-PAS72_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS72', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_CF'),
-(NEWID(), 'FE-RC-ENCF-ASS-PAS78_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS78', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_CF');
+INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut, CreeLe, Role, FamilleProduitFiniCode, PosteCode, MachineCode, NatureArticleCode, TypeRobinetCode)
+SELECT v.Id, v.CodeReference, v.Designation, v.Version, v.Statut, v.CreeLe, v.Role, v.FamilleProduitFiniCode, v.PosteCode, v.MachineCode, v.NatureArticleCode, f.TypeRobinetCode
+FROM (VALUES
+('D3C2A4F4-1B0A-4F9E-B4FF-67E97A135593', 'PRC', 'Formulaire PRC', 0, 'ACTIF', GETDATE(), 'EN_COURS_DE_FABRICATION', NULL, NULL, NULL, NULL),
+('A1B2C3D4-1111-4444-5555-666677778888', 'FE-ASS-PISTON', 'Plan Ass Piston', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE', NULL, NULL, NULL, 'PISTON'),
+('B2C3D4E5-2222-4444-5555-666677778888', 'FE-ASS-MANU', 'Plan Ass PF Manu', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE', 'RBGFM', NULL, NULL, NULL),
+(NEWID(), 'FE-ASS-RBGFA-BAC-01', 'Plan ASS RBGFA-BAC-01', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE', 'RBGFA-BAC-01', NULL, NULL, NULL),
+(NEWID(), 'FE-ASS-RBGFA-BAC-02', 'Plan ASS RBGFA-BAC-02', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE', 'RBGFA-BAC-02', NULL, NULL, NULL),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS71', 'Plan PF RBGFA_SOUPAPE PAS71 ', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE', 'RBGFA_SOUPAPE', 'PAS71', NULL, NULL),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS72', 'Plan PF RBGFA_SOUPAPE PAS72 ', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE', 'RBGFA_SOUPAPE', 'PAS72', NULL, NULL),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE_PAS78', 'Plan PF RBGFA_SOUPAPE PAS78 ', 0, 'BROUILLON', GETDATE(), 'EN_COURS_DE_ASSEMBLAGE', 'RBGFA_SOUPAPE', 'PAS78', NULL, NULL),
+(NEWID(), 'FE-PF-RBGFA_SOUPAPE', 'Plan PF RBGFA_SOUPAPE', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI', 'RBGFA_SOUPAPE', NULL, NULL, NULL),
+(NEWID(), 'FE-PF-RBGFA', 'Plan PF RBGFA', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI', 'RBGFA', NULL, NULL, NULL),
+(NEWID(), 'FE-PF-RBGFA-BAC-01', 'Plan PF RBGFA-BAC-01', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI', 'RBGFA-BAC-01', NULL, NULL, NULL),
+(NEWID(), 'FE-PF-RBGFA-BAC-02', 'Plan PF RBGFA-BAC-02', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI', 'RBGFA-BAC-02', NULL, NULL, NULL),
+(NEWID(), 'FE-PF-RBGFM', 'Plan PF RBGFM', 0, 'BROUILLON', GETDATE(), 'PRODUIT_FINI', 'RBGFM', NULL, NULL, NULL),
+(NEWID(), 'FE-VM-MAS19', 'Formulaire Verif Machine MAS19', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'MAS19', NULL),
+(NEWID(), 'FE-VM-MAS20', 'Formulaire Verif Machine MAS20', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'MAS20', NULL),
+(NEWID(), 'FE-VM-MAS22', 'Formulaire Verif Machine MAS22', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'MAS22', NULL),
+(NEWID(), 'FE-VM-MAS26', 'Formulaire Verif Machine MAS26', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'MAS26', NULL),
+(NEWID(), 'FE-VM-BEE22', 'Formulaire Verif Machine BEE22', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'BEE22', NULL),
+(NEWID(), 'FE-VM-BEE46', 'Formulaire Verif Machine BEE46', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'BEE46', NULL),
+(NEWID(), 'FE-VM-BEE47', 'Formulaire Verif Machine BEE47', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'BEE47', NULL),
+(NEWID(), 'FE-ECHAN-01', 'Formulaire Echantillonnage', 0, 'BROUILLON', GETDATE(), 'ECHANTILLONNAGE', NULL, NULL, NULL, NULL),
+(NEWID(), 'FE-VM-SER05', 'Formulaire Verif Machine SER05', 0, 'BROUILLON', GETDATE(), 'VERIF_MACHINE', NULL, NULL, 'SER05', NULL),
+(NEWID(), 'FE-RC-PAS71', 'Formulaire Résultat Contrôle PAS71', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE', NULL, 'PAS71', NULL, NULL),
+(NEWID(), 'FE-RC-PAS72', 'Formulaire Résultat Contrôle PAS72', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE', NULL, 'PAS72', NULL, NULL),
+(NEWID(), 'FE-RC-PAS78', 'Formulaire Résultat Contrôle PAS78', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE', NULL, 'PAS78', NULL, NULL),
+(NEWID(), 'FE-RC-PAS71_SOUPAPE', 'Formulaire Résultat Contrôle PAS71 Soupape', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE', 'RBGFA_SOUPAPE', 'PAS71', NULL, NULL),
+(NEWID(), 'FE-RC-PAS72_SOUPAPE', 'Formulaire Résultat Contrôle PAS72 Soupape', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE', 'RBGFA_SOUPAPE', 'PAS72', NULL, NULL),
+(NEWID(), 'FE-RC-PAS78_SOUPAPE', 'Formulaire Résultat Contrôle PAS78 Soupape', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE', 'RBGFA_SOUPAPE', 'PAS78', NULL, NULL),
+(NEWID(), 'FE-RC-PAS79', 'Formulaire Résultat Contrôle PAS79', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_POSTE', NULL, NULL, NULL, NULL),
+(NEWID(), 'FE-RC-ENCF', 'Résultats du contrôle en cours de fabrication (Usi/Esp/Trn)', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_CF', NULL, NULL, NULL, NULL),
+(NEWID(), 'FE0129', 'Registre de traçabilité assemblage', 0, 'BROUILLON', GETDATE(), 'REGISTRE_TRACABILITE', NULL, NULL, NULL, NULL)
+) v (Id, CodeReference, Designation, Version, Statut, CreeLe, Role, FamilleProduitFiniCode, PosteCode, MachineCode, NatureArticleCode)
+LEFT JOIN dbo.FamilleProduitFini f ON f.Code = v.FamilleProduitFiniCode;
 
--- Champ d'application des formulaires de contrôle au poste : chaque poste a son formulaire, et un autre pour
--- les robinets avec soupape (famille RBGFA_SOUPAPE).
-UPDATE f SET PosteCode = v.PosteCode, FamilleProduitFiniCode = v.FamilleProduitFiniCode
-FROM dbo.Ref_Formulaire f
-JOIN (VALUES
-    ('FE-RC-PAS71', 'PAS71', NULL),
-    ('FE-RC-PAS72', 'PAS72', NULL),
-    ('FE-RC-PAS78', 'PAS78', NULL),
-    ('FE-RC-PAS71_SOUPAPE', 'PAS71', 'RBGFA_SOUPAPE'),
-    ('FE-RC-PAS72_SOUPAPE', 'PAS72', 'RBGFA_SOUPAPE'),
-    ('FE-RC-PAS78_SOUPAPE', 'PAS78', 'RBGFA_SOUPAPE')
-) v (CodeReference, PosteCode, FamilleProduitFiniCode) ON v.CodeReference = f.CodeReference;
+-- Résultats du contrôle en cours d'assemblage : un formulaire par champ d'application (type de robinet, ou poste et
+-- famille pour la soupape). La fiche de résultats d'un poste reçoit, à sa création, le formulaire le plus précis.
+INSERT INTO dbo.Ref_Formulaire (Id, CodeReference, Designation, Version, Statut, CreeLe, Role, PosteCode, FamilleProduitFiniCode, TypeRobinetCode)
+SELECT v.Id, v.CodeReference, v.Designation, v.Version, v.Statut, v.CreeLe, v.Role, v.PosteCode, v.FamilleProduitFiniCode, COALESCE(f.TypeRobinetCode, v.TypeRobinetCode)
+FROM (VALUES
+(NEWID(), 'FE-RC-ENCF-ASS-AUTO', 'Résultats du CF Assemblage robinets automatiques', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_ASSEMBLAGE', NULL, NULL, 'AUTO'),
+(NEWID(), 'FE-RC-ENCF-ASS-MANU', 'Résultats du CF Assemblage robinets manuels', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_ASSEMBLAGE', NULL, NULL, 'MAN'),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS71_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS71', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_ASSEMBLAGE', 'PAS71', 'RBGFA_SOUPAPE', NULL),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS72_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS72', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_ASSEMBLAGE', 'PAS72', 'RBGFA_SOUPAPE', NULL),
+(NEWID(), 'FE-RC-ENCF-ASS-PAS78_SOUPAPE', 'Résultats du CF Assemblage articles avec soupape PAS78', 0, 'BROUILLON', GETDATE(), 'RESULTAT_CONTROLE_ASSEMBLAGE', 'PAS78', 'RBGFA_SOUPAPE', NULL)
+) v (Id, CodeReference, Designation, Version, Statut, CreeLe, Role, PosteCode, FamilleProduitFiniCode, TypeRobinetCode)
+LEFT JOIN dbo.FamilleProduitFini f ON f.Code = v.FamilleProduitFiniCode;
+
+-- Rattachements de départ des modèles livrés : chaque formulaire reçoit, à l'import du modèle, sa version livrée.
+INSERT INTO dbo.ReportTemplateInitialForm (FormCodeReference, ReportTemplateCode) VALUES
+    ('FE0129', 'REGISTRE_TRACA'),
+    ('FE-ASS-MANU', 'PLAN_ASS'),
+    ('FE-ASS-PISTON', 'PLAN_ASS'),
+    ('FE-ASS-RBGFA-BAC-01', 'PLAN_ASS'),
+    ('FE-ASS-RBGFA-BAC-02', 'PLAN_ASS'),
+    ('FE-PF-RBGFA_SOUPAPE_PAS71', 'PLAN_ASS'),
+    ('FE-PF-RBGFA_SOUPAPE_PAS72', 'PLAN_ASS'),
+    ('FE-PF-RBGFA_SOUPAPE_PAS78', 'PLAN_ASS'),
+    ('FE-RC-ENCF-ASS-AUTO', 'PLAN_ASS_RESULTATS'),
+    ('FE-RC-ENCF-ASS-PAS71_SOUPAPE', 'PLAN_ASS_RESULTATS'),
+    ('FE-RC-ENCF-ASS-MANU', 'PLAN_ASS_RESULTATS_PAS72'),
+    ('FE-RC-ENCF-ASS-PAS72_SOUPAPE', 'PLAN_ASS_RESULTATS_PAS72'),
+    ('FE-RC-ENCF-ASS-PAS78_SOUPAPE', 'PLAN_ASS_RESULTATS_PAS72'),
+    ('FE-VM-BEE22', 'VERIF_MACHINE'),
+    ('FE-VM-BEE46', 'VERIF_MACHINE'),
+    ('FE-VM-BEE47', 'VERIF_MACHINE'),
+    ('FE-VM-MAS19', 'VERIF_MACHINE_MAS'),
+    ('FE-VM-MAS22', 'VERIF_MACHINE_MAS22'),
+    ('FE-VM-MAS26', 'VERIF_MACHINE_MAS26'),
+    ('FE-VM-SER05', 'VERIF_MACHINE_SER05'),
+    ('FE-RC-PAS71', 'RESULTAT_CONTROLE_POSTE'),
+    ('FE-RC-PAS71_SOUPAPE', 'RESULTAT_CONTROLE_POSTE'),
+    ('FE-RC-PAS72', 'RESULTAT_CONTROLE_POSTE'),
+    ('FE-RC-PAS72_SOUPAPE', 'RESULTAT_CONTROLE_POSTE'),
+    ('FE-RC-PAS78', 'RESULTAT_CONTROLE_POSTE'),
+    ('FE-RC-PAS78_SOUPAPE', 'RESULTAT_CONTROLE_POSTE'),
+    ('FE-RC-PAS79', 'RESULTAT_CONTROLE_POSTE'),
+    ('FE-ECHAN-01', 'ECHANTILLONNAGE');
 
 -- Équipes et horaires des formulaires de contrôle au poste (modifiables dans le document par le superviseur).
 INSERT INTO dbo.Ref_Formulaire_Equipe (FormulaireId, TeamCode, NomEquipe, HeureDebut, HeureFin, OrdreAffiche)

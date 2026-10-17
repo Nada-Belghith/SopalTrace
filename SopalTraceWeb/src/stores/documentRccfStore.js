@@ -4,6 +4,7 @@ import { documentService } from '@/services/documentService';
 import api from '@/services/apiClient';
 import { mapSectionForBackend, hydrateSectionFromBackend, mapImportedSection } from '@/utils/sectionUtils';
 import { useReferentielStore } from './referentielStore';
+import { colonnesDepuisDocument, signatureColonnes } from '@/utils/colonnesUtils';
 
 export const usedocumentRccfStore = defineStore('DocumentRccf', {
   state: () => ({
@@ -63,8 +64,9 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
         const data = res.data;
         if (typeof data.configurationColonnesJson === 'string' && data.configurationColonnesJson) {
           try { data.configurationJson = JSON.parse(data.configurationColonnesJson); } catch (e) { data.configurationJson = []; }
-        } else if (!data.configurationColonnesJson) {
-          data.configurationJson = [];
+        } else {
+          // Colonnes propres du formulaire du document : sans elles, une nouvelle version perdrait ses colonnes.
+          data.configurationJson = colonnesDepuisDocument(data.colonneDefs, 'observations');
         }
 
         // Restore entete
@@ -79,7 +81,8 @@ export const usedocumentRccfStore = defineStore('DocumentRccf', {
           formulaireCodeReference: data.formulaireCodeReference,
           version: data.version,
           statut: data.statut,
-          configurationJson: data.configurationJson
+          configurationJson: data.configurationJson,
+          colonnesChargees: signatureColonnes(data.configurationJson)
         };
 
         const refStore = useReferentielStore();

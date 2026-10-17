@@ -74,6 +74,7 @@
           :is-loading="store.isLoading"
           :is-read-only="props.isReadOnly"
           @save-direct="handleSaveDirect"
+          :correction-possible="!colonnesModifiees(store.entete.configurationColonnes, store.entete.colonnesChargees)"
           @save-correction="handleSaveCorrection"
           @save-new-version="handleSaveNewVersion"
           @cancel="onCancel"
@@ -306,6 +307,7 @@ import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import { useReferentielStore } from '@/stores/referentielStore';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';
+import { colonnesModifiees } from '@/utils/colonnesUtils';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
@@ -313,7 +315,6 @@ import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmati
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import AutoComplete from 'primevue/autocomplete';
-import { parseDesignation } from '@/utils/designationParser';
 import { MachineStrategy } from './strategies/MachineStrategy';
 import VerifMachineHeader from './partials/VerifMachineHeader.vue';
 import VerifMachineTableConformite from './partials/VerifMachineTableConformite.vue';
@@ -361,7 +362,6 @@ const onFamilleSelected = (event) => {
 };
 
 const showColumnModal = ref(false);
-const refFormulaireSelected = ref('');
 
 onMounted(async () => {
   if (!refStore.isDicosVerifMachineLoaded) {
@@ -369,39 +369,6 @@ onMounted(async () => {
   }
   if (!props.isReadOnly && !store.entete.id) {
     await refStore.fetchFormulairesReferences('VERIF_MACHINE');
-  }
-});
-
-watch(refFormulaireSelected, async (newRefId) => {
-  if (!newRefId) {
-    store.entete.configurationColonnes = [];
-    return;
-  }
-  const refObj = (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || []).find(r => r.id === newRefId);
-  console.log('[DEBUG] refFormulaireSelected changed to:', newRefId, 'Found refObj:', refObj);
-  if (!refObj) return;
-
-  store.entete.refFormulaireCodeReference = refObj.codeReference;
-  const designation = refObj.designation || '';
-  const parsed = parseDesignation(designation, [], refStore.machines || []);
-
-  if (parsed.machineCode) {
-    selectedMachineCode.value = parsed.machineCode;
-    await store.initialiserPlan(parsed.machineCode);
-    store.entete.nom = designation;
-  }
-
-  if (refObj.configurationStructureJson) {
-    try {
-      store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
-        ? JSON.parse(refObj.configurationStructureJson) 
-        : refObj.configurationStructureJson;
-    } catch (e) {
-      console.error("Erreur parsing configuration colonnes:", e);
-      store.entete.configurationColonnes = [];
-    }
-  } else {
-    store.entete.configurationColonnes = [];
   }
 });
 

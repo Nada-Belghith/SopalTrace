@@ -8,13 +8,6 @@ public class PlanAssemblageStrategy : IDocumentTypeStrategy
 {
     public string DocumentTypeCode => "PLAN_ASS";
 
-    public string GetDefaultFormulaireCodeRef(DocumentContextInfo context)
-    {
-        if (!string.IsNullOrWhiteSpace(context.NatureArticleCode))
-            return $"FE-ASS-{context.NatureArticleCode.Trim()}";
-        
-        return string.Empty;
-    }
 
 
     public Task PopulateDtoAsync(DocumentEntete document, SopalTrace.Application.DTOs.QualityPlans.Documents.DocumentEnteteDto dto)

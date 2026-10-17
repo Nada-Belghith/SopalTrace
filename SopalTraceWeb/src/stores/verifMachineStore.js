@@ -4,6 +4,7 @@ import { verifMachineService } from '@/services/verifMachineService';
 import { referentielsService } from '@/services/referentielsService';
 import { useReferentielStore } from './referentielStore';
 import { genererUid } from '@/utils/uuidUtils';
+import { signatureColonnes } from '@/utils/colonnesUtils';
 
 /**
  * Store Pinia pour la gestion des Plans de Vérification Machine.
@@ -105,14 +106,14 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       RowVersion: entete.value.rowVersion,
       Nom: entete.value.nom,
       MachineCode: entete.value.machineCode,
-      VersionInitiale: entete.value.versionInitiale,
       AfficheConformite: finalAfficheConformite,
       AfficheMoyenDetectionRisques: entete.value.afficheMoyenDetectionRisques,
       AfficheFamilles: entete.value.afficheFamilles,
       AfficheFuiteEtalon: finalAfficheFuiteEtalon,
       Remarques: entete.value.remarques || '',
       LegendeMoyens: entete.value.legendeMoyens || '',
-      RefFormulaireCodeReference: entete.value.refFormulaireCodeReference || `FE-VM-${code}`,
+      // Sans formulaire indiqué, le serveur prend celui de la machine (le code n'est jamais fabriqué ici).
+      RefFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
       ColonneDefs: typeof entete.value.configurationColonnes === 'string' ? JSON.parse(entete.value.configurationColonnes || '[]') : (entete.value.configurationColonnes || []),
       Familles: familles.value
         .filter((f, idx, self) => self.findIndex(t => t.refFamilleCorpsId === f.refFamilleCorpsId) === idx)
@@ -225,7 +226,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const resetPlan = () => {
-    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, versionInitiale: null, statut: 'ACTIF', remarques: '', legendeMoyens: '', configurationColonnes: [], refFormulaireCodeReference: '' };
+    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, statut: 'ACTIF', remarques: '', legendeMoyens: '', configurationColonnes: [], refFormulaireCodeReference: '' };
     familles.value = [];
     lignesConformite.value = [];
     lignesRisques.value = [];
@@ -359,8 +360,9 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
         configurationColonnes: data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [],
-        refFormulaireCodeReference: data.formulaire?.codeReference || `FE-VM-${data.machineCode}`,
+        refFormulaireCodeReference: data.formulaire?.codeReference || '',
       };
+      entete.value.colonnesChargees = signatureColonnes(entete.value.configurationColonnes);
 
       familles.value = (data.familles || [])
         .slice()

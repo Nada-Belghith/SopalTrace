@@ -17,9 +17,19 @@ services:
       - EmailSettings__SenderEmail=${EMAIL_SENDER}
       - EmailSettings__AppPassword=${EMAIL_PASSWORD}
       - EmailSettings__SenderName=SopalTrace Production
+      - Rapports__GotenbergUrl=http://gotenberg:3000
     depends_on:
       sqlserver:
         condition: service_healthy
+      gotenberg:
+        condition: service_started
+
+  # Conversion des documents générés (Excel rempli -> PDF) : LibreOffice, joignable uniquement par l'API.
+  gotenberg:
+    image: gotenberg/gotenberg:8.20.1
+    environment:
+      - TZ=Africa/Tunis
+    command: ["gotenberg", "--api-timeout=60s", "--chromium-auto-start=false", "--libreoffice-auto-start=true"]
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04

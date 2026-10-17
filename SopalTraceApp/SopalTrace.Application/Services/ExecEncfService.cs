@@ -11,9 +11,10 @@ using System.Threading.Tasks;
 namespace SopalTrace.Application.Services
 {
     /// <summary>
-    /// Résultat contrôle en cours de fabrication (ENCF) : un document de l'OF comme les autres.
-    /// Il s'ouvre sur l'exécution en cours de l'OF (statut de document RESULTAT_CONTROLE_CF lié au document
-    /// RESULTAT_CF actif du poste) et enregistre les pièces types et résultats par tranche de cette exécution.
+    /// Résultat contrôle en cours de fabrication (ENCF) : fiche de réponse de l'OF. Elle s'ouvre sur l'exécution en cours
+    /// de l'OF (statut RESULTAT_CONTROLE_CF), reçoit à sa création son formulaire (famille, donc type de robinet, et
+    /// poste ; code, version et modèle dédié), affiche les lignes du plan suivi par l'OF et enregistre les pièces types
+    /// et résultats par tranche de cette exécution.
     /// </summary>
     public class ExecEncfService : IExecEncfService
     {
@@ -27,8 +28,14 @@ namespace SopalTrace.Application.Services
         public async Task<ExecEncfDto?> GetExecEncfAsync(Guid execControleOfId)
         {
             var execution = await _repository.GetExecutionAsync(execControleOfId);
-            return execution == null ? null : ExecEncfMapper.ToDto(execution, StatutEncf(execution, posteCode: null));
+            if (execution == null) return null;
+            var statut = StatutEncf(execution, posteCode: null);
+            return ExecEncfMapper.ToDto(execution, statut, await PlanAsync(execution, statut));
         }
+
+        /// <summary>Plan affiché : celui suivi par l'OF ; une fiche d'avant les fiches de réponse garde son document appliqué.</summary>
+        private async Task<Guid?> PlanAsync(ExecControleOf execution, ExecControleDocumentStatut? statut) =>
+            statut is { FormId: null, DocId: { } ancien } ? ancien : await _repository.TrouverPlanAsync(execution, statut?.PosteCode);
 
         public async Task<ExecEncfDto> GetOrCreateExecEncfByOfAsync(string numeroOf, string posteCode, string matriculeOperateur)
         {
@@ -38,8 +45,9 @@ namespace SopalTrace.Application.Services
             var statut = StatutEncf(execution, posteCode);
             if (statut == null)
             {
-                var document = await _repository.GetDocumentActifAsync(posteCode)
-                    ?? throw new RessourceIntrouvableException("Aucun document « résultat contrôle en cours de fabrication » actif pour ce poste.");
+                var formulaire = await _repository.TrouverFormulaireAsync(execution.NumeroOfNavigation?.CodeArticle, posteCode)
+                    ?? throw new RessourceIntrouvableException("Aucun formulaire « résultats du contrôle en cours de fabrication » pour cet article et ce poste : "
+                        + "le superviseur qualité doit le créer (page Formulaires).");
                 var session = execution.ExecControleOfSessions.FirstOrDefault(s => s.DateFin == null);
 
                 statut = new ExecControleDocumentStatut
@@ -48,7 +56,7 @@ namespace SopalTrace.Application.Services
                     ExecControleOfId = execution.Id,
                     TypeDocument = TypesDocumentExecution.ResultatControleCf,
                     PosteCode = posteCode,
-                    DocId = document.Id,
+                    FormId = formulaire,
                     SessionId = session?.Id,
                     Equipe = session?.Equipe,
                     DateExecution = DateTime.Now,
@@ -58,7 +66,7 @@ namespace SopalTrace.Application.Services
                 await _repository.SaveChangesAsync();
             }
 
-            return ExecEncfMapper.ToDto(execution, statut);
+            return ExecEncfMapper.ToDto(execution, statut, await PlanAsync(execution, statut));
         }
 
         public async Task<ExecEncfDto?> SaveExecEncfAsync(ExecEncfDto dto, string matriculeOperateur)

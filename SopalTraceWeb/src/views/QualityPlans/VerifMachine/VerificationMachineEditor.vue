@@ -14,6 +14,8 @@
       :statut="store.entete.statut"
       :showRestaurerBtn="false"
     />
+    <!-- Fiche que rempliront les opérateurs, mise en forme avec son modèle (consultation) -->
+    <PdfDocumentQualite v-if="store.entete?.id" :document-id="store.entete.id" class="mb-4" />
     <VerifMachineForm :isReadOnly="isReadOnly" @saved="onSaved" />
   </div>
 </template>
@@ -22,6 +24,7 @@
 import { useRouter, useRoute } from 'vue-router';
 import { onMounted } from 'vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
+import PdfDocumentQualite from '@/components/Qualite/PdfDocumentQualite.vue';
 import { useAppToast } from '@/composables/useAppToast';
 import Toast from 'primevue/toast';
 import VerifMachineForm from '@/components/VerifMachine/VerifMachineForm.vue';

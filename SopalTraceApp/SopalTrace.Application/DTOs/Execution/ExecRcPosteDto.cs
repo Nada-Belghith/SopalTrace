@@ -24,6 +24,13 @@ namespace SopalTrace.Application.DTOs.Execution
         /// <summary>Jours de production du poste pour cet OF (le plus récent d'abord).</summary>
         public List<ExecRcPosteJourDto> Jours { get; set; } = new();
 
+        /// <summary>Quantité lancée de l'OF : plafond des pièces conformes cumulées du poste.</summary>
+        public int QuantiteLancee { get; set; }
+        /// <summary>Pièces conformes cumulées du poste sur tous les documents (jours) de l'OF.</summary>
+        public int CumulPiecesConformes { get; set; }
+        /// <summary>Le cumul dépasse la quantité lancée (saisies à vérifier, à signaler au superviseur).</summary>
+        public bool QuantiteLanceeDepassee { get; set; }
+
         /// <summary>Jour de production du document.</summary>
         public DateTime? JourProduction { get; set; }
 

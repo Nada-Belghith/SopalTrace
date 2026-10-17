@@ -62,6 +62,16 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                     ?? plans.FirstOrDefault(p => !DeLArticle(p.CodeArticleSageVersionne) && Commun(p.PosteCode)))?.Id;
         }
 
+        public async Task<Guid?> TrouverFormulaireResultatsIdAsync(string codeArticle, string posteCode)
+        {
+            var article = await _context.ProduitFinis
+                .Where(p => p.CodeArticle == codeArticle)
+                .Select(p => new { p.FamilleProduitFiniCode, p.FamilleProduitFiniCodeNavigation!.TypeRobinetCode })
+                .FirstOrDefaultAsync();
+            if (article == null) return null;
+            return await FormulairesResultats.TrouverAsync(_context, posteCode, article.FamilleProduitFiniCode, article.TypeRobinetCode);
+        }
+
         public async Task<DocumentEntete?> GetDocumentByIdAsync(Guid docId)
         {
             return await _context.DocumentEntetes

@@ -15,7 +15,7 @@
           </option>
         </select>
         <span class="text-xs font-bold text-blue-500 italic hidden md:block">
-          La sélection du formulaire remplira automatiquement les champs suivants.
+          La famille est celle du formulaire choisi (verrouillée).
         </span>
       </div>
     </div>
@@ -29,19 +29,14 @@
            <i class="pi pi-box text-blue-400"></i>
            {{ store.entete.familleProduitFiniCode || 'Non spécifié' }}
         </div>
-        <select v-else v-model="store.entete.familleProduitFiniCode" 
-                class="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all cursor-pointer">
+        <select v-else v-model="store.entete.familleProduitFiniCode" :disabled="!!formulaireChoisi"
+                class="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
           <option value="">-- Sélectionner la famille --</option>
           <option v-for="fam in (refStore.famillesProduit || [])" :key="fam.code" :value="fam.code">{{ fam.code }}</option>
         </select>
       </div>
 
-      <!-- VERSION INITIALE -->
-      <div v-if="!isEditMode && !hasExistingVersion">
-        <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.1em] mb-2">Version de départ</label>
-        <input v-model.number="store.entete.versionInitiale" type="number" min="0" placeholder="0" :disabled="isReadOnly"
-          class="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all">
-      </div>
+      
 
     </div>
   </div>
@@ -51,22 +46,12 @@
 import { ref, onMounted, watch, computed } from 'vue';
 import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
 import { useReferentielStore } from '@/stores/referentielStore';
-import { parseDesignation } from '@/utils/designationParser';
-
 const store = usedocumentProduitFiniStore();
 const refStore = useReferentielStore();
 const refFormulaireSelected = ref('');
-
-const hasExistingVersion = computed(() => {
-  if (!refFormulaireSelected.value) return false;
-  const refObj = (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || []).find(r => r.id === refFormulaireSelected.value);
-  if (!refObj) return false;
-  
-  const hasVersion = refObj.version > 0 || refObj.Version > 0;
-  const hasConfig = refObj.configurationStructureJson !== null && refObj.configurationStructureJson !== undefined;
-  
-  return hasVersion || hasConfig;
-});
+// Le formulaire est trouvé par son champ d'application exact : la famille est la sienne.
+const formulaireChoisi = computed(() =>
+  (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || []).find(r => r.id === refFormulaireSelected.value) ?? null);
 
 const props = defineProps({
   isReadOnly: {
@@ -90,13 +75,7 @@ watch(refFormulaireSelected, (newRefId) => {
   const refObj = (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || []).find(r => r.id === newRefId);
   if (!refObj) return;
 
-  const designation = refObj.designation || '';
-  const parsed = parseDesignation(designation, refStore.famillesProduit || []);
-  
-  if (parsed.familleCode) {
-    store.entete.familleProduitFiniCode = parsed.familleCode;
-  }
-  
+  store.entete.familleProduitFiniCode = refObj.familleProduitFiniCode || '';
   store.entete.refFormulaireCodeReference = refObj.codeReference;
 
   // Appliquer la configuration des colonnes du formulaire sélectionné

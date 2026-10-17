@@ -16,13 +16,6 @@ public class ControlePosteStrategy : IDocumentTypeStrategy
 
     public string DocumentTypeCode => "CTRL_POSTE";
 
-    public string GetDefaultFormulaireCodeRef(DocumentContextInfo context)
-    {
-        if (!string.IsNullOrWhiteSpace(context.PosteCode))
-            return $"FE-RC-{context.PosteCode.Trim()}";
-        
-        return string.Empty;
-    }
 
 
     public async Task PopulateDtoAsync(DocumentEntete document, SopalTrace.Application.DTOs.QualityPlans.Documents.DocumentEnteteDto dto)

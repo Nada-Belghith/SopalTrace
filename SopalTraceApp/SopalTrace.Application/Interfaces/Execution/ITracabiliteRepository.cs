@@ -16,6 +16,8 @@ namespace SopalTrace.Application.Interfaces.Execution
         /// <summary>Confirmations des équipes (statuts du registre par session).</summary>
         Task<List<ExecControleDocumentStatut>> GetConfirmationsAsync(Guid execControleOfId);
         void AddStatut(ExecControleDocumentStatut statut);
+        /// <summary>Formulaire en cours du registre de traçabilité (fiche de réponse FE0129), ou null.</summary>
+        Task<Guid?> GetFormulaireRegistreAsync();
 
         /// <summary>
         /// Lot de corps / volant valide : numéro d'un OF d'usinage démarré dont l'article a cette nature ; si la

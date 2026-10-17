@@ -64,6 +64,18 @@ namespace SopalTrace.Application.Services
             return await ConstruireDtoAsync(statut, plan);
         }
 
+        public async Task<ExecRcPosteDto?> GetFicheViergeAsync(Guid planId)
+        {
+            var plan = await _repository.GetPlanByIdAsync(planId);
+            if (plan == null) return null;
+            // Fiche jamais enregistrée : aucun OF, aucune équipe, aucune saisie.
+            var vierge = new ExecControleDocumentStatut
+            {
+                PosteCode = plan.PosteCode, TypeDocument = TypesDocumentExecution.ResultatControlePoste, DocId = plan.Id
+            };
+            return await ConstruireDtoAsync(vierge, plan);
+        }
+
         public async Task<ExecRcPosteDto?> GetPlanByStatutIdAsync(Guid statutId)
         {
             var statut = await _repository.GetStatutByIdWithDetailsAsync(statutId)
@@ -79,6 +91,17 @@ namespace SopalTrace.Application.Services
         /// enregistré entre-temps pour la même équipe. Aucun total n'est accepté du client.
         /// </summary>
         public async Task<ExecRcPosteDto?> UpdatePlanAsync(Guid execControleDocumentStatutId, ExecRcPosteDto request, string matriculeOperateur)
+        {
+            // Lecture, contrôles (concurrence, quantité lancée) et écriture sous le verrou du poste : deux
+            // enregistrements simultanés du même poste ne peuvent pas dépasser ensemble la quantité lancée.
+            var document = await _repository.GetOfEtPosteAsync(execControleDocumentStatutId)
+                ?? throw new RessourceIntrouvableException("Statut document introuvable.");
+            await _repository.SousVerrouPosteAsync(document.ExecControleOfId, document.PosteCode,
+                () => EnregistrerSaisieAsync(execControleDocumentStatutId, request, matriculeOperateur));
+            return await GetPlanByStatutIdAsync(execControleDocumentStatutId);
+        }
+
+        private async Task<bool> EnregistrerSaisieAsync(Guid execControleDocumentStatutId, ExecRcPosteDto request, string matriculeOperateur)
         {
             var (statut, plan, equipe, tranches) = await ContexteSaisieAsync(execControleDocumentStatutId);
 
@@ -102,6 +125,8 @@ namespace SopalTrace.Application.Services
                 throw new EtatExecutionInvalideException(
                     $"Les heures de l'équipe {equipe.Code} ont été modifiées depuis une autre tablette à {derniere.Value:HH:mm} : rechargez le document avant d'enregistrer.");
 
+            await VerifierQuantiteLanceeAsync(statut, request, equipe.Code, tranches);
+
             var maintenant = DateTime.Now;
             EnregistrerComptages(statut, request, matriculeOperateur, equipe.Code, tranches, maintenant);
             EnregistrerPiecesRealisees(statut, request.Reponses, matriculeOperateur, equipe.Code, tranches, maintenant);
@@ -109,7 +134,7 @@ namespace SopalTrace.Application.Services
                 EnregistrerPiecesRebutees(statut, request.NbPiecesRebuteesEquipe.Value, matriculeOperateur, equipe.Code, maintenant);
 
             await _repository.SaveChangesAsync();
-            return await GetPlanByStatutIdAsync(statut.Id);
+            return true;
         }
 
         /// <summary>
@@ -255,6 +280,45 @@ namespace SopalTrace.Application.Services
                 .Concat(statut.ExecRcPosteReponses.Where(r => r.Equipe == equipe).Select(r => r.DateSaisie))
                 .Concat(statut.ExecRcPosteBilans.Where(b => b.Equipe == equipe).Select(b => b.DateSaisie))
                 .Max();
+
+        // ── Pièces conformes et quantité lancée ──────────────────────────────
+
+        /// <summary>Pièces conformes d'un document (même calcul que son bilan).</summary>
+        private static int PiecesConformes(ExecControleDocumentStatut s) => CalculerBilan(
+            s.ExecControleLigneReponses.Where(r => r.ResultatType == ResultatsLigne.Comptage), s.ExecRcPosteReponses,
+            s.ExecRcPosteBilans.Sum(b => b.NbPiecesRebutees)).NbPieceConforme;
+
+        /// <summary>
+        /// Un poste ne peut pas déclarer plus de pièces conformes que la quantité lancée de l'OF : le cumul de tous
+        /// les documents du poste (tous les jours de l'OF), saisie en cours comprise, est vérifié avant d'enregistrer.
+        /// </summary>
+        private async Task VerifierQuantiteLanceeAsync(ExecControleDocumentStatut statut, ExecRcPosteDto request, string equipe,
+            HashSet<string> tranches)
+        {
+            // Document après la saisie : heures des autres équipes inchangées, heures de l'équipe remplacées.
+            var defauts = statut.ExecControleLigneReponses
+                    .Where(r => r.ResultatType == ResultatsLigne.Comptage && !tranches.Contains(r.TrancheHoraire!)).Sum(r => r.Quantite ?? 0)
+                + request.Lignes.SelectMany(l => l.Heures).GroupBy(h => (h.DocLigneId, h.TrancheHoraire)).Sum(g => g.Last().NbNcParHeure);
+            var realisees = statut.ExecRcPosteReponses.Where(r => !tranches.Contains(r.TrancheHoraire)).Sum(r => r.TotalRealiseHeure)
+                + request.Reponses.GroupBy(r => r.TrancheHoraire).Sum(g => g.Last().TotalRealiseHeure);
+            var rebutees = statut.ExecRcPosteBilans.Where(b => b.Equipe != equipe).Sum(b => b.NbPiecesRebutees)
+                + (request.NbPiecesRebuteesEquipe ?? statut.ExecRcPosteBilans.FirstOrDefault(b => b.Equipe == equipe)?.NbPiecesRebutees ?? 0);
+            var conformesDocument = Math.Max(0, realisees + defauts - rebutees);
+
+            var (autres, quantiteLancee) = await AutresDocumentsEtQuantiteAsync(statut);
+            var cumul = autres + conformesDocument;
+            if (quantiteLancee > 0 && cumul > quantiteLancee && cumul > autres + PiecesConformes(statut))
+                throw new RegleMetierException(
+                    $"Pièces conformes cumulées sur le poste {statut.PosteCode} : {cumul}, au-delà de la quantité lancée de l'OF ({quantiteLancee}). " +
+                    "Vérifiez les pièces réalisées et rebutées ; si la quantité est réelle, signalez-le au superviseur.");
+        }
+
+        private async Task<(int AutresConformes, int QuantiteLancee)> AutresDocumentsEtQuantiteAsync(ExecControleDocumentStatut statut)
+        {
+            var autres = await _repository.GetAutresDocumentsPosteAsync(statut.ExecControleOfId, statut.PosteCode ?? "", statut.Id);
+            var quantite = (int)Math.Floor(await _repository.GetQuantiteLanceeAsync(statut.ExecControleOfId));
+            return (autres.Sum(PiecesConformes), quantite);
+        }
 
         // ── Enregistrement des saisies ──────────────────────────────────────
 
@@ -427,6 +491,11 @@ namespace SopalTrace.Application.Services
                     EquipesValidees = validationsParJour.GetValueOrDefault(s.DateExecution?.Date ?? DateTime.MinValue) ?? new List<string>()
                 })
                 .ToList();
+
+            var (autresConformes, quantiteLancee) = await AutresDocumentsEtQuantiteAsync(statut);
+            dto.QuantiteLancee = quantiteLancee;
+            dto.CumulPiecesConformes = autresConformes + dto.Bilan.NbPieceConforme;
+            dto.QuantiteLanceeDepassee = quantiteLancee > 0 && dto.CumulPiecesConformes > quantiteLancee;
 
             return dto;
         }

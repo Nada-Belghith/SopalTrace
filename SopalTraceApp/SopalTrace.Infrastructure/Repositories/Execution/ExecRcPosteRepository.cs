@@ -1,10 +1,13 @@
 using SopalTrace.Domain.Constants;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces.Execution;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using SopalTrace.Infrastructure.Data;
 
 namespace SopalTrace.Infrastructure.Repositories.Execution
@@ -52,6 +55,56 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
                 .ToListAsync();
         }
 
+        public async Task<List<ExecControleDocumentStatut>> GetAutresDocumentsPosteAsync(Guid execControleOfId, string posteCode, Guid exceptStatutId)
+        {
+            return await _context.ExecControleDocumentStatuts
+                .AsNoTracking()
+                .Include(s => s.ExecControleLigneReponses)
+                .Include(s => s.ExecRcPosteReponses)
+                .Include(s => s.ExecRcPosteBilans)
+                .Where(s => s.ExecControleOfId == execControleOfId && s.PosteCode == posteCode && s.Id != exceptStatutId
+                            && s.TypeDocument == TypesDocumentExecution.ResultatControlePoste)
+                .ToListAsync();
+        }
+
+        public async Task<(Guid ExecControleOfId, string PosteCode)?> GetOfEtPosteAsync(Guid statutId)
+        {
+            var statut = await _context.ExecControleDocumentStatuts
+                .AsNoTracking()
+                .Where(s => s.Id == statutId)
+                .Select(s => new { s.ExecControleOfId, s.PosteCode })
+                .FirstOrDefaultAsync();
+            return statut == null ? null : (statut.ExecControleOfId, statut.PosteCode ?? "");
+        }
+
+        public async Task<T> SousVerrouPosteAsync<T>(Guid execControleOfId, string posteCode, Func<Task<T>> operation)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                var resultat = new SqlParameter("@resultat", SqlDbType.Int) { Direction = ParameterDirection.Output };
+                await _context.Database.ExecuteSqlRawAsync(
+                    "EXEC @resultat = sp_getapplock @Resource = @ressource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000",
+                    resultat, new SqlParameter("@ressource", $"ControlePoste:{execControleOfId}:{posteCode}"));
+                // 0 ou 1 : verrou obtenu ; négatif : délai dépassé ou interblocage.
+                if ((int)resultat.Value < 0)
+                    throw new ConflitConcurrenceException("Le contrôle au poste est en cours d'enregistrement sur une autre tablette : réessayez.");
+
+                var valeur = await operation();
+                await transaction.CommitAsync();
+                return valeur;
+            });
+        }
+
+        public async Task<decimal> GetQuantiteLanceeAsync(Guid execControleOfId)
+        {
+            return await _context.ExecControleOfs
+                .Where(e => e.Id == execControleOfId)
+                .Select(e => e.NumeroOfNavigation.QuantiteLancee)
+                .FirstOrDefaultAsync();
+        }
+
         public async Task<ExecControleDocumentStatut?> GetStatutByIdWithDetailsAsync(Guid id)
         {
             return await _context.ExecControleDocumentStatuts
@@ -77,6 +130,11 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             {
                 posteCode = execOf.ExecControleOfPostes.FirstOrDefault()?.PosteCode ?? "";
             }
+
+            // L'OF garde le document de contrôle au poste avec lequel il a commencé sur ce poste, même archivé depuis.
+            if (await DocumentsDeLOf.DocumentDejaUtiliseAsync(_context, execControleOfId, TypesDocumentExecution.ResultatControlePoste, posteCode)
+                is Guid dejaUtilise && await GetPlanByIdAsync(dejaUtilise) is { } planDeLOf)
+                return planDeLOf;
 
             var of = execOf != null ? await _context.MfgheadOrdreFabrications.FirstOrDefaultAsync(o => o.NumeroOf == execOf.NumeroOf) : null;
             var familleCode = of != null

@@ -65,6 +65,9 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
 
         public void AddStatut(ExecControleDocumentStatut statut) => _context.ExecControleDocumentStatuts.Add(statut);
 
+        public Task<Guid?> GetFormulaireRegistreAsync() =>
+            FormulairesResultats.TrouverAsync(_context, RolesFormulaire.RegistreTracabilite, null, null, null);
+
         /// <summary>Articles de cette nature (corps, volant) dans la nomenclature du produit fini.</summary>
         private IQueryable<string> ComposantsNomenclature(string natureArticleCode, string codeArticleProduitFini) => _context.BomdNomenclatures
             .Where(b => b.ArticleParent == codeArticleProduitFini && b.CodeComposantNavigation.NatureArticleCode == natureArticleCode)

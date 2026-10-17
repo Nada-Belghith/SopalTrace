@@ -71,11 +71,23 @@ services:
       - EmailSettings__SenderEmail=${EMAIL_SENDER}
       - EmailSettings__AppPassword=${EMAIL_PASSWORD}
       - EmailSettings__SenderName=SopalTrace
+      - Rapports__GotenbergUrl=http://gotenberg:3000
     volumes:
       - journaux_api:/app/logs
     depends_on:
       sqlserver:
         condition: service_healthy
+      gotenberg:
+        condition: service_started
+
+  # Conversion des documents générés (Excel rempli -> PDF) par LibreOffice. Aucun port publié : seule l'API le joint.
+  # Arrêté, les documents restent en attente et sont générés à son retour (aucune perte).
+  gotenberg:
+    image: gotenberg/gotenberg:8.20.1
+    restart: unless-stopped
+    environment:
+      - TZ=Africa/Tunis
+    command: ["gotenberg", "--api-timeout=60s", "--chromium-auto-start=false", "--libreoffice-auto-start=true"]
 
   sopaltrace.web:
     image: ${SOPALTRACE_REGISTRY:-ghcr.io/nada-belghith}/sopaltrace-web:${SOPALTRACE_VERSION:-latest}

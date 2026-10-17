@@ -40,6 +40,8 @@ public interface IOperateurRepository
     Task<bool> OfAssemblageDisponibleAsync(string numeroOf);
     Task<bool> ExisteExecutionAssemblageActiveAsync(string numeroOf);
     Task<Guid?> GetPlanVerifMachineActifIdAsync(string machineCode);
+    /// <summary>Plan de vérification de la machine pour l'OF : celui de sa première fiche (même archivé depuis), sinon le plan actif.</summary>
+    Task<Guid?> GetPlanVerifMachinePourOfAsync(Guid execControleOfId, string machineCode);
 
     /// <summary>Échéances d'un plan de vérification machine avec le moment de contrôle de leur périodicité (vide si aucun).</summary>
     Task<List<(Guid EcheanceId, string Periodicite)>> GetEcheancesPlanVerifMachineAsync(Guid planId);

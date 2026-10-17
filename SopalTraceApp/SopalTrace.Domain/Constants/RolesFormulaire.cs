@@ -1,15 +1,22 @@
 namespace SopalTrace.Domain.Constants;
 
-/// <summary>Rôle d'un formulaire de référence (Ref_Formulaire.Role, contrainte CHECK).</summary>
+/// <summary>
+/// Rôles de formulaire utilisés par le code (Ref_Formulaire.Role → table FormRole, qui porte la liste complète, les
+/// libellés, l'ordre et les critères permis).
+/// </summary>
 public static class RolesFormulaire
 {
     public const string EnCoursDeFabrication = "EN_COURS_DE_FABRICATION";
     public const string EnCoursDeAssemblage = "EN_COURS_DE_ASSEMBLAGE";
     public const string ProduitFini = "PRODUIT_FINI";
     public const string ResultatControleCf = "RESULTAT_CONTROLE_CF";
+    /// <summary>Résultats du contrôle en cours d'assemblage remplis par les opérateurs (FE-RC-ENCF-ASS-*).</summary>
+    public const string ResultatControleAssemblage = "RESULTAT_CONTROLE_ASSEMBLAGE";
     public const string ResultatControlePoste = "RESULTAT_CONTROLE_POSTE";
     public const string VerifMachine = "VERIF_MACHINE";
     public const string Echantillonnage = "ECHANTILLONNAGE";
+    /// <summary>Registre de traçabilité (FE0129) : fiche de réponse remplie par les opérateurs.</summary>
+    public const string RegistreTracabilite = "REGISTRE_TRACABILITE";
 
     /// <summary>Rôle donné au formulaire créé pour un type de document.</summary>
     public static string PourTypeDocument(string typeDocumentCode) => typeDocumentCode switch

@@ -166,15 +166,17 @@ public record FormulaireReferenceItemDto(
     int Version,
     string? ConfigurationStructureJson,
     string Statut,
-    // Champ d'application : poste et famille repris par les documents créés sur ce formulaire.
+    // Champ d'application : repris (et non modifiable) par les documents créés sur ce formulaire.
     string? PosteCode = null,
-    string? FamilleProduitFiniCode = null
+    string? FamilleProduitFiniCode = null,
+    string? MachineCode = null,
+    string? NatureArticleCode = null,
+    string? TypeRobinetCode = null
 );
 
 public record EquipeReferenceDto(string Code, string Libelle);
 
 public record UpdateFormulaireStructureDto(
-    string? ConfigurationStructureJson,
-    int? VersionInitiale
+    string? ConfigurationStructureJson
 );
 

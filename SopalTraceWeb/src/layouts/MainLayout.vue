@@ -171,11 +171,7 @@ const toggleMobileMenu = () => {
                     <i class="pi pi-plus-circle text-red-500 text-sm"></i> Résultat Contrôle Poste
                   </router-link>
                 </li>
-                <li>
-                  <router-link to="/dev/resultat-controle-cf/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-emerald-400 font-bold bg-white/10 border border-white/5 shadow-sm">
-                    <i class="pi pi-plus-circle text-emerald-500 text-sm"></i> Résultat Contrôle C.F.
-                  </router-link>
-                </li>
+                
               </ul>
             </li>
           </ul>
@@ -265,6 +261,30 @@ const toggleMobileMenu = () => {
             <li>
               <router-link to="/superviseur/dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
                 <i class="pi pi-chart-line text-lg text-slate-400"></i> Dashboard & Traçabilité
+              </router-link>
+            </li>
+          </ul>
+        </template>
+
+        <!-- SECTION : DOCUMENTS QUALITÉ (PDF générés depuis les modèles de Sopal) -->
+        <template v-if="['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'].includes(authStore.userRole)">
+          <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Documents qualité</p>
+          </div>
+          <ul class="px-4 mb-6 space-y-2">
+            <li>
+              <router-link to="/qualite/tracabilite" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-sitemap text-lg"></i> Traçabilité par OF
+              </router-link>
+            </li>
+            <li v-if="authStore.userRole === 'SUPERVISEUR_QUALITE'">
+              <router-link to="/qualite/formulaires" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-list text-lg"></i> Formulaires
+              </router-link>
+            </li>
+            <li v-if="authStore.userRole === 'ADMIN'">
+              <router-link to="/qualite/modeles-documents" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-file-excel text-lg"></i> Modèles Excel
               </router-link>
             </li>
           </ul>

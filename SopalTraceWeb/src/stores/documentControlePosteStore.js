@@ -5,6 +5,7 @@ import { ref } from 'vue';
 import { documentControlePosteService } from '@/services/documentControlePosteService';
 import { referentielsService } from '@/services/referentielsService';
 import { genererUid } from '@/utils/uuidUtils';
+import { signatureColonnes } from '@/utils/colonnesUtils';
 import apiClient from '@/services/apiClient';
 import { parseDesignation } from '@/utils/designationParser';
 
@@ -23,7 +24,6 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
     familleProduitFiniCode: null,
     nom: '',
     version: null,
-    versionInitiale: null,
     statut: 'ACTIF',
     remarques: '',
     legendeMoyens: '',
@@ -88,7 +88,6 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
       ConfigurationColonnesJson: JSON.stringify(entete.value.configurationColonnes),
       FormulaireId: entete.value.formulaireId || null,
       RefFormulaireCodeReference: entete.value.formulaireCodeReference || null,
-      VersionInitiale: (!entete.value.id && entete.value.versionInitiale != null) ? entete.value.versionInitiale : undefined,
       // CTRL_POSTE stores lines in a single unnamed section
       Sections: [{
         Id: entete.value.sectionId || undefined,
@@ -196,6 +195,7 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
         formulaireCodeReference: data.formulaireCodeReference || null,
         isModeleTemplate: false,
         configurationColonnes: configColonnes,
+        colonnesChargees: signatureColonnes(configColonnes.customCols),
         sectionId: (data.sections && data.sections.length > 0) ? data.sections[0].id : null
       };
 
@@ -234,7 +234,6 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
       familleProduitFiniCode: null,
       nom: `Résultat DocumentControlePoste_${p?.libelle || posteCode}`,
       version: null,
-      versionInitiale: null,
       statut: 'ACTIF',
       remarques: '',
       legendeMoyens: '',
@@ -347,7 +346,6 @@ export const usedocumentControlePosteStore = defineStore('documentControlePoste'
       familleProduitFiniCode: null,
       nom: '',
       version: null,
-      versionInitiale: null,
       statut: 'ACTIF',
       remarques: '',
       legendeMoyens: '',

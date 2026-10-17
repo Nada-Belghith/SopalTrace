@@ -185,7 +185,7 @@ public class AssemblageExecutionService : IAssemblageExecutionService
         if (!postes.Contains(request.PosteCode))
             throw new RegleMetierException($"Le poste {request.PosteCode} n'est pas affecté à cet OF.");
 
-        var planId = await _operateurRepository.GetPlanVerifMachineActifIdAsync(request.MachineCode)
+        var planId = await _operateurRepository.GetPlanVerifMachinePourOfAsync(execOf.Id, request.MachineCode)
             ?? throw new RessourceIntrouvableException($"Aucun plan de vérification actif n'a été trouvé pour la machine {request.MachineCode}. Veuillez le signaler au superviseur.");
 
         var session = await _demarrages.GetSessionAsync(execOf.Id, request.PosteCode)
@@ -221,17 +221,21 @@ public class AssemblageExecutionService : IAssemblageExecutionService
 
     public async Task<IEnumerable<DocumentStatutDto>> GetDocumentsAssemblageStatusAsync(Guid execControleOfId, string? equipe = null)
     {
-        // Documents de l'équipe demandée (par défaut la seule équipe ouverte sur l'OF).
+        // Documents de l'équipe demandée (par défaut la seule équipe ouverte sur l'OF). Sans équipe ouverte (OF
+        // clôturé, ou toutes les équipes ont terminé) : tous les documents de l'OF, en consultation.
         var ouvertes = await _demarrages.GetSessionsOuvertesAsync(execControleOfId);
         var session = !string.IsNullOrWhiteSpace(equipe)
             ? ouvertes.FirstOrDefault(s => string.Equals(s.Equipe, equipe.Trim(), StringComparison.OrdinalIgnoreCase))
             : ouvertes.Count == 1 ? ouvertes[0] : null;
-        if (session == null) return Enumerable.Empty<DocumentStatutDto>();
-        var statuts = (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId, session.Id)).ToList();
+        var statuts = session != null
+            ? (await _operateurRepository.GetDocumentStatutsAsync(execControleOfId, session.Id)).ToList()
+            : await _operateurRepository.GetStatutsOfAsync(execControleOfId);
 
-        // Un document resté ouvert un jour précédent est clôturé automatiquement à minuit.
+        // Un document de l'équipe resté ouvert un jour précédent est clôturé automatiquement à minuit (jamais en
+        // consultation : les documents d'un OF clôturé gardent leur état).
         var aujourdhui = DateTime.Today;
-        var documentsExpires = statuts.Where(s => !s.EstTermine && s.DateExecution.HasValue && s.DateExecution.Value.Date < aujourdhui).ToList();
+        var documentsExpires = session == null ? new List<ExecControleDocumentStatut>()
+            : statuts.Where(s => !s.EstTermine && s.DateExecution.HasValue && s.DateExecution.Value.Date < aujourdhui).ToList();
         foreach (var s in documentsExpires)
         {
             s.EstTermine = true;

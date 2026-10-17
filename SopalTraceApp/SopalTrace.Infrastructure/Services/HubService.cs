@@ -1,5 +1,6 @@
 using SopalTrace.Domain.Constants;
 using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.DTOs.QualityPlans.Hub;
 using SopalTrace.Application.Interfaces;
@@ -271,8 +272,33 @@ public class HubService : IHubService
             m.Statut = statut;
         }
 
+        await VerifierReactivationsAsync();
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Un document générique archivé dont le formulaire (code + version) est archivé reste archivé : le réactiver ferait
+    /// revivre une identité remplacée (nouvelle version, changement de code). La base le refuse aussi.
+    /// </summary>
+    private async Task VerifierReactivationsAsync()
+    {
+        var reactives = _context.ChangeTracker.Entries<DocumentEntete>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.Statut == StatutsPlan.Actif
+                        && e.Entity.Portee == PorteesDocument.Generique && e.Entity.FormulaireId != null
+                        && e.Property(d => d.Statut).OriginalValue != StatutsPlan.Actif)
+            .Select(e => e.Entity)
+            .ToList();
+        foreach (var document in reactives)
+        {
+            var formulaire = await _context.RefFormulaires.AsNoTracking()
+                .Where(f => f.Id == document.FormulaireId && f.Statut == StatutsPlan.Archive)
+                .Select(f => new { f.CodeReference, f.Version })
+                .FirstOrDefaultAsync();
+            if (formulaire != null)
+                throw new RegleMetierException(
+                    $"« {document.Nom} » appartient au formulaire {formulaire.CodeReference}.{formulaire.Version}, archivé : il reste archivé (traçabilité). Créez une nouvelle version du document.");
+        }
     }
 
     public async Task<bool> ChangerStatutPlanAsync(string category, Guid id, string statut)
@@ -342,6 +368,7 @@ public class HubService : IHubService
             p.Statut = statut;
         }
 
+        await VerifierReactivationsAsync();
         await _context.SaveChangesAsync();
         return true;
     }

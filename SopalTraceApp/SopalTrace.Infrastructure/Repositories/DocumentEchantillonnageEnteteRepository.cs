@@ -38,6 +38,12 @@ public class DocumentEchantillonnageEnteteRepository : IDocumentEchantillonnageE
             .FirstOrDefaultAsync();
     }
 
+    public async Task<DocumentEntete?> GetPlanPourOfAsync(Guid execControleOfId) =>
+        await Execution.DocumentsDeLOf.DocumentDejaUtiliseAsync(_context, execControleOfId, TypesDocumentExecution.Echantillonnage)
+            is Guid dejaUtilise && await GetByIdAsync(dejaUtilise) is { } planDeLOf
+            ? planDeLOf
+            : await GetPlanActifAsync();
+
     public async Task<IEnumerable<DocumentEntete>> GetAllWithRelationsAsync()
     {
         return await Plans

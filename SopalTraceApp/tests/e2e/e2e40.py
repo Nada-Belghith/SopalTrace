@@ -25,7 +25,10 @@ st,r=call(ADMIN,'GET','/referentiels/verif-machine'); txt=json.dumps(r)
 check('referentiels verif machine 200', st==200, (st,str(r)[:200])); check('pieces sans familleDesc', 'familleDesc' not in txt)
 for path in ['/hub/modeles','/hub/plans','/hub/structures']:
     st,r=call(ADMIN,'GET',path); check(f'{path} 200', st==200, (st,str(r)[:200]))
+# Champ d'application sans formulaire (famille RBGFM sur PAS71) : le code du nouveau formulaire est indiqué, jamais fabriqué.
 st,r=call(ADMIN,'POST','/Document',{'typeDocumentCode':'PLAN_ASS','nom':'Plan test PAS71','familleProduitFiniCode':'RBGFM','posteCode':'PAS71','sections':[]})
+check('sans formulaire pour ce champ d\'application ni code indiqué : refus clair', st==400 and 'Aucun formulaire' in str(r), (st,str(r)[:300]))
+st,r=call(ADMIN,'POST','/Document',{'typeDocumentCode':'PLAN_ASS','nom':'Plan test PAS71','familleProduitFiniCode':'RBGFM','posteCode':'PAS71','refFormulaireCodeReference':'FE-ASS-TEST-40','sections':[]})
 check('creation plan assemblage', st in (200,201), (st,str(r)[:300]))
 doc_id = (r or {}).get('id') if isinstance(r,dict) else None
 if isinstance(r,dict) and not doc_id: doc_id=r.get('data',{}).get('id') if isinstance(r.get('data'),dict) else None
@@ -42,7 +45,7 @@ print(f'\n{ok} OK / {ko} KO')
 import subprocess
 def sql(q):
     return _sql(q)
-st,r=call(ADMIN,'POST','/Document',{'typeDocumentCode':'CTRL_POSTE','nom':'Controle poste PAS72','posteCode':'PAS72','refFormulaireCodeReference':'FE-RC-TEST-P3','colonneDefs':[{'key':'col_obs','label':'Observation','type':'TEXT'}],'sections':[]})
+st,r=call(ADMIN,'POST','/Document',{'typeDocumentCode':'CTRL_POSTE','nom':'Controle poste PAS72','posteCode':'PAS72','familleProduitFiniCode':'RBGFM','refFormulaireCodeReference':'FE-RC-TEST-P3','colonneDefs':[{'key':'col_obs','label':'Observation','type':'TEXT'}],'sections':[]})
 check('creation controle poste avec nouveau formulaire', st in (200,201), (st,str(r)[:300]))
 role=sql("SELECT Role FROM Ref_Formulaire WHERE CodeReference='FE-RC-TEST-P3'")
 check('formulaire cree avec le role RESULTAT_CONTROLE_POSTE (plus UNKNOWN)', role=='RESULTAT_CONTROLE_POSTE', role)
@@ -50,7 +53,7 @@ check('audit trace la creation du document', sql("SELECT COUNT(*) FROM AuditLog 
 print(f'\n{ok} OK / {ko} KO')
 import json as _j
 cfg=_j.dumps({'equipes':[{'nom':'Equipe Matin','debut':6,'fin':14},{'nom':'Equipe Soir','debut':14,'fin':22}],'customCols':[]})
-st,r=call(ADMIN,'POST','/Document',{'typeDocumentCode':'CTRL_POSTE','nom':'Controle poste PAS78','posteCode':'PAS78','refFormulaireCodeReference':'FE-RC-EQUIPES','configurationColonnesJson':cfg,'sections':[]})
+st,r=call(ADMIN,'POST','/Document',{'typeDocumentCode':'CTRL_POSTE','nom':'Controle poste PAS78','posteCode':'PAS78','familleProduitFiniCode':'RBGFM','refFormulaireCodeReference':'FE-RC-EQUIPES','configurationColonnesJson':cfg,'sections':[]})
 check('controle poste avec equipes', st in (200,201), (st,str(r)[:300]))
 eq=sql("SELECT NomEquipe+'='+TeamCode FROM Ref_Formulaire_Equipe e JOIN Ref_Formulaire f ON f.Id=e.FormulaireId WHERE f.CodeReference='FE-RC-EQUIPES' AND e.Actif=1 ORDER BY e.OrdreAffiche")
 check('equipes du formulaire -> E1, E2 par position', eq.split()==['Equipe=E1','Matin=E1'] or 'Matin=E1' in eq and 'Soir=E2' in eq, eq)

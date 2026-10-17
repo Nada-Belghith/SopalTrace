@@ -57,7 +57,7 @@ namespace SopalTrace.Application.Services
             if (tailleLot <= 0)
                 throw new RegleMetierException("L'OF n'a pas de quantité valide.");
 
-            var plan = (await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync())?.SamplingPlan
+            var plan = (await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanPourOfAsync(execControleOfId))?.SamplingPlan
                 ?? throw new RessourceIntrouvableException("Plan d'échantillonnage source introuvable.");
 
             // Get LettreCode
@@ -206,7 +206,7 @@ namespace SopalTrace.Application.Services
             var existingExec = await _unitOfWork.ExecEchantillonnageRepository.GetByExecControleOfIdAndPosteAsync(execControleOfId, null);
             if (existingExec != null) return true;
 
-            var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanActifAsync();
+            var plan = await _unitOfWork.DocumentEchantillonnageEnteteRepository.GetPlanPourOfAsync(execControleOfId);
             return plan != null;
         }
 

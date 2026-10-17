@@ -101,7 +101,7 @@ st, r = importer(SUP, 'liste.xlsx', fixture('PF_manu.xlsx')[:4000]); check('clas
 
 # ── Enregistrement d'un plan d'assemblage issu de l'import : les référentiels sont complétés ──
 st, r = call(SUP, 'POST', '/Document', {'typeDocumentCode': 'PLAN_ASS', 'nom': 'Plan importé PAS71', 'typeRobinetCode': 'AUTO',
-    'posteCode': 'PAS71', 'remarques': manu['remarques'], 'sections': sections_document(manu)})
+    'posteCode': 'PAS71', 'refFormulaireCodeReference': 'FE-ASS-IMPORT-63', 'remarques': manu['remarques'], 'sections': sections_document(manu)})
 doc_id = (r or {}).get('id') or ((r or {}).get('data') or {}).get('id') if isinstance(r, dict) else None
 check('enregistrement du document importé', st in (200, 201) and doc_id, (st, r))
 check('25 lignes enregistrées', sql(f"SELECT COUNT(*) FROM Document_Ligne WHERE EnteteId='{doc_id}'") == '25')

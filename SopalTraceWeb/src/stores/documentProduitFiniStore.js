@@ -1,4 +1,4 @@
-import { normaliserTypeColonne } from '@/constants/columnTypes'
+import { colonnesDepuisDocument } from '@/utils/colonnesUtils'
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { documentService as documentService } from '@/services/documentService';
@@ -28,7 +28,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
     familleProduitFiniCode: '',
     familleProduitFiniLibelle: '',
     refFormulaireCodeReference: null,
-    versionInitiale: null,
     version: 1,
     statut: 'ACTIF',
     dateApplication: null,
@@ -100,13 +99,8 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         creeLe: data.creeLe,
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
-        configurationColonnes: (data.colonneDefs || []).map(c => ({
-          key: c.cleColonne || c.key,
-          label: c.labelAffiche || c.label,
-          type: normaliserTypeColonne(c.typeValeur || c.type),
-          options: c.options || [],
-          insertAfter: c.insertAfter || 'code_instrument'
-        })),
+        refFormulaireCodeReference: data.formulaireCodeReference || '',
+        configurationColonnes: colonnesDepuisDocument(data.colonneDefs),
       };
 
       sections.value = (data.sections || [])
@@ -127,7 +121,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         familleProduitFiniCode: entete.value.familleProduitFiniCode,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
-        versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         colonneDefs: entete.value.configurationColonnes || [],
         sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicitesConnues()))
@@ -158,7 +151,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         familleProduitFiniCode: entete.value.familleProduitFiniCode,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
-        versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         configurationColonnesJson: JSON.stringify(entete.value.configurationColonnes || []),
         sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicitesConnues()))
@@ -187,7 +179,6 @@ export const usedocumentProduitFiniStore = defineStore('documentProduitFini', ()
         motifModification: motif,
         remarques: entete.value.remarques || '',
         legendeMoyens: entete.value.legendeMoyens || '',
-        versionInitiale: entete.value.versionInitiale,
         refFormulaireCodeReference: entete.value.refFormulaireCodeReference,
         colonneDefs: entete.value.configurationColonnes || [],
         sections: (sections.value || []).map((s, idx) => mapSectionForBackend(s, idx, periodicitesConnues()))

@@ -34,7 +34,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     legendeMoyens: '',
     posteCode: '',
     familleProduitCode: '',
-    versionInitiale: null,
     refFormulaireCodeReference: ''  // Code du formulaire ref sélectionné (ex: FE-ASS-PISTON)
   });
 
@@ -154,7 +153,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     familleProduitFiniCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
     remarques: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
-    versionInitiale: entete.value.versionInitiale,
     colonneDefs: entete.value.configurationColonnes || [],
     refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
     sections: sections.value.map((s, sIdx) => mapSectionForBackend(s, sIdx, refStore.periodicites))

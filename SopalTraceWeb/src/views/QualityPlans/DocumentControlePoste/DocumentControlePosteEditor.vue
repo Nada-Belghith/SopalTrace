@@ -14,6 +14,8 @@
       :statut="store.entete.statut"
       :showRestaurerBtn="false"
     />
+    <!-- Fiche que rempliront les opérateurs, mise en forme avec son modèle (consultation) -->
+    <PdfDocumentQualite v-if="store.entete?.id" :document-id="store.entete.id" class="mb-4" />
 
     <documentControlePosteForm v-if="store.entete" :is-read-only="isReadOnly" />
   </div>
@@ -26,6 +28,7 @@ import { usedocumentControlePosteStore } from '@/stores/documentControlePosteSto
 import { useReferentielStore } from '@/stores/referentielStore';
 import DocumentControlePosteForm from '@/components/DocumentControlePoste/DocumentControlePosteForm.vue';
 import PlanHeader from '@/components/Shared/PlanHeader.vue';
+import PdfDocumentQualite from '@/components/Qualite/PdfDocumentQualite.vue';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';

@@ -51,12 +51,117 @@ public class RefFormulaireRepository : IRefFormulaireRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<ListesChampApplication> GetListesChampApplicationAsync() => new(
+        await _context.FamilleProduitFinis.AsNoTracking().Where(f => f.Actif).OrderBy(f => f.Code)
+            .Select(f => new ElementChampApplication(f.Code, f.Designation, f.TypeRobinetCode)).ToListAsync(),
+        await _context.PosteTravails.AsNoTracking().Where(p => p.Actif).OrderBy(p => p.CodePoste)
+            .Select(p => new ElementChampApplication(p.CodePoste, p.Libelle, null)).ToListAsync(),
+        await _context.Machines.AsNoTracking().Where(m => m.Actif).OrderBy(m => m.CodeMachine)
+            .Select(m => new ElementChampApplication(m.CodeMachine, m.Libelle, null)).ToListAsync(),
+        await _context.NatureArticles.AsNoTracking().Where(n => n.Actif).OrderBy(n => n.Code)
+            .Select(n => new ElementChampApplication(n.Code, n.Libelle, null)).ToListAsync(),
+        await _context.TypeRobinets.AsNoTracking().Where(t => t.Actif).OrderBy(t => t.Code)
+            .Select(t => new ElementChampApplication(t.Code, t.Libelle, null)).ToListAsync());
+
+    public Task<List<RoleFormulaire>> GetRolesAsync() =>
+        _context.FormRoles.AsNoTracking().Where(r => r.Active).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Code)
+            .Select(r => new RoleFormulaire(r.Code, r.Label, r.DisplayOrder, r.ScopeByFamily, r.ScopeByWorkstation, r.ScopeByMachine,
+                r.ScopeByNature, r.ScopeByValveType, r.Nature))
+            .ToListAsync();
+
+    public Task<string?> GetTypeRobinetDeFamilleAsync(string familleCode) =>
+        _context.FamilleProduitFinis.AsNoTracking().Where(f => f.Code == familleCode).Select(f => (string?)f.TypeRobinetCode)
+            .FirstOrDefaultAsync();
+
+    public Task<bool> CodeExisteAsync(string codeReference) =>
+        _context.RefFormulaires.AnyAsync(f => f.CodeReference == codeReference);
+
+    public Task<bool> CodeUtiliseParUnAutreFormulaireAsync(string codeReference, Guid groupe) =>
+        _context.RefFormulaires.AnyAsync(f => f.CodeReference == codeReference && f.VersionGroupId != groupe);
+
+    public Task<bool> CodeVersionExisteAsync(string codeReference, int version) =>
+        _context.RefFormulaires.AnyAsync(f => f.CodeReference == codeReference && f.Version == version);
+
+    public Task<bool> EstUtiliseAsync(Guid formulaireId) => RemplacementFormulaire.EstUtiliseAsync(_context, formulaireId);
+
+    public Task DemanderModeleAsync(Guid formulaireId, string origine, string? motif) =>
+        ModelesDesFormulaires.DemanderAsync(_context, formulaireId, origine, motif, null);
+
+    public Task<bool> RecopierModeleAsync(Guid ancienId, Guid nouveauId, string motif) =>
+        ModelesDesFormulaires.RecopierModeleAsync(_context, ancienId, nouveauId, null, motif);
+
+    public Task DeplacerDemandesModeleAsync(Guid ancienId, Guid nouveauId) => ModelesDesFormulaires.DeplacerDemandesAsync(_context, ancienId, nouveauId);
+
+    public Task AnnulerDemandesModeleAsync(Guid formulaireId) => ModelesDesFormulaires.AnnulerDemandesAsync(_context, formulaireId, null);
+
+    public async Task ChangerCodeAsync(Guid formulaireId, string ancienCode, string nouveauCode)
+    {
+        var strategie = _context.Database.CreateExecutionStrategy();
+        await strategie.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            // Formulaire jamais utilisé : son code n'est encore qu'un projet (la base refuse si un document l'utilise).
+            await _context.RefFormulaires.Where(f => f.Id == formulaireId)
+                .ExecuteUpdateAsync(s => s.SetProperty(f => f.CodeReference, nouveauCode));
+            await _context.ReportTemplateInitialForms.Where(i => i.FormCodeReference == ancienCode)
+                .ExecuteUpdateAsync(s => s.SetProperty(i => i.FormCodeReference, nouveauCode));
+            await transaction.CommitAsync();
+        });
+    }
+
+    public async Task<(Guid FormulaireId, int DocumentsRecrees)> RemplacerParNouveauCodeAsync(Guid formulaireId, string nouveauCode,
+        string matricule)
+    {
+        var strategie = _context.Database.CreateExecutionStrategy();
+        return await strategie.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            string? ancienCode = null;
+            // Nouvelle ligne : même formulaire (lignée), même version, même champ d'application, nouveau code.
+            var (nouveau, recrees) = await RemplacementFormulaire.RemplacerAsync(_context, formulaireId, ancien =>
+            {
+                ancienCode = ancien.CodeReference;
+                return RemplacementFormulaire.Copie(ancien, nouveauCode, ancien.Version, matricule);
+            }, matricule, ancien => $"Changement de code {ancien.CodeReference} → {nouveauCode}", recopierModele: true);
+            _context.FormCodeChanges.Add(new FormCodeChange { PreviousFormId = formulaireId, NewFormId = nouveau.Id, ChangedBy = matricule });
+            await _context.SaveChangesAsync();
+            await _context.ReportTemplateInitialForms.Where(i => i.FormCodeReference == ancienCode)
+                .ExecuteUpdateAsync(s => s.SetProperty(i => i.FormCodeReference, nouveauCode));
+            await transaction.CommitAsync();
+            return (nouveau.Id, recrees);
+        });
+    }
+
+    public Task<List<DocumentActifFormulaire>> GetDocumentsActifsAsync(Guid formulaireId) =>
+        RemplacementFormulaire.DocumentsGeneriquesEnCours(_context, formulaireId)
+            .AsNoTracking()
+            .OrderBy(d => d.Nom).ThenBy(d => d.Version)
+            .Select(d => new DocumentActifFormulaire(d.Id, d.Nom, d.Version, d.Statut, d.TypeDocumentCodeNavigation.Libelle,
+                d.Formulaire!.CodeReference, d.Formulaire.Version))
+            .ToListAsync();
+
+    public Task<RefFormulaire?> GetFormulaireEnCoursParChampAsync(SopalTrace.Application.Helpers.ChampFormulaire champ) =>
+        _context.RefFormulaires
+            .AsNoTracking()
+            .Where(f => f.Role == champ.Role && (f.Statut == StatutsPlan.Actif || f.Statut == StatutsPlan.Brouillon)
+                        && f.FamilleProduitFiniCode == champ.Famille && f.PosteCode == champ.Poste
+                        && f.MachineCode == champ.Machine && f.NatureArticleCode == champ.Nature
+                        // Avec une famille, le type de robinet est celui de la famille : il ne distingue rien de plus.
+                        && (champ.Famille != null || f.TypeRobinetCode == champ.TypeRobinet))
+            .OrderBy(f => f.Statut == StatutsPlan.Actif ? 0 : 1)
+            .FirstOrDefaultAsync();
+
+    /// <remarks>
+    /// Un ancien code (gardé par les versions archivées) mène à la version en cours du même formulaire : les versions
+    /// sont reliées par leur identifiant de groupe, pas par leur code.
+    /// </remarks>
     public async Task<RefFormulaire?> GetFormulaireActifByCodeReferenceAsync(string codeReference)
     {
         var codeRefTrimmed = codeReference?.Trim();
+        var groupes = _context.RefFormulaires.Where(f => f.CodeReference == codeRefTrimmed).Select(f => f.VersionGroupId);
         return await _context.RefFormulaires
             .AsNoTracking()
-            .Where(f => (f.CodeReference != null && f.CodeReference.Trim() == codeRefTrimmed)
+            .Where(f => groupes.Contains(f.VersionGroupId)
                      && (f.Statut != null && (f.Statut.Trim() == StatutsPlan.Actif || f.Statut.Trim() == StatutsPlan.Brouillon)))
             .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1)
             .ThenByDescending(f => f.Version)
@@ -71,9 +176,9 @@ public class RefFormulaireRepository : IRefFormulaireRepository
             .Where(f => (f.Role != null && f.Role.Trim() == roleTrimmed) && (f.Statut != null && (f.Statut.Trim() == StatutsPlan.Actif || f.Statut.Trim() == StatutsPlan.Brouillon)))
             .ToListAsync();
 
-        // Une seule entrée par codeReference : priorité ACTIF, puis version la plus élevée
+        // Une seule entrée par formulaire (groupe de versions) : priorité ACTIF, puis version la plus élevée
         return formulaires
-            .GroupBy(f => f.CodeReference?.Trim() ?? string.Empty)
+            .GroupBy(f => f.VersionGroupId)
             .Select(g => g
                 .OrderBy(f => f.Statut!.Trim() == StatutsPlan.Actif ? 0 : 1)
                 .ThenByDescending(f => f.Version)
@@ -82,13 +187,8 @@ public class RefFormulaireRepository : IRefFormulaireRepository
             .ToList();
     }
 
-    public async Task<int> GetMaxVersionByCodeReferenceAsync(string codeReference)
-    {
-        var codeRefTrimmed = codeReference?.Trim();
-        return await _context.RefFormulaires
-            .Where(f => f.CodeReference != null && f.CodeReference.Trim() == codeRefTrimmed)
-            .MaxAsync(f => (int?)f.Version) ?? 0;
-    }
+    public async Task<int> GetMaxVersionDuGroupeAsync(Guid groupe) =>
+        await _context.RefFormulaires.Where(f => f.VersionGroupId == groupe).MaxAsync(f => (int?)f.Version) ?? 0;
 
     public async Task UpdateStatutAsync(Guid formulaireId, string statut)
     {

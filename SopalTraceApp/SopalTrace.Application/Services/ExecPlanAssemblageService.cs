@@ -53,6 +53,8 @@ namespace SopalTrace.Application.Services
             {
                 statut ??= NouveauStatut(execOf.Id, posteCode, session);
                 statut.DocId ??= plan.Id;
+                // Formulaire des résultats remplis (et donc leur modèle), fixé à la création de la fiche.
+                statut.FormId ??= await _repository.TrouverFormulaireResultatsIdAsync(codeArticle, posteCode);
                 SynchroniserAvancement(statut, sections, equipe);
                 await _repository.SaveChangesAsync();
             }

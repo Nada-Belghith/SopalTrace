@@ -49,6 +49,8 @@ public partial class DocumentEntete
 
     public string? MachineCode { get; set; }
 
+    public long CreationOrder { get; set; }
+
     public byte[] RowVersion { get; set; } = null!;
 
     public virtual Autili CreeParNavigation { get; set; } = null!;
@@ -68,6 +70,8 @@ public partial class DocumentEntete
     public virtual FamilleProduitFini? FamilleProduitFiniCodeNavigation { get; set; }
 
     public virtual RefFormulaire? Formulaire { get; set; }
+
+    public virtual ICollection<GeneratedDocument> GeneratedDocuments { get; set; } = new List<GeneratedDocument>();
 
     public virtual ICollection<DocumentEntete> InverseDocumentSource { get; set; } = new List<DocumentEntete>();
 

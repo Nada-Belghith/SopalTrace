@@ -309,6 +309,19 @@ const router = createRouter({
           path: 'tracabilite',
           name: 'qualite-tracabilite-totale',
           component: () => import('@/views/Qualite/TracabiliteTotaleView.vue')
+        },
+        {
+          path: 'formulaires',
+          name: 'qualite-formulaires',
+          component: () => import('@/views/Qualite/FormulairesView.vue'),
+          meta: { roles: ['SUPERVISEUR_QUALITE'] }
+        },
+        {
+          path: 'modeles-documents',
+          name: 'qualite-modeles-documents',
+          component: () => import('@/views/Qualite/ModelesDocumentsView.vue'),
+          // Le superviseur qualité définit les formulaires, l'administrateur leur rattache les modèles Excel.
+          meta: { roles: ['ADMIN'] }
         }
       ]
     }

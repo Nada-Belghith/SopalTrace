@@ -46,12 +46,12 @@
             </option>
           </select>
           <p class="text-xs text-blue-600/80 font-medium italic">
-            La sélection du formulaire remplira automatiquement la machine ciblée.
+            La machine est celle du formulaire choisi (verrouillée).
           </p>
         </div>
         <div class="flex-1">
           <label class="block text-xs font-bold text-slate-500 mb-1">Machine</label>
-          <select v-model="selectedMachineCode" @change="onMachineChange" :disabled="isReadOnly || store.entete.id"
+          <select v-model="selectedMachineCode" @change="onMachineChange" :disabled="isReadOnly || store.entete.id || !!formulaireChoisi?.machineCode"
             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 outline-none bg-slate-50 cursor-pointer disabled:opacity-75 disabled:bg-slate-100 font-semibold text-slate-700 transition-all">
             <option value="">-- Choisir une machine --</option>
             <option v-for="mac in (refStore.machines || [])" :key="mac.code" :value="mac.code">
@@ -78,12 +78,7 @@
             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-slate-900 font-semibold text-slate-800 outline-none disabled:bg-slate-50">
         </div>
         
-        <div v-if="!hasExistingVersion && !store.entete.id">
-          <label class="block text-xs font-bold text-slate-500 mb-1">Version de départ</label>
-          <input v-model.number="store.entete.versionInitiale" type="number" min="0" placeholder="0" :disabled="isReadOnly"
-            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-slate-900 font-semibold text-slate-800 outline-none disabled:bg-slate-50">
-          <p class="text-[10px] text-slate-400 mt-1 italic">Définit la version initiale de ce formulaire.</p>
-        </div>
+        
       </div>
     </section>
   </div>
@@ -93,7 +88,6 @@
 import { ref, watch, computed } from 'vue';
 import { useVerifMachineStore } from '@/stores/verifMachineStore';
 import { useReferentielStore } from '@/stores/referentielStore';
-import { parseDesignation } from '@/utils/designationParser';
 
 defineProps({
   isReadOnly: { type: Boolean, default: false }
@@ -106,13 +100,9 @@ const refStore = useReferentielStore();
 const fileInput = ref(null);
 const refFormulaireSelected = ref('');
 const selectedMachineCode = ref('');
-
-const hasExistingVersion = computed(() => {
-  if (!refFormulaireSelected.value) return false;
-  const refObj = (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || []).find(r => r.id === refFormulaireSelected.value);
-  if (!refObj) return false;
-  return refObj.version > 0 || refObj.Version > 0 || refObj.configurationStructureJson !== null;
-});
+// Le formulaire est trouvé par son champ d'application exact : la machine est la sienne.
+const formulaireChoisi = computed(() =>
+  (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || []).find(r => r.id === refFormulaireSelected.value) ?? null);
 
 // Synchroniser le code machine local avec le store
 watch(() => store.entete.machineCode, (newVal) => {
@@ -127,13 +117,11 @@ watch(refFormulaireSelected, async (newRefId) => {
   const refObj = (refStore.formulairesReferencesByRole['VERIF_MACHINE'] || []).find(r => r.id === newRefId);
   if (!refObj) return;
 
-  const designation = refObj.designation || '';
-  const parsed = parseDesignation(designation, [], refStore.machines || []);
-
-  if (parsed.machineCode) {
-    selectedMachineCode.value = parsed.machineCode;
-    await store.initialiserPlan(parsed.machineCode);
-    store.entete.nom = designation;
+  // Machine du formulaire (champ du référentiel, jamais déduite du texte).
+  if (refObj.machineCode) {
+    selectedMachineCode.value = refObj.machineCode;
+    await store.initialiserPlan(refObj.machineCode);
+    store.entete.nom = refObj.designation || '';
   }
 
   if (refObj.configurationStructureJson) {

@@ -32,7 +32,8 @@ export function useFiltreOfs(ofs, statutDe, statuts, { masques = [] } = {}) {
     { valeur: TOUS_LES_STATUTS, libelle: masques.length ? 'À traiter' : 'Tous', nombre: aTraiter.value.length },
     ...statuts
       .map(s => ({ ...s, nombre: trouves.value.filter(of => statutDe(of) === s.valeur).length }))
-      .filter(s => s.nombre > 0 || s.valeur === statut.value)
+      // Un statut sans OF est masqué, sauf un statut mis à part (ex. « Clôturés ») : son bouton reste visible.
+      .filter(s => s.nombre > 0 || s.valeur === statut.value || masques.includes(s.valeur))
   ])
 
   const ofsAffiches = computed(() => statut.value === TOUS_LES_STATUTS

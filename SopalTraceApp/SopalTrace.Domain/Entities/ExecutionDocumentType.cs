@@ -16,4 +16,6 @@ public partial class ExecutionDocumentType
     public virtual TypeDocument? DocumentTypeCodeNavigation { get; set; }
 
     public virtual ICollection<ExecControleDocumentStatut> ExecControleDocumentStatuts { get; set; } = new List<ExecControleDocumentStatut>();
+
+    public virtual ICollection<ReportTemplate> ReportTemplates { get; set; } = new List<ReportTemplate>();
 }

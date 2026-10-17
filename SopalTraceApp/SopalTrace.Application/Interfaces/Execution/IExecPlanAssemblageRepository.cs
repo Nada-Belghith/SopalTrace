@@ -17,6 +17,12 @@ namespace SopalTrace.Application.Interfaces.Execution
         /// Jamais le plan d'une autre famille.
         /// </summary>
         Task<Guid?> TrouverPlanAssemblageIdAsync(string codeArticle, string posteCode);
+        /// <summary>
+        /// Formulaire (version non archivée) des résultats du contrôle en cours d'assemblage de cet article sur ce poste :
+        /// celui dont le champ d'application (poste, famille, type de robinet) correspond, le plus précis d'abord ;
+        /// null s'il n'y en a pas ou si deux formulaires sont aussi précis l'un que l'autre.
+        /// </summary>
+        Task<Guid?> TrouverFormulaireResultatsIdAsync(string codeArticle, string posteCode);
         Task<DocumentEntete?> GetDocumentByIdAsync(Guid docId);
 
         /// <summary>Famille de produit fini de l'article et son type de robinet (null si l'article n'est pas un PF).</summary>

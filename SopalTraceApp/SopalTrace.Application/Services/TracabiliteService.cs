@@ -154,6 +154,8 @@ namespace SopalTrace.Application.Services
                     ExecControleOfId = execOf.Id,
                     PosteCode = posteCode,
                     TypeDocument = TypesDocumentExecution.RegistreTracabilite,
+                    // Formulaire du registre (code, version, modèle dédié), fixé à la création de la fiche.
+                    FormId = await _tracabiliteRepository.GetFormulaireRegistreAsync(),
                     SessionId = session.Id,
                     Equipe = session.Equipe,
                     EstTermine = true,

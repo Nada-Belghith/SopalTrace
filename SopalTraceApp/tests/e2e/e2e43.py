@@ -61,7 +61,8 @@ check('création alors qu\'un plan est actif : remplacement', st == 200 and acti
       and sql(f"SELECT Statut FROM Document_Entete WHERE Id='{v2}'") == 'ACTIF', (st, r, actifs()))
 
 st, r = call(ADMIN, 'PUT', f'/hub/plans/ECH/{v0}/statut?statut=ACTIF')
-check('réactiver un plan archivé alors qu\'un autre est actif -> 409', st == 409 and actifs() == '1', (st, r))
+check('réactiver un plan archivé (formulaire archivé) : refusé, il reste archivé (traçabilité)',
+      st == 400 and 'reste archivé' in str(r) and actifs() == '1', (st, r))
 
 st, r = call(ADMIN, 'GET', '/hub/modeles'); r = r['data'] if st == 200 else []
 check('hub : plans listés une fois en ECH', [m['category'] for m in r if m['id'] in (v0, v1, v2)] == ['ECH'] * 3, [m for m in r if m['id'] in (v0, v1, v2)])
@@ -80,4 +81,21 @@ check('statut d\'exécution lié au plan actif', sql(
 st, r = call(ADMIN_SUPERVISION, 'POST', f'/operateur/of/{exec_id}/close'); check('clôture OF', st == 204, (st, r))
 
 st, r = call(OP, 'POST', P, donnees); check('opérateur ne crée pas de plan (403)', st == 403, st)
+# Fiche vierge : la fiche d'échantillonnage que remplira l'opérateur, avec les paramètres du plan actif.
+SUP_QUALITE = jwt('44444', 'SUPERVISEUR_QUALITE')
+actif = sql("SELECT LOWER(CAST(Id AS VARCHAR(36))) FROM Document_Entete WHERE TypeDocumentCode='PLAN_ECHANTILLONNAGE' AND Statut='ACTIF'")
+st, r = call(SUP_QUALITE, 'GET', f'/rapports/documents/par-document/{actif}')
+fiche = (r.get('data') or {}).get('ficheVierge') or {} if isinstance(r, dict) else {}
+requete_fiche = urllib.request.Request(BASE + f'/rapports/documents/par-document/{actif}/fiche-vierge/excel', headers={'Authorization': 'Bearer ' + SUP_QUALITE})
+try:
+    with urllib.request.urlopen(requete_fiche, timeout=120) as reponse:
+        st_fiche, xlsx = reponse.status, reponse.read()
+except urllib.error.HTTPError as e:
+    st_fiche, xlsx = e.code, b''
+import io, openpyxl
+cellules = ' '.join(str(c.value) for f in openpyxl.load_workbook(io.BytesIO(xlsx)).worksheets for rangee in f.iter_rows() for c in rangee
+                    if c.value is not None) if st_fiche == 200 else ''
+check("fiche vierge d'échantillonnage : modèle FE0591, paramètres du plan, sans taille de lot ni champ restant",
+      (fiche.get('modele') or {}).get('codeModele') == 'ECHANTILLONNAGE' and st_fiche == 200 and '{{' not in cellules, (fiche, st_fiche))
+
 print(f'\n{ok} OK / {ko} KO')
