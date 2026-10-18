@@ -36,7 +36,7 @@ public class MagasinService : IMagasinService
     public async Task<PreparationDto> OuvrirPreparationAsync(string scanOuNumero)
     {
         var of = await OfAsync(EtiquetteMagasin.LireNumeroOf(scanOuNumero));
-        if (of.MfgmatBesoinOfs.Count == 0)
+        if (!BesoinsMagasin(of).Any())
             throw new RegleMetierException($"L'OF {of.NumeroOf} n'a aucun composant à servir (nomenclature vide dans l'ERP).");
 
         var preparation = await _repository.GetPreparationActiveAsync(of.NumeroOf);
@@ -61,7 +61,7 @@ public class MagasinService : IMagasinService
         var of = await OfAsync(preparation.NumeroOf);
         var etiquette = EtiquetteMagasin.LireComposant(contenu);
 
-        var besoin = of.MfgmatBesoinOfs.FirstOrDefault(b => string.Equals(b.CodeArticle, etiquette.CodeArticle, StringComparison.OrdinalIgnoreCase))
+        var besoin = BesoinsMagasin(of).FirstOrDefault(b => string.Equals(b.CodeArticle, etiquette.CodeArticle, StringComparison.OrdinalIgnoreCase))
             ?? throw new RegleMetierException($"L'article {etiquette.CodeArticle} ne fait pas partie de la nomenclature de l'OF {of.NumeroOf}.");
 
         if (preparation.MagPreparationOfLots.Any(l => l.CodeArticle == besoin.CodeArticle
@@ -104,14 +104,16 @@ public class MagasinService : IMagasinService
         var preparation = await PreparationEnCoursAsync(preparationId);
         var of = await OfAsync(preparation.NumeroOf);
 
-        var manquants = of.MfgmatBesoinOfs
-            .Where(b => !preparation.MagPreparationOfLots.Any(l => l.CodeArticle == b.CodeArticle))
-            .Select(b => b.CodeArticle)
+        // Composant servi : quantité scannée au moins égale à la quantité requise.
+        var manquants = BesoinsMagasin(of)
+            .Select(b => (b.CodeArticle, b.QuantiteRequise, Servie: QuantiteServie(preparation.MagPreparationOfLots, b.CodeArticle)))
+            .Where(c => (c.Servie ?? 0) < c.QuantiteRequise)
+            .Select(c => $"{c.CodeArticle} ({c.Servie?.ToString("0.###") ?? "—"} / {c.QuantiteRequise:0.###})")
             .ToList();
         motif = string.IsNullOrWhiteSpace(motif) ? null : motif.Trim();
 
         if (manquants.Count > 0 && motif == null)
-            throw new RegleMetierException($"Composants non servis : {string.Join(", ", manquants)}. Scannez-les ou indiquez le motif de la préparation incomplète.");
+            throw new RegleMetierException($"Quantité requise non servie : {string.Join(", ", manquants)}. Scannez les lots manquants ou indiquez le motif de la préparation incomplète.");
         if (motif?.Length > 300)
             throw new RegleMetierException("Le motif ne doit pas dépasser 300 caractères.");
 
@@ -234,21 +236,29 @@ public class MagasinService : IMagasinService
         return VersDto((await _repository.GetBlAsync(expedition.NumeroBl))!, expedition);
     }
 
+    /// <summary>
+    /// Composants servis par le magasin : les semi-finis (sauf le piston) n'y passent pas, ils arrivent de l'atelier qui
+    /// les fabrique ; l'opérateur choisit leur OF dans le registre de traçabilité.
+    /// </summary>
+    private static IEnumerable<MfgmatBesoinOf> BesoinsMagasin(MfgheadOrdreFabrication of) =>
+        of.MfgmatBesoinOfs.Where(b => b.CodeArticleNavigation is not { TypeArticle: "SF" } a || a.NatureArticleCode == "PISTON");
+
     private static PreparationDto VersDto(MfgheadOrdreFabrication of, MagPreparationOf? preparation)
     {
         var lots = preparation?.MagPreparationOfLots.ToList() ?? new List<MagPreparationOfLot>();
-        var composants = of.MfgmatBesoinOfs
+        var composants = BesoinsMagasin(of)
             .OrderBy(b => b.CodeArticle)
             .Select(b =>
             {
                 var lotsArticle = lots.Where(l => l.CodeArticle == b.CodeArticle).OrderBy(l => l.DateScan).ToList();
-                var quantites = lotsArticle.Where(l => l.Quantite.HasValue).Select(l => l.Quantite!.Value).ToList();
+                var servie = QuantiteServie(lotsArticle, b.CodeArticle);
                 return new ComposantPreparationDto(
                     b.CodeArticle,
                     b.CodeArticleNavigation?.Designation ?? b.CodeArticle,
                     b.CodeArticleNavigation?.NatureArticleCodeNavigation?.Libelle,
                     b.QuantiteRequise,
-                    quantites.Count > 0 ? quantites.Sum() : null,
+                    servie,
+                    (servie ?? 0) >= b.QuantiteRequise,
                     lotsArticle.Select(VersDto).ToList());
             })
             .ToList();
@@ -259,7 +269,14 @@ public class MagasinService : IMagasinService
             of.CodeArticleNavigation?.NatureArticleCodeNavigation?.Libelle,
             of.QuantitePrevue,
             preparation?.Statut, preparation?.MatriculeMagasinier, preparation?.DateDebut, preparation?.DateFin, preparation?.IncompleteReason,
-            composants.Count(c => c.Lots.Count > 0), composants);
+            composants.Count(c => c.Servi), composants);
+    }
+
+    /// <summary>Somme des quantités des étiquettes scannées pour l'article (null si aucune n'en indique).</summary>
+    private static decimal? QuantiteServie(IEnumerable<MagPreparationOfLot> lots, string codeArticle)
+    {
+        var quantites = lots.Where(l => l.CodeArticle == codeArticle && l.Quantite.HasValue).Select(l => l.Quantite!.Value).ToList();
+        return quantites.Count > 0 ? quantites.Sum() : null;
     }
 
     private static LotScanneDto VersDto(MagPreparationOfLot l) =>

@@ -57,6 +57,25 @@ namespace SopalTrace.Application.Tests.Services
         }
 
         [Fact]
+        public async Task SemiFinisSaufPiston_PasServisParLeMagasin()
+        {
+            _of.MfgmatBesoinOfs.Add(new() { NumeroOf = NumeroOf, CodeArticle = "SF-CORPS", QuantiteRequise = 100,
+                CodeArticleNavigation = new Article { CodeArticle = "SF-CORPS", TypeArticle = "SF", NatureArticleCode = "CORPS" } });
+            _of.MfgmatBesoinOfs.Add(new() { NumeroOf = NumeroOf, CodeArticle = "SF-PISTON", QuantiteRequise = 100,
+                CodeArticleNavigation = new Article { CodeArticle = "SF-PISTON", TypeArticle = "SF", NatureArticleCode = "PISTON" } });
+
+            var dto = await _service.OuvrirPreparationAsync(NumeroOf);
+
+            Assert.Equal(new[] { "CORPS-1", "JOINT-1", "SF-PISTON" }, dto.Composants.Select(c => c.CodeArticle).ToArray());
+            await Assert.ThrowsAsync<RegleMetierException>(() => _service.ScannerComposantAsync(_preparation.Id, "SF-CORPS;L1"));
+
+            foreach (var code in new[] { "CORPS-1", "JOINT-1", "SF-PISTON" })
+                await _service.ScannerComposantAsync(_preparation.Id, $"cd:{code}/lot:L1/qty:200");
+            var termine = await _service.TerminerPreparationAsync(_preparation.Id, null);
+            Assert.Null(termine.MotifIncomplet);
+        }
+
+        [Fact]
         public async Task Ouvrir_PreparationExistante_LaReprend()
         {
             _repository.Setup(r => r.GetPreparationActiveAsync(NumeroOf)).ReturnsAsync(_preparation);
@@ -75,7 +94,8 @@ namespace SopalTrace.Application.Tests.Services
             var lot = Assert.Single(_preparation.MagPreparationOfLots);
             Assert.Equal(("CORPS-1", "L1", "QC1", 40m), (lot.CodeArticle, lot.NumeroLotScanne, lot.QualityControlReport, lot.Quantite));
             Assert.Equal("cd:corps-1/lot:L1/rpt:QC1/qty:40", lot.ScannedContent);
-            Assert.Equal(1, resultat.Preparation.ComposantsServis);
+            // 40 sur 100 requis : pas encore servi.
+            Assert.Equal(0, resultat.Preparation.ComposantsServis);
             Assert.Equal(40m, resultat.Preparation.Composants.First(c => c.CodeArticle == "CORPS-1").QuantiteServie);
         }
 
@@ -113,6 +133,20 @@ namespace SopalTrace.Application.Tests.Services
         }
 
         [Fact]
+        public async Task Terminer_QuantiteInferieureAuRequis_RefuseSansMotif()
+        {
+            await _service.ScannerComposantAsync(_preparation.Id, "cd:CORPS-1/lot:L1/qty:100");
+            var scan = await _service.ScannerComposantAsync(_preparation.Id, "cd:JOINT-1/lot:L2/qty:150");
+
+            var joint = scan.Preparation.Composants.First(c => c.CodeArticle == "JOINT-1");
+            Assert.Equal((150m, false), (joint.QuantiteServie, joint.Servi));
+            Assert.Equal(1, scan.Preparation.ComposantsServis);
+            var ex = await Assert.ThrowsAsync<RegleMetierException>(() => _service.TerminerPreparationAsync(_preparation.Id, null));
+            Assert.Contains("JOINT-1 (150 / 200)", ex.Message);
+            Assert.DoesNotContain("CORPS-1", ex.Message);
+        }
+
+        [Fact]
         public async Task Terminer_ComposantManquantAvecMotif_TermineEtGardeLeMotif()
         {
             await _service.ScannerComposantAsync(_preparation.Id, "CORPS-1;L1");
@@ -126,8 +160,9 @@ namespace SopalTrace.Application.Tests.Services
         [Fact]
         public async Task Terminer_Complet_SansMotif()
         {
-            await _service.ScannerComposantAsync(_preparation.Id, "CORPS-1;L1");
-            await _service.ScannerComposantAsync(_preparation.Id, "JOINT-1;L2");
+            await _service.ScannerComposantAsync(_preparation.Id, "cd:CORPS-1/lot:L1/qty:100");
+            await _service.ScannerComposantAsync(_preparation.Id, "cd:JOINT-1/lot:L2/qty:120");
+            await _service.ScannerComposantAsync(_preparation.Id, "cd:JOINT-1/lot:L3/qty:80");
 
             await _service.TerminerPreparationAsync(_preparation.Id, "inutile");
 

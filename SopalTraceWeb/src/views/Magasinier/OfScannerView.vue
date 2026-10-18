@@ -132,7 +132,8 @@
             <div v-for="comp in preparation.composants" :key="comp.codeArticle" class="p-4 md:px-6 flex flex-col md:flex-row md:items-start gap-4"
                  :class="comp.codeArticle === articleMisEnAvant ? 'bg-emerald-50/60' : ''">
               <div class="md:w-1/3 flex items-start gap-3">
-                <i class="pi text-lg mt-0.5" :class="comp.lots.length ? 'pi-check-circle text-emerald-500' : 'pi-circle text-slate-300'"></i>
+                <i class="pi text-lg mt-0.5" :title="comp.servi ? 'Quantité requise servie' : comp.lots.length ? 'Quantité servie inférieure à la quantité requise' : ''"
+                   :class="comp.servi ? 'pi-check-circle text-emerald-500' : comp.lots.length ? 'pi-exclamation-circle text-orange-500' : 'pi-circle text-slate-300'"></i>
                 <div>
                   <p class="text-slate-900 font-extrabold text-sm">{{ comp.designation }}</p>
                   <p class="text-xs font-bold text-slate-500">{{ comp.codeArticle }} · {{ comp.nature || 'Composant' }}</p>
@@ -140,7 +141,7 @@
               </div>
               <div class="md:w-40 text-sm">
                 <p class="text-[10px] font-black text-slate-400 uppercase">Requis / servi</p>
-                <p class="font-black text-slate-900">{{ comp.quantiteRequise }} / {{ comp.quantiteServie ?? '—' }}</p>
+                <p class="font-black" :class="comp.lots.length && !comp.servi ? 'text-orange-600' : 'text-slate-900'">{{ comp.quantiteRequise }} / {{ comp.quantiteServie ?? '—' }}</p>
               </div>
               <div class="flex-1 flex flex-wrap gap-2">
                 <span v-if="comp.lots.length === 0" class="text-xs font-semibold text-slate-400 italic">En attente de scan</span>
@@ -245,13 +246,13 @@ const retirer = async (lot) => {
 };
 
 const terminer = async () => {
-  const manquants = preparation.value.composants.filter(c => c.lots.length === 0);
+  const manquants = preparation.value.composants.filter(c => !c.servi);
   let motif = null;
   if (manquants.length > 0) {
     const reponse = await confirmer({
       titre: 'Préparation incomplète',
-      message: 'Ces composants n\'ont pas été servis. Indiquez le motif pour terminer quand même.',
-      details: manquants.map(c => c.codeArticle),
+      message: 'La quantité requise de ces composants n\'est pas servie. Indiquez le motif pour terminer quand même.',
+      details: manquants.map(c => `${c.codeArticle} (${c.quantiteServie ?? '—'} / ${c.quantiteRequise})`),
       saisie: { libelle: 'Le motif', obligatoire: true, longueurMax: 300 },
       libelleConfirmer: 'Terminer',
       libelleAnnuler: 'Continuer à scanner'

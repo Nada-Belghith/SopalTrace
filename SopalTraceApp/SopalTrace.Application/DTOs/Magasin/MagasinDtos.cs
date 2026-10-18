@@ -12,13 +12,17 @@ public record OuvrirExpeditionRequest(string NumeroBl);
 
 public record LotScanneDto(Guid Id, string NumeroLot, decimal? Quantite, string? RapportControle, DateTime? DateScan);
 
-/// <summary>QuantiteServie : somme des quantités portées par les étiquettes (null si aucune n'en indique).</summary>
+/// <summary>
+/// QuantiteServie : somme des quantités portées par les étiquettes (null si aucune n'en indique).
+/// Servi : quantité servie au moins égale à la quantité requise.
+/// </summary>
 public record ComposantPreparationDto(
     string CodeArticle,
     string Designation,
     string? Nature,
     decimal QuantiteRequise,
     decimal? QuantiteServie,
+    bool Servi,
     List<LotScanneDto> Lots);
 
 /// <summary>OF à préparer, avec sa nomenclature et, si elle existe, sa préparation (Id null sinon).</summary>
