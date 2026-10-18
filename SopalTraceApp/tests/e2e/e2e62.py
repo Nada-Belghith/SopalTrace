@@ -32,7 +32,7 @@ def check(label, cond, info=''):
 sql("""INSERT INTO MFGHEAD_OrdreFabrication (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF)
        VALUES ('OF26MAG01','2511A01-1',100,100,0,'EN_COURS'), ('OF26MAG02','2511A01-1',50,50,0,'EN_COURS'), ('OF26MAG03','2511A01-1',80,80,80,'EN_COURS');
        INSERT INTO MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, QuantiteSortie)
-       VALUES ('OF26MAG01','M1180RP',100,0), ('OF26MAG01','2903201-1',100,0), ('OF26MAG02','M1180RP',50,0);
+       VALUES ('OF26MAG01','M1180RP',100,0), ('OF26MAG01','ECROU-001',100,0), ('OF26MAG01','2903201-1',100,0), ('OF26MAG02','M1180RP',50,0);
        INSERT INTO Exec_ControleOF (Id, NumeroOF, OperationCode, TypeOf, Statut, DateDebut, DateFin)
        VALUES (NEWID(),'OF26MAG03','ASS','ASS','CLOTURE',SYSDATETIME(),SYSDATETIME());""")
 
@@ -47,12 +47,13 @@ check("OF non préparé : invisible pour les opérateurs", 'OF26MAG01' not in of
 st, r = call(MAG, 'POST', '/magasinier/preparations', {'numeroOf': 'of:OF26MAG01'})
 prep = r.get('id') if st == 200 else None
 check('scan de l\'OF : préparation ouverte (2 composants)', st == 200 and r['statut'] == 'EN_COURS' and len(r['composants']) == 2, (st, r))
+check('corps semi-fini : pas servi par le magasin (absent de la liste)', st == 200 and '2903201-1' not in [c['codeArticle'] for c in r['composants']], (st, r))
 check('magasinier lu dans le jeton', sql(f"SELECT MatriculeMagasinier FROM Mag_PreparationOF WHERE Id='{prep}'") == '33333')
 st, r = call(MAG, 'POST', '/magasinier/preparations', {'numeroOf': 'OF26MAG01'})
 check('rescanner l\'OF reprend la même préparation', st == 200 and r['id'] == prep, (st, r))
 
 st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': 'lot:L-001/cd:M1180RP/Rpt:QC-77/qty:60'})
-check('scan d\'un lot : enregistré aussitôt', st == 200 and r['preparation']['composantsServis'] == 1 and r['lot']['quantite'] == 60, (st, r))
+check('scan d\'un lot : enregistré aussitôt (60 / 100 : pas encore servi)', st == 200 and r['preparation']['composantsServis'] == 0 and r['lot']['quantite'] == 60, (st, r))
 check('lot, rapport QC et contenu brut en base', sql(
     f"SELECT NumeroLotScanne+'|'+QualityControlReport+'|'+ScannedContent FROM Mag_PreparationOF_Lot WHERE PreparationOFId='{prep}'") == 'L-001|QC-77|lot:L-001/cd:M1180RP/Rpt:QC-77/qty:60')
 st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': 'M1180RP;L-001'})
@@ -65,13 +66,17 @@ st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': 
 check('format inconnu : 400 avec les formats attendus', st == 400 and 'Formats attendus' in msg(r), (st, r))
 
 st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/terminer', {'motif': None})
-check('terminer avec un composant manquant sans motif : 400', st == 400 and '2903201-1' in msg(r), (st, r))
-st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': ']Q12903201-1;LOT-C9\r\n'})
-check('préfixe de symbologie et fin de ligne nettoyés', st == 200 and r['codeArticle'] == '2903201-1', (st, r))
+check('terminer avec un composant manquant sans motif : 400', st == 400 and 'ECROU-001' in msg(r) and 'M1180RP (60 / 100)' in msg(r), (st, r))
+st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': '2903201-1;LOT-SF1'})
+check('corps semi-fini scanné : refusé (400)', st == 400 and 'nomenclature' in msg(r), (st, r))
+st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': 'cd:M1180RP/lot:L-003/qty:40'})
+check('quantité requise atteinte (60 + 40) : composant servi', st == 200 and r['preparation']['composantsServis'] == 1, (st, r))
+st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': ']Q1ECROU-001;LOT-C9\r\n'})
+check('préfixe de symbologie et fin de ligne nettoyés', st == 200 and r['codeArticle'] == 'ECROU-001', (st, r))
 lot = r['lot']['id'] if st == 200 else None
 st, r = call(MAG, 'DELETE', f'/magasinier/preparations/{prep}/scans/{lot}')
 check('retirer un scan', st == 200 and r['composantsServis'] == 1, (st, r))
-call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': '2903201-1;LOT-C9'})
+call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': 'cd:ECROU-001/lot:LOT-C9/qty:100'})
 st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/terminer', {'motif': None})
 check('préparation complète terminée', st == 200 and r['statut'] == 'TERMINE' and r['motifIncomplet'] is None, (st, r))
 st, r = call(MAG, 'POST', f'/magasinier/preparations/{prep}/scans', {'contenu': 'M1180RP;L-002'})
