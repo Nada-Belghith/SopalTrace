@@ -8,7 +8,7 @@
 --   3. BL (SDELIVERY) rattachés à leur commande ouverte (une commande peut avoir plusieurs BL).
 --   4. Pour la traçabilité de l'OF OF2607ASS02 : n° de rapport sur les étiquettes déjà scannées et expédition sur un BL.
 --
--- À exécuter APRÈS la migration 2026-10-18_Documents_Externes.sql. Rejouable : rien n'est écrasé.
+-- À exécuter APRÈS les scripts 01 à 04. Rejouable : rien n'est écrasé.
 -- =================================================================================
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -20,7 +20,7 @@ GO
 
 IF OBJECT_ID('dbo.PORDER') IS NULL OR OBJECT_ID('dbo.SORDER') IS NULL OR COL_LENGTH('dbo.SDELIVERY', 'NumeroCommande') IS NULL
 BEGIN
-    RAISERROR('Appliquer d''abord la migration 2026-10-18_Documents_Externes.sql.', 16, 1);
+    RAISERROR('Exécuter d''abord les scripts 01 à 04.', 16, 1);
     SET NOEXEC ON;
 END
 GO

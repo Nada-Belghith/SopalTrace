@@ -59,10 +59,9 @@ docker compose -f docker-compose.prod.yml up -d
 
 Faire une sauvegarde de la base avant chaque mise à jour.
 
-Si la version change le schéma, appliquer à la base existante les scripts de `ScriptsSQL/Migrations/`
-plus récents que la base, dans l'ordre de leur date (SSMS ou `sqlcmd -b -i <script>`), puis redémarrer l'API.
-Chaque script est rejouable et s'exécute en tout ou rien ; s'il signale des données incohérentes, il affiche
-la liste à corriger et n'applique rien.
+Première version : aucune migration (une base neuve se crée avec `01` et `02`, qui contiennent tout le schéma).
+Si une version ultérieure change le schéma, elle livrera ses scripts dans `ScriptsSQL/Migrations/` : les appliquer à la
+base existante dans l'ordre de leur date (SSMS ou `sqlcmd -b -i <script>`), puis redémarrer l'API.
 
 ## Documents générés (PDF)
 
@@ -85,20 +84,11 @@ sans port publié) le convertit en PDF, puis le PDF et l'Excel rempli sont conse
 - Si `gotenberg` est arrêté, la consultation d'un PDF répond « service de conversion indisponible » ; rien n'est perdu.
 - Les PDF et les modèles Excel rattachés sont stockés dans la base (aucun dossier) : la sauvegarde de la base les inclut.
   Un nouveau PDF est archivé chaque fois que le contenu du document change ; les précédents restent consultables.
-- Nom d'un modèle : « désignation du formulaire — CODE.version.numéro du modèle » (donné par l'application ; la
-  migration `2026-10-17_Fiches_De_Reponse.sql` renomme les modèles existants de la même façon).
+- Nom d'un modèle : « désignation du formulaire — CODE.version.numéro du modèle » (donné par l'application).
 - Mise en page du PDF : le texte trop long d'une case passe à la ligne (ligne agrandie) et la feuille tient toujours sur
   la largeur d'une page, même avec des colonnes ajoutées.
 - Chaque formulaire reçoit son modèle de l'administrateur ; une version de formulaire dont les colonnes changent n'a plus de modèle tant que l'administrateur ne lui
   en rattache pas un : ses PDF sont refusés avec un message clair.
-- Base existante : appliquer dans l'ordre `ScriptsSQL/Migrations/2026-10-14_Modeles_Rapport.sql`,
-  `2026-10-14_Rapports_Execution.sql`, `2026-10-14_Modeles_Par_Formulaire.sql` puis
-  `2026-10-15_Modeles_Rattaches_Aux_Formulaires.sql`, `2026-10-15_Champ_Application_Formulaires.sql` puis
-  `2026-10-15_Identite_Formulaires.sql` puis `2026-10-15_Roles_Et_Type_Robinet.sql` puis
-  `2026-10-16_Natures_Et_Modeles_Dedies.sql` puis `2026-10-17_Fiches_De_Reponse.sql` (chacun est rejouable), puis
-  redémarrer l'API. `Identite_Formulaires` s'arrête en les nommant s'il reste plusieurs documents génériques actifs sur
-  un même formulaire, ou un document générique actif sur un formulaire archivé ; `Roles_Et_Type_Robinet` s'arrête en
-  nommant les formulaires dont le champ d'application ne convient pas à leur rôle.
 - Le formulaire d'un document se trouve par son rôle et son champ d'application (famille, poste, machine…), jamais par
   son code : le superviseur qualité crée les formulaires et précise leurs codes (page « Formulaires »). À la création
   d'un document, le formulaire choisi impose son champ d'application (champs remplis et verrouillés).
@@ -109,9 +99,7 @@ sans port publié) le convertit en PDF, puis le PDF et l'Excel rempli sont conse
 - Modèle dédié : chaque formulaire a son propre modèle Excel. Une version de modèle appartient à un seul formulaire
   (`ReportTemplateVersion.FormGroupId`, qui suit ses versions et ses changements de code), porte un nom propre
   (« Plan de contrôle d'assemblage (FE0594) — FE-ASS-MANU ») et est numérotée dans ce formulaire. Un même fichier Excel
-  est envoyé à nouveau pour chaque formulaire ; la base refuse de rattacher le modèle d'un autre formulaire. La
-  migration copie à l'identique chaque modèle jusqu'ici partagé : les documents gardent exactement le même contenu de
-  modèle, les documents générés ne changent pas.
+  est envoyé à nouveau pour chaque formulaire ; la base refuse de rattacher le modèle d'un autre formulaire.
 - Nature des types (`FormRole.Nature`) : DOCUMENT (contenu défini par le superviseur qualité) ou RESPONSE_SHEET (fiche de
   réponse remplie par les opérateurs : résultats du contrôle en cours d'assemblage et de fabrication).
 - Relation « code + version → modèle » : toujours écrite dans l'historique des rattachements, tout est conservé.
@@ -129,8 +117,7 @@ sans port publié) le convertit en PDF, puis le PDF et l'Excel rempli sont conse
   - résultats du contrôle en cours de fabrication (famille donc type de robinet, et poste s'il existe) : ses lignes
     viennent du plan suivi par l'OF (plan de fabrication, ou plan d'assemblage du poste) ; le document générique
     « Résultat Contrôle C.F. » n'est plus à créer. Son modèle Excel viendra avec la fiche vide de Sopal ;
-  - registre de traçabilité (formulaire FE0129, type `REGISTRE_TRACABILITE`) : la migration fait de son ancien modèle
-    par défaut le modèle dédié de ce formulaire et attache ce formulaire aux fiches déjà remplies.
+  - registre de traçabilité (formulaire FE0129, type `REGISTRE_TRACABILITE`).
   Contrôle au poste, vérification machine et échantillonnage : la fiche remplie a le même formulaire que le plan.
 - Un nouveau logo change toujours de version (document ou fiche) : le superviseur choisit « Nouveau logo » dans sa
   demande ; seules une mise en page ou une autre correction peuvent garder la même version.
@@ -145,8 +132,7 @@ sans port publié) le convertit en PDF, puis le PDF et l'Excel rempli sont conse
   de code garde la version : l'ancienne ligne et ses documents génériques sont archivés tels quels, une nouvelle ligne
   les remplace avec les mêmes documents recréés (journal `FormCodeChange`). Un document générique actif par formulaire
   (hors modèles de fabrication). Les OF déjà démarrés continuent avec leurs documents.
-- Base existante où des modèles d'exemple avaient été importés automatiquement : pour repartir sans formulaires ni
-  modèles (tout créer soi-même), exécuter `ScriptsSQL/Outils/Vider_Formulaires_Et_Modeles.sql`. Jamais en production.
+- Base de test : pour repartir sans formulaires ni modèles (tout créer soi-même), exécuter `ScriptsSQL/Outils/Vider_Formulaires_Et_Modeles.sql`. Jamais en production.
 - Tests : `Rapports:ImporterModelesLivres=true` et `Rapports:DossierModelesLivres=<dossier>` importent au démarrage
   les fichiers `{CODE}.xlsx` du dossier (réglé par `tests/e2e/run_e2e.py`). Désactivé par défaut.
 - Nouveau logo ou nouvelle mise en page : demande du superviseur qualité (même version ou version suivante), traitée
@@ -156,8 +142,7 @@ sans port publié) le convertit en PDF, puis le PDF et l'Excel rempli sont conse
 - Historique (bouton « Historique » d'un formulaire) : tous les modèles rattachés au formulaire, toutes versions et
   anciens codes compris, avec date, motif, auteur, aperçu et fichier Excel.
 - Pied de page des fiches et documents : « code.version » du formulaire (`{{CodeFormulaire}}.{{VersionFormulaire}}`),
-  rempli par l'application. Base existante : les modèles déjà importés gardent leur pied de page figé ; envoyer un
-  fichier mis à jour depuis la page « Modèles Excel » pour en publier une nouvelle version.
+  rempli par l'application.
 
 ## Documents externes (achats, commercial, qualité)
 
@@ -190,8 +175,6 @@ sans port publié) le convertit en PDF, puis le PDF et l'Excel rempli sont conse
   Sage du BL) ; pour un produit fini, le plan produit fini de sa famille (géré par le superviseur qualité), le plan de
   définition de son article (service DI) et le rapport de contrôle rapide. Chaque document est « disponible » ou
   « manquant » avec la raison.
-- Base existante : appliquer `ScriptsSQL/Migrations/2026-10-18_Documents_Externes.sql` (rejouable), puis redémarrer
-  l'API.
 
 ## Installation de démonstration (recette sur un poste)
 
@@ -199,7 +182,7 @@ Mettre dans `.env` :
 `INIT_SCRIPTS=01_Create_SopalTraceDB.sql 02_ReferenceData_SopalTraceDB.sql 03_SageMirrorData_SopalTraceDB.sql 04_DemoData_SopalTraceDB.sql`
 
 Comptes de démonstration des services qui déposent les documents externes (déjà actifs, matricule + mot de passe
-`Passw0rdE2E!`) : exécuter `ScriptsSQL/Demo_Comptes_Services.sql` après la migration `2026-10-18_Documents_Externes.sql`
+`Passw0rdE2E!`) : exécuter `ScriptsSQL/Demo_Comptes_Services.sql` après les scripts 01 à 04
 (rejouable) — 88881 achats, 88882 commercial, 88883 qualité (réception), 88884 développement industriel. Jamais en
 production. `ScriptsSQL/Demo_Commandes_Sage.sql` remplit des exemples de commandes fournisseurs, commandes clients
 ouvertes (avec leur référence client) et BL, et prépare la traçabilité de l'OF OF2607ASS02 (rejouable).

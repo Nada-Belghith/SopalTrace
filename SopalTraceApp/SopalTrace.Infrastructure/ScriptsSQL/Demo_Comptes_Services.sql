@@ -8,7 +8,7 @@
 --   88884  Developpement Industriel Test   SERVICE_DI          plans de définition du produit fini
 -- Connexion : matricule + mot de passe Passw0rdE2E! (le changer ensuite depuis « Mot de passe oublié »).
 --
--- À exécuter APRÈS la migration 2026-10-18_Documents_Externes.sql (rôles SERVICE_*). Rejouable : un employé ou un
+-- À exécuter APRÈS les scripts 01 à 04 (rôles SERVICE_* créés par 02). Rejouable : un employé ou un
 -- compte déjà présent est laissé tel quel.
 -- =================================================================================
 SET ANSI_NULLS ON;
@@ -22,7 +22,7 @@ GO
 IF EXISTS (SELECT 1 FROM (VALUES ('SERVICE_ACHATS'), ('SERVICE_COMMERCIAL'), ('SERVICE_QUALITE'), ('SERVICE_DI')) r(Code)
            WHERE NOT EXISTS (SELECT 1 FROM dbo.AppRole a WHERE a.Code = r.Code))
 BEGIN
-    RAISERROR('Appliquer d''abord la migration 2026-10-18_Documents_Externes.sql (rôles des services).', 16, 1);
+    RAISERROR('Exécuter d''abord les scripts 01 et 02 (rôles des services).', 16, 1);
     SET NOEXEC ON;
 END
 GO

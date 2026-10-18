@@ -68,12 +68,11 @@ Dossier `SopalTraceApp/SopalTrace.Infrastructure/ScriptsSQL/`.
 | `04_DemoData_SopalTraceDB.sql` | Données de démonstration | ❌ | ✅ |
 | `Demo_Comptes_Services.sql` | Comptes actifs des 4 services (88881–88884) | ❌ | ✅ (après 01–04) |
 | `Demo_Commandes_Sage.sql` | Commandes fournisseurs/clients et BL d'exemple, traçabilité de l'OF `OF2607ASS02` | ❌ | ✅ (après 01–04) |
-| `Migrations/*.sql` | Mise à jour d'une base **déjà existante** | seulement pour une mise à jour | ❌ |
 | `Outils/Vider_Formulaires_Et_Modeles.sql` | Vide formulaires et modèles d'une base de test | ❌ jamais | si besoin |
 
-> **Base neuve = 01 → 02 (→ 03 → 04 en test). Aucune migration.** Les scripts 01/02 contiennent déjà le résultat de
-> toutes les migrations. Les migrations ne servent qu'à faire évoluer une base installée avant une nouvelle version,
-> dans l'ordre de leur date ; chacune est rejouable et s'exécute en tout ou rien.
+> **Base neuve = 01 → 02 (→ 03 → 04 en test).** Première version : il n'y a aucune migration, 01/02 contiennent
+> tout le schéma. Quand une version ultérieure changera une base déjà installée, ses scripts de mise à jour seront
+> livrés dans `ScriptsSQL/Migrations/` (à appliquer dans l'ordre de leur date, rejouables, en tout ou rien).
 
 ## 5. Installer sur un serveur (Docker)
 
@@ -130,7 +129,7 @@ docker compose -f docker-compose.prod.yml -f docker-compose.https.yml up -d
 ```
 
 **Mise à jour** : sauvegarder la base, changer `SOPALTRACE_VERSION`, `pull` puis `up -d`, et appliquer les scripts de
-`Migrations/` plus récents que la base s'il y en a.
+`Migrations/` livrés avec la nouvelle version s'il y en a.
 
 ## 6. Lancer en développement
 
