@@ -214,9 +214,10 @@ famille = sql(f"SELECT p.FamilleProduitFiniCode FROM ProduitFini p JOIN MFGHEAD_
 erreur_plan = sql("BEGIN TRY INSERT INTO Document_Entete (TypeDocumentCode, Portee, Nom, Statut, FamilleProduitFiniCode, CreePar) "
                   f"VALUES ('PLAN_PF', 'GENERIQUE', 'Plan PF {famille} E2E', 'ACTIF', '{famille}', '44444') END TRY BEGIN CATCH SELECT ERROR_MESSAGE() END CATCH")
 documents = data(call(RQ, 'GET', f'/rapports/tracabilite/{OF}')[1]).get('documents', [])
-check('E8 plan produit fini de la famille de l\'article (géré par le superviseur) : dans la rubrique produit fini, consultable',
+# Sans modèle Excel (pas encore fourni pour ce type), le plan est manquant comme tout document sans modèle.
+check('E8 plan produit fini de la famille de l\'article (géré par le superviseur) : dans la rubrique produit fini, manquant sans modèle Excel',
       not erreur_plan and any(d['operation'] == 'PF' and d['typeCode'] == 'PLAN_PF' and d['nom'] == f'Plan PF {famille} E2E'
-                              and d['etat'] == 'DISPONIBLE' for d in documents),
+                              and d['etat'] == 'MANQUANT' and d.get('raisonManquant') for d in documents),
       (erreur_plan, [(d['operation'], d['typeCode'], d.get('etat')) for d in documents]))
 
 # ── F. Responsable DI : la fabrication seulement ; les documents qualité appartiennent au superviseur qualité ──

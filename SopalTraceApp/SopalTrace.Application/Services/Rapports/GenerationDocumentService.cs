@@ -111,15 +111,14 @@ public class GenerationDocumentService : IGenerationDocumentService
         {
             var dto = VersDto(document, contexte);
             // Document sans PDF propre que remplissent les opérateurs (contrôle au poste, vérification machine,
-            // échantillonnage) : ses fiches remplies le représentent ; sans aucune fiche remplie, il manque. Sans fiche
-            // à remplir (plan produit fini…), il est consultable dans l'application.
+            // échantillonnage) : ses fiches remplies le représentent ; sans aucune fiche remplie, il manque. Les autres
+            // (plan produit fini…) sont disponibles seulement avec leur modèle Excel, comme tout document mis en forme.
             if (!dto.ContratDisponible && _definitionsExecution.Any(d => d.TypeDocumentApplique == document.TypeDocumentCode))
             {
                 if (fiches.Any(f => f.DocumentQualiteId == document.Id)) continue;
                 dto.Etat = EtatsTracabilite.Manquant;
                 dto.RaisonManquant = "Aucune fiche remplie pour ce document dans l'OF.";
             }
-            else if (!dto.ContratDisponible) dto.Etat = EtatsTracabilite.Disponible;
             else Etat(dto);
             resultat.Add(dto);
         }
