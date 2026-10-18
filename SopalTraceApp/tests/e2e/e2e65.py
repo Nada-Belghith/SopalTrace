@@ -228,6 +228,8 @@ check('contrôle au poste fait pour E1', tache(avancement(of), 'CONTROLE_POSTE')
 for of_usinage in ('OF26080157', 'OF26050439', 'OF26021488'):   # corps 2903201-1, volants 3028S01-1 et 31B5201-1
     sql(f"INSERT INTO Exec_ControleOF (NumeroOF, OperationCode, TypeOf, Statut) VALUES ('{of_usinage}', 'USINAG', 'FAB', 'EN_COURS')")
 # Corps et volant de l'article sont lus dans sa nomenclature : un volant hors nomenclature n'est jamais accepté.
+# Le test part d'une nomenclature sans corps ni volant (retire ceux des données de démonstration).
+sql("DELETE FROM BOMD_Nomenclature WHERE ArticleParent = '2511A01-1' AND CodeComposant IN ('2903201-1', '3028S01-1')")
 sql("INSERT INTO BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative, QuantiteRequise) VALUES ('2511A01-1', '2903201-1', 9, 1)")
 st, r = call(OP, 'POST', '/Operateur/tracabilite/ligne', {'execControleOfId': of, 'posteCode': POSTE, 'corps': 'OF26080157', 'volant': 'OF26050439',
     'composants': [{'codeArticle': '2903201-1', 'lotSelectionne': 'LOT-CORPS-01'}]})
@@ -239,7 +241,9 @@ st, r = call(OP, 'POST', '/Operateur/tracabilite/ligne', {'execControleOfId': of
 check("registre : volant d'un autre article que celui de la nomenclature refusé",
       st == 400 and 'OF26021488' in json.dumps(r, ensure_ascii=False) and 'nomenclature' in json.dumps(r, ensure_ascii=False), (st, r))
 st, r = call(OP, 'GET', f'/Operateur/tracabilite/{of}/search-lots?type=VOLANT&query=OF')
-check('registre : seuls les volants de la nomenclature sont proposés', st == 200 and data(r) == ['OF26050439'], (st, r))
+# Volants 3028S01-1 en usinage : celui du test et ceux des données de démonstration (OF2607VOL01 en cours, OF2607VOL02 clôturé).
+check('registre : seuls les volants de la nomenclature sont proposés',
+      st == 200 and sorted(data(r)) == ['OF26050439', 'OF2607VOL01', 'OF2607VOL02'], (st, r))
 st, r = call(OP, 'GET', f'/Operateur/tracabilite/{of}?posteCode={POSTE}')
 reg = data(r) if st == 200 else {}
 dispo = {c['codeArticle']: c['lotsDisponibles'] for c in reg.get('composantsDisponibles', [])}

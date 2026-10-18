@@ -1164,6 +1164,24 @@ INSERT INTO dbo.Exec_ControleOF
     (Id, NumeroOF, OperationCode, TypeOf, Statut, DateDebut, DateFin)
 VALUES 
     (NEWID(), 'OFVOLANT_CL', 'USINAG', 'FAB', 'CLOTURE', SYSDATETIME(), SYSDATETIME());
+
+-- 3. Lots du registre de traçabilité du 2511A01-1 (corps 2903201-1 et volant 3028S01-1 de sa nomenclature) :
+--    pour chacun, un OF d'usinage en cours et un OF clôturé.
+INSERT INTO dbo.MFGHEAD_OrdreFabrication
+    (NumeroOF, CodeArticle, QuantitePrevue, QuantiteLancee, QuantiteReelle, StatutOF, DateDebut, DateFin)
+VALUES
+    ('OF2607CRP01', '2903201-1', 2000, 2000, 800, 'EN_COURS', SYSDATETIME(), NULL),
+    ('OF2607CRP02', '2903201-1', 1500, 1500, 1500, 'TERMINE', DATEADD(DAY, -7, SYSDATETIME()), DATEADD(DAY, -2, SYSDATETIME())),
+    ('OF2607VOL01', '3028S01-1', 2000, 2000, 600, 'EN_COURS', SYSDATETIME(), NULL),
+    ('OF2607VOL02', '3028S01-1', 1500, 1500, 1500, 'TERMINE', DATEADD(DAY, -7, SYSDATETIME()), DATEADD(DAY, -2, SYSDATETIME()));
+
+INSERT INTO dbo.Exec_ControleOF
+    (Id, NumeroOF, OperationCode, MachineCodePrevu, MachineCode, TypeOf, Statut, DateDebut, DateFin)
+VALUES
+    (NEWID(), 'OF2607CRP01', 'USINAG', 'TRF14', 'TRF14', 'FAB', 'EN_COURS', SYSDATETIME(), NULL),
+    (NEWID(), 'OF2607CRP02', 'USINAG', 'TRF14', 'TRF14', 'FAB', 'CLOTURE', DATEADD(DAY, -3, SYSDATETIME()), DATEADD(DAY, -2, SYSDATETIME())),
+    (NEWID(), 'OF2607VOL01', 'USINAG', 'TRF14', 'TRF14', 'FAB', 'EN_COURS', SYSDATETIME(), NULL),
+    (NEWID(), 'OF2607VOL02', 'USINAG', 'TRF14', 'TRF14', 'FAB', 'CLOTURE', DATEADD(DAY, -3, SYSDATETIME()), DATEADD(DAY, -2, SYSDATETIME()));
 GO
 GO
 

@@ -116,6 +116,9 @@ INSERT INTO dbo.BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative
 ('2511A01-1', '2906201-1', 4, 1),
 ('2511A01-1', '3738000-1', 4, 2),
 ('2511A01-1', '3137201-1', 4, 1),
+-- Corps et volant semi-finis du 2511A01-1 : l'opérateur choisit leur OF d'usinage dans le registre de traçabilité.
+('2511A01-1', '2903201-1', 4, 1),
+('2511A01-1', '3028S01-1', 4, 1),
 -- Nomenclature détaillée (Dessin Sopal du Robinet M26.2 Agilgaz)
 ('2552A01-1-E', 'E1BU000', 1, 0.02),
 ('2552A01-1-E', 'E452000', 1, 0.02),
@@ -278,14 +281,27 @@ INSERT INTO dbo.Article (CodeArticle, Designation, NatureArticleCode, TypeArticl
 ('GOUPILLE-001', 'Goupille', 'GOUPILLE', 'COMPOSANT'),
 ('JOINT-ANTI-SERREUR', 'joint', 'JOINT', 'COMPOSANT');
 
--- Besoins des OF d'assemblage (nomenclature Sage) : composants que le magasinier sert et scanne.
+-- Composants achetés des produits d'assemblage (nomenclature Sage, après la création de ces articles).
+INSERT INTO dbo.BOMD_Nomenclature (ArticleParent, CodeComposant, CodeAlternative, QuantiteRequise) VALUES
+('2511A01-1', 'ECROU-001', 4, 1),
+('2511A01-1', 'GOUPILLE-001', 4, 1),
+('2511A01-1', 'JOINT-ANTI-SERREUR', 4, 1),
+('25B2A01-1-1', 'ECROU-001', 1, 1),
+('25B2A01-1-1', 'LIMITEUR-001', 1, 1),
+('25B2A01-1-1', 'PISTON-001', 1, 1),
+('25B2A01-1-1', 'GOUPILLE-001', 1, 2),
+('25B2A01-1-1', 'JOINT-ANTI-SERREUR', 1, 1);
+
+-- Besoins des OF d'assemblage : nomenclature de l'article × quantité de l'OF, comme Sage les crée au lancement.
+-- Le magasinier sert les composants achetés (et le piston) ; corps et volant semi-finis viennent de leur atelier.
 INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, QuantiteSortie) VALUES
 ('OF2607ASS01', '2903201-1', 1000, 0),
+('OF2607ASS01', '3028S01-1', 1000, 0),
 ('OF2607ASS01', 'ECROU-001', 1000, 0),
-('OF2607ASS01', 'VOLANT-001', 1000, 0),
 ('OF2607ASS01', 'GOUPILLE-001', 1000, 0),
 ('OF2607ASS01', 'JOINT-ANTI-SERREUR', 1000, 0),
 ('OF2607ASS02', '2903202-1', 500, 0),
+('OF2607ASS02', '31B5201-1', 500, 0),
 ('OF2607ASS02', 'ECROU-001', 500, 0),
 ('OF2607ASS02', 'LIMITEUR-001', 500, 0),
 ('OF2607ASS02', 'PISTON-001', 500, 0),
