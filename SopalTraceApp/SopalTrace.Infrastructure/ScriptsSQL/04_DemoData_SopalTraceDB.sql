@@ -169,8 +169,15 @@ IF @PR_RBG10 IS NULL BEGIN SET @PR_RBG10 = NEWID(); INSERT INTO [PieceReference]
 
 -- 6. INSERT ENTETE
 DECLARE @DocId UNIQUEIDENTIFIER = NEWID();
-INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, CreePar, CreeLe)
-VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Document de vérification machine - ' + @MachineCode, 1, 'ACTIF', 'SYSTEM', SYSDATETIME());
+-- Formulaire de la machine (créé par 02) : le document prend sa version et le formulaire passe actif avec lui.
+DECLARE @FormId UNIQUEIDENTIFIER, @FormVersion INT;
+SELECT TOP 1 @FormId = Id, @FormVersion = Version FROM [Ref_Formulaire]
+WHERE Role = 'VERIF_MACHINE' AND MachineCode = @MachineCode AND Statut <> 'ARCHIVE' ORDER BY Version DESC;
+IF @FormId IS NULL
+    THROW 50000, 'Formulaire de vérification de la machine absent : exécuter d''abord 02_ReferenceData_SopalTraceDB.sql.', 1;
+UPDATE [Ref_Formulaire] SET Statut = 'ACTIF' WHERE Id = @FormId AND Statut = 'BROUILLON';
+INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, FormulaireId, CreePar, CreeLe)
+VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Document de vérification machine - ' + @MachineCode, @FormVersion, 'ACTIF', @FormId, 'SYSTEM', SYSDATETIME());
 
 -- 7. INSERT FAMILLES (Colonnes)
 DECLARE @DocFam1 UNIQUEIDENTIFIER = NEWID();
@@ -329,8 +336,15 @@ SELECT TOP 1 @P_FUI25 = Id FROM [PieceReference] WHERE Code = 'FUI25'; IF @P_FUI
 
 -- 5. INSERT ENTETE
 DECLARE @DocId UNIQUEIDENTIFIER = NEWID();
-INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, CreePar, CreeLe)
-VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Document de vérification machine - ' + @MachineCode, 1, 'ACTIF', 'SYSTEM', SYSDATETIME());
+-- Formulaire de la machine (créé par 02) : le document prend sa version et le formulaire passe actif avec lui.
+DECLARE @FormId UNIQUEIDENTIFIER, @FormVersion INT;
+SELECT TOP 1 @FormId = Id, @FormVersion = Version FROM [Ref_Formulaire]
+WHERE Role = 'VERIF_MACHINE' AND MachineCode = @MachineCode AND Statut <> 'ARCHIVE' ORDER BY Version DESC;
+IF @FormId IS NULL
+    THROW 50000, 'Formulaire de vérification de la machine absent : exécuter d''abord 02_ReferenceData_SopalTraceDB.sql.', 1;
+UPDATE [Ref_Formulaire] SET Statut = 'ACTIF' WHERE Id = @FormId AND Statut = 'BROUILLON';
+INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, FormulaireId, CreePar, CreeLe)
+VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Document de vérification machine - ' + @MachineCode, @FormVersion, 'ACTIF', @FormId, 'SYSTEM', SYSDATETIME());
 
 -- 6. INSERT FAMILLES (Colonnes)
 DECLARE @DocFam1 UNIQUEIDENTIFIER = NEWID();
@@ -518,8 +532,15 @@ SELECT TOP 1 @P_BCQ01 = Id FROM [PieceReference] WHERE Code = 'BCQ01'; IF @P_BCQ
 
 
 -- 5. INSERT ENTETE
-INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, CreePar, CreeLe)
-VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Vérification Machine MAS26', 1, 'ACTIF', 'SYSTEM', SYSDATETIME());
+-- Formulaire de la machine (créé par 02) : le document prend sa version et le formulaire passe actif avec lui.
+DECLARE @FormId UNIQUEIDENTIFIER, @FormVersion INT;
+SELECT TOP 1 @FormId = Id, @FormVersion = Version FROM [Ref_Formulaire]
+WHERE Role = 'VERIF_MACHINE' AND MachineCode = @MachineCode AND Statut <> 'ARCHIVE' ORDER BY Version DESC;
+IF @FormId IS NULL
+    THROW 50000, 'Formulaire de vérification de la machine absent : exécuter d''abord 02_ReferenceData_SopalTraceDB.sql.', 1;
+UPDATE [Ref_Formulaire] SET Statut = 'ACTIF' WHERE Id = @FormId AND Statut = 'BROUILLON';
+INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, FormulaireId, CreePar, CreeLe)
+VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Vérification Machine MAS26', @FormVersion, 'ACTIF', @FormId, 'SYSTEM', SYSDATETIME());
 
 -- Pas de Familles spécifiques pour MAS26 (la matrice n'a pas de FamilleId)
 
@@ -669,8 +690,15 @@ SELECT TOP 1 @P_FUI24 = Id FROM [PieceReference] WHERE Code = 'FUI24'; IF @P_FUI
 SELECT TOP 1 @P_FUI25 = Id FROM [PieceReference] WHERE Code = 'FUI25'; IF @P_FUI25 IS NULL BEGIN SET @P_FUI25 = NEWID(); INSERT INTO [PieceReference] (Id, Code, Designation, TypePiece) VALUES (@P_FUI25, 'FUI25', 'FUI25', 'FENC'); END
 
 -- 6. INSERT ENTETE
-INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, CreePar, CreeLe)
-VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Vérification Machine BEE46', 1, 'ACTIF', 'SYSTEM', SYSDATETIME());
+-- Formulaire de la machine (créé par 02) : le document prend sa version et le formulaire passe actif avec lui.
+DECLARE @FormId UNIQUEIDENTIFIER, @FormVersion INT;
+SELECT TOP 1 @FormId = Id, @FormVersion = Version FROM [Ref_Formulaire]
+WHERE Role = 'VERIF_MACHINE' AND MachineCode = @MachineCode AND Statut <> 'ARCHIVE' ORDER BY Version DESC;
+IF @FormId IS NULL
+    THROW 50000, 'Formulaire de vérification de la machine absent : exécuter d''abord 02_ReferenceData_SopalTraceDB.sql.', 1;
+UPDATE [Ref_Formulaire] SET Statut = 'ACTIF' WHERE Id = @FormId AND Statut = 'BROUILLON';
+INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, FormulaireId, CreePar, CreeLe)
+VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Vérification Machine BEE46', @FormVersion, 'ACTIF', @FormId, 'SYSTEM', SYSDATETIME());
 
 -- 7. INSERT FAMILLES AU DOC
 DECLARE @DocFam1 UNIQUEIDENTIFIER = NEWID(), @DocFam2 UNIQUEIDENTIFIER = NEWID(), @DocFam3 UNIQUEIDENTIFIER = NEWID(), @DocFam4 UNIQUEIDENTIFIER = NEWID();
@@ -853,8 +881,15 @@ IF @PR_RCF04 IS NULL BEGIN SET @PR_RCF04 = NEWID(); INSERT INTO [PieceReference]
 
 
 -- 6. INSERT ENTETE
-INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, CreePar, CreeLe)
-VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Vérification Machine BEE47', 1, 'ACTIF', 'SYSTEM', SYSDATETIME());
+-- Formulaire de la machine (créé par 02) : le document prend sa version et le formulaire passe actif avec lui.
+DECLARE @FormId UNIQUEIDENTIFIER, @FormVersion INT;
+SELECT TOP 1 @FormId = Id, @FormVersion = Version FROM [Ref_Formulaire]
+WHERE Role = 'VERIF_MACHINE' AND MachineCode = @MachineCode AND Statut <> 'ARCHIVE' ORDER BY Version DESC;
+IF @FormId IS NULL
+    THROW 50000, 'Formulaire de vérification de la machine absent : exécuter d''abord 02_ReferenceData_SopalTraceDB.sql.', 1;
+UPDATE [Ref_Formulaire] SET Statut = 'ACTIF' WHERE Id = @FormId AND Statut = 'BROUILLON';
+INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, FormulaireId, CreePar, CreeLe)
+VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Vérification Machine BEE47', @FormVersion, 'ACTIF', @FormId, 'SYSTEM', SYSDATETIME());
 
 -- 7. INSERT FAMILLES AU DOC
 DECLARE @DocFam1 UNIQUEIDENTIFIER = NEWID(), @DocFam2 UNIQUEIDENTIFIER = NEWID(), @DocFam3 UNIQUEIDENTIFIER = NEWID(), @DocFam4 UNIQUEIDENTIFIER = NEWID();
@@ -1020,8 +1055,15 @@ SELECT TOP 1 @P_RCN06 = Id FROM [PieceReference] WHERE Code = 'RCN06'; IF @P_RCN
 
 -- 5. INSERT ENTETE
 DECLARE @DocId UNIQUEIDENTIFIER = NEWID();
-INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, CreePar, CreeLe)
-VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Document de vérification machine - ' + @MachineCode, 1, 'ACTIF', 'SYSTEM', SYSDATETIME());
+-- Formulaire de la machine (créé par 02) : le document prend sa version et le formulaire passe actif avec lui.
+DECLARE @FormId UNIQUEIDENTIFIER, @FormVersion INT;
+SELECT TOP 1 @FormId = Id, @FormVersion = Version FROM [Ref_Formulaire]
+WHERE Role = 'VERIF_MACHINE' AND MachineCode = @MachineCode AND Statut <> 'ARCHIVE' ORDER BY Version DESC;
+IF @FormId IS NULL
+    THROW 50000, 'Formulaire de vérification de la machine absent : exécuter d''abord 02_ReferenceData_SopalTraceDB.sql.', 1;
+UPDATE [Ref_Formulaire] SET Statut = 'ACTIF' WHERE Id = @FormId AND Statut = 'BROUILLON';
+INSERT INTO [Document_Entete] (TypeDocumentCode, Id, MachineCode, Nom, Version, Statut, FormulaireId, CreePar, CreeLe)
+VALUES ('VERIF_MACHINE', @DocId, @MachineCode, 'Document de vérification machine - ' + @MachineCode, @FormVersion, 'ACTIF', @FormId, 'SYSTEM', SYSDATETIME());
 
 -- 6. INSERT FAMILLES (Colonnes)
 -- On insère les 4 colonnes pour que l'interface affiche l'entête de la Famille Corps (49)
