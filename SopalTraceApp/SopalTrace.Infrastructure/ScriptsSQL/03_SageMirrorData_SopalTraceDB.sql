@@ -278,6 +278,20 @@ INSERT INTO dbo.Article (CodeArticle, Designation, NatureArticleCode, TypeArticl
 ('GOUPILLE-001', 'Goupille', 'GOUPILLE', 'COMPOSANT'),
 ('JOINT-ANTI-SERREUR', 'joint', 'JOINT', 'COMPOSANT');
 
+-- Besoins des OF d'assemblage (nomenclature Sage) : composants que le magasinier sert et scanne.
+INSERT INTO dbo.MFGMAT_BesoinOF (NumeroOF, CodeArticle, QuantiteRequise, QuantiteSortie) VALUES
+('OF2607ASS01', '2903201-1', 1000, 0),
+('OF2607ASS01', 'ECROU-001', 1000, 0),
+('OF2607ASS01', 'VOLANT-001', 1000, 0),
+('OF2607ASS01', 'GOUPILLE-001', 1000, 0),
+('OF2607ASS01', 'JOINT-ANTI-SERREUR', 1000, 0),
+('OF2607ASS02', '2903202-1', 500, 0),
+('OF2607ASS02', 'ECROU-001', 500, 0),
+('OF2607ASS02', 'LIMITEUR-001', 500, 0),
+('OF2607ASS02', 'PISTON-001', 500, 0),
+('OF2607ASS02', 'GOUPILLE-001', 1000, 0),
+('OF2607ASS02', 'JOINT-ANTI-SERREUR', 500, 0);
+
 -- =================================================================================
 -- Bons de livraison (copie de la table Sage SDELIVERY) pour l'expédition magasin
 -- =================================================================================
