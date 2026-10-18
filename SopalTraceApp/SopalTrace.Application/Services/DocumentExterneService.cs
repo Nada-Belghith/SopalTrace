@@ -242,7 +242,10 @@ public class DocumentExterneService : IDocumentExterneService
 
     private static string NomOrigine(string? nom)
     {
-        var court = System.IO.Path.GetFileName(nom ?? "").Trim();
+        // Le navigateur peut envoyer un chemin Windows ou Unix : on garde ce qui suit le dernier séparateur, quel que soit
+        // le système du serveur (Path.GetFileName ne reconnaît pas « \ » sous Linux).
+        var brut = nom ?? "";
+        var court = brut[(brut.LastIndexOfAny(new[] { '\\', '/' }) + 1)..].Trim();
         if (court.Length == 0) court = "document.pdf";
         return court.Length > 260 ? court[..260] : court;
     }
