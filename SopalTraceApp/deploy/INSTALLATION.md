@@ -159,14 +159,55 @@ sans port publié) le convertit en PDF, puis le PDF et l'Excel rempli sont conse
   rempli par l'application. Base existante : les modèles déjà importés gardent leur pied de page figé ; envoyer un
   fichier mis à jour depuis la page « Modèles Excel » pour en publier une nouvelle version.
 
+## Documents externes (achats, commercial, qualité)
+
+- Quatre rôles déposent des documents (attribués par l'administrateur, écran « Gestion des habilitations ») :
+  `SERVICE_QUALITE` (rapports de contrôle, certificats de conformité, rapports de contrôle rapide du produit fini),
+  `SERVICE_ACHATS` (bons de commande fournisseur), `SERVICE_COMMERCIAL` (bons de livraison, bons de commande client),
+  `SERVICE_DI` (plans de définition du produit fini : dessin d'ensemble technique de l'article).
+  Page « Déposer un document » : type, numéros exigés, fichier PDF (10 Mo au plus par défaut).
+- Le nom du fichier est formé par la base à partir des numéros : rapport `NumRapport-NumCdeFrs`, certificat
+  `CodeArticle-NumCdeFrs`, BC fournisseur `NumCdeFrs`, BL `NumBL-RefCdeClient`, BC client `RefCdeClient`, rapport du
+  produit fini `NumOF`, plan de définition `CodeArticle`. Les numéros sont vérifiés dans les copies des tables Sage
+  (articles, OF, commandes fournisseurs `PORDER`, commandes clients `SORDER`, BL `SDELIVERY`).
+- Commandes clients : à la réception d'un bon de commande, le commercial crée dans Sage une commande ouverte
+  (ex. `SOPCOV-2508002`) qui porte la référence de commande du client (ex. `9400108469`). Un BL renvoie à la commande
+  Sage (`SDELIVERY.NumeroCommande`), une commande peut avoir plusieurs BL. Pour déposer un BL, le commercial saisit le
+  n° du BL et celui de la commande Sage : l'application reprend la référence client de la commande (affichée pendant
+  la saisie) et l'enregistre avec le BL. Le bon de commande client se dépose par sa référence
+  (`SORDER.ReferenceCommandeClient`), reprise telle qu'écrite dans Sage (espaces et « / » deviennent « _ » dans le nom
+  du fichier). Un BL dont la commande Sage n'a pas de référence client ne peut pas être déposé.
+- Les documents sont stockés dans la base (sauvegardés avec elle) ; un document n'est jamais modifié ni supprimé. S'il
+  est déjà déposé, le nouveau fichier le remplace avec un motif et l'ancien reste consultable.
+- Copie facultative dans le répertoire partagé des services : `DocumentsExternes__RepertoirePartage=<chemin>` (un
+  sous-dossier par type : Rapports_Controle, Certificats_Conformite, BC_Frs, BL, BC_Client, Rapports_Produit_Fini,
+  Plans_Definition_Produit_Fini). Le
+  compte de l'API doit pouvoir y écrire ; en Docker, monter ce répertoire dans le conteneur de l'API. Une erreur de
+  copie n'annule jamais le dépôt. `DocumentsExternes__TailleMaximaleMo` change la taille maximale.
+- Traçabilité par OF (responsable qualité seulement) : pour chaque lot scanné par le magasinier, le rapport de
+  contrôle (n° de l'étiquette), puis le bon de commande fournisseur et le certificat de l'article retrouvés par la
+  commande du rapport ; pour chaque BL de l'expédition, le BL et le bon de commande client (référence de la commande
+  Sage du BL) ; pour un produit fini, le plan produit fini de sa famille (géré par le superviseur qualité), le plan de
+  définition de son article (service DI) et le rapport de contrôle rapide. Chaque document est « disponible » ou
+  « manquant » avec la raison.
+- Base existante : appliquer `ScriptsSQL/Migrations/2026-10-18_Documents_Externes.sql` (rejouable), puis redémarrer
+  l'API.
+
 ## Installation de démonstration (recette sur un poste)
 
 Mettre dans `.env` :
 `INIT_SCRIPTS=01_Create_SopalTraceDB.sql 02_ReferenceData_SopalTraceDB.sql 03_SageMirrorData_SopalTraceDB.sql 04_DemoData_SopalTraceDB.sql`
+
+Comptes de démonstration des services qui déposent les documents externes (déjà actifs, matricule + mot de passe
+`Passw0rdE2E!`) : exécuter `ScriptsSQL/Demo_Comptes_Services.sql` après la migration `2026-10-18_Documents_Externes.sql`
+(rejouable) — 88881 achats, 88882 commercial, 88883 qualité (réception), 88884 développement industriel. Jamais en
+production. `ScriptsSQL/Demo_Commandes_Sage.sql` remplit des exemples de commandes fournisseurs, commandes clients
+ouvertes (avec leur référence client) et BL, et prépare la traçabilité de l'OF OF2607ASS02 (rejouable).
 
 ## Points restant à traiter avant la production
 
 - Certificat HTTPS fourni par la DSI (voir la section HTTPS).
 - Compte SQL applicatif à droits limités (`DB_USER`) au lieu de `sa`.
 - Sauvegardes planifiées et test de restauration.
-- Alimentation des tables Sage (articles, OF, besoins, annuaire, BL) depuis Sage X3.
+- Alimentation des tables Sage (articles, OF, besoins, annuaire, BL et leur commande, commandes fournisseurs `PORDER`,
+  commandes clients `SORDER` avec leur référence client) depuis Sage X3.

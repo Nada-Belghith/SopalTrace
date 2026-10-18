@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -47,7 +48,7 @@ public class AlertesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/resoudre")]
-    [Authorize(Roles = "RESPONSABLE_DI")]
+    [Authorize(Roles = RolesApp.ResponsableDI)]
     public async Task<IActionResult> ResoudreAlerte(Guid id)
     {
         // Récupérer le nom complet du responsable depuis la base de données

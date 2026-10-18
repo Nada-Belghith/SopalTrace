@@ -80,6 +80,10 @@ public partial class SopalTraceDbContext : DbContext
 
     public virtual DbSet<ExecutionDocumentType> ExecutionDocumentTypes { get; set; }
 
+    public virtual DbSet<ExternalDocument> ExternalDocuments { get; set; }
+
+    public virtual DbSet<ExternalDocumentType> ExternalDocumentTypes { get; set; }
+
     public virtual DbSet<FamilleProduitFini> FamilleProduitFinis { get; set; }
 
     public virtual DbSet<FormCodeChange> FormCodeChanges { get; set; }
@@ -124,6 +128,8 @@ public partial class SopalTraceDbContext : DbContext
 
     public virtual DbSet<PieceReference> PieceReferences { get; set; }
 
+    public virtual DbSet<Porder> Porders { get; set; }
+
     public virtual DbSet<PosteTravail> PosteTravails { get; set; }
 
     public virtual DbSet<PreassignedRole> PreassignedRoles { get; set; }
@@ -165,6 +171,8 @@ public partial class SopalTraceDbContext : DbContext
     public virtual DbSet<SamplingPlan> SamplingPlans { get; set; }
 
     public virtual DbSet<Sdelivery> Sdeliveries { get; set; }
+
+    public virtual DbSet<Sorder> Sorders { get; set; }
 
     public virtual DbSet<Team> Teams { get; set; }
 
@@ -2707,6 +2715,176 @@ public partial class SopalTraceDbContext : DbContext
                 .HasMaxLength(10)
                 .IsUnicode(false)
                 .HasColumnName("StatutBL");
+            entity.Property(e => e.NumeroCommande)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.NumeroCommandeNavigation).WithMany(p => p.Sdeliveries)
+                .HasForeignKey(d => d.NumeroCommande)
+                .HasConstraintName("FK_SDELIVERY_SalesOrder");
+        });
+
+        modelBuilder.Entity<Sorder>(entity =>
+        {
+            entity.HasKey(e => e.NumeroCommande).HasName("PK_SORDER");
+
+            entity.ToTable("SORDER");
+
+            entity.HasIndex(e => e.ReferenceCommandeClient, "IX_SORDER_CustomerReference").HasFilter("([ReferenceCommandeClient] IS NOT NULL)");
+
+            entity.Property(e => e.NumeroCommande)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.CodeClient)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.ReferenceCommandeClient)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+        });
+
+        modelBuilder.Entity<Porder>(entity =>
+        {
+            entity.HasKey(e => e.NumeroCommande).HasName("PK_PORDER");
+
+            entity.ToTable("PORDER");
+
+            entity.Property(e => e.NumeroCommande)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.CodeFournisseur)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+        });
+
+        modelBuilder.Entity<ExternalDocumentType>(entity =>
+        {
+            entity.HasKey(e => e.Code).HasName("PK_ExternalDocumentType");
+
+            entity.ToTable("ExternalDocumentType");
+
+            entity.Property(e => e.Code)
+                .HasMaxLength(40)
+                .IsUnicode(false);
+            entity.Property(e => e.Label).HasMaxLength(100);
+            entity.Property(e => e.SharedFolder).HasMaxLength(100);
+            entity.Property(e => e.UploadRole)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.UploadRoleNavigation).WithMany()
+                .HasForeignKey(d => d.UploadRole)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ExternalDocumentType_UploadRole");
+        });
+
+        modelBuilder.Entity<ExternalDocument>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_ExternalDocument");
+
+            entity.ToTable("ExternalDocument", tb => tb.HasTrigger("TR_ExternalDocument_Rules"));
+
+            entity.HasIndex(e => e.ArticleCode, "IX_ExternalDocument_Article").HasFilter("([SupersededAt] IS NULL)");
+
+            entity.HasIndex(e => e.ControlReportNumber, "IX_ExternalDocument_ControlReport").HasFilter("([SupersededAt] IS NULL)");
+
+            entity.HasIndex(e => e.CustomerOrderReference, "IX_ExternalDocument_CustomerOrder").HasFilter("([SupersededAt] IS NULL)");
+
+            entity.HasIndex(e => e.DeliveryNoteNumber, "IX_ExternalDocument_DeliveryNote").HasFilter("([SupersededAt] IS NULL)");
+
+            entity.HasIndex(e => e.ManufacturingOrderNumber, "IX_ExternalDocument_ManufacturingOrder").HasFilter("([SupersededAt] IS NULL)");
+
+            entity.HasIndex(e => e.SalesOrderNumber, "IX_ExternalDocument_SalesOrder").HasFilter("([SupersededAt] IS NULL)");
+
+            entity.HasIndex(e => e.SupplierOrderNumber, "IX_ExternalDocument_SupplierOrder").HasFilter("([SupersededAt] IS NULL)");
+
+            entity.HasIndex(e => new { e.TypeCode, e.UploadedAt }, "IX_ExternalDocument_UploadedAt").IsDescending(false, true);
+
+            entity.HasIndex(e => new { e.TypeCode, e.DocumentKey }, "UX_ExternalDocument_Current")
+                .IsUnique()
+                .HasFilter("([SupersededAt] IS NULL)");
+
+            entity.Property(e => e.Id).HasDefaultValueSql("(newsequentialid())");
+            entity.Property(e => e.ArticleCode)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.ContentSha256)
+                .HasMaxLength(64)
+                .IsUnicode(false)
+                .HasComputedColumnSql("(CONVERT([char](64),hashbytes('SHA2_256',[Content]),(2)))", true)
+                .IsFixedLength();
+            entity.Property(e => e.ControlReportNumber)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.CustomerOrderReference)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.DeliveryNoteNumber)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.DocumentKey)
+                .HasMaxLength(400)
+                .IsUnicode(false)
+                .HasComputedColumnSql("(CONVERT([varchar](400),case [TypeCode] when 'CONTROL_REPORT' then [ControlReportNumber] when 'DELIVERY_NOTE' then [DeliveryNoteNumber] else concat_ws('-',[ControlReportNumber],[ArticleCode],[DeliveryNoteNumber],[ManufacturingOrderNumber],[SupplierOrderNumber],translate([CustomerOrderReference],' /','__')) end))", true);
+            entity.Property(e => e.FileName)
+                .HasMaxLength(400)
+                .IsUnicode(false)
+                .HasComputedColumnSql("(CONVERT([varchar](400),concat_ws('-',[ControlReportNumber],[ArticleCode],[DeliveryNoteNumber],[ManufacturingOrderNumber],[SupplierOrderNumber],translate([CustomerOrderReference],' /','__'))+'.pdf'))", true);
+            entity.Property(e => e.ManufacturingOrderNumber)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.OriginalFileName).HasMaxLength(260);
+            entity.Property(e => e.ReplacementReason).HasMaxLength(300);
+            entity.Property(e => e.SalesOrderNumber)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.SupersededAt).HasPrecision(3);
+            entity.Property(e => e.SupplierOrderNumber)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.TypeCode)
+                .HasMaxLength(40)
+                .IsUnicode(false);
+            entity.Property(e => e.UploadedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.UploadedBy)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.ArticleCodeNavigation).WithMany()
+                .HasForeignKey(d => d.ArticleCode)
+                .HasConstraintName("FK_ExternalDocument_Article");
+
+            entity.HasOne(d => d.DeliveryNoteNumberNavigation).WithMany(p => p.ExternalDocuments)
+                .HasForeignKey(d => d.DeliveryNoteNumber)
+                .HasConstraintName("FK_ExternalDocument_DeliveryNote");
+
+            entity.HasOne(d => d.ManufacturingOrderNumberNavigation).WithMany()
+                .HasForeignKey(d => d.ManufacturingOrderNumber)
+                .HasConstraintName("FK_ExternalDocument_ManufacturingOrder");
+
+            entity.HasOne(d => d.ReplacesDocument).WithMany(p => p.InverseReplacesDocument)
+                .HasForeignKey(d => d.ReplacesDocumentId)
+                .HasConstraintName("FK_ExternalDocument_Replaces");
+
+            entity.HasOne(d => d.SalesOrderNumberNavigation).WithMany(p => p.ExternalDocuments)
+                .HasForeignKey(d => d.SalesOrderNumber)
+                .HasConstraintName("FK_ExternalDocument_SalesOrder");
+
+            entity.HasOne(d => d.SupplierOrderNumberNavigation).WithMany(p => p.ExternalDocuments)
+                .HasForeignKey(d => d.SupplierOrderNumber)
+                .HasConstraintName("FK_ExternalDocument_SupplierOrder");
+
+            entity.HasOne(d => d.TypeCodeNavigation).WithMany(p => p.ExternalDocuments)
+                .HasForeignKey(d => d.TypeCode)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ExternalDocument_Type");
+
+            entity.HasOne(d => d.UploadedByNavigation).WithMany()
+                .HasForeignKey(d => d.UploadedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ExternalDocument_UploadedBy");
         });
 
         modelBuilder.Entity<Team>(entity =>

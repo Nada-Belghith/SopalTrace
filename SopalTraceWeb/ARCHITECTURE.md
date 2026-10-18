@@ -19,21 +19,16 @@ src/
 │   ├── useVersioning.js          # Logique versioning (créer version, restaurer)
 │   ├── useDirtyChecking.js       # Détection des modifications
 │   ├── useModelManagement.js     # Gestion des modèles (load, create, edit)
-│   ├── usePlanManagement.js      # Gestion des plans (instantiate, clone, save)
-│   ├── useApi.js                 # (Existant) Utilitaires API
-│   └── useNotification.js        # (Existant) Notifications toast
+│   └── usePlanManagement.js      # Gestion des plans (instantiate, clone, save)
 │
 ├── utils/
 │   ├── modelMapper.js            # Transformations modèle (backend ↔ frontend)
-│   ├── planMapper.js             # Transformations plan (backend ↔ frontend)
 │   └── logger.js                 # (Existant)
 │
 ├── components/
 │   ├── Shared/
 │   │   ├── ConfirmationDialog.vue    # Modal générique de confirmation
 │   │   ├── VersioningDialog.vue      # Modal versioning/restauration
-│   │   ├── EditorHeader.vue          # En-tête d'éditeur
-│   │   ├── StatutBadge.vue           # Badge statut/version
 │   │   └── EditorActions.vue         # Boutons d'action (annuler, soumettre)
 │   │
 │   └── Fabrication/
@@ -106,12 +101,6 @@ const { isDirty, takeSnapshot, initializeSnapshot, confirmChanges }
 - `prepareModelePayload()` : Frontend → Backend
 - `createModeleSnapshot()` : État pour dirty checking
 - `hasModeleChanged()` : Comparaison snapshots
-
-#### `planMapper.js`
-- `mapBackendPlanToEditor()` : Transformation plan
-- `preparePlanValuesPayload()` : Formatage avant saving
-- `createEmptySection()` / `createEmptyLine()` : Factory patterns
-- `isMesure()`, `cleanupLineValuesOnTypeChange()` : Helpers métier
 
 ---
 

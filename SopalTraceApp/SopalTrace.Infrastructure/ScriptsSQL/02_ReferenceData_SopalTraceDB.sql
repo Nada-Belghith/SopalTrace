@@ -24,7 +24,25 @@ INSERT INTO dbo.AppRole (Code, Label) VALUES
 ('RESPONSABLE_QUALITE', 'Responsable qualité'),
 ('SUPERVISEUR_QUALITE', 'Superviseur qualité'),
 ('OPERATEUR', 'Opérateur'),
-('MAGASINIER', 'Magasinier');
+('MAGASINIER', 'Magasinier'),
+-- Services qui déposent les documents externes (chacun ses types de documents).
+('SERVICE_ACHATS', 'Service achats'),
+('SERVICE_COMMERCIAL', 'Service commercial'),
+('SERVICE_QUALITE', 'Service qualité (réception)'),
+('SERVICE_DI', 'Service développement industriel');
+
+-- Documents externes : service qui les dépose et numéros qui forment leur nom normalisé.
+INSERT INTO dbo.ExternalDocumentType (Code, Label, DisplayOrder, UploadRole, SharedFolder,
+    RequiresControlReportNumber, RequiresArticleCode, RequiresDeliveryNoteNumber, RequiresManufacturingOrderNumber,
+    RequiresSupplierOrderNumber, RequiresSalesOrderNumber, RequiresCustomerOrderReference) VALUES
+('CONTROL_REPORT', N'Rapport de contrôle', 1, 'SERVICE_QUALITE', N'Rapports_Controle', 1, 0, 0, 0, 1, 0, 0),
+('CONFORMITY_CERTIFICATE', N'Certificat de conformité', 2, 'SERVICE_QUALITE', N'Certificats_Conformite', 0, 1, 0, 0, 1, 0, 0),
+('SUPPLIER_ORDER', N'Bon de commande fournisseur', 3, 'SERVICE_ACHATS', N'BC_Frs', 0, 0, 0, 0, 1, 0, 0),
+('DELIVERY_NOTE', N'Bon de livraison', 4, 'SERVICE_COMMERCIAL', N'BL', 0, 0, 1, 0, 0, 1, 1),
+('CUSTOMER_ORDER', N'Bon de commande client', 5, 'SERVICE_COMMERCIAL', N'BC_Client', 0, 0, 0, 0, 0, 0, 1),
+('FINISHED_PRODUCT_CONTROL_REPORT', N'Rapport de contrôle rapide du produit fini', 6, 'SERVICE_QUALITE', N'Rapports_Produit_Fini', 0, 0, 0, 1, 0, 0, 0),
+-- Dessin d'ensemble technique de l'article, livré par le service développement industriel.
+('FINISHED_PRODUCT_DEFINITION_PLAN', N'Plan de définition du produit fini', 7, 'SERVICE_DI', N'Plans_Definition_Produit_Fini', 0, 1, 0, 0, 0, 0, 0);
 
 INSERT INTO dbo.Team (Code, Label) VALUES
 ('E1', 'Équipe 1'),

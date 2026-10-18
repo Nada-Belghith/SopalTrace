@@ -46,6 +46,7 @@ public class DocumentEchantillonnageController : ControllerBase
         return Ok(new { success = true, data = plan, message = "Document récupéré avec succès." });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost]
     public async Task<IActionResult> CreateDocument([FromBody] CreateDocumentEchantillonnageRequestDto request)
     {
@@ -57,6 +58,7 @@ public class DocumentEchantillonnageController : ControllerBase
         return Ok(new { success = true, data = newId, message = "Document créé avec succès." });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateDocument(Guid id, [FromBody] UpdateDocumentEchantillonnageRequestDto request)
     {
@@ -67,6 +69,7 @@ public class DocumentEchantillonnageController : ControllerBase
         return Ok(new { success = true, data = id, rowVersion, message = "Document mis à jour avec succès." });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPut("{id}/activer")]
     public async Task<IActionResult> ActivateDocument(Guid id)
     {
@@ -74,6 +77,8 @@ public class DocumentEchantillonnageController : ControllerBase
         return Ok(new { success = true, data = id, message = "Document activé avec succès." });
     }
 
+    // Lecture : rôles de la classe ; écriture : le superviseur qualité (et l'administrateur).
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("nouvelle-version")]
     public async Task<IActionResult> CreateNewVersion([FromBody] CreateNewVersionDocumentEchantillonnageRequestDto request)
     {

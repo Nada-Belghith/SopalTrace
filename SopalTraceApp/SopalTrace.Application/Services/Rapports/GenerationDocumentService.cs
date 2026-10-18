@@ -100,7 +100,7 @@ public class GenerationDocumentService : IGenerationDocumentService
     {
         numeroOf = numeroOf?.Trim() ?? "";
         if (numeroOf.Length == 0 || !await _documents.OfExisteAsync(numeroOf))
-            throw new RessourceIntrouvableException($"Aucun contrôle enregistré pour l'OF {numeroOf}.");
+            throw new RessourceIntrouvableException($"L'OF {numeroOf} est inconnu de Sage.");
         var documents = await _documents.GetDocumentsAppliquesAsync(numeroOf);
         // Seules les fiches remplies : une fiche ouverte puis laissée vide n'est pas un document de l'OF.
         var fiches = (await _documents.GetFichesDeLOfAsync(numeroOf)).Where(f => f.Remplie).OrderBy(f => f.OrdreCreation).ToList();
@@ -110,14 +110,16 @@ public class GenerationDocumentService : IGenerationDocumentService
         foreach (var document in documents)
         {
             var dto = VersDto(document, contexte);
-            // Document sans PDF propre (contrôle au poste, vérification machine, échantillonnage) : ses fiches remplies
-            // le représentent ; sans aucune fiche remplie, il manque.
-            if (!dto.ContratDisponible)
+            // Document sans PDF propre que remplissent les opérateurs (contrôle au poste, vérification machine,
+            // échantillonnage) : ses fiches remplies le représentent ; sans aucune fiche remplie, il manque. Sans fiche
+            // à remplir (plan produit fini…), il est consultable dans l'application.
+            if (!dto.ContratDisponible && _definitionsExecution.Any(d => d.TypeDocumentApplique == document.TypeDocumentCode))
             {
                 if (fiches.Any(f => f.DocumentQualiteId == document.Id)) continue;
                 dto.Etat = EtatsTracabilite.Manquant;
                 dto.RaisonManquant = "Aucune fiche remplie pour ce document dans l'OF.";
             }
+            else if (!dto.ContratDisponible) dto.Etat = EtatsTracabilite.Disponible;
             else Etat(dto);
             resultat.Add(dto);
         }

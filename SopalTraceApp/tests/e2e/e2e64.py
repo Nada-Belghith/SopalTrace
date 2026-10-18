@@ -461,14 +461,18 @@ check("R aucun PDF produit en arrière-plan (OF clôturé) : seulement à la con
     "SELECT COUNT(*) FROM GeneratedDocument g JOIN Exec_ControleDocumentStatut s ON s.Id = g.ExecControleDocumentStatutId "
     "WHERE s.ExecControleOfId = '" + ofc + "'") == '0')
 numero_of = sql("SELECT NumeroOF FROM Exec_ControleOF WHERE Id='" + ofc + "'")
-st, r = call(SUP, 'GET', f'/rapports/tracabilite/{numero_of}')
+# Traçabilité par OF : réservée au responsable qualité.
+check("R traçabilité de l'OF refusée au superviseur qualité", call(SUP, 'GET', f'/rapports/tracabilite/{numero_of}')[0] == 403)
+st, r = call(jwt('22222', 'RESPONSABLE_QUALITE'), 'GET', f'/rapports/tracabilite/{numero_of}')
 cartes = (r.get('data') or {}).get('documents', []) if isinstance(r, dict) else []
 check("R traçabilité de l'OF : chaque document est disponible (avec le modèle en vigueur à sa création) ou manquant avec sa raison",
-      st == 200 and cartes and all((c.get('etat') == 'DISPONIBLE' and c.get('modele')) or (c.get('etat') == 'MANQUANT' and c.get('raisonManquant'))
+      st == 200 and cartes and all((c.get('etat') == 'DISPONIBLE' and (c.get('modele') or not c.get('contratDisponible')))
+                                   or (c.get('etat') == 'MANQUANT' and c.get('raisonManquant'))
                                    for c in cartes), (st, [(c['typeCode'], c.get('etat'), c.get('raisonManquant')) for c in cartes]))
 check("R traçabilité de l'OF : seulement les fiches remplies, jamais les clôtures de poste ni un plan déjà représenté par ses fiches",
       not any(c['typeCode'].startswith('CLOTURE_') for c in cartes)
-      and not any(c['categorie'] == 'QUALITE' and not c.get('contratDisponible') and c.get('etat') == 'DISPONIBLE' for c in cartes),
+      and not any(c['categorie'] == 'QUALITE' and c['typeCode'] in ('CTRL_POSTE', 'VERIF_MACHINE', 'PLAN_ECHANTILLONNAGE')
+                  and c.get('etat') == 'DISPONIBLE' for c in cartes),
       [(c['categorie'], c['typeCode'], c.get('etat')) for c in cartes])
 # Chaque fiche reçoit le modèle de son formulaire : résultats d'assemblage selon le formulaire de résultats fixé à sa
 # création (poste 71 / auto : FE0816 ; postes 72 et 78 / manuel : FE0817), vérification machine selon la machine.

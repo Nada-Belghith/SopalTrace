@@ -93,13 +93,36 @@ public class DocumentGenereRepository : IDocumentGenereRepository
                 Operation = new OperationDocument(o.OperationCode, o.OperationCodeNavigation.Libelle)
             })
             .ToListAsync();
-        return documents.Select(d => d.Operation != null ? d : d with
+        var resultat = documents.Select(d => d.Operation != null ? d : d with
         {
             Operation = operations.FirstOrDefault(o => o.PlanSourceId == d.Id || o.Documents.Contains(d.Id))?.Operation
         }).ToList();
+        if (await PlanProduitFiniAsync(numeroOf) is { } plan && resultat.All(d => d.Id != plan.Id))
+            resultat.Add(plan with { Operation = new OperationDocument(OperationProduitFini, "Produit fini") });
+        return resultat;
     }
 
-    public Task<bool> OfExisteAsync(string numeroOf) => _context.ExecControleOfs.AnyAsync(o => o.NumeroOf == numeroOf);
+    /// <summary>Code de la rubrique « produit fini » de la traçabilité d'un OF (pas une opération de la gamme).</summary>
+    public const string OperationProduitFini = "PF";
+
+    /// <summary>
+    /// Plan produit fini d'un OF de produit fini (géré par le superviseur qualité par famille, il n'est pas rempli par les
+    /// opérateurs) : le plan spécifique actif de l'article, sinon le plan générique actif de sa famille.
+    /// </summary>
+    private async Task<SourceDocumentQualite?> PlanProduitFiniAsync(string numeroOf)
+    {
+        var article = await _context.MfgheadOrdreFabrications.AsNoTracking()
+            .Where(o => o.NumeroOf == numeroOf && o.CodeArticleNavigation.TypeArticle == "PF")
+            .Select(o => new { o.CodeArticle, Famille = o.CodeArticleNavigation.ProduitFinis.Select(p => p.FamilleProduitFiniCode).FirstOrDefault() })
+            .FirstOrDefaultAsync();
+        if (article == null) return null;
+        var plans = _context.DocumentEntetes.Where(d => d.TypeDocumentCode == TypesDocument.PlanProduitFini && d.Statut == DocumentStatuts.Actif);
+        return (await SourcesDocumentsAsync(plans.Where(d => d.Portee == "SPECIFIQUE" && d.CodeArticleSageVersionne == article.CodeArticle), 1)).FirstOrDefault()
+            ?? (article.Famille == null ? null
+                : (await SourcesDocumentsAsync(plans.Where(d => d.Portee == "GENERIQUE" && d.FamilleProduitFiniCode == article.Famille), 1)).FirstOrDefault());
+    }
+
+    public Task<bool> OfExisteAsync(string numeroOf) => _context.MfgheadOrdreFabrications.AnyAsync(o => o.NumeroOf == numeroOf);
 
     public Task<List<ModeleDuType>> GetModelesDesTypesAsync() =>
         _context.ReportTemplates.AsNoTracking()

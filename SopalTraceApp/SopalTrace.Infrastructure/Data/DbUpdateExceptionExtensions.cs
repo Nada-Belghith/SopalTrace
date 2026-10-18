@@ -33,7 +33,8 @@ public static class DbUpdateExceptionExtensions
         ["UX_ExecSessionPost_OneTeamPerPoste"] = "Ce poste vient d'être pris par une autre équipe : rafraîchissez l'écran.",
         ["UX_ExecControleOfSession_OneOpenSessionPerTeam"] = "Votre équipe a déjà une session ouverte sur cet OF : rafraîchissez l'écran.",
         ["UX_ReportTemplateVersion_OneActive"] = "Une autre version de ce modèle vient d'être activée : rafraîchissez l'écran.",
-        ["UQ_ReportTemplateVersion_Number"] = "Une autre version de ce modèle vient d'être envoyée : rafraîchissez l'écran puis réessayez."
+        ["UQ_ReportTemplateVersion_Number"] = "Une autre version de ce modèle vient d'être envoyée : rafraîchissez l'écran puis réessayez.",
+        ["UX_ExternalDocument_Current"] = "Ce document vient d'être déposé par une autre personne : rafraîchissez, puis remplacez-le si besoin."
     };
 
     public static bool IsUniqueConstraintViolation(this DbUpdateException ex)

@@ -169,6 +169,12 @@ builder.Services.AddScoped<IUserAdministrationRepository, UserAdministrationRepo
 builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService>();
 builder.Services.AddScoped<IMagasinRepository, MagasinRepository>();
 builder.Services.AddScoped<IMagasinService, MagasinService>();
+// Documents externes déposés par les services (achats, commercial, qualité) et retrouvés pour chaque OF.
+builder.Services.AddSingleton(builder.Configuration.GetSection("DocumentsExternes").Get<SopalTrace.Application.Settings.DocumentsExternesSettings>()
+    ?? new SopalTrace.Application.Settings.DocumentsExternesSettings());
+builder.Services.AddSingleton<SopalTrace.Application.Interfaces.IRepertoirePartage, SopalTrace.Infrastructure.Services.RepertoirePartage>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.IDocumentExterneRepository, SopalTrace.Infrastructure.Repositories.DocumentExterneRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Services.IDocumentExterneService, SopalTrace.Application.Services.DocumentExterneService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Alertes

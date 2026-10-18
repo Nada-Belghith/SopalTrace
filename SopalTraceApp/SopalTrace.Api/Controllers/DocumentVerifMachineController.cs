@@ -27,7 +27,8 @@ public class DocumentVerifMachineController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+    // Écriture d'un document qualité : le superviseur qualité (et l'administrateur), comme les autres documents qualité.
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> Create([FromBody] CreateDocumentVerifMachineRequestDto request)
     {
         await ValidationHelper.ValidateAndThrowAsync(_validateur, request, "création du plan de vérification machine");
@@ -36,7 +37,8 @@ public class DocumentVerifMachineController : ControllerBase
     }
 
     [HttpPost("nouvelle-version")]
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+    // Écriture d'un document qualité : le superviseur qualité (et l'administrateur), comme les autres documents qualité.
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> CreateNouvelleVersion([FromBody] NouvelleVersionVerifMachineRequestDto request)
     {
         await ValidationHelper.ValidateAndThrowAsync(_validateur, request.Donnees, "nouvelle version du plan de vérification machine");
@@ -67,7 +69,8 @@ public class DocumentVerifMachineController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
+    // Écriture d'un document qualité : le superviseur qualité (et l'administrateur), comme les autres documents qualité.
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDocumentVerifMachineRequestDto request)
     {
         await ValidationHelper.ValidateAndThrowAsync<CreateDocumentVerifMachineRequestDto>(_validateur, request, "modification du plan de vérification machine");

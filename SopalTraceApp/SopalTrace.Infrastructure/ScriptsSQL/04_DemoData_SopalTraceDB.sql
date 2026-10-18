@@ -47,8 +47,9 @@ DECLARE @PrepIdASS01 UNIQUEIDENTIFIER = NEWID();
 INSERT INTO dbo.Mag_PreparationOF (Id, NumeroOF, MatriculeMagasinier, Statut, DateDebut, DateFin)
 VALUES (@PrepIdASS01, 'OF2607ASS01', '33333', 'TERMINE', GETDATE(), GETDATE());
 
-INSERT INTO dbo.Mag_PreparationOF_Lot (Id, PreparationOFId, CodeArticle, NumeroLotScanne, Quantite, DateScan)
-VALUES (NEWID(), @PrepIdASS01, '2903201-1', 'LOT-CORPS-01', 1000, GETDATE());
+-- Étiquette avec le n° de rapport de contrôle : point de départ de la recherche des documents fournisseur de l'OF.
+INSERT INTO dbo.Mag_PreparationOF_Lot (Id, PreparationOFId, CodeArticle, NumeroLotScanne, QualityControlReport, Quantite, DateScan)
+VALUES (NEWID(), @PrepIdASS01, '2903201-1', 'LOT-CORPS-01', 'RC2607001', 1000, GETDATE());
 
 DECLARE @PrepIdASS02 UNIQUEIDENTIFIER = NEWID();
 
@@ -1144,5 +1145,9 @@ INSERT INTO dbo.PreassignedRole (Matricule, RoleCode, AssignedBy) VALUES
 ('22222', 'RESPONSABLE_QUALITE', 'SYSTEM'),
 ('44444', 'SUPERVISEUR_QUALITE', 'SYSTEM'),
 ('33333', 'MAGASINIER', 'SYSTEM'),
-('55555', 'OPERATEUR', 'SYSTEM');
+('55555', 'OPERATEUR', 'SYSTEM'),
+('88881', 'SERVICE_ACHATS', 'SYSTEM'),
+('88882', 'SERVICE_COMMERCIAL', 'SYSTEM'),
+('88883', 'SERVICE_QUALITE', 'SYSTEM'),
+('88884', 'SERVICE_DI', 'SYSTEM');
 GO

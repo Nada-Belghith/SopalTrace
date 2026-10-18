@@ -39,171 +39,72 @@
           <i class="pi pi-box"></i> OF : <span class="text-blue-900">{{ resultat.numeroOf }}</span>
         </div>
         <div class="bg-emerald-100 text-emerald-700 px-5 py-2.5 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-2">
-          <i class="pi pi-file"></i> Documents : <span class="text-emerald-900">{{ resultat.documents.length }}</span>
+          <i class="pi pi-file"></i> Disponibles : <span class="text-emerald-900">{{ compteurs.disponibles }}</span>
         </div>
-        <div v-if="manquants" class="bg-red-100 text-red-700 px-5 py-2.5 rounded-xl border border-red-200 shadow-sm flex items-center gap-2">
-          <i class="pi pi-exclamation-triangle"></i> Manquants : <span class="text-red-900">{{ manquants }}</span>
+        <div v-if="compteurs.manquants" class="bg-red-100 text-red-700 px-5 py-2.5 rounded-xl border border-red-200 shadow-sm flex items-center gap-2">
+          <i class="pi pi-exclamation-triangle"></i> Manquants : <span class="text-red-900">{{ compteurs.manquants }}</span>
         </div>
       </div>
     </div>
 
-    <!-- État de chargement (Simulateur de branches) -->
+    <!-- État de chargement -->
     <div v-if="chargement" class="flex-1 flex flex-col items-center justify-center py-12">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl mb-8">
-        <!-- Branche 1 -->
-        <div class="flex flex-col items-center text-center animate-pulse-fast">
-          <div class="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center mb-3">
-            <i class="pi pi-truck text-xl text-violet-600"></i>
+        <div v-for="(b, i) in BRANCHES" :key="b.libelle" class="flex flex-col items-center text-center animate-pulse-fast" :style="{ animationDelay: `${i * 150}ms` }">
+          <div class="w-12 h-12 rounded-full flex items-center justify-center mb-3" :class="b.fond">
+            <i class="pi text-xl" :class="[b.icone, b.couleur]"></i>
           </div>
-          <span class="text-sm font-bold text-slate-600">Branche Fournisseurs...</span>
-        </div>
-        <!-- Branche 2 -->
-        <div class="flex flex-col items-center text-center animate-pulse-fast" style="animation-delay: 150ms;">
-          <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3">
-            <i class="pi pi-cog text-xl text-blue-600"></i>
-          </div>
-          <span class="text-sm font-bold text-slate-600">Branche Interne...</span>
-        </div>
-        <!-- Branche 3 -->
-        <div class="flex flex-col items-center text-center animate-pulse-fast" style="animation-delay: 300ms;">
-          <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
-            <i class="pi pi-send text-xl text-emerald-600"></i>
-          </div>
-          <span class="text-sm font-bold text-slate-600">Branche Clients...</span>
+          <span class="text-sm font-bold text-slate-600">{{ b.libelle }}…</span>
         </div>
       </div>
       <div class="text-slate-400 font-medium">Analyse en cascade en cours...</div>
     </div>
 
-    <!-- Dashboard de Traçabilité -->
+    <!-- Dossier de l'OF -->
     <div v-else-if="resultat" class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up pb-10">
 
-      <!-- Colonne 1: Fournisseurs -->
-      <div class="bg-white/60 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden group flex flex-col max-h-[800px] overflow-y-auto">
+      <!-- Colonne 1 : Fournisseurs — par lot servi à l'OF (étiquettes scannées par le magasinier) -->
+      <div class="bg-white/60 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden flex flex-col max-h-[800px] overflow-y-auto custom-scrollbar">
         <div class="absolute inset-0 bg-gradient-to-br from-violet-50/50 to-transparent pointer-events-none"></div>
         <div class="flex items-center gap-3 mb-6 relative z-10 shrink-0">
           <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
             <i class="pi pi-truck text-lg"></i>
           </div>
           <div>
-            <h2 class="text-lg font-black text-slate-800 m-0">Fournisseurs & Certificat</h2>
-            <p class="text-xs text-slate-500 m-0">Chaîne Amont · <span class="font-semibold text-amber-600">exemple, non relié aux données</span></p>
+            <h2 class="text-lg font-black text-slate-800 m-0">Fournisseurs & Certificats</h2>
+            <p class="text-xs text-slate-500 m-0">Chaîne Amont · lots servis par le magasin</p>
           </div>
         </div>
-        
+
         <div class="flex flex-col gap-5 relative z-10">
-          <!-- Section MP -->
-          <div>
-            <h3 @click="toggleSection('mp')" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between cursor-pointer hover:text-slate-600 transition-colors">
-              <span class="flex items-center gap-2"><i class="pi pi-box"></i> Matière Première (MP)</span>
-              <i :class="expandedSections.mp ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
-            </h3>
-            <div v-show="expandedSections.mp" class="flex flex-col gap-3">
-              <DocumentCard 
-                title="Certificat Conformité.pdf" 
-                subtitle="Laiton CuZn39Pb3" 
-                category="Certif MP" 
-                icon="pi pi-file-pdf" 
-                status="disponible"
-                imagePath="/certificat_mp.png"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Rapport Contrôle MP.pdf" 
-                subtitle="Analyse spectro" 
-                category="Rapport MP" 
-                icon="pi pi-file-pdf" 
-                status="disponible"
-                imagePath="/rapport_mp.png"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Bon de Commande FRS.pdf" 
-                subtitle="Introuvable pour cette commande" 
-                category="BC Frs" 
-                icon="pi pi-file-pdf" 
-                status="manquant"
-                @click="handleDocClick"
-              />
+          <p v-if="!externes.fournisseurs.length" class="m-0 text-xs text-slate-400">Aucun lot scanné par le magasinier pour cet OF.</p>
+          <template v-for="(lot, index) in externes.fournisseurs" :key="`${lot.codeArticle}|${lot.numeroLot}`">
+            <div v-if="index > 0" class="h-px bg-slate-200"></div>
+            <div>
+              <h3 @click="basculer(cleLot(lot))" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between gap-2 cursor-pointer hover:text-slate-600 transition-colors">
+                <span class="flex items-center gap-2 min-w-0">
+                  <i class="pi pi-box shrink-0"></i>
+                  <span class="truncate" :title="lot.designationArticle">{{ lot.codeArticle }} · Lot {{ lot.numeroLot }}</span>
+                </span>
+                <span class="flex items-center gap-2 shrink-0">
+                  <span v-if="manquantsDe(lot.documents)" class="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">{{ manquantsDe(lot.documents) }}</span>
+                  <i :class="ouvertes[cleLot(lot)] ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
+                </span>
+              </h3>
+              <div v-show="ouvertes[cleLot(lot)]" class="flex flex-col gap-3">
+                <p class="m-0 text-xs text-slate-500">
+                  {{ lot.designationArticle }}<template v-if="lot.numeroRapport"> · rapport {{ lot.numeroRapport }}</template><template v-if="lot.numeroCommandeFournisseur"> · commande {{ lot.numeroCommandeFournisseur }}</template>
+                </p>
+                <DocumentCard v-for="c in lot.documents" :key="c.typeCode" :title="titreCarte(c)" :subtitle="sousTitreCarte(c)"
+                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c)" />
+              </div>
             </div>
-          </div>
-          
-          <div class="h-px bg-slate-200"></div>
-
-          <!-- Section Accessoire: Ressort -->
-          <div>
-            <h3 @click="toggleSection('acc_ressort')" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between cursor-pointer hover:text-slate-600 transition-colors">
-              <span class="flex items-center gap-2"><i class="pi pi-paperclip"></i> Accessoire : Ressort</span>
-              <i :class="expandedSections.acc_ressort ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
-            </h3>
-            <div v-show="expandedSections.acc_ressort" class="flex flex-col gap-3">
-              <DocumentCard 
-                title="Certificat d'origine.pdf" 
-                subtitle="Ressort INOX 304" 
-                category="Certif Acc" 
-                icon="pi pi-file-pdf" 
-                status="disponible"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Rapport Contrôle Réception.pdf" 
-                subtitle="Réf: 11022" 
-                category="Rapport" 
-                icon="pi pi-file-pdf" 
-                status="disponible"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Bon de Commande FRS.pdf" 
-                subtitle="Cmd: SOPCAC-2410100" 
-                category="BC Frs" 
-                icon="pi pi-file-pdf" 
-                status="disponible"
-                @click="handleDocClick"
-              />
-            </div>
-          </div>
-
-          <div class="h-px bg-slate-200"></div>
-
-          <!-- Section Accessoire: Joint -->
-          <div>
-            <h3 @click="toggleSection('acc_joint')" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between cursor-pointer hover:text-slate-600 transition-colors">
-              <span class="flex items-center gap-2"><i class="pi pi-paperclip"></i> Accessoire : Joint Torique</span>
-              <i :class="expandedSections.acc_joint ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
-            </h3>
-            <div v-show="expandedSections.acc_joint" class="flex flex-col gap-3">
-              <DocumentCard 
-                title="Certificat Matière Joint.pdf" 
-                subtitle="Introuvable pour ce lot" 
-                category="Certificat" 
-                icon="pi pi-file-check" 
-                status="manquant"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Rapport Contrôle Réception.pdf" 
-                subtitle="Réf: 11055" 
-                category="Rapport" 
-                icon="pi pi-chart-bar" 
-                status="disponible"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Bon de Commande FRS.pdf" 
-                subtitle="Cmd: BC-ACC-502" 
-                category="BC Frs" 
-                icon="pi pi-file-pdf" 
-                status="disponible"
-                @click="handleDocClick"
-              />
-            </div>
-          </div>
+          </template>
         </div>
       </div>
 
-      <!-- Colonne 2: Interne / Production — documents de l'OF, par opération -->
-      <div class="bg-white/60 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden group flex flex-col max-h-[800px] overflow-y-auto custom-scrollbar">
+      <!-- Colonne 2 : Interne / Production — documents de l'OF, par opération -->
+      <div class="bg-white/60 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden flex flex-col max-h-[800px] overflow-y-auto custom-scrollbar">
         <div class="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent pointer-events-none"></div>
         <div class="flex items-center gap-3 mb-6 relative z-10 shrink-0">
           <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
@@ -222,12 +123,12 @@
               <h3 @click="basculer(operation.code)" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between cursor-pointer hover:text-slate-600 transition-colors">
                 <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full" :class="operation.couleur"></span> {{ operation.libelle }} ({{ operation.code }})</span>
                 <span class="flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black">{{ operation.documents.length }}</span>
+                  <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black">{{ operation.documents.length + operation.externes.length }}</span>
                   <i :class="ouvertes[operation.code] ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
                 </span>
               </h3>
               <div v-show="ouvertes[operation.code]" class="flex flex-col gap-3">
-                <p v-if="!operation.documents.length" class="m-0 text-xs text-slate-400">Aucun document pour cette opération.</p>
+                <p v-if="!operation.documents.length && !operation.externes.length" class="m-0 text-xs text-slate-400">Aucun document pour cette opération.</p>
                 <DocumentCard
                   v-for="d in operation.documents"
                   :key="cle(d)"
@@ -238,14 +139,16 @@
                   :status="etatCarte(d)"
                   @click="selection = d"
                 />
+                <DocumentCard v-for="c in operation.externes" :key="c.typeCode" :title="titreCarte(c)" :subtitle="sousTitreCarte(c)"
+                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c)" />
               </div>
             </div>
           </template>
         </div>
       </div>
 
-      <!-- Colonne 3: Clients / Expédition -->
-      <div class="bg-white/60 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden group flex flex-col max-h-[800px] overflow-y-auto">
+      <!-- Colonne 3 : Clients — par BL sur lequel l'OF a été expédié -->
+      <div class="bg-white/60 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden flex flex-col max-h-[800px] overflow-y-auto custom-scrollbar">
         <div class="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent pointer-events-none"></div>
         <div class="flex items-center gap-3 mb-6 relative z-10 shrink-0">
           <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
@@ -253,60 +156,37 @@
           </div>
           <div>
             <h2 class="text-lg font-black text-slate-800 m-0">Expédition & Clients</h2>
-            <p class="text-xs text-slate-500 m-0">Chaîne Aval · <span class="font-semibold text-amber-600">exemple, non relié aux données</span></p>
+            <p class="text-xs text-slate-500 m-0">Chaîne Aval · BL de l'expédition</p>
           </div>
         </div>
 
         <div class="flex flex-col gap-5 relative z-10">
-          <div>
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Bons de Livraison (BL)</h3>
-            <div class="flex flex-col gap-3">
-              <DocumentCard 
-                title="Bon de Livraison BL-2409-55.pdf" 
-                subtitle="Client: Magasin Central Sfax" 
-                category="BL" 
-                icon="pi pi-file-export" 
-                status="disponible"
-                imagePath="/bl.png"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Bon de Livraison BL-2409-58.pdf" 
-                subtitle="Client: Magasin Central Tunis" 
-                category="BL" 
-                icon="pi pi-file-export" 
-                status="disponible"
-                @click="handleDocClick"
-              />
+          <p v-if="!externes.clients.length" class="m-0 text-xs text-slate-400">Cet OF n'a pas encore été expédié (aucun BL scanné).</p>
+          <template v-for="(bl, index) in externes.clients" :key="bl.numeroBl">
+            <div v-if="index > 0" class="h-px bg-slate-200"></div>
+            <div>
+              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">BL {{ bl.numeroBl }}</h3>
+              <p class="m-0 mb-3 text-xs text-slate-500">
+                Client {{ bl.codeClient }} · expédié le {{ date(bl.dateExpedition) }}<template v-if="bl.numeroCommande"> · commande {{ bl.numeroCommande }}</template><template v-if="bl.referenceCommandeClient"> · réf. client {{ bl.referenceCommandeClient }}</template>
+              </p>
+              <div class="flex flex-col gap-3">
+                <DocumentCard v-for="c in bl.documents" :key="c.typeCode" :title="titreCarte(c)" :subtitle="sousTitreCarte(c)"
+                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c)" />
+              </div>
             </div>
-          </div>
-
-          <div class="h-px bg-slate-200"></div>
-          
-          <div>
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Bons de Commande Clients</h3>
-            <div class="flex flex-col gap-3">
-              <DocumentCard 
-                title="Bon de Commande Client.pdf" 
-                subtitle="Introuvable (BC-CLI-909)" 
-                category="BC Client" 
-                icon="pi pi-envelope" 
-                status="manquant"
-                @click="handleDocClick"
-              />
-              <DocumentCard 
-                title="Bon de Commande Client.pdf" 
-                subtitle="Introuvable (BC-CLI-915)" 
-                category="BC Client" 
-                icon="pi pi-envelope" 
-                status="manquant"
-                @click="handleDocClick"
-              />
-            </div>
-          </div>
+          </template>
         </div>
       </div>
     </div>
+
+    <!-- Document externe manquant : la raison et qui doit le déposer -->
+    <Dialog :visible="!!externeManquant" modal :header="externeManquant?.typeLibelle" :style="{ width: '32rem' }" :breakpoints="{ '640px': '95vw' }"
+            @update:visible="valeur => { if (!valeur) externeManquant = null }">
+      <div v-if="externeManquant" class="flex flex-col gap-3 text-sm">
+        <p class="m-0 text-red-700"><i class="pi pi-exclamation-triangle mr-1"></i>{{ externeManquant.raisonManquant }}</p>
+        <p v-if="externeManquant.nomFichier" class="m-0 text-slate-600">Nom attendu : <span class="font-mono font-bold">{{ externeManquant.nomFichier }}</span></p>
+      </div>
+    </Dialog>
 
     <!-- Aperçu d'un document de l'OF : son modèle et ses actions (PDF, impression, Excel) -->
     <Dialog :visible="!!selection" modal :header="selection?.nom" :style="{ width: '40rem' }" :breakpoints="{ '640px': '95vw' }"
@@ -342,10 +222,14 @@
 
 <script setup>
 /**
- * Traçabilité par OF : le dossier documentaire d'un ordre de fabrication en trois branches. La branche Production Sopal
- * présente les vrais documents de l'OF (plans qualité appliqués et documents remplis par les opérateurs), par
- * opération ; chacun est mis en forme avec le modèle en vigueur à sa création. Les branches Fournisseurs et Clients sont
- * des exemples, non reliés aux données (modules à venir).
+ * Traçabilité par OF (responsable qualité) : le dossier documentaire d'un ordre de fabrication en trois branches, toutes
+ * réelles. Fournisseurs : pour chaque lot servi (étiquette scannée par le magasinier), son rapport de contrôle, le bon
+ * de commande fournisseur et le certificat de conformité retrouvés par le n° de commande du rapport. Production : les
+ * documents internes de l'OF par opération (plans appliqués, fiches remplies), puis pour un produit fini son plan de
+ * définition (dessin d'ensemble du service DI) et son rapport de contrôle rapide.
+ * Clients : pour chaque BL de l'expédition, le BL et le bon de commande client retrouvé par la référence client de la
+ * commande Sage du BL. Chaque document est disponible ou
+ * manquant, avec la raison.
  */
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -354,7 +238,8 @@ import DocumentCard from '@/components/Qualite/TracabiliteTotale/DocumentCard.vu
 import ActionsDocument from '@/components/Qualite/ActionsDocument.vue'
 import LienRattacherModele from '@/components/Qualite/LienRattacherModele.vue'
 import PdfDocumentQualite from '@/components/Qualite/PdfDocumentQualite.vue'
-import rapportsService from '@/services/rapportsService'
+import rapportsService, { ouvrirPdf } from '@/services/rapportsService'
+import documentsExternesService from '@/services/documentsExternesService'
 
 const route = useRoute()
 const router = useRouter()
@@ -364,47 +249,97 @@ const resultat = ref(null)
 const chargement = ref(false)
 const erreur = ref('')
 const selection = ref(null)
+const externeManquant = ref(null)
 
-// Sections des branches d'exemple (fournisseurs) et des opérations : ouvertes ou fermées.
-const expandedSections = reactive({ mp: true, acc_ressort: false, acc_joint: false })
-const toggleSection = (cle) => { expandedSections[cle] = !expandedSections[cle] }
+// Sections ouvertes ou fermées (lots, opérations).
 const ouvertes = reactive({})
 const basculer = (code) => { ouvertes[code] = !ouvertes[code] }
-// Document de l'exemple (fournisseurs, clients) : pas de fichier relié.
-const handleDocClick = () => {}
 
+const BRANCHES = [
+  { libelle: 'Branche Fournisseurs', icone: 'pi-truck', fond: 'bg-violet-100', couleur: 'text-violet-600' },
+  { libelle: 'Branche Interne', icone: 'pi-cog', fond: 'bg-blue-100', couleur: 'text-blue-600' },
+  { libelle: 'Branche Clients', icone: 'pi-send', fond: 'bg-emerald-100', couleur: 'text-emerald-600' }
+]
 const STATUTS = { ACTIF: 'Actif', ARCHIVE: 'Archivé', BROUILLON: 'Brouillon', EN_COURS: 'En cours', TERMINE: 'Terminé', CLOTURE: 'OF clôturé' }
-// Opérations de la gamme, dans l'ordre de fabrication.
+// Opérations de la gamme, dans l'ordre de fabrication, puis le contrôle du produit fini.
 const OPERATIONS = [
   { code: 'ESTOMP', libelle: 'Estompage', couleur: 'bg-orange-400' },
   { code: 'TRONC', libelle: 'Tronçonnage', couleur: 'bg-rose-400' },
   { code: 'USINAG', libelle: 'Usinage', couleur: 'bg-cyan-400' },
-  { code: 'ASS', libelle: 'Assemblage', couleur: 'bg-blue-500' }
+  { code: 'ASS', libelle: 'Assemblage', couleur: 'bg-blue-500' },
+  { code: 'PF', libelle: 'Produit fini', couleur: 'bg-emerald-500' }
 ]
+const ICONES_EXTERNES = {
+  CONTROL_REPORT: 'pi pi-file-check',
+  CONFORMITY_CERTIFICATE: 'pi pi-verified',
+  SUPPLIER_ORDER: 'pi pi-shopping-cart',
+  DELIVERY_NOTE: 'pi pi-file-export',
+  CUSTOMER_ORDER: 'pi pi-envelope',
+  FINISHED_PRODUCT_CONTROL_REPORT: 'pi pi-check-square',
+  FINISHED_PRODUCT_DEFINITION_PLAN: 'pi pi-file-edit'
+}
 
 const cle = (d) => d.documentEnteteId ?? d.execControleDocumentStatutId
+const cleLot = (lot) => `lot|${lot.codeArticle}|${lot.numeroLot}`
 const formaterDate = (d) => d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : ''
+const date = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : ''
 const sousTitre = (d) => d.etat === 'MANQUANT' && d.raisonManquant
   ? d.raisonManquant
   : [d.formulaire, d.poste && `Poste ${d.poste}`, d.machine && `Machine ${d.machine}`, formaterDate(d.date)].filter(Boolean).join(' · ')
 const icone = (d) => d.categorie === 'QUALITE' ? 'pi pi-sitemap' : d.typeCode === 'REGISTRE_TRACA' ? 'pi pi-list' : 'pi pi-check-square'
 
-// Plans qualité appliqués d'abord, puis les documents remplis dans l'ordre de l'OF.
+// Documents externes : nom du fichier déposé (ou attendu), raison quand il manque.
+const titreCarte = (c) => c.nomFichier ?? c.typeLibelle
+const sousTitreCarte = (c) => c.etat === 'MANQUANT'
+  ? c.raisonManquant
+  : `Déposé le ${formaterDate(c.deposeLe)}${c.deposeParNom ? ` par ${c.deposeParNom}` : ''}`
+const etatExterne = (c) => c.etat === 'MANQUANT' ? 'manquant' : 'disponible'
+const manquantsDe = (cartes) => cartes.filter(c => c.etat === 'MANQUANT').length
+
+const externes = computed(() => resultat.value?.externes ?? { fournisseurs: [], clients: [], produitFini: [] })
+
+// Plans qualité appliqués d'abord, puis les documents remplis dans l'ordre de l'OF ; le produit fini reçoit son plan de
+// définition et son rapport de contrôle rapide (documents externes).
 const operations = computed(() => {
   const documents = resultat.value?.documents ?? []
-  const parOperation = (code) => documents.filter(d => d.operation === code)
-  const connues = OPERATIONS.map(o => ({
-    ...o,
-    libelle: documents.find(d => d.operation === o.code)?.operationLibelle ?? o.libelle,
-    documents: parOperation(o.code)
-  }))
+  const produitFini = externes.value.produitFini
+  const connues = OPERATIONS
+    .map(o => ({
+      ...o,
+      libelle: documents.find(d => d.operation === o.code)?.operationLibelle ?? o.libelle,
+      documents: documents.filter(d => d.operation === o.code),
+      externes: o.code === 'PF' ? produitFini : []
+    }))
+    // La rubrique produit fini n'existe que pour un OF de produit fini.
+    .filter(o => o.code !== 'PF' || o.documents.length || o.externes.length)
   const autres = documents.filter(d => !OPERATIONS.some(o => o.code === d.operation))
-  return autres.length ? [...connues, { code: 'AUTRES', libelle: 'Autres documents', couleur: 'bg-slate-400', documents: autres }] : connues
+  return autres.length ? [...connues, { code: 'AUTRES', libelle: 'Autres documents', couleur: 'bg-slate-400', documents: autres, externes: [] }] : connues
 })
-// État donné par le serveur : disponible (son PDF peut être produit) ou manquant (pas de modèle, ou document sans fiche
-// remplie dans l'OF), avec la raison.
+// État donné par le serveur : disponible (son PDF peut être produit, ou consultable) ou manquant, avec la raison.
 const etatCarte = (d) => d.etat === 'MANQUANT' ? 'manquant' : 'disponible'
-const manquants = computed(() => (resultat.value?.documents ?? []).filter(d => d.etat === 'MANQUANT').length)
+
+const toutesLesCartes = computed(() => [
+  ...(resultat.value?.documents ?? []),
+  ...externes.value.fournisseurs.flatMap(l => l.documents),
+  ...externes.value.clients.flatMap(b => b.documents),
+  ...externes.value.produitFini
+])
+const compteurs = computed(() => ({
+  manquants: toutesLesCartes.value.filter(d => d.etat === 'MANQUANT').length,
+  disponibles: toutesLesCartes.value.filter(d => d.etat !== 'MANQUANT').length
+}))
+
+const ouvrirExterne = async (c) => {
+  if (!c.documentId) {
+    externeManquant.value = c
+    return
+  }
+  try {
+    await ouvrirPdf(() => documentsExternesService.fichier(c.documentId), c.nomFichier)
+  } catch (e) {
+    erreur.value = e.message
+  }
+}
 
 const tracer = async () => {
   const numero = recherche.value.trim()
@@ -414,7 +349,8 @@ const tracer = async () => {
   resultat.value = null
   try {
     resultat.value = await rapportsService.getTracabilite(numero)
-    for (const o of operations.value) ouvertes[o.code] = o.documents.length > 0
+    for (const o of operations.value) ouvertes[o.code] = o.documents.length + o.externes.length > 0
+    for (const lot of externes.value.fournisseurs) ouvertes[cleLot(lot)] = true
     router.replace({ query: { of: numero } })
   } catch (e) {
     erreur.value = e.message

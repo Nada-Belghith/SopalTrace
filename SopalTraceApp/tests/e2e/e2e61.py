@@ -51,7 +51,8 @@ check("l'administrateur liste les comptes (recherche)", st == 200 and r['total']
 st, r, _ = call('GET', '/admin/roles', tok=admin)
 check('rôles lus dans AppRole', st == 200 and {x['code'] for x in r} >= {'ADMIN', 'OPERATEUR', 'MAGASINIER'}, (st, r))
 st, r, _ = call('GET', '/admin/dashboard', tok=admin)
-check('tableau de bord : compteurs réels', st == 200 and r['totalAccounts'] == 7 and r['activeAccounts'] == 7
+# 12 comptes de test (comptes_e2e.sql), dont les quatre services de dépôt et un responsable DI.
+check('tableau de bord : compteurs réels', st == 200 and r['totalAccounts'] == 12 and r['activeAccounts'] == 12
       and r['pendingApprovalAccounts'] == 0 and r['usersWithOpenSession'] >= 2, (st, r))
 
 # ── Changement de rôle : effet immédiat ──

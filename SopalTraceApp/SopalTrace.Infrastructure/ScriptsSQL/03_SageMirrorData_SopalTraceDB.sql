@@ -207,7 +207,11 @@ INSERT INTO dbo.AUTILIS (USR_0, INTUSR_0, ENAFLG_0, CODMET_0, ADDEML_0) VALUES
 ('44444', 'Superviseur Test', 2, 'SUPERVISEUR_QUALITE', 'imen.belghith@enis.tn'),
 ('66666', 'Admin Doc', 2, 'ADMIN', 'nada.belghith@enis.tn'),
 ('11112', 'Superviseur Prod 1', 2, 'SUPERVISEUR_PROD', NULL),
-('22223', 'Manager Prod 1', 2, 'MANAGER_PROD', NULL);
+('22223', 'Manager Prod 1', 2, 'MANAGER_PROD', NULL),
+('88881', 'Achats Test', 2, 'SERVICE_ACHATS', 'achats@s.com'),
+('88882', 'Commercial Test', 2, 'SERVICE_COMMERCIAL', 'commercial@s.com'),
+('88883', 'Qualite Reception Test', 2, 'SERVICE_QUALITE', 'qualite.reception@s.com'),
+('88884', 'Developpement Industriel Test', 2, 'SERVICE_DI', 'di@s.com');
 
 INSERT INTO dbo.ATEXTRA (CODFIC_0, ZONE_0, IDENT1_0, LANGUE_0, TEXTE_0) VALUES
 ('AUTILIS', 'INTUSR', '11111', 'FRA', 'Nada Belghith'),
@@ -277,7 +281,23 @@ INSERT INTO dbo.Article (CodeArticle, Designation, NatureArticleCode, TypeArticl
 -- =================================================================================
 -- Bons de livraison (copie de la table Sage SDELIVERY) pour l'expédition magasin
 -- =================================================================================
-INSERT INTO dbo.SDELIVERY (NumeroBL, CodeClient, DateExpedition, StatutBL) VALUES
-('BL2607001', 'CLI-STEG', CAST(GETDATE() AS DATE), 'OUVERT'),
-('BL2607002', 'CLI-SNDP', CAST(GETDATE() AS DATE), 'OUVERT');
+-- Commandes clients (copie de la table Sage SORDER) : commandes ouvertes créées par le commercial, avec la référence
+-- de commande du client (saisie libre dans Sage). Une commande peut être livrée sur plusieurs BL.
+INSERT INTO dbo.SORDER (NumeroCommande, CodeClient, DateCommande, ReferenceCommandeClient) VALUES
+('SOPCOV-2607001', 'CLI-STEG', DATEADD(DAY, -20, CAST(GETDATE() AS DATE)), '9400108469'),
+('SOPCOV-2607002', 'CLI-SNDP', DATEADD(DAY, -15, CAST(GETDATE() AS DATE)), 'OA 044803'),
+('SOPCOV-2607003', 'CLI-STEG', DATEADD(DAY, -5, CAST(GETDATE() AS DATE)), 'marché 11/2025'),
+('SOPCOV-2607004', 'CLI-SNDP', DATEADD(DAY, -2, CAST(GETDATE() AS DATE)), NULL);
+
+INSERT INTO dbo.SDELIVERY (NumeroBL, CodeClient, DateExpedition, StatutBL, NumeroCommande) VALUES
+('BL2607001', 'CLI-STEG', CAST(GETDATE() AS DATE), 'OUVERT', 'SOPCOV-2607001'),
+('BL2607002', 'CLI-SNDP', CAST(GETDATE() AS DATE), 'OUVERT', 'SOPCOV-2607002'),
+('BL2607003', 'CLI-STEG', CAST(GETDATE() AS DATE), 'OUVERT', 'SOPCOV-2607001'),
+('BL2607004', 'CLI-SNDP', CAST(GETDATE() AS DATE), 'OUVERT', 'SOPCOV-2607004');
+
+-- Commandes fournisseurs (copie de la table Sage PORDER) : composants et matières reçus.
+INSERT INTO dbo.PORDER (NumeroCommande, CodeFournisseur, DateCommande) VALUES
+('CF2607001', 'FRS-LAITON', DATEADD(DAY, -40, CAST(GETDATE() AS DATE))),
+('CF2607002', 'FRS-JOINTS', DATEADD(DAY, -30, CAST(GETDATE() AS DATE))),
+('CF2607003', 'FRS-RESSORTS', DATEADD(DAY, -25, CAST(GETDATE() AS DATE)));
 GO

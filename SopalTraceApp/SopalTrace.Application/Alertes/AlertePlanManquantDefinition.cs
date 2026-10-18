@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Constants;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -31,7 +32,7 @@ public class AlertePlanManquantDefinition : IAlerteDefinition<PlanManquantContex
         {
             return await _unitOfWork.UserRepository.GetEmailsByRoleAsync("SUPERVISEUR_QUALITE");
         }
-        return await _unitOfWork.UserRepository.GetEmailsByRoleAsync("RESPONSABLE_DI");
+        return await _unitOfWork.UserRepository.GetEmailsByRoleAsync(RolesApp.ResponsableDI);
     }
 
     public string ConstruireSujet(PlanManquantContexte contexte)

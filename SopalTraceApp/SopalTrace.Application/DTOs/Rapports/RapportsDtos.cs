@@ -286,6 +286,8 @@ public class TracabiliteOfDto
 {
     public string NumeroOf { get; set; } = "";
     public List<SourceDocumentDto> Documents { get; set; } = new();
+    /// <summary>Documents externes de l'OF (fournisseurs, clients, produit fini), retrouvés en cascade.</summary>
+    public SopalTrace.Application.DTOs.DocumentsExternes.DossierExterneOfDto Externes { get; set; } = new();
 }
 
 /// <summary>Fichier à télécharger.</summary>

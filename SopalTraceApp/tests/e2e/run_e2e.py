@@ -36,7 +36,7 @@ PORT = re.search(r':(\d+)/', BASE).group(1)
 # Chaque groupe part d'une base neuve : les suites d'un même groupe partagent les OF de démonstration.
 GROUPES = [
     ['e2e41', 'e2e44', 'e2e45', 'e2e55'],
-    ['e2e43'], ['e2e42'], ['e2e40'], ['e2e52'], ['e2e54'], ['e2e60'], ['e2e61'], ['e2e62'], ['e2e63'], ['e2e64'], ['e2e65'], ['e2e66'], ['e2e67'],
+    ['e2e43'], ['e2e42'], ['e2e40'], ['e2e52'], ['e2e54'], ['e2e60'], ['e2e61'], ['e2e62'], ['e2e63'], ['e2e64'], ['e2e65'], ['e2e66'], ['e2e67'], ['e2e68'],
 ]
 
 

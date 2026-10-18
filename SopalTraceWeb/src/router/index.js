@@ -2,6 +2,21 @@ import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import { useAuthStore } from '@/stores/authStore'
 
+// Page d'accueil de chaque rôle (après connexion, ou quand une page n'est pas accessible).
+const ACCUEIL_PAR_ROLE = {
+  ADMIN: 'admin-dashboard',
+  MAGASINIER: 'magasinier-scan-of',
+  SUPERVISEUR_QUALITE: 'superviseur-dashboard',
+  OPERATEUR: 'operateur-of-semi-fini',
+  RESPONSABLE_QUALITE: 'qualite-tracabilite-totale',
+  SERVICE_ACHATS: 'documents-externes-depot',
+  SERVICE_COMMERCIAL: 'documents-externes-depot',
+  SERVICE_QUALITE: 'documents-externes-depot',
+  SERVICE_DI: 'documents-externes-depot'
+}
+const accueil = (role) => ACCUEIL_PAR_ROLE[role] ?? 'dev-hub'
+const ROLES_DEPOT_DOCUMENTS = ['SERVICE_ACHATS', 'SERVICE_COMMERCIAL', 'SERVICE_QUALITE', 'SERVICE_DI']
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -31,15 +46,7 @@ const router = createRouter({
     },
     {
       path: '/',
-      redirect: to => {
-        const authStore = useAuthStore();
-        if (authStore.userRole === 'ADMIN') return { name: 'admin-dashboard' };
-        if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
-        if (authStore.userRole === 'SUPERVISEUR_QUALITE') return { name: 'superviseur-dashboard' };
-        if (authStore.userRole === 'OPERATEUR') return { name: 'operateur-of-semi-fini' };
-        if (authStore.userRole === 'RESPONSABLE_QUALITE') return { name: 'qualite-tracabilite-totale' };
-        return { name: 'dev-hub' };
-      }
+      redirect: () => ({ name: accueil(useAuthStore().userRole) })
     },
     {
       path: '/dev',
@@ -84,7 +91,7 @@ const router = createRouter({
           path: 'ass/nouveau',
           name: 'dev-ass-create',
           component: () => import('@/views/QualityPlans/Assemblage/AssPlanEditor.vue'),
-          meta: { roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] }
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'ass/editer/:id',
@@ -132,6 +139,7 @@ const router = createRouter({
           path: 'fab/plans/nouveau',
           name: 'dev-fab-plan-create',
           component: () => import('@/views/QualityPlans/Fabrication/FabPlanEditor.vue'),
+          meta: { roles: ['ADMIN', 'RESPONSABLE_DI'] }
         },
         {
           path: 'fab/plans/editer/:id',
@@ -152,6 +160,7 @@ const router = createRouter({
           path: 'produit-fini/nouveau',
           name: 'dev-pf-create',
           component: () => import('@/views/QualityPlans/DocumentProduitFini/DocumentProduitFiniEditor.vue'),
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'produit-fini/editer/:id',
@@ -164,6 +173,7 @@ const router = createRouter({
           path: 'verif-machine/nouveau',
           name: 'dev-vm-create',
           component: () => import('@/views/QualityPlans/VerifMachine/VerificationMachineEditor.vue'),
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'verif-machine/editer/:id',
@@ -176,6 +186,7 @@ const router = createRouter({
           path: 'resultat-controle/nouveau',
           name: 'dev-rc-create',
           component: () => import('@/views/QualityPlans/DocumentControlePoste/DocumentControlePosteEditor.vue'),
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'resultat-controle/editer/:id',
@@ -188,6 +199,7 @@ const router = createRouter({
           path: 'resultat-controle-cf/nouveau',
           name: 'dev-rccf-create',
           component: () => import('@/views/QualityPlans/ResultatControleCF/RccfModeleEditor.vue'),
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'resultat-controle-cf/editer/:id',
@@ -200,6 +212,7 @@ const router = createRouter({
           path: 'echantillonnage/nouveau',
           name: 'dev-ech-create',
           component: () => import('@/views/QualityPlans/Echantillonnage/DocumentEchantillonnageEditor.vue'),
+          meta: { roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] }
         },
         {
           path: 'echantillonnage/editer/:id',
@@ -290,7 +303,8 @@ const router = createRouter({
       path: '/superviseur',
       name: 'superviseur-root',
       component: MainLayout,
-      meta: { requiresAuth: true, roles: ['ADMIN', 'SUPERVISEUR_QUALITE'] },
+      // Tableau de bord des documents : superviseur qualité, responsable DI (rubrique « Analyses ») et administrateur.
+      meta: { requiresAuth: true, roles: ['ADMIN', 'SUPERVISEUR_QUALITE', 'RESPONSABLE_DI'] },
       children: [
         {
           path: 'dashboard',
@@ -306,9 +320,11 @@ const router = createRouter({
       meta: { requiresAuth: true, roles: ['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'] },
       children: [
         {
+          // Dossier documentaire d'un OF (documents internes et externes) : responsable qualité seulement.
           path: 'tracabilite',
           name: 'qualite-tracabilite-totale',
-          component: () => import('@/views/Qualite/TracabiliteTotaleView.vue')
+          component: () => import('@/views/Qualite/TracabiliteTotaleView.vue'),
+          meta: { roles: ['RESPONSABLE_QUALITE'] }
         },
         {
           path: 'formulaires',
@@ -322,6 +338,20 @@ const router = createRouter({
           component: () => import('@/views/Qualite/ModelesDocumentsView.vue'),
           // Le superviseur qualité définit les formulaires, l'administrateur leur rattache les modèles Excel.
           meta: { roles: ['ADMIN'] }
+        }
+      ]
+    },
+    {
+      // Dépôt des documents externes par les services (achats, commercial, qualité, développement industriel).
+      path: '/documents-externes',
+      name: 'documents-externes-root',
+      component: MainLayout,
+      meta: { requiresAuth: true, roles: ROLES_DEPOT_DOCUMENTS },
+      children: [
+        {
+          path: 'depot',
+          name: 'documents-externes-depot',
+          component: () => import('@/views/DocumentsExternes/DepotDocumentsExternesView.vue')
         }
       ]
     }
@@ -339,24 +369,13 @@ router.beforeEach(async (to, from) => {
   }
 
   if (to.name === 'login' && authStore.isAuthenticated) {
-    if (authStore.userRole === 'ADMIN') return { name: 'admin-dashboard' };
-    if (authStore.userRole === 'MAGASINIER') return { name: 'magasinier-scan-of' };
-    if (authStore.userRole === 'SUPERVISEUR_QUALITE') return { name: 'superviseur-dashboard' };
-    if (authStore.userRole === 'OPERATEUR') return { name: 'operateur-of-semi-fini' };
-    if (authStore.userRole === 'RESPONSABLE_QUALITE') return { name: 'qualite-tracabilite-totale' };
-    return { name: 'dev-hub' };
+    return { name: accueil(authStore.userRole) };
   }
 
   const requiredRoles = to.meta.roles;
   if (requiredRoles && !authStore.hasAccess(requiredRoles)) {
-    // PREVENT INFINITE REDIRECT: if we're already trying to go to the fallback, stop redirecting.
-    let fallbackRoute = 'dev-hub';
-    if (authStore.userRole === 'ADMIN') fallbackRoute = 'admin-dashboard';
-    else if (authStore.userRole === 'MAGASINIER') fallbackRoute = 'magasinier-scan-of';
-    else if (authStore.userRole === 'SUPERVISEUR_QUALITE') fallbackRoute = 'superviseur-dashboard';
-    else if (authStore.userRole === 'OPERATEUR') fallbackRoute = 'operateur-of-semi-fini';
-    else if (authStore.userRole === 'RESPONSABLE_QUALITE') fallbackRoute = 'qualite-tracabilite-totale';
-
+    // Pas de redirection en boucle : on s'arrête si l'on va déjà vers la page d'accueil du rôle.
+    const fallbackRoute = accueil(authStore.userRole);
     if (to.name !== fallbackRoute) {
       return { name: fallbackRoute };
     }

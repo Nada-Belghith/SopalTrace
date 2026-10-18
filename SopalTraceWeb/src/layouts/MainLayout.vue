@@ -253,7 +253,7 @@ const toggleMobileMenu = () => {
         </template>
 
         <!-- SECTION 3 : ANALYSES -->
-        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE' || authStore.isResponsable">
+        <template v-if="['SUPERVISEUR_QUALITE', 'RESPONSABLE_DI'].includes(authStore.userRole)">
           <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
             <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Analyses</p>
           </div>
@@ -272,7 +272,7 @@ const toggleMobileMenu = () => {
             <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Documents qualité</p>
           </div>
           <ul class="px-4 mb-6 space-y-2">
-            <li>
+            <li v-if="authStore.userRole === 'RESPONSABLE_QUALITE'">
               <router-link to="/qualite/tracabilite" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
                 <i class="pi pi-sitemap text-lg"></i> Traçabilité par OF
               </router-link>
@@ -285,6 +285,20 @@ const toggleMobileMenu = () => {
             <li v-if="authStore.userRole === 'ADMIN'">
               <router-link to="/qualite/modeles-documents" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
                 <i class="pi pi-file-excel text-lg"></i> Modèles Excel
+              </router-link>
+            </li>
+          </ul>
+        </template>
+
+        <!-- SECTION : DOCUMENTS EXTERNES (services achats, commercial, qualité, développement industriel) -->
+        <template v-if="['SERVICE_ACHATS', 'SERVICE_COMMERCIAL', 'SERVICE_QUALITE', 'SERVICE_DI'].includes(authStore.userRole)">
+          <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Documents externes</p>
+          </div>
+          <ul class="px-4 mb-6 space-y-2">
+            <li>
+              <router-link to="/documents-externes/depot" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-upload text-lg"></i> Déposer un document
               </router-link>
             </li>
           </ul>

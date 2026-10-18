@@ -179,10 +179,15 @@ public class RapportsController : ControllerBase
     public async Task<IActionResult> GetDocuments([FromQuery] string? categorie, [FromQuery] string? type, [FromQuery] string? recherche) =>
         Ok(new { success = true, data = await _generation.GetSourcesAsync(categorie, type, recherche) });
 
-    [Authorize(Roles = RolesConsultation)]
+    /// <summary>Dossier d'un OF : ses documents internes et ses documents externes. Réservé au responsable qualité.</summary>
+    [Authorize(Roles = RolesApp.ResponsableQualite)]
     [HttpGet("tracabilite/{numeroOf}")]
-    public async Task<IActionResult> GetTracabilite(string numeroOf) =>
-        Ok(new { success = true, data = await _generation.GetTracabiliteOfAsync(numeroOf) });
+    public async Task<IActionResult> GetTracabilite(string numeroOf, [FromServices] SopalTrace.Application.Services.IDocumentExterneService externes)
+    {
+        var dossier = await _generation.GetTracabiliteOfAsync(numeroOf);
+        dossier.Externes = await externes.GetDossierOfAsync(dossier.NumeroOf);
+        return Ok(new { success = true, data = dossier });
+    }
 
     [Authorize(Roles = RolesConsultation)]
     [HttpGet("documents/par-document/{documentId:guid}")]

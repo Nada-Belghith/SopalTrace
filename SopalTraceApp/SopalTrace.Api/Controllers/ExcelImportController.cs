@@ -32,24 +32,29 @@ public class ExcelImportController : ControllerBase
         _excelImportRccfService = excelImportRccfService;
     }
 
+    // Plans (fabrication pour le responsable DI ; produit fini, assemblage pour le superviseur qualité).
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("plan")]
     [RequestSizeLimit(TailleMaximaleOctets + 1024 * 1024)]
     public Task<IActionResult> ImportPlanExcel(IFormFile file, [FromForm] string? configurationColonnesJson = null)
         => ImporterAsync(file, csvAccepte: true,
             async flux => await _excelImportService.ParsePlanExcelAsync(flux, file.FileName, configurationColonnesJson));
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("verif-machine")]
     [RequestSizeLimit(TailleMaximaleOctets + 1024 * 1024)]
     public Task<IActionResult> ImportVerifMachineExcel(IFormFile file, [FromForm] string? configurationColonnesJson = null)
         => ImporterAsync(file, csvAccepte: false,
             async flux => await _excelImportService.ParseVerifMachineExcelAsync(flux, file.FileName, configurationColonnesJson));
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("controle-poste")]
     [RequestSizeLimit(TailleMaximaleOctets + 1024 * 1024)]
     public Task<IActionResult> ImportControlePosteExcel(IFormFile file, [FromForm] string? configurationColonnesJson = null)
         => ImporterAsync(file, csvAccepte: false,
             async flux => await _excelImportService.ParseControlePosteExcelAsync(flux, file.FileName, configurationColonnesJson));
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("rccf")]
     [RequestSizeLimit(TailleMaximaleOctets + 1024 * 1024)]
     public Task<IActionResult> ImportRccfExcel(IFormFile file)
