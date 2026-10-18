@@ -79,7 +79,8 @@ public class MagasinService : IMagasinService
             DateScan = DateTime.Now
         };
         _repository.AjouterLot(lot);
-        preparation.MagPreparationOfLots.Add(lot);
+        // EF rattache déjà le lot à la préparation suivie (même clé) : l'ajouter encore le compterait deux fois.
+        if (!preparation.MagPreparationOfLots.Contains(lot)) preparation.MagPreparationOfLots.Add(lot);
         await _repository.SaveChangesAsync();
 
         return new ScanPreparationDto(VersDto(of, preparation), besoin.CodeArticle, VersDto(lot));
