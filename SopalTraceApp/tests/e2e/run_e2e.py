@@ -47,12 +47,16 @@ def recreer_base():
     if racine_tmp:
         os.makedirs(racine_tmp, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=racine_tmp) as dossier:
+        # Avec SQL Server dans Docker, sqlcmd lit les scripts sous un autre utilisateur (mssql) : le dossier temporaire
+        # (créé en 0700) et ses fichiers doivent lui être lisibles.
+        os.chmod(dossier, 0o755)
         for nom in SCRIPTS + ['comptes_e2e.sql']:
             source = (SCRIPTS_SQL / nom) if nom in SCRIPTS else (ICI / nom)
             texte = source.read_text(encoding='utf-8-sig')
             texte = re.sub(r'\bSopalTraceDB\b', DB, texte)
             cible = Path(dossier) / nom
             cible.write_text(texte, encoding='utf-8')
+            os.chmod(cible, 0o644)
             base = 'master' if nom == SCRIPTS[0] else DB
             r = subprocess.run([*SQLCMD, '-d', base, '-b', '-f', '65001', '-i', str(cible)], capture_output=True, text=True)
             if r.returncode != 0:

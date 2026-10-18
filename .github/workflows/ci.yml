@@ -190,7 +190,11 @@ jobs:
 
       - name: Journaux en cas d'échec
         if: failure()
-        run: docker compose -f docker-compose.prod.yml logs --tail 200
+        # Sans .env (échec avant la configuration, ex. construction des images), compose ne peut pas lire le fichier :
+        # le message renvoie alors à l'étape qui a échoué au lieu de masquer son erreur.
+        run: |
+          if [ -f .env ]; then docker compose -f docker-compose.prod.yml logs --tail 200
+          else echo "Aucun conteneur démarré : voir l'étape en échec plus haut (construction des images ou configuration)."; fi
 
   # ───────────── Publication des images (main et versions) ─────────────
   publication:
