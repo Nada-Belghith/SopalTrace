@@ -112,6 +112,20 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Lecture et modification des classeurs Excel par les suites (modèles de rapport, imports).
+      - name: Dépendances Python des suites
+        run: pip install openpyxl
+
+      # Conversion PDF des documents générés (même version que docker-compose) ; l'API l'attend sur localhost:3000.
+      - name: Service de conversion PDF (Gotenberg)
+        run: |
+          docker run -d --name gotenberg -p 3000:3000 gotenberg/gotenberg:8.20.1
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:3000/health > /dev/null && exit 0
+            sleep 3
+          done
+          docker logs gotenberg; exit 1
+
       # Base éphémère : le dépôt est monté au même chemin pour que sqlcmd (dans le conteneur) lise les scripts.
       - name: SQL Server de recette
         run: |
