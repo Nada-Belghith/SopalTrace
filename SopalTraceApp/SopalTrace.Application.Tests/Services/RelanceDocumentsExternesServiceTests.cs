@@ -58,13 +58,33 @@ public class RelanceDocumentsExternesServiceTests
     }
 
     [Fact]
-    public async Task Relance_NumerosIncomplets_Refusee()
+    public async Task Relance_UnSeulNumeroConnu_EnvoyeeSansNomAttendu()
     {
-        // Certificat sans sa commande fournisseur (rapport non déposé) : il ne peut pas encore être désigné.
+        // Rapport de contrôle : seul son n° est connu (étiquette) ; la commande fournisseur est écrite dans le rapport.
+        _depot.Setup(d => d.GetTypesAsync()).ReturnsAsync(new List<ExternalDocumentType>
+        {
+            new()
+            {
+                Code = TypesDocumentExterne.RapportControle, Label = "Rapport de contrôle", UploadRole = RolesApp.ServiceQualite,
+                SharedFolder = "R", RequiresControlReportNumber = true, RequiresSupplierOrderNumber = true
+            }
+        });
+
+        await _service.RelancerAsync(new RelanceDocumentExterneRequest
+        {
+            TypeCode = TypesDocumentExterne.RapportControle, Numeros = new() { [ChampsDocumentExterne.NumeroRapport] = "61946" }
+        });
+
+        _email.Verify(e => e.EnvoyerAsync("q1@s.com", It.IsAny<string>(), It.Is<string>(c =>
+            c.Contains("<b>61946</b>") && !c.Contains("Nom attendu") && c.Contains("type=CONTROL_REPORT&amp;numeroRapport=61946")), true), Times.Once);
+    }
+
+    [Fact]
+    public async Task Relance_AucunNumero_Refusee()
+    {
         await Assert.ThrowsAsync<RegleMetierException>(() => _service.RelancerAsync(new RelanceDocumentExterneRequest
         {
-            TypeCode = TypesDocumentExterne.CertificatConformite,
-            Numeros = new() { [ChampsDocumentExterne.CodeArticle] = "ECROU-001" }
+            TypeCode = TypesDocumentExterne.CertificatConformite, Numeros = new() { [ChampsDocumentExterne.CodeArticle] = " " }
         }));
         _email.Verify(e => e.EnvoyerAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
     }

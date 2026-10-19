@@ -286,8 +286,8 @@ check('traçabilité : certificat non relançable tant que le rapport (qui donne
       certificat.get('etat') == 'MANQUANT' and certificat.get('numerosRelance') is None, certificat)
 check('relance : réservée au responsable qualité (403)', call(OP, 'POST', '/documents-externes/relances',
       {'typeCode': 'CONTROL_REPORT', 'numeros': {'numeroRapport': 'RC2607001'}})[0] == 403)
-st, r = call(RQ, 'POST', '/documents-externes/relances', {'typeCode': 'CONFORMITY_CERTIFICATE', 'numeros': {'codeArticle': '2903201-1'}})
-check('relance : document pas encore désignable refusé (400)', st == 400 and 'désigné' in json.dumps(r, ensure_ascii=False), (st, r))
+st, r = call(RQ, 'POST', '/documents-externes/relances', {'typeCode': 'CONFORMITY_CERTIFICATE', 'numeros': {}})
+check('relance : document sans aucun numéro connu refusé (400)', st == 400 and 'désigné' in json.dumps(r, ensure_ascii=False), (st, r))
 check('registre : à confirmer par E1', tache(avancement(of), 'TRACABILITE').get('etat') == 'A_FAIRE')
 st, r = call(OP, 'POST', f'/Operateur/tracabilite/{of}/confirmer?posteCode={POSTE}')
 check("registre : E1 confirme ses lots (tâche faite, registre toujours ouvert)", st == 200 and tache(avancement(of), 'TRACABILITE').get('etat') == 'FAIT'

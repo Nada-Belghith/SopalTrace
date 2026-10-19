@@ -42,15 +42,17 @@ public class RelanceDocumentsExternesService : IRelanceDocumentsExternesService
             ?? throw new RegleMetierException("Type de document externe inconnu.");
         var champs = DocumentExterneService.Champs(type);
         var numeros = (demande.Numeros ?? new()).ToDictionary(n => n.Key, n => n.Value?.Trim() ?? "");
-        // Seuls les numéros de ce type ; le nom (champs qui le forment) doit pouvoir être donné.
+        // Seuls les numéros de ce type. Il suffit d'en connaître un qui désigne le document : le service complète les
+        // autres en déposant (ex. rapport de contrôle : n° lu sur l'étiquette, la commande fournisseur est dans le rapport).
+        numeros = numeros.Where(n => n.Value.Length > 0).ToDictionary(n => n.Key, n => n.Value);
         if (numeros.Keys.Any(k => champs.All(c => c.Code != k)))
             throw new RegleMetierException("Numéro inattendu pour ce type de document.");
-        // Nom formé comme par la base : une référence client voit ses espaces et « / » remplacés par « _ ».
+        if (numeros.Count == 0)
+            throw new RegleMetierException("Ce document ne peut pas encore être désigné : aucun de ses numéros n'est connu.");
+        // Nom formé comme par la base (référence client : espaces et « / » remplacés par « _ ») quand tous ses numéros sont connus.
         var nomAttendu = champs.Where(c => c.DansLeNom)
             .Select(c => numeros.GetValueOrDefault(c.Code) is { } v && c.Format == FormatsChamp.Reference ? v.Replace(' ', '_').Replace('/', '_') : numeros.GetValueOrDefault(c.Code))
             .ToList();
-        if (nomAttendu.Any(string.IsNullOrEmpty))
-            throw new RegleMetierException("Ce document ne peut pas encore être désigné : ses numéros ne sont pas tous connus.");
 
         var destinataires = await _utilisateurs.GetEmailsByRoleAsync(type.UploadRole);
         var service = type.UploadRole;
@@ -61,7 +63,7 @@ public class RelanceDocumentsExternesService : IRelanceDocumentsExternesService
         var lignes = champs.Where(c => numeros.ContainsKey(c.Code))
             .Select(c => $"<li>{WebUtility.HtmlEncode(c.Libelle)} : <b>{WebUtility.HtmlEncode(numeros[c.Code])}</b></li>");
         // Un BL finit par la référence client reprise de sa commande Sage : son nom complet est donné au dépôt.
-        var nom = type.RequiresSalesOrderNumber ? null : string.Join("-", nomAttendu) + ".pdf";
+        var nom = type.RequiresSalesOrderNumber || nomAttendu.Any(string.IsNullOrEmpty) ? null : string.Join("-", nomAttendu) + ".pdf";
         var sujet = $"SopalTrace — document manquant : {type.Label}" + (demande.NumeroOf is { Length: > 0 } of ? $" (OF {of})" : "");
         var corps = $"""
             <p>Bonjour,</p>
