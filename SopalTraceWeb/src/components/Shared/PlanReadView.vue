@@ -7,9 +7,6 @@
         <i class="pi pi-eye text-blue-400"></i>
         Mode consultation — Vue Plan
       </span>
-      <button @click="imprimer" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm text-xs font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all">
-        <i class="pi pi-print text-slate-500"></i> Imprimer
-      </button>
     </div>
 
     <!-- ───────── TABLEAU ───────── -->
@@ -64,10 +61,10 @@
                   {{ resolveMoyenControle(ligne) }}
                 </template>
                 <template v-else-if="col.key === 'code_instrument'">
-                  {{ ligne.instrumentCode || '—' }}
+                  {{ ligne.instrumentCode || ligne.InstrumentCode || '—' }}
                 </template>
                 <template v-else-if="col.key === 'observations'">
-                  <span class="italic text-slate-600">{{ ligne.observations || '' }}</span>
+                  <span class="italic text-slate-600">{{ ligne.observations || ligne.Observations || '' }}</span>
                 </template>
               </td>
             </tr>
@@ -110,8 +107,9 @@
 </template>
 
 <script setup>
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { computed } from 'vue';
-import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
+import { titreSection } from '@/utils/sectionTitleUtils';
 
 const props = defineProps({
   sections:       { type: Array,  default: () => [] },
@@ -124,7 +122,6 @@ const props = defineProps({
   typesControle:       { type: Array, default: () => [] },
   moyensControle:      { type: Array, default: () => [] },
   periodicites:        { type: Array, default: () => [] },
-  reglesEchantillonnage: { type: Array, default: () => [] },
 });
 
 // ─── Colonnes Dynamiques ───
@@ -140,16 +137,16 @@ const baseModeleColumns = [
 const computedColumns = computed(() => {
   let cols = [...baseModeleColumns];
   let customCols = [];
-  
+
   if (typeof props.configurationColonnes === 'string') {
     try { customCols = JSON.parse(props.configurationColonnes); } catch { /* ignore */ }
   } else {
     customCols = props.configurationColonnes || [];
   }
-  
+
   customCols.forEach(cc => {
     const insertIdx = cols.findIndex(c => c.key === cc.insertAfter);
-    const newCol = { key: cc.key, label: cc.label, width: 'w-[12%]', isCustom: true };
+    const newCol = { key: cc.key, label: cc.label, type: normaliserTypeColonne(cc.type), options: cc.options || [], width: 'w-[12%]', isCustom: true };
     if (insertIdx !== -1) {
       cols.splice(insertIdx + 1, 0, newCol);
     } else {
@@ -172,107 +169,42 @@ function resolveCustomValue(ligne, colKey) {
 
 // ─── Résolution des libellés ───
 
-function buildFreqLabel(section) {
-  // Si frequenceLibelle est directement disponible, on l'utilise
-  if (section.frequenceLibelle) return section.frequenceLibelle;
-  
-  if (section.regleEchantillonnageId && props.reglesEchantillonnage) {
-    const regle = props.reglesEchantillonnage.find(r => r.id === section.regleEchantillonnageId);
-    if (regle) return regle.libelle;
-  }
-  
-  if (section.regleEchantillonnageLibelle) return section.regleEchantillonnageLibelle;
-
-  // Sinon on reconstruit depuis les champs parsés
-  if (section.modeFreq === 'VARIABLE') {
-    const freqNum = section.freqNum || 1;
-    const sP = freqNum > 1 ? 's' : '';
-    if (section.typeVariable === 'HEURE') {
-      const h = section.freqHours || 1;
-      const sH = h > 1 ? 's' : '';
-      return h === 1 ? `${freqNum} pièce${sP} / heure` : `${freqNum} pièce${sP} / ${h} heure${sH}`;
-    }
-    if (section.typeVariable === 'ECHANTILLON') return `${freqNum} échantillon${sP}`;
-    return `une série de ${freqNum} pièces`;
-  }
-
-  if (section.modeFreq === 'FIXE' && section.periodiciteId) {
-    const period = (props.periodicites || []).find(p => {
-      const pId = p.id || p.Id;
-      return pId && typeof pId === 'string' && typeof section.periodiciteId === 'string' && pId.toLowerCase() === section.periodiciteId.toLowerCase();
-    });
-    if (period) return period.libelle || period.Libelle;
-  }
-
-  // Chercher dans periodicites par periodiciteId même sans modeFreq=FIXE
-  if (section.periodiciteId) {
-    const period = (props.periodicites || []).find(p => {
-      const pId = p.id || p.Id;
-      return pId && typeof pId === 'string' && typeof section.periodiciteId === 'string' && pId.toLowerCase() === section.periodiciteId.toLowerCase();
-    });
-    if (period) return period.libelle || period.Libelle;
-  }
-
-  return '';
-}
-
 function buildSectionTitle(section) {
-  const freqLabel = buildFreqLabel(section);
-  // On enrichit la section avec le frequenceLibelle calculé pour que resolveSectionDisplayTitle l'utilise
-  const enrichedSection = freqLabel
-    ? { ...section, frequenceLibelle: freqLabel }
-    : section;
-  return resolveSectionDisplayTitle(enrichedSection, props.typesSection);
+  return titreSection(section, props.typesSection, props.periodicites);
 }
 
 function resolveLibelle(ligne) {
-  if (ligne.libelleAffiche) return ligne.libelleAffiche;
-  const tc = props.typesCaracteristique.find(t => t.id === ligne.typeCaracteristiqueId);
-  return tc ? tc.libelle : '—';
+  const lib = ligne.libelleAffiche || ligne.LibelleAffiche;
+  if (lib) return lib;
+  const idToMatch = ligne.typeCaracteristiqueId || ligne.TypeCaracteristiqueId;
+  if (!idToMatch) return '—';
+  const tc = props.typesCaracteristique.find(t => {
+    const tid = t.id || t.Id;
+    return tid && String(tid).toLowerCase() === String(idToMatch).toLowerCase();
+  });
+  return tc ? (tc.libelle || tc.Libelle || '—') : '—';
 }
 
 function resolveTypeControle(ligne) {
-  const tc = props.typesControle.find(t => t.id === ligne.typeControleId);
-  return tc ? tc.libelle : '—';
+  const idToMatch = ligne.typeControleId || ligne.TypeControleId;
+  if (!idToMatch) return '—';
+  const tc = props.typesControle.find(t => {
+    const tid = t.id || t.Id;
+    return tid && String(tid).toLowerCase() === String(idToMatch).toLowerCase();
+  });
+  return tc ? (tc.libelle || tc.Libelle || tc.code || tc.Code || '—') : '—';
 }
 
 function resolveMoyenControle(ligne) {
-  if (ligne.moyenTexteLibre) return ligne.moyenTexteLibre;
-  const mc = props.moyensControle.find(m => m.id === ligne.moyenControleId);
-  return mc ? mc.libelle : '—';
+  const textLibre = ligne.moyenTexteLibre || ligne.MoyenTexteLibre;
+  if (textLibre) return textLibre;
+  const idToMatch = ligne.moyenControleId || ligne.MoyenControleId;
+  if (!idToMatch) return '—';
+  const mc = props.moyensControle.find(m => {
+    const mid = m.id || m.Id;
+    return mid && String(mid).toLowerCase() === String(idToMatch).toLowerCase();
+  });
+  return mc ? (mc.libelle || mc.Libelle || mc.code || mc.Code || '—') : '—';
 }
 
-// ─── Impression ───
-function imprimer() {
-  const zone = document.getElementById('plan-print-zone');
-  if (!zone) return;
-
-  const remarquesHtml = [
-    props.remarques ? `<p style="font-size:10px;margin-top:6px"><strong>Notes :</strong> ${props.remarques}</p>` : '',
-    props.legendeMoyens ? `<p style="font-size:10px;margin-top:4px"><strong>Légende :</strong> ${props.legendeMoyens}</p>` : ''
-  ].join('');
-
-  const w = window.open('', '_blank');
-  w.document.write(`
-    <html><head>
-      <title>Plan Qualité</title>
-      <style>
-        * { margin:0; padding:0; box-sizing:border-box; font-family: Arial, sans-serif; }
-        body { padding: 20px; font-size: 11px; }
-        table { width:100%; border-collapse:collapse; }
-        th, td { border: 1px solid #333; padding: 5px 8px; }
-        thead tr th { background:#1e3a5f; color:white; text-align:center; font-weight:bold; }
-        .section-row td { background:#dbeafe; font-weight:bold; text-align:center; font-size:12px; color:#1e3a5f; border-top: 2px solid #1e3a5f; }
-        .section-notes-row td { background:#f0f7ff; font-style:italic; text-align:center; font-size:11px; color:#1e5aad; }
-        tr:nth-child(even) td { background:#f8fafc; }
-        .section-row:nth-child(even) td { background:#dbeafe !important; }
-      </style>
-    </head><body>
-      ${zone.innerHTML}
-      ${remarquesHtml ? `<hr style="margin:10px 0;border-color:#ccc"/>${remarquesHtml}` : ''}
-    </body></html>
-  `);
-  w.document.close();
-  setTimeout(() => w.print(), 300);
-}
 </script>

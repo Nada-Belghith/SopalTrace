@@ -13,10 +13,14 @@ public class ColonneJsonDto
     public string Type { get; set; } = string.Empty;
     public string? InsertAfter { get; set; }
     public string? TargetTable { get; set; }
+    /// <summary>Valeurs proposées (colonne de type LIST).</summary>
+    public List<string> Options { get; set; } = new List<string>();
 }
 
 public class EquipeJsonDto
 {
+    /// <summary>Code de l'équipe (E1, E2…) choisi par le superviseur ; à défaut, Nième équipe = EN.</summary>
+    public string? Code { get; set; }
     public string Nom { get; set; } = string.Empty;
     public int Debut { get; set; }
     public int Fin { get; set; }
@@ -38,6 +42,7 @@ public static class ColonneJsonMapper
         {
             root.Equipes = equipes.Where(e => e.Actif).OrderBy(e => e.OrdreAffiche).Select(e => new EquipeJsonDto
             {
+                Code = e.TeamCode,
                 Nom = e.NomEquipe,
                 Debut = e.HeureDebut,
                 Fin = e.HeureFin
@@ -52,7 +57,8 @@ public static class ColonneJsonMapper
                 Label = c.LabelAffiche,
                 Type = c.TypeValeur,
                 InsertAfter = c.InsertAfter,
-                TargetTable = c.TargetTable
+                TargetTable = c.TargetTable,
+                Options = c.ColumnAllowedValues.Where(v => v.Active).OrderBy(v => v.DisplayOrder).Select(v => v.Value).ToList()
             }).ToList();
         }
 
@@ -99,4 +105,18 @@ public static class ColonneJsonMapper
     {
         return DeserializeRoot(json).CustomCols;
     }
+
+    /// <summary>
+    /// Empreinte de la configuration des colonnes propres (clé, libellé, type, position, tableau, valeurs proposées),
+    /// indépendante de l'ordre d'envoi : deux configurations identiques ont la même empreinte. Les colonnes sans clé ou
+    /// sans libellé ne sont pas enregistrées et sont ignorées.
+    /// </summary>
+    public static string SignatureColonnes(IEnumerable<ColonneJsonDto> colonnes) => string.Join("\n", colonnes
+        .Where(c => !string.IsNullOrWhiteSpace(c.Key) && !string.IsNullOrWhiteSpace(c.Label))
+        .OrderBy(c => c.Key, StringComparer.OrdinalIgnoreCase)
+        .Select(c => string.Join("|", c.Key.Trim().ToUpperInvariant(), c.Label.Trim(), SopalTrace.Domain.Constants.TypesValeurColonne.Normaliser(c.Type),
+            c.InsertAfter?.Trim() ?? "", c.TargetTable?.Trim() ?? "", string.Join(";", c.Options.Select(o => o.Trim())))));
+
+    public static string SignatureColonnes(IEnumerable<RefFormulaireColonneDef> colonnes) =>
+        SignatureColonnes(Deserialize(Serialize(colonnes)));
 }

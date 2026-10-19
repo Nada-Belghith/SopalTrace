@@ -2,6 +2,9 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { documentService as assPlanService } from '@/services/documentService';
 import { referentielsService } from '@/services/referentielsService';
+import { mapSectionForBackend, mapImportedSection } from '@/utils/sectionUtils';
+import { useReferentielStore } from './referentielStore';
+import { verifierImportExcel } from '@/utils/importExcelResultat';
 
 export const useAssPlanStore = defineStore('assPlan', () => {
   // --- DICTIONNAIRES ---
@@ -12,7 +15,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   const typesControle = ref([]);
   const moyensControle = ref([]);
   const periodicites = ref([]);
-  const reglesEchantillonnage = ref([]); // Ajouté pour les règles ISO
   const typesSection = ref([]);
   const instruments = ref([]);
   const postes = ref([]);
@@ -32,7 +34,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     legendeMoyens: '',
     posteCode: '',
     familleProduitCode: '',
-    versionInitiale: null,
     refFormulaireCodeReference: ''  // Code du formulaire ref sélectionné (ex: FE-ASS-PISTON)
   });
 
@@ -54,8 +55,8 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   // --- ACTIONS ---
   const fetchDictionnaires = async () => {
     try {
-      const response = await referentielsService.getDictionnaires();
-      const data = response.data.data;
+      const response = await referentielsService.getDictionnairesFabrication();
+      const data = response.data.data || response.data;
 
       operations.value = data.operations || [];
       typesRobinet.value = data.typesRobinet || [];
@@ -64,7 +65,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
       typesControle.value = data.typesControle || [];
       moyensControle.value = data.moyensControle || [];
       periodicites.value = data.periodicites || [];
-      reglesEchantillonnage.value = data.reglesEchantillonnage || []; // Récupération depuis le backend
       typesSection.value = data.typesSection || data.typesSections || [];
       instruments.value = data.instruments || [];
       postes.value = data.postes || [];
@@ -97,7 +97,6 @@ export const useAssPlanStore = defineStore('assPlan', () => {
       ordreAffiche: sections.value.length + 1,
       typeSectionId: '',
       periodiciteId: null,
-      regleEchantillonnageId: null, // Ajouté pour la règle d'échantillonnage
       libelleSection: '',
       frequenceLibelle: '',
       notes: '',
@@ -139,61 +138,38 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     }
   };
 
+  const refStore = useReferentielStore();
+
   const mapPayload = (legendeMoyens = '') => ({
+    id: entete.value.id || undefined,
+    // Version reçue au chargement : refus 409 si le plan a été modifié entre-temps
+    rowVersion: entete.value.rowVersion,
+    typeDocumentCode: 'PLAN_ASS',
     nom: entete.value.code || codePlanAuto.value,
-    designation: entete.value.libelle || `Modèle ${codePlanAuto.value} V${version.value}`,
-    libre1: entete.value.typeRobinetCode || null,
+    designation: entete.value.libelle || `Plan d'assemblage ${codePlanAuto.value} V${version.value}`,
     natureArticleCode: entete.value.natureComposantCode || '',
     operationCode: entete.value.operationCode || '',
     posteCode: entete.value.posteCode || null,
     familleProduitFiniCode: (entete.value.natureComposantCode?.trim().toUpperCase() === 'PISTON') ? null : (entete.value.familleProduitCode || null),
     remarques: entete.value.notes || "",
     legendeMoyens: legendeMoyens || '',
-    versionInitiale: entete.value.versionInitiale,
     colonneDefs: entete.value.configurationColonnes || [],
     refFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
-    sections: sections.value.map(s => ({
-      ordreAffiche: s.ordreAffiche,
-      typeSectionId: s.typeSectionId,
-      periodiciteId: s.periodiciteId,
-      regleEchantillonnageId: s.regleEchantillonnageId, // Ajouté ici
-      libelleSection: s.libelleSection || 'SECTION SANS NOM',
-      frequenceLibelle: s.frequenceLibelle,
-      notes: s.notes,
-      lignes: s.lignes.map(l => ({
-        ordreAffiche: l.ordreAffiche,
-        typeCaracteristiqueId: l.typeCaracteristiqueId,
-        libelleAffiche: l.libelleAffiche,
-        typeControleId: l.typeControleId,
-        moyenControleId: l.moyenControleId,
-        instrumentCode: l.instrumentCode,
-        periodiciteId: l.periodiciteId,
-        instruction: l.instruction,
-        observations: l.observations,
-        estCritique: l.estCritique,
-        unite: l.unite || '',
-        limiteSpecTexte: l.limiteSpecTexte || null,
-        extraColonnes: Object.entries(l.valeursColonnesSpecifiques || {}).map(([k, v], idx) => ({
-          cleColonne: k,
-          valeurColonne: v ? String(v) : null,
-          ordreAffiche: idx + 1
-        }))
-      }))
-    }))
+    sections: sections.value.map((s, sIdx) => mapSectionForBackend(s, sIdx, refStore.periodicites))
   });
 
   const savePlan = async (legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await assPlanService.createPlan(payload);
-      return res.data; // Return the whole data which includes PlanId and version
+      const res = await assPlanService.createDocument(payload);
+      return res.data || res;
     } finally {
       isLoading.value = false;
     }
   };
 
-  const creerNouvelleVersion = async (id, motif, legendeMoyens = '') => {
+  const createNewVersion = async (id, motif, legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = {
@@ -202,19 +178,21 @@ export const useAssPlanStore = defineStore('assPlan', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await assPlanService.newPlanVersion(payload);
-      return res.data; // Return full data with PlanId and version
+      const res = await assPlanService.createNewVersion(payload.ancienId, payload);
+      return res.data || res;
     } finally {
       isLoading.value = false;
     }
   };
+  const creerNouvelleVersion = createNewVersion;
 
   const updatePlan = async (id, legendeMoyens = '') => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await assPlanService.updatePlanValeurs(id, payload);
+      const res = await assPlanService.updateDocument(id, payload);
+      entete.value.rowVersion = res?.rowVersion ?? res?.data?.rowVersion ?? entete.value.rowVersion;
       return res.data;
     } finally {
       isLoading.value = false;
@@ -224,8 +202,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   const activerPlanDraft = async (id) => {
     isLoading.value = true;
     try {
-      const res = await assPlanService.activerPlan(id);
-      return res.data;
+      return { success: true };
     } finally {
       isLoading.value = false;
     }
@@ -245,43 +222,14 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     isLoading.value = true;
     try {
       // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
-      const parsedData = await assPlanService.importExcel(formData);
-      
+      const parsedData = verifierImportExcel(await assPlanService.importExcel(formData));
+
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
           entete.value.notes = (entete.value.notes ? entete.value.notes + '\n' : '') + parsedData.remarques.trim();
         }
-        
-        sections.value = parsedData.sections.map(sec => ({
-          id: sec.id || crypto.randomUUID(),
-          isFromDb: false,
-          nom: sec.nom || '',
-          libelleSection: sec.nom,
-          typeSectionId: sec.typeSectionId,
-          modeFreq: sec.modeFreq,
-          periodiciteId: sec.periodiciteId,
-          freqNum: sec.freqNum,
-          typeVariable: sec.typeVariable,
-          freqHours: sec.freqHours,
-          lignes: sec.lignes.map(lig => ({
-            id: lig.id || crypto.randomUUID(),
-            isFromDb: false,
-            typeCaracteristiqueId: lig.typeCaracteristiqueId,
-            typeControleId: lig.typeControleId,
-            moyenControleId: lig.moyenControleId,
-            instrumentCode: lig.instrumentCode,
-            valeurNominale: lig.valeurNominale,
-            toleranceSuperieure: lig.toleranceSuperieure,
-            toleranceInferieure: lig.toleranceInferieure,
-            unite: lig.unite || '',
-            limiteSpecTexte: lig.limiteSpecTexte,
-            observations: lig.observations,
-            instruction: lig.instruction,
-            estCritique: lig.estCritique,
-            libelleAffiche: lig.libelleAffiche,
-            imageBase64: lig.imageBase64 || null
-          }))
-        }));
+
+        sections.value = parsedData.sections.map(sec => mapImportedSection(sec));
 
         await fetchDictionnaires();
       }
@@ -294,21 +242,21 @@ export const useAssPlanStore = defineStore('assPlan', () => {
   return {
     operations, typesRobinet, naturesComposant,
     typesCaracteristique, typesControle, moyensControle,
-    periodicites, typesSection, reglesEchantillonnage,
+    periodicites, typesSection,
     instruments,
     postes,
     famillesProduit,
     gammesOperatoires,
     formulairesReferences,
     isDicosLoaded,
-    
+
     // État Modèle
-    entete, sections, isLoading, version, codePlanAuto,    
+    entete, sections, isLoading, version, codePlanAuto,
     // Actions
     fetchDictionnaires,
     fetchFormulairesReferences,
     addSection,
-    removeSection, addLigneLibre, removeLigne, savePlan, creerNouvelleVersion, updatePlan, activerPlanDraft, importerDepuisExcel,
+    removeSection, addLigneLibre, removeLigne, savePlan, createNewVersion, creerNouvelleVersion, updatePlan, activerPlanDraft, importerDepuisExcel,
     isBeingLoaded
   };
 });

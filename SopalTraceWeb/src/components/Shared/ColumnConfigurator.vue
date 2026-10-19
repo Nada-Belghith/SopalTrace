@@ -52,9 +52,7 @@
                     <div>
                       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Type</label>
                       <select v-model="newCol.type" class="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all appearance-none">
-                        <option value="Texte">Texte</option>
-                        <option value="Nombre">Nombre</option>
-                        <option value="Liste">Liste</option>
+                        <option v-for="t in OPTIONS_TYPES_COLONNE" :key="t.value" :value="t.value">{{ t.label }}</option>
                       </select>
                     </div>
                     <div v-if="!hideInsertAfter">
@@ -64,13 +62,19 @@
                       </select>
                     </div>
                   </div>
+
+                  <div v-if="newCol.type === TYPES_COLONNE.LISTE">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Valeurs proposées (une par ligne)</label>
+                    <textarea v-model="newCol.optionsTexte" rows="3" placeholder="Ex : Conforme&#10;À reprendre&#10;Rebut"
+                              class="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all placeholder-slate-600"></textarea>
+                  </div>
                   
                 </div>
               </div>
 
               <!-- COLONNES ACTIVES -->
               <div class="space-y-4">
-                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Colonnes actives ({{ customOnlyColumns.length }})</h3>
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Colonnes actives · {{ customOnlyColumns.length }}</h3>
                 <div class="bg-[#1e293b]/50 border border-slate-700/50 rounded-xl h-[240px] p-4 flex flex-col gap-2 overflow-y-auto">
                   <div v-if="customOnlyColumns.length === 0" class="m-auto text-center text-slate-500 text-xs flex flex-col items-center gap-2">
                     <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -154,6 +158,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { OPTIONS_TYPES_COLONNE, TYPES_COLONNE, lireOptionsColonne } from '@/constants/columnTypes'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -176,7 +181,10 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'update:modelValue', 'save'])
 
 const customColumns = ref([])
-const newCol = ref({ label: '', type: 'Texte', insertAfter: 'code_instrument', targetTable: 'all' })
+const newCol = ref({ label: '', type: TYPES_COLONNE.TEXTE, optionsTexte: '', insertAfter: 'code_instrument', targetTable: 'all' })
+
+/** Options d'une liste saisies dans le formulaire ; vide pour les autres types. */
+const optionsNouvelleColonne = () => newCol.value.type === TYPES_COLONNE.LISTE ? lireOptionsColonne(newCol.value.optionsTexte) : []
 const previewTarget = ref('conformite')
 
 watch(() => newCol.value.targetTable, (newVal) => {
@@ -197,7 +205,8 @@ watch(() => props.visible, (val) => {
 const removeColumn = (col, index) => {
   if (col && col.key === 'draft_col') {
     newCol.value.label = ''
-    newCol.value.type = 'Texte'
+    newCol.value.type = TYPES_COLONNE.TEXTE
+    newCol.value.optionsTexte = ''
     newCol.value.targetTable = 'all'
   } else {
     customColumns.value.splice(index, 1)
@@ -259,6 +268,7 @@ const previewColumns = computed(() => {
       key: 'draft_col',
       label: newCol.value.label.trim(),
       type: newCol.value.type,
+      options: optionsNouvelleColonne(),
       insertAfter: newCol.value.insertAfter,
       targetTable: newCol.value.targetTable
     }
@@ -283,6 +293,7 @@ const customOnlyColumns = computed(() => {
       key: 'draft_col',
       label: newCol.value.label.trim(),
       type: newCol.value.type,
+      options: optionsNouvelleColonne(),
       insertAfter: newCol.value.insertAfter,
       targetTable: newCol.value.targetTable
     })
@@ -297,15 +308,19 @@ const close = () => {
 }
 
 const save = () => {
+  // Une liste sans valeur proposée serait inutilisable.
+  if (newCol.value.label.trim() && newCol.value.type === TYPES_COLONNE.LISTE && optionsNouvelleColonne().length === 0) return
   if (newCol.value.label.trim()) {
     customColumns.value.push({
       key: `custom_${Date.now()}`,
       label: newCol.value.label.trim(),
       type: newCol.value.type,
+      options: optionsNouvelleColonne(),
       insertAfter: newCol.value.insertAfter,
       targetTable: newCol.value.targetTable
     })
     newCol.value.label = ''
+    newCol.value.optionsTexte = ''
     newCol.value.targetTable = 'all'
   }
   emit('update:modelValue', customColumns.value)

@@ -13,5 +13,5 @@ public partial class RefMoyenDetection
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<PlanVerifMachineEcheance> PlanVerifMachineEcheances { get; set; } = new List<PlanVerifMachineEcheance>();
+    public virtual ICollection<DocumentVerifMachineEcheance> DocumentVerifMachineEcheances { get; set; } = new List<DocumentVerifMachineEcheance>();
 }

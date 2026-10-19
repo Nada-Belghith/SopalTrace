@@ -13,7 +13,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state) => {
       if (!state.token) return false;
-      
+
       try {
         const base64Url = state.token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -26,13 +26,11 @@ export const useAuthStore = defineStore('auth', {
     },
     userRole: (state) => state.user?.role || 'GUEST',
     userName: (state) => state.user?.nom || 'Utilisateur',
-    
+
     // Vérification de permissions spécifiques
     isAdmin: (state) => state.user?.role === 'ADMIN',
-    isResponsable: (state) => {
-      const role = state.user?.role || '';
-      return role === 'ADMIN' || role.includes('RESPONSABLE');
-    },
+    /** Responsable DI ou responsable qualité (rôles de l'application : voir RolesApp côté API). */
+    isResponsable: (state) => ['RESPONSABLE_DI', 'RESPONSABLE_QUALITE'].includes(state.user?.role),
     isOperateur: (state) => state.user?.role === 'OPERATEUR'
   },
 
@@ -52,15 +50,28 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async register(matricule, email, password) {
+    async register(matricule, email) {
       this.isLoading = true;
       this.error = null;
       try {
-        const data = await authService.register(matricule, email, password);
-        this.setSession(data, matricule);
+        await authService.register(matricule, email);
         return true;
       } catch (err) {
-        this.error = err.response?.data?.message || "Erreur lors de l'inscription";
+        this.error = err.response?.data?.message || err.message || "Erreur lors de l'inscription";
+        throw err;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async setupPassword(token, nouveauMotDePasse) {
+      this.isLoading = true;
+      this.error = null;
+      try {
+        await authService.setupPassword(token, nouveauMotDePasse);
+        return true;
+      } catch (err) {
+        this.error = err.message || 'Erreur lors de la configuration du mot de passe';
         throw err;
       } finally {
         this.isLoading = false;
@@ -78,14 +89,45 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('user', JSON.stringify(this.user));
     },
 
-    logout() {
-      authService.logout().catch(() => {}); // Logout silencieux au back
-      
+    async logout() {
+      try {
+        const { useOperateurStore } = await import('@/stores/execution/operateurStore');
+        const operateurService = (await import('@/services/operateurService')).default;
+        const operateurStore = useOperateurStore();
+
+        // Mettre en pause automatiquement les OFs en cours
+        if (operateurStore && operateurStore.ofs) {
+          for (const o of operateurStore.ofs) {
+            if (o.gammeOperatoire) {
+              for (const op of o.gammeOperatoire) {
+                // Assemblage exclu : la pause y est celle d'une équipe (plusieurs peuvent travailler sur l'OF) et
+                // l'assistant la propose déjà quand l'opérateur le quitte.
+                if (op.activeExecControleOfId && op.operationCode !== 'ASS' && (op.activeExecStatut === 'EN_COURS' || op.activeExecStatut === 'REGLAGE')) {
+                  try {
+                    await operateurService.mettreEnPause(op.activeExecControleOfId, "Déconnexion de l'opérateur (Pause automatique)");
+                  } catch (err) {
+                    console.error(`Impossible de mettre en pause l'OF ${o.numeroOf}`, err);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (operateurStore && operateurStore.stopGlobalPolling) {
+          operateurStore.stopGlobalPolling();
+        }
+      } catch (e) {
+        console.error("Erreur arrêt polling ou pause auto à la déconnexion", e);
+      }
+
+      authService.logout().catch(() => { }); // Logout silencieux au back
+
       this.user = null;
       this.token = null;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
+
       router.push('/login');
     },
 
@@ -95,12 +137,9 @@ export const useAuthStore = defineStore('auth', {
     hasAccess(requiredRoles) {
       if (!requiredRoles || requiredRoles.length === 0) return true;
       if (!this.user || !this.user.role) return false;
-      
+
       const userRole = this.user.role;
-      return requiredRoles.some(role => 
-        userRole === role || 
-        (role === 'RESPONSABLE' && userRole.includes('RESPONSABLE'))
-      );
+      return requiredRoles.includes(userRole);
     },
 
     async forgotPassword(email) {

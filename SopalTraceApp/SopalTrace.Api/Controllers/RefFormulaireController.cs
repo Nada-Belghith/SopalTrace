@@ -4,8 +4,12 @@ using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
 
+using SopalTrace.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+
 namespace SopalTrace.Api.Controllers;
 
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.SuperviseurQualite)]
 [Route("api/referentiels/modeles-generiques")]
 [ApiController]
 public class RefFormulaireController : ControllerBase
@@ -24,6 +28,7 @@ public class RefFormulaireController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRefFormulaireDto dto)
     {
@@ -32,6 +37,7 @@ public class RefFormulaireController : ControllerBase
         return Ok(new { success = true, message = "Formulaire mis à jour." });
     }
 
+    [Authorize(Roles = RolesApp.Admin + "," + RolesApp.SuperviseurQualite)]
     [HttpPost("nouvelle-version")]
     public async Task<IActionResult> NouvelleVersion([FromBody] NouvelleVersionRefFormulaireDto dto)
     {

@@ -13,21 +13,43 @@ public partial class UtilisateursApp
 
     public string Email { get; set; } = null!;
 
-    public string MotDePasseHash { get; set; } = null!;
+    public string? MotDePasseHash { get; set; }
 
-    public string RoleApp { get; set; } = null!;
+    public string? RoleApp { get; set; }
 
     public string? IntituleMetier { get; set; }
 
-    public string? CodeRecuperation { get; set; }
+    public string AccountStatus { get; set; } = null!;
+
+    public string? CodeRecuperationHash { get; set; }
 
     public DateTime? DateExpirationCode { get; set; }
+
+    public int NombreTentativesCode { get; set; }
 
     public DateTime? DateCreation { get; set; }
 
     public DateTime? DateDerniereConnexion { get; set; }
 
-    public bool? EstActif { get; set; }
+    public string? ActivationTokenHash { get; set; }
+
+    public DateTime? ActivationTokenExpiresAt { get; set; }
+
+    public string? ReviewedBy { get; set; }
+
+    public DateTime? ReviewedAt { get; set; }
+
+    public string? ReviewComment { get; set; }
+
+    public int FailedLoginCount { get; set; }
+
+    public DateTime? LockoutEndsAt { get; set; }
+
+    public Guid SecurityStamp { get; set; }
+
+    public virtual Autili MatriculeNavigation { get; set; } = null!;
 
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    public virtual AppRole? RoleAppNavigation { get; set; }
 }

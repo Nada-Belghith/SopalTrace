@@ -7,7 +7,9 @@ public partial class RefFormulaireEquipe
 {
     public Guid Id { get; set; }
 
-    public string CodeReference { get; set; } = null!;
+    public Guid FormulaireId { get; set; }
+
+    public string TeamCode { get; set; } = null!;
 
     public string NomEquipe { get; set; } = null!;
 
@@ -18,4 +20,8 @@ public partial class RefFormulaireEquipe
     public int OrdreAffiche { get; set; }
 
     public bool Actif { get; set; }
+
+    public virtual RefFormulaire Formulaire { get; set; } = null!;
+
+    public virtual Team TeamCodeNavigation { get; set; } = null!;
 }

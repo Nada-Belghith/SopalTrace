@@ -20,6 +20,7 @@ namespace SopalTrace.Application.Tests.Services
         private readonly Mock<ICurrentUserService> _mockCurrentUserService;
         private readonly Mock<IFormulaireStructureService> _mockFormulaireStructureService;
         private readonly Mock<IFrequencyParserService> _mockFrequencyParserService;
+        private readonly Mock<IEmailService> _mockEmailService;
 
         private readonly PlanFabricationService _service;
 
@@ -29,14 +30,18 @@ namespace SopalTrace.Application.Tests.Services
             _mockCurrentUserService = new Mock<ICurrentUserService>();
             _mockFormulaireStructureService = new Mock<IFormulaireStructureService>();
             _mockFrequencyParserService = new Mock<IFrequencyParserService>();
+            _mockEmailService = new Mock<IEmailService>();
+            // Référentiels complétés à l'enregistrement (caractéristiques, instruments manquants).
+            _mockUnitOfWork.Setup(u => u.DictionnaireQualiteRepository).Returns(new Mock<IDictionnaireQualiteRepository>().Object);
 
-            _mockCurrentUserService.Setup(s => s.UserInfo).Returns("USER456");
+            _mockCurrentUserService.Setup(s => s.MatriculeRequis).Returns("USER456");
 
             _service = new PlanFabricationService(
                 _mockUnitOfWork.Object,
                 _mockCurrentUserService.Object,
                 _mockFormulaireStructureService.Object,
-                _mockFrequencyParserService.Object
+                _mockFrequencyParserService.Object,
+                _mockEmailService.Object
             );
         }
 
@@ -50,7 +55,7 @@ namespace SopalTrace.Application.Tests.Services
                 OperationCode = "OP1"
             };
 
-            var existingDoc = new PlanFabricationEntete
+            var existingDoc = new DocumentEntete
             {
                 Id = Guid.NewGuid(),
                 CodeArticleSageVersionne = "PLAN001",
@@ -59,8 +64,8 @@ namespace SopalTrace.Application.Tests.Services
                 Statut = "ACTIF" // L'existant est actif
             };
 
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync("OP1"))
-                .ReturnsAsync(new List<PlanFabricationEntete> { existingDoc });
+            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync("OP1", null))
+                .ReturnsAsync(new List<DocumentEntete> { existingDoc });
 
             var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_002", "Desig", null, "EN_COURS_DE_FABRICATION", 4);
             _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION"))
@@ -70,19 +75,19 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formStruct.Id))
                 .ReturnsAsync(formDetails);
 
-            PlanFabricationEntete? savedPlan = null;
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()))
-                .Callback<PlanFabricationEntete>(e => savedPlan = e);
+            DocumentEntete? savedPlan = null;
+            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()))
+                .Callback<DocumentEntete>(e => savedPlan = e);
 
             // Act
-            var resultId = await _service.CreerPlanAsync(request);
+            var resultId = await _service.CreatePlanAsync(request);
 
             // Assert
             Assert.Equal("ARCHIVE", existingDoc.Statut); // Ancien plan doit passer en ARCHIVE
 
-            _mockUnitOfWork.Verify(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()), Times.Once);
+            _mockUnitOfWork.Verify(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()), Times.Once);
             Assert.NotNull(savedPlan);
-            Assert.Equal(4, savedPlan.Version); // Version héritée du formulaire (4)
+            Assert.Equal(2, savedPlan.Version); // Version incrémentée depuis l'existant (1 -> 2)
             Assert.Equal("ACTIF", savedPlan.Statut); // Nouveau plan est toujours ACTIF
         }
         [Fact]
@@ -97,9 +102,9 @@ namespace SopalTrace.Application.Tests.Services
                 ModeleSourceId = modeleId
             };
             
-            PlanFabricationEntete? savedPlan = null;
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()))
-                .Callback<PlanFabricationEntete>(e => savedPlan = e);
+            DocumentEntete? savedPlan = null;
+            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()))
+                .Callback<DocumentEntete>(e => savedPlan = e);
                 
             var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_002", "Desig", null, "EN_COURS_DE_FABRICATION", 4);
             _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION"))
@@ -107,15 +112,15 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formStruct.Id))
                 .ReturnsAsync(new RefFormulaire { Id = formStruct.Id, CodeReference = "FRM_002", Version = 4 });
                 
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync(It.IsAny<string>()))
-                .ReturnsAsync(new List<PlanFabricationEntete>());
+            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync(It.IsAny<string>(), null))
+                .ReturnsAsync(new List<DocumentEntete>());
 
             // Act
-            var resultId = await _service.CreerPlanAsync(request);
+            var resultId = await _service.CreatePlanAsync(request);
 
             // Assert
             Assert.NotNull(savedPlan);
-            Assert.Equal(modeleId, savedPlan.ModeleSourceId);
+            Assert.Equal(modeleId, savedPlan.DocumentSourceId);
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 
@@ -124,7 +129,7 @@ namespace SopalTrace.Application.Tests.Services
         {
             // Arrange
             var planId = Guid.NewGuid();
-            var existingPlan = new PlanFabricationEntete { Id = planId, PlanFabricationSections = new List<PlanFabricationSection>() };
+            var existingPlan = new DocumentEntete { Id = planId, DocumentSections = new List<DocumentSection>() };
             var request = new UpdatePlanFabricationRequestDto
             {
                 Sections = new List<CreatePlanFabricationSectionDto>
@@ -136,11 +141,6 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByIdAsync(planId, true))
                 .ReturnsAsync(existingPlan);
 
-            // Capture les sections ajoutées via AddSection (nouvelle stratégie d'insertion directe)
-            var addedSections = new List<PlanFabricationSection>();
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddSection(It.IsAny<PlanFabricationSection>()))
-                .Callback<PlanFabricationSection>(s => addedSections.Add(s));
-
             var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_002", "Desig", null, "EN_COURS_DE_FABRICATION", 4);
             _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION"))
                 .ReturnsAsync(formStruct);
@@ -148,16 +148,14 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(new RefFormulaire { Id = formStruct.Id, CodeReference = "FRM_002", Version = 4 });
 
             // Act
-            var result = await _service.MettreAJourPlanAsync(planId, request);
+            var result = await _service.UpdatePlanAsync(existingPlan.Id, request);
 
             // Assert
-            Assert.True(result);
-            // Vérifie qu'AddSection a été appelé une fois avec la bonne section + ses lignes
-            Assert.Single(addedSections);
-            Assert.Equal("Sec 1", addedSections.First().LibelleSection);
-            Assert.Single(addedSections.First().PlanFabricationLignes);
-            Assert.Equal("L1", addedSections.First().PlanFabricationLignes.First().Instruction);
-            _mockUnitOfWork.Verify(u => u.PlanFabricationEnteteRepository.AddSection(It.IsAny<PlanFabricationSection>()), Times.Once);
+            Assert.NotNull(result); // nouvelle version du document
+            // Les nouvelles sections sont ajoutées à la collection suivie du plan (SectionUpdateHelper)
+            var section = Assert.Single(existingPlan.DocumentSections);
+            Assert.Equal("Sec 1", section.LibelleSection);
+            Assert.Equal("L1", Assert.Single(section.DocumentLignes).Instruction);
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 
@@ -166,12 +164,12 @@ namespace SopalTrace.Application.Tests.Services
         {
             // Arrange
             var existingId = Guid.NewGuid();
-            var existingPlan = new PlanFabricationEntete
+            var existingPlan = new DocumentEntete
             {
                 Id = existingId, CodeArticleSageVersionne = "ART1", Version = 1,
-                PlanFabricationSections = new List<PlanFabricationSection>
+                DocumentSections = new List<DocumentSection>
                 {
-                    new PlanFabricationSection { Id = Guid.NewGuid(), LibelleSection = "Old Sec", PlanFabricationLignes = new List<PlanFabricationLigne> { new PlanFabricationLigne { Instruction = "Old L1" } } }
+                    new DocumentSection { Id = Guid.NewGuid(), LibelleSection = "Old Sec", DocumentLignes = new List<DocumentLigne> { new DocumentLigne { Instruction = "Old L1" } } }
                 }
             };
             
@@ -179,8 +177,8 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(existingPlan);
             _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetLatestVersionAsync("ART1", It.IsAny<string>()))
                 .ReturnsAsync(1);
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync(It.IsAny<string>()))
-                .ReturnsAsync(new List<PlanFabricationEntete> { existingPlan });
+            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync(It.IsAny<string>(), null))
+                .ReturnsAsync(new List<DocumentEntete> { existingPlan });
 
             var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_002", "Desig", null, "EN_COURS_DE_FABRICATION", 2);
             _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION"))
@@ -188,80 +186,40 @@ namespace SopalTrace.Application.Tests.Services
             _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formStruct.Id))
                 .ReturnsAsync(new RefFormulaire { Id = formStruct.Id, CodeReference = "FRM_002", Version = 2 });
             
-            PlanFabricationEntete? savedPlan = null;
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()))
-                .Callback<PlanFabricationEntete>(e => savedPlan = e);
+            DocumentEntete? savedPlan = null;
+            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<DocumentEntete>()))
+                .Callback<DocumentEntete>(e => savedPlan = e);
                 
-            var request = new NouvelleVersionPlanFabricationRequestDto { AncienId = existingId };
+            var newVersionRequest = new NouvelleVersionPlanFabricationRequestDto { AncienId = existingId };
 
             // Act
-            var newId = await _service.CreerNouvelleVersionPlanAsync(request);
+            var result = await _service.CreateNewVersionAsync(newVersionRequest);
 
             // Assert
             Assert.NotNull(savedPlan);
             Assert.Equal(2, savedPlan.Version);
-            Assert.Single(savedPlan.PlanFabricationSections);
-            Assert.Single(savedPlan.PlanFabricationSections.First().PlanFabricationLignes);
+            Assert.Single(savedPlan.DocumentSections);
+            Assert.Single(savedPlan.DocumentSections.First().DocumentLignes);
             _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
         }
 
-        [Fact]
-        public async Task RestaurerPlanArchiveAsync_DoitClonerPlanEtLeRendreActif()
-        {
-            // Arrange
-            var archiveId = Guid.NewGuid();
-            var archivePlan = new PlanFabricationEntete
-            {
-                Id = archiveId, CodeArticleSageVersionne = "ART1", Version = 1, Statut = "ARCHIVE",
-                PlanFabricationSections = new List<PlanFabricationSection> { new PlanFabricationSection { LibelleSection = "Archive Sec", PlanFabricationLignes = new List<PlanFabricationLigne> { new PlanFabricationLigne { Instruction = "Archive L1" } } } }
-            };
-            
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByIdAsync(archiveId, true))
-                .ReturnsAsync(archivePlan);
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetLatestVersionAsync("ART1", It.IsAny<string>()))
-                .ReturnsAsync(2); // Simule qu'une version 2 existe déjà
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.GetByFiltersAsync(It.IsAny<string>()))
-                .ReturnsAsync(new List<PlanFabricationEntete> { archivePlan });
-
-            var formStruct = new FormulaireStructureDto(Guid.NewGuid(), "FRM_002", "Desig", null, "EN_COURS_DE_FABRICATION", 3);
-            _mockFormulaireStructureService.Setup(f => f.GetFormulaireByRoleAsync("EN_COURS_DE_FABRICATION"))
-                .ReturnsAsync(formStruct);
-            _mockUnitOfWork.Setup(u => u.RefFormulaireRepository.GetByIdAsync(formStruct.Id))
-                .ReturnsAsync(new RefFormulaire { Id = formStruct.Id, CodeReference = "FRM_002", Version = 3 });
-                
-            PlanFabricationEntete? savedPlan = null;
-            _mockUnitOfWork.Setup(u => u.PlanFabricationEnteteRepository.AddAsync(It.IsAny<PlanFabricationEntete>()))
-                .Callback<PlanFabricationEntete>(e => savedPlan = e);
-
-            var request = new RestaurerDocumentRequestDto { DocumentArchiveId = archiveId };
-
-            // Act
-            var newId = await _service.RestaurerPlanArchiveAsync(request);
-
-            // Assert
-            Assert.NotNull(savedPlan);
-            Assert.Equal(3, savedPlan.Version);
-            Assert.Equal("ACTIF", savedPlan.Statut);
-            Assert.Single(savedPlan.PlanFabricationSections);
-            _mockUnitOfWork.Verify(u => u.CommitAsync(), Times.Once);
-        }
 
         [Fact]
         public async Task GetPlanByIdAsync_VerificationExistenceLignes()
         {
             // Arrange
             var planId = Guid.NewGuid();
-            var plan = new PlanFabricationEntete
+            var plan = new DocumentEntete
             {
                 Id = planId,
-                PlanFabricationSections = new List<PlanFabricationSection>
+                DocumentSections = new List<DocumentSection>
                 {
-                    new PlanFabricationSection
+                    new DocumentSection
                     {
                         Id = Guid.NewGuid(),
-                        PlanFabricationLignes = new List<PlanFabricationLigne>
+                        DocumentLignes = new List<DocumentLigne>
                         {
-                            new PlanFabricationLigne { Id = Guid.NewGuid(), Instruction = "Test Ligne" }
+                            new DocumentLigne { Id = Guid.NewGuid(), Instruction = "Test Ligne" }
                         }
                     }
                 }

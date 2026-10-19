@@ -15,14 +15,15 @@ public class SecurityService : ISecurityService
 
     public SecurityService(IConfiguration config)
     {
-        _jwtSecret = config["Jwt:Secret"] ?? "SuperSecretKeyQuiDoitFaireAuMoins32CaracteresDeLongPourEtreSecurisee";
+        _jwtSecret = config["Jwt:Secret"]
+            ?? throw new InvalidOperationException("La clé 'Jwt:Secret' n'est pas configurée.");
     }
 
     public string HashPassword(string password) => BCrypt.Net.BCrypt.HashPassword(password);
 
     public bool VerifyPassword(string password, string hash) => BCrypt.Net.BCrypt.Verify(password, hash);
 
-    public string GenerateJwtToken(string userId, string matricule, string role)
+    public string GenerateJwtToken(string userId, string matricule, string role, Guid securityStamp)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSecret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -32,6 +33,7 @@ public class SecurityService : ISecurityService
             new Claim(JwtRegisteredClaimNames.Sub, userId),
             new Claim("matricule", matricule),
             new Claim(ClaimTypes.Role, role),
+            new Claim(SessionClaims.SecurityStamp, securityStamp.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -45,11 +47,7 @@ public class SecurityService : ISecurityService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-    public string GenerateRefreshToken()
-    {
-        var randomNumber = new byte[32];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(randomNumber);
-        return Convert.ToBase64String(randomNumber);
-    }
+    public string GenerateRefreshToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
+    public string GenerateRecoveryCode() => RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
 }

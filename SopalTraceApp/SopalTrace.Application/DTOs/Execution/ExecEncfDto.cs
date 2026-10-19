@@ -10,9 +10,8 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? OperationCode { get; set; }
         public string? PosteCode { get; set; }
         public string? MachineCode { get; set; }
-        public int NumEquipe { get; set; }
-        public Guid PlanSourceId { get; set; }
-        public string? TypePlan { get; set; }
+        public Guid? PlanSourceId { get; set; }
+        public string? TypeOf { get; set; }
         public string? Statut { get; set; }
         public DateTime DateDebut { get; set; }
         public DateTime? DateFin { get; set; }
@@ -22,8 +21,9 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? DesignationArticle { get; set; }
         public string? Atelier { get; set; }
 
-        public List<ExecPieceTypeDto> PiecesTypes { get; set; } = new List<ExecPieceTypeDto>();
+
         public List<ExecControleTrancheDto> Tranches { get; set; } = new List<ExecControleTrancheDto>();
+        public List<ExecPieceTypeDto> PiecesTypes { get; set; } = new List<ExecPieceTypeDto>();
     }
 
     public class ExecPieceTypeDto
@@ -35,6 +35,7 @@ namespace SopalTrace.Application.DTOs.Execution
         public string? Remarque { get; set; }
         public string? MatriculeOperateur { get; set; }
     }
+
 
     public class ExecControleTrancheDto
     {

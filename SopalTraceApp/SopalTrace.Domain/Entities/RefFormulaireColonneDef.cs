@@ -7,7 +7,7 @@ public partial class RefFormulaireColonneDef
 {
     public Guid Id { get; set; }
 
-    public string CodeReference { get; set; } = null!;
+    public Guid FormulaireId { get; set; }
 
     public string CleColonne { get; set; } = null!;
 
@@ -20,4 +20,10 @@ public partial class RefFormulaireColonneDef
     public string? TargetTable { get; set; }
 
     public bool Actif { get; set; }
+
+    public virtual ICollection<ColumnAllowedValue> ColumnAllowedValues { get; set; } = new List<ColumnAllowedValue>();
+
+    public virtual RefFormulaire Formulaire { get; set; } = null!;
+
+    public virtual ColumnValueType TypeValeurNavigation { get; set; } = null!;
 }

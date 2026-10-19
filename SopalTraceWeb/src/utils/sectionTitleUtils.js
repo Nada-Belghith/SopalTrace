@@ -1,3 +1,5 @@
+import { libellePeriodicite } from '@/utils/frequencyUtils';
+
 const DEFAULT_SECTION_TITLE = 'Caractéristiques à contrôler';
 
 export function eqId(a, b) {
@@ -29,45 +31,57 @@ export function buildSectionTitleFromType(typeSection, defaultTitle = DEFAULT_SE
   return `${defaultTitle} ${lib}`;
 }
 
-export function resolveSectionDisplayTitle(section, typesSection = [], defaultTitle = DEFAULT_SECTION_TITLE) {
-  const typeSec = findTypeSection(typesSection, section?.typeSectionId);
-  let titre = (section?.libelleSection || section?.nom || '').trim();
+/**
+ * Règle unique du titre d'une section (identique au serveur, LibellesSection.Construire) :
+ * - section typée : « Caractéristiques à contrôler » + libellé du type (repris tel quel, parenthèses comprises)
+ *   + « (périodicité) » si une périodicité est choisie ;
+ * - section sans type : le titre libre (+ la périodicité si elle n'y figure pas déjà).
+ */
+export function titreSection(section, typesSection = [], periodicites = []) {
+  const type = findTypeSection(typesSection, section?.typeSectionId);
+  const libelleType = (type?.libelle || type?.Libelle || '').trim();
+  const periodicite = libellePeriodiciteDeSection(section, periodicites)
+    || periodiciteEnregistree(section, libelleType);
 
-  if (isGenericSectionTitle(titre) && typeSec) {
-    titre = buildSectionTitleFromType(typeSec, defaultTitle);
-  } else if ((!titre || titre.toLowerCase() === 'section sans nom') && typeSec) {
-    titre = buildSectionTitleFromType(typeSec, defaultTitle);
-  } else if (typeSec && typeSec.libelle) {
-    // Si le titre ne contient pas le libellé du type, on l'injecte intelligemment
-    const libTypeNorm = typeSec.libelle.toLowerCase().trim();
-    const titreNorm = titre.toLowerCase();
-    
-    if (libTypeNorm && !titreNorm.includes(libTypeNorm)) {
-      // Pour éviter de doubler "Caractéristiques à contrôler", on nettoie le début du titre
-      let cleanTitre = titre;
-      if (titreNorm.startsWith(defaultTitle.toLowerCase())) {
-         cleanTitre = titre.substring(defaultTitle.length).trim();
-      }
-      
-      const prefix = buildSectionTitleFromType(typeSec, defaultTitle);
-      titre = cleanTitre ? `${prefix} ${cleanTitre}` : prefix;
-    }
+  if (libelleType) {
+    return `${DEFAULT_SECTION_TITLE} ${libelleType}${periodicite ? ` (${periodicite})` : ''}`;
   }
 
-  // Auto-nettoyage des fréquences dupliquées (bug précédent) dans le libellé pour l'affichage
-  if (titre) {
-      titre = titre.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
-      
-      // Ré-attacher la bonne fréquence si elle est dans la section
-      if (section?.frequenceLibelle) {
-          const freqNorm = section.frequenceLibelle.toLowerCase();
-          if (!titre.toLowerCase().includes(freqNorm)) {
-              titre = `${titre} (${section.frequenceLibelle})`;
-          }
-      }
-  }
+  const libre = (section?.nom || section?.libelleSection || '').trim();
+  if (!libre) return DEFAULT_SECTION_TITLE;
+  return periodicite && !libre.toLowerCase().includes(periodicite.toLowerCase()) ? `${libre} (${periodicite})` : libre;
+}
 
-  return titre || defaultTitle;
+/** Périodicité de la section : choisie dans le référentiel, ou saisie (nombre de pièces / unité). */
+function libellePeriodiciteDeSection(section, periodicites = []) {
+  if (!section) return '';
+  // L'identifiant fait foi (« Sans périodicité » le remet à null), quel que soit modeFreq.
+  if (section.periodiciteId) {
+    const p = (periodicites || []).find(x => eqId(x.id || x.Id, section.periodiciteId));
+    if (p) return libellePeriodicite(p);
+  }
+  if (section.modeFreq === 'VARIABLE' && section.freqNum) {
+    const unite = section.typeVariable || 'HEURE';
+    return libellePeriodicite({ nbrPieces: section.freqNum, unite, nbrHeures: unite === 'HEURE' ? (section.freqHours || 1) : null });
+  }
+  return '';
+}
+
+/**
+ * Périodicité absente du référentiel chargé (liste pas encore reçue, périodicité désactivée) : on reprend celle
+ * du libellé enregistré par le serveur, « Caractéristiques à contrôler <type> (<périodicité>) ».
+ */
+function periodiciteEnregistree(section, libelleType) {
+  if (!section?.periodiciteId || !libelleType) return '';
+  const enregistre = (section.libelleSection || '').trim();
+  const debut = `${DEFAULT_SECTION_TITLE} ${libelleType} (`;
+  if (!enregistre.startsWith(debut) || !enregistre.endsWith(')')) return '';
+  return enregistre.slice(debut.length, -1).trim();
+}
+
+/** Titre affiché d'une section (même règle que l'enregistrement). */
+export function resolveSectionDisplayTitle(section, typesSection = [], periodicites = []) {
+  return titreSection(section, typesSection, periodicites);
 }
 
 export function extractNomFromLibelle(libelleSection, typeSectionId, typesSection = [], defaultTitle = DEFAULT_SECTION_TITLE) {
@@ -77,6 +91,7 @@ export function extractNomFromLibelle(libelleSection, typeSectionId, typesSectio
   if (typeSec?.libelle) {
     clean = clean.replace(new RegExp(typeSec.libelle.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi'), '').trim();
   }
+  clean = clean.replace(/\s*\([^)]*(?:pièce|piece|heure|série|serie|échantillon|echantillon|100%)[^)]*\)\s*/gi, ' ').trim();
   clean = clean.replace(/^\(+|\)+$/g, '').trim();
   if (!clean || clean.toLowerCase() === defaultTitle.toLowerCase()) return '';
   return clean;
@@ -86,30 +101,30 @@ export function nettoyerNomSection(libelleSection, typeSectionId, typesSection =
   if (!libelleSection) return '';
   const normalizeApostrophes = (s) => s.replace(/’/g, "'");
   let clean = normalizeApostrophes(libelleSection).replace(/caractéristiques à contrôler/gi, '').trim();
-  
+
   const escapeRegExp = (str) => str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-  
+
   if (typeSectionId) {
     const typeSec = findTypeSection(typesSection, typeSectionId);
     if (typeSec && typeSec.libelle) {
       clean = clean.replace(new RegExp(escapeRegExp(normalizeApostrophes(typeSec.libelle)), 'gi'), '').trim();
     }
   }
-  
+
   if (freqLib) {
     const freqNorm = normalizeApostrophes(freqLib);
     const freqPattern = '\\(?\\s*' + escapeRegExp(freqNorm) + '\\s*\\)?';
     clean = clean.replace(new RegExp(freqPattern, 'gi'), '').trim();
   }
-  
+
   if (regleLib) {
     const regleNorm = normalizeApostrophes(regleLib);
     const reglePattern = '\\(?\\s*' + escapeRegExp(regleNorm) + '\\s*\\)?';
     clean = clean.replace(new RegExp(reglePattern, 'gi'), '').trim();
   }
 
-  // Remove trailing empty parentheses and trim
-  clean = clean.replace(/(?:\s*\([^)]*\)\s*)+$/, '').trim();
+  // On nettoie les parenthèses de fréquence (ex: (1 pièce / heure))
+  clean = clean.replace(/\s*\([^)]*(?:pièce|piece|heure|série|serie|échantillon|echantillon|100%)[^)]*\)\s*/gi, ' ').trim();
   clean = clean.replace(/^\(+|\)+$/g, '').trim();
 
   return clean;

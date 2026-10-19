@@ -9,7 +9,7 @@ public partial class RefreshToken
 
     public Guid UtilisateurId { get; set; }
 
-    public string Token { get; set; } = null!;
+    public string TokenHash { get; set; } = null!;
 
     public string JwtId { get; set; } = null!;
 

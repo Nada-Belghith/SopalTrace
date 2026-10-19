@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Exceptions;
 using Microsoft.AspNetCore.Http;
 using SopalTrace.Application.Interfaces;
 using System.Security.Claims;
@@ -17,18 +18,6 @@ public class CurrentUserService : ICurrentUserService
 
     public string? NomComplet => _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Name)?.Value;
 
-    public string UserInfo
-    {
-        get
-        {
-            var m = Matricule;
-            var n = NomComplet;
-
-            if (string.IsNullOrEmpty(m) && string.IsNullOrEmpty(n)) return "SYSTEM";
-            if (string.IsNullOrEmpty(m)) return n!;
-            if (string.IsNullOrEmpty(n)) return m;
-
-            return $"{m}-{n}";
-        }
-    }
+    public string MatriculeRequis =>
+        string.IsNullOrEmpty(Matricule) ? throw new InvalidTokenException() : Matricule;
 }

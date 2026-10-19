@@ -9,7 +9,7 @@ public partial class DocumentLigne
 
     public Guid EnteteId { get; set; }
 
-    public Guid SectionId { get; set; }
+    public Guid? SectionId { get; set; }
 
     public int OrdreAffiche { get; set; }
 
@@ -37,41 +37,25 @@ public partial class DocumentLigne
 
     public string? Observations { get; set; }
 
-    public string? ImageBase64 { get; set; }
-
     public string? MachineCode { get; set; }
-
-    public bool EstVerifPresence { get; set; }
-
-    public Guid? DefauthequeId { get; set; }
-
-    public string? RefPlanProduit { get; set; }
-
-    public string? MachineCodeCtrlPoste { get; set; }
 
     public Guid? RisqueDefautId { get; set; }
 
-    public string? Libre1 { get; set; }
-
-    public string? Libre2 { get; set; }
-
-    public string? Libre3 { get; set; }
-
-    public string? Libre4 { get; set; }
-
-    public string? Libre5 { get; set; }
+    public string? TypeLigne { get; set; }
 
     public virtual RefCaracteristique? Caracteristique { get; set; }
 
-    public virtual Defautheque? Defautheque { get; set; }
-
     public virtual ICollection<DocumentLigneExtraColonne> DocumentLigneExtraColonnes { get; set; } = new List<DocumentLigneExtraColonne>();
+
+    public virtual DocumentLineImage? DocumentLineImage { get; set; }
+
+    public virtual ICollection<DocumentVerifMachineEcheance> DocumentVerifMachineEcheances { get; set; } = new List<DocumentVerifMachineEcheance>();
 
     public virtual DocumentEntete Entete { get; set; } = null!;
 
-    public virtual Instrument? InstrumentCodeNavigation { get; set; }
+    public virtual ICollection<ExecControleLigneReponse> ExecControleLigneReponses { get; set; } = new List<ExecControleLigneReponse>();
 
-    public virtual Machine? MachineCodeCtrlPosteNavigation { get; set; }
+    public virtual Instrument? InstrumentCodeNavigation { get; set; }
 
     public virtual Machine? MachineCodeNavigation { get; set; }
 
@@ -81,7 +65,7 @@ public partial class DocumentLigne
 
     public virtual RisqueDefaut? RisqueDefaut { get; set; }
 
-    public virtual DocumentSection Section { get; set; } = null!;
+    public virtual DocumentSection? Section { get; set; }
 
     public virtual TypeCaracteristique? TypeCaracteristique { get; set; }
 

@@ -1,11 +1,20 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRoute } from 'vue-router';
+import LogoSopalTrace from '@/components/Shared/LogoSopalTrace.vue';
 
 const authStore = useAuthStore();
 const route = useRoute();
 const isMobileMenuOpen = ref(false);
+
+onMounted(() => {
+  // Global polling for alerts and operations has been disabled based on user feedback.
+});
+
+onUnmounted(() => {
+  // Global polling disabled
+});
 
 const isDocActive = (pathPrefix, mode = null) => {
   const isPathMatch = route.path.startsWith(pathPrefix);
@@ -47,7 +56,7 @@ const toggleMobileMenu = () => {
           <i class="pi pi-bars text-xl"></i>
         </button>
         <div class="flex items-center gap-2">
-          <i class="pi pi-cog text-emerald-400 text-lg animate-spin-slow"></i>
+          <LogoSopalTrace class="w-7 h-7 shrink-0" />
           <span class="font-black tracking-wide text-xs uppercase text-white">Sopal Trace</span>
         </div>
       </div>
@@ -74,7 +83,7 @@ const toggleMobileMenu = () => {
       <!-- Header Sidebar -->
       <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-[#0f172a]">
         <div class="flex items-center gap-3">
-          <i class="pi pi-cog text-emerald-400 text-xl animate-spin-slow"></i>
+          <LogoSopalTrace class="w-8 h-8 shrink-0" />
           <span class="font-black text-white tracking-wide text-sm uppercase">Sopal Trace</span>
         </div>
         <!-- Close button on Mobile drawer -->
@@ -86,8 +95,29 @@ const toggleMobileMenu = () => {
       <!-- Navigation Principale -->
       <nav class="flex-1 overflow-y-auto py-6 custom-scrollbar" @click="isMobileMenuOpen = false">
         
+        <!-- SECTION : ADMIN -->
+        <template v-if="authStore.userRole === 'ADMIN'">
+          <div class="px-6 mb-3">
+            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Administration</p>
+          </div>
+          <ul class="px-4 mb-6 space-y-2">
+            <li>
+              <router-link to="/dev/admin-dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50" active-class="bg-[#1e293b] text-blue-400 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.08)] font-bold border border-transparent">
+                <i class="pi pi-chart-line text-lg"></i>
+                <span>Dashboard Admin</span>
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/dev/habilitations" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50" active-class="bg-[#1e293b] text-blue-400 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.08)] font-bold border border-transparent">
+                <i class="pi pi-shield text-lg"></i>
+                <span>Gestion Habilitations</span>
+              </router-link>
+            </li>
+          </ul>
+        </template>
+
         <!-- SECTION : SUPERVISEUR QUALITE -->
-        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE' || authStore.userRole === 'ADMIN'">
+        <template v-if="authStore.userRole === 'SUPERVISEUR_QUALITE'">
           <!-- SECTION 1 : STRUCTURE DES PLANS -->
           <div class="px-6 mb-3">
             <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Structure des plans</p>
@@ -141,18 +171,14 @@ const toggleMobileMenu = () => {
                     <i class="pi pi-plus-circle text-red-500 text-sm"></i> Résultat Contrôle Poste
                   </router-link>
                 </li>
-                <li>
-                  <router-link to="/dev/resultat-controle-cf/nouveau" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors" active-class="text-emerald-400 font-bold bg-white/10 border border-white/5 shadow-sm">
-                    <i class="pi pi-plus-circle text-emerald-500 text-sm"></i> Résultat Contrôle C.F.
-                  </router-link>
-                </li>
+                
               </ul>
             </li>
           </ul>
         </template>
 
         <!-- SECTION : RESPONSABLE DI -->
-        <template v-if="authStore.isResponsable || authStore.userRole === 'ADMIN'">
+        <template v-if="authStore.userRole === 'RESPONSABLE_DI'">
           <!-- SECTION 1 : PLANS DE CONTRÔLES -->
           <div class="px-6 mb-3">
             <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Plans de contrôles</p>
@@ -207,22 +233,27 @@ const toggleMobileMenu = () => {
           </ul>
         </template>
 
-        <!-- SECTION : PRODUCTION (OPERATEUR) -->
+        <!-- SECTION : EXÉCUTION DES OF (OPERATEUR) -->
         <template v-if="authStore.userRole === 'OPERATEUR'">
           <div class="px-6 mb-2">
-            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Production</p>
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Exécution des OF</p>
           </div>
           <ul class="space-y-1 px-3 mb-6">
             <li>
-              <router-link to="/dev/hub-plans" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                <i class="pi pi-table"></i> Plans par article
+              <router-link to="/operateur/of-semi-fini" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-bold">
+                <i class="pi pi-cog"></i> OF de Prod Semi-Fini
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/operateur/of-fini" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-bold">
+                <i class="pi pi-box"></i> OF de Prod Fini
               </router-link>
             </li>
           </ul>
         </template>
 
         <!-- SECTION 3 : ANALYSES -->
-        <template v-if="authStore.userRole !== 'MAGASINIER'">
+        <template v-if="['SUPERVISEUR_QUALITE', 'RESPONSABLE_DI'].includes(authStore.userRole)">
           <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
             <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Analyses</p>
           </div>
@@ -230,6 +261,44 @@ const toggleMobileMenu = () => {
             <li>
               <router-link to="/superviseur/dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
                 <i class="pi pi-chart-line text-lg text-slate-400"></i> Dashboard & Traçabilité
+              </router-link>
+            </li>
+          </ul>
+        </template>
+
+        <!-- SECTION : DOCUMENTS QUALITÉ (PDF générés depuis les modèles de Sopal) -->
+        <template v-if="['ADMIN', 'RESPONSABLE_QUALITE', 'SUPERVISEUR_QUALITE'].includes(authStore.userRole)">
+          <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Documents qualité</p>
+          </div>
+          <ul class="px-4 mb-6 space-y-2">
+            <li v-if="authStore.userRole === 'RESPONSABLE_QUALITE'">
+              <router-link to="/qualite/tracabilite" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-sitemap text-lg"></i> Traçabilité par OF
+              </router-link>
+            </li>
+            <li v-if="authStore.userRole === 'SUPERVISEUR_QUALITE'">
+              <router-link to="/qualite/formulaires" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-list text-lg"></i> Formulaires
+              </router-link>
+            </li>
+            <li v-if="authStore.userRole === 'ADMIN'">
+              <router-link to="/qualite/modeles-documents" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-file-excel text-lg"></i> Modèles Excel
+              </router-link>
+            </li>
+          </ul>
+        </template>
+
+        <!-- SECTION : DOCUMENTS EXTERNES (services achats, commercial, qualité, développement industriel) -->
+        <template v-if="['SERVICE_ACHATS', 'SERVICE_COMMERCIAL', 'SERVICE_QUALITE', 'SERVICE_DI'].includes(authStore.userRole)">
+          <div class="px-6 mt-8 mb-3 border-t border-slate-800/80 pt-6">
+            <p class="text-xs font-black text-slate-500 uppercase tracking-widest">Documents externes</p>
+          </div>
+          <ul class="px-4 mb-6 space-y-2">
+            <li>
+              <router-link to="/documents-externes/depot" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all text-sm font-semibold text-slate-400 hover:bg-slate-800/50 hover:text-white" active-class="bg-slate-800/40 text-white font-bold">
+                <i class="pi pi-upload text-lg"></i> Déposer un document
               </router-link>
             </li>
           </ul>
@@ -243,7 +312,12 @@ const toggleMobileMenu = () => {
           <ul class="space-y-1 px-3 mb-6">
             <li>
               <router-link to="/magasinier/scan-of" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-bold">
-                <i class="pi pi-qrcode"></i> Scan Ordre de Fab (OF)
+                <i class="pi pi-box"></i> Matière Première
+              </router-link>
+            </li>
+            <li>
+              <router-link to="/magasinier/scan-bl" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 font-bold">
+                <i class="pi pi-truck"></i> Expédition Produits Finis
               </router-link>
             </li>
           </ul>

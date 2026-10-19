@@ -28,7 +28,7 @@ namespace SopalTrace.Application.Tests.Services
             _mockFormulaireStructureService = new Mock<IFormulaireStructureService>();
 
             // Setup current user
-            _mockCurrentUserService.Setup(c => c.UserInfo)
+            _mockCurrentUserService.Setup(c => c.MatriculeRequis)
                 .Returns("TestUser");
 
             // Init service
@@ -36,7 +36,8 @@ namespace SopalTrace.Application.Tests.Services
                 _mockUnitOfWork.Object,
                 _mockCurrentUserService.Object,
                 _mockLogger.Object,
-                _mockFormulaireStructureService.Object
+                _mockFormulaireStructureService.Object,
+                Array.Empty<IDocumentTypeStrategy>()
             );
         }
 
@@ -68,7 +69,7 @@ namespace SopalTrace.Application.Tests.Services
 
             _mockUnitOfWork.Setup(u => u.DocumentEnteteRepository.GetLatestVersionAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), 
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid?>()))
                 .ReturnsAsync(1); // latest version is 1
 
             // Setup void methods
@@ -80,7 +81,7 @@ namespace SopalTrace.Application.Tests.Services
                 .ReturnsAsync(1);
 
             // Act
-            var result = await _documentService.CreerNouvelleVersionDocumentAsync(request);
+            var result = await _documentService.CreateNewVersionAsync(request);
 
             // Assert
             // 1. L'ancien document doit passer en ARCHIVE
@@ -122,11 +123,11 @@ namespace SopalTrace.Application.Tests.Services
 
             _mockUnitOfWork.Setup(u => u.DocumentEnteteRepository.GetLatestVersionAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), 
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid?>()))
                 .ReturnsAsync(1); 
 
             // Act
-            await _documentService.CreerNouvelleVersionDocumentAsync(request);
+            await _documentService.CreateNewVersionAsync(request);
 
             // Assert
             // Ne doit pas modifier l'ancien document s'il n'est pas actif

@@ -25,14 +25,14 @@ namespace SopalTrace.Application.Tests.Services
 
         public ModeleFabricationServiceIntegrationTests()
         {
-            var options = new DbContextOptionsBuilder<SopalTraceDbContext>()
+            var options = RowVersionEnMemoire.Activer(new DbContextOptionsBuilder<SopalTraceDbContext>())
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
                 .Options;
 
             _context = new SopalTraceDbContext(options);
 
             _currentUserServiceMock = new Mock<ICurrentUserService>();
-            _currentUserServiceMock.Setup(c => c.UserInfo).Returns("TestUser");
+            _currentUserServiceMock.Setup(c => c.MatriculeRequis).Returns("TestUser");
 
             var formId = Guid.NewGuid();
             _context.RefFormulaires.Add(new RefFormulaire { Id = formId, CodeReference = "FE-PRC", Version = 1, Role = "EN_COURS_DE_FABRICATION", Designation = "FE-PRC", Statut = "ACTIF" });
@@ -73,9 +73,9 @@ namespace SopalTrace.Application.Tests.Services
                 OperationCode = "OP1"
             };
 
-            Guid premierModeleId = await _modeleFabricationService.CreerModeleAsync(createReq);
+            Guid premierModeleId = await _modeleFabricationService.CreateModelAsync(createReq);
 
-            var premierModeleEnBase = await _context.ModeleFabricationEntetes.FindAsync(premierModeleId);
+            var premierModeleEnBase = await _context.DocumentEntetes.FindAsync(premierModeleId);
             Assert.NotNull(premierModeleEnBase);
             Assert.Equal("ACTIF", premierModeleEnBase.Statut);
 
@@ -88,13 +88,13 @@ namespace SopalTrace.Application.Tests.Services
                 Code = codeArticle
             };
 
-            Guid deuxiemeModeleId = await _modeleFabricationService.CreerNouvelleVersionModeleAsync(newVersionReq);
+            Guid deuxiemeModeleId = await _modeleFabricationService.CreateNewVersionAsync(newVersionReq);
 
             // ==========================================
             // ASSERT (Vérification des résultats attendus)
             // ==========================================
-            var ancienModele = await _context.ModeleFabricationEntetes.FindAsync(premierModeleId);
-            var nouveauModele = await _context.ModeleFabricationEntetes.FindAsync(deuxiemeModeleId);
+            var ancienModele = await _context.DocumentEntetes.FindAsync(premierModeleId);
+            var nouveauModele = await _context.DocumentEntetes.FindAsync(deuxiemeModeleId);
 
             Assert.NotNull(ancienModele);
             Assert.NotNull(nouveauModele);
@@ -105,8 +105,8 @@ namespace SopalTrace.Application.Tests.Services
             Assert.Equal("ACTIF", nouveauModele.Statut);
 
             // Assert sur l'incrémentation du libellé (.0 puis .1)
-            Assert.EndsWith(".0", ancienModele.Libelle);
-            Assert.EndsWith(".1", nouveauModele.Libelle);
+            Assert.EndsWith(".0", ancienModele.Designation);
+            Assert.EndsWith(".1", nouveauModele.Designation);
 
             Assert.Equal(1, ancienModele.Version);
             Assert.Equal(1, nouveauModele.Version);

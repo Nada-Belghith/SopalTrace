@@ -5,25 +5,26 @@ using SopalTrace.Domain.Entities;
 
 namespace SopalTrace.Application.Interfaces.Repositories;
 
+/// <summary>Plans de fabrication : Document_Entete de type PLAN_FAB, portée SPECIFIQUE (par code article Sage versionné).</summary>
 public interface IPlanFabricationEnteteRepository
 {
-    Task<PlanFabricationEntete?> GetByIdAsync(Guid id, bool includeRelations = false);
-    Task<IEnumerable<PlanFabricationEntete>> GetAllAsync(bool includeRelations = false);
-    Task AddAsync(PlanFabricationEntete document);
-    Task UpdateAsync(PlanFabricationEntete document);
-    Task DeleteAsync(PlanFabricationEntete document);
+    Task<DocumentEntete?> GetByIdAsync(Guid id, bool includeRelations = false);
+    Task<IEnumerable<DocumentEntete>> GetAllAsync(bool includeRelations = false);
+    Task AddAsync(DocumentEntete document);
+    Task UpdateAsync(DocumentEntete document);
+    Task DeleteAsync(DocumentEntete document);
 
-    void RemoveSection(PlanFabricationSection section);
-    void RemoveLigne(PlanFabricationLigne ligne);
-    void RemoveExtraColonne(PlanFabricationLigneExtraColonne extraColonne);
+    void RemoveSection(DocumentSection section);
+    void RemoveLigne(DocumentLigne ligne);
+    void RemoveExtraColonne(DocumentLigneExtraColonne extraColonne);
     /// <summary>Insert une nouvelle section directement dans le DbSet (EntityState.Added garanti).</summary>
-    void AddSection(PlanFabricationSection section);
+    void AddSection(DocumentSection section);
 
-    Task<IEnumerable<PlanFabricationEntete>> GetByFormulaireIdAsync(Guid formulaireId);
+    Task<IEnumerable<DocumentEntete>> GetByFormulaireIdAsync(Guid formulaireId);
 
-    Task<PlanFabricationEntete?> GetActifByReferenceAsync(string typeDocumentCode, string codeArticleSageVersionne, string? operationCode = null);
+    Task<DocumentEntete?> GetActifByReferenceAsync(string typeDocumentCode, string codeArticleSageVersionne, string? operationCode = null);
     
-    Task<IEnumerable<PlanFabricationEntete>> GetByFiltersAsync(
+    Task<IEnumerable<DocumentEntete>> GetByFiltersAsync(
         string? operationCode = null, 
         string? statut = null);
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 mt-6 animate-in fade-in duration-300">
+  <div class="w-full bg-white rounded-2xl shadow-md border border-slate-200 mt-6 animate-in fade-in duration-300">
     <!-- HEADER -->
     <div class="bg-slate-900 px-8 py-6 text-white relative overflow-hidden rounded-t-2xl">
       <div class="absolute -right-6 -top-6 text-white/5">
@@ -98,15 +98,8 @@
           <i class="pi pi-cog mr-1.5"></i> 2. Choix de l'opération
         </h3>
         <div class="flex flex-col sm:flex-row gap-3 items-center">
-          <!-- Si une seule opération, l'afficher directement -->
-          <div v-if="wizard.operationsFiltrees.value.length === 1" class="w-full sm:w-1/2">
-            <div class="px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-800 shadow-sm h-[42px] flex items-center">
-              {{ wizard.operationsFiltrees.value[0].libelle || wizard.operationsFiltrees.value[0].code }}
-            </div>
-          </div>
-          <!-- Sinon afficher un dropdown -->
+          <!-- Toujours afficher un dropdown -->
           <select 
-            v-else
             v-model="wizard.operationCode.value" 
             class="w-full sm:w-1/2 px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm font-semibold text-slate-800 shadow-sm cursor-pointer transition-colors hover:bg-slate-50 h-[42px]"
           >
@@ -360,9 +353,10 @@
 </template>
 
 <script setup>
-import { nextTick, watch, ref, computed, onMounted } from 'vue';
+import { watch, ref, computed, onMounted } from 'vue';
 import AutoComplete from 'primevue/autocomplete';
 import { useFabModeleStore } from '@/stores/fabModeleStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 
 const props = defineProps({
   wizard: {
@@ -372,10 +366,11 @@ const props = defineProps({
 });
 const wizard = props.wizard;
 const store = useFabModeleStore();
+const refStore = useReferentielStore();
 const excelFileInput = ref(null);
-const emit = defineEmits(['load-model', 'excel-selected']);
+defineEmits(['load-model', 'excel-selected']);
 
-const formulairesReferences = computed(() => store.formulairesReferences || []);
+const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || []);
 
 const onRefFormulaireChange = () => {
   const code = wizard.refFormulaireCodeReference?.value || 'PRC';
@@ -383,8 +378,8 @@ const onRefFormulaireChange = () => {
 };
 
 onMounted(async () => {
-  if (!store.formulairesReferences?.length) {
-    await store.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
+  if (!refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION']?.length) {
+    await refStore.fetchFormulairesReferences('EN_COURS_DE_FABRICATION');
   }
   if (!wizard.refFormulaireCodeReference?.value) {
     wizard.refFormulaireCodeReference.value = 'PRC';
@@ -396,17 +391,9 @@ watch(() => wizard.refFormulaireCodeReference?.value, (code) => {
   if (code) store.applyFormulaireConfiguration(code);
 });
 
-// Clicking the MODELE card triggers generation only when a modele is selected
+// Clicking the MODELE card simply selects it.
 const handleModeleCardClick = async () => {
-  // Only emit if:
-  // - a modele is selected
-  // - an operation is selected  
-  // - not already generating
-  const isGenerate = wizard.isGenerating?.value || wizard.isGeneratingPlan?.value;
-  if (!isGenerate && wizard.selectedSourceId?.value && wizard.operationCode?.value) {
-    await nextTick();
-    emit('load-model', { wizard });
-  }
+  wizard.sourceType.value = 'MODELE';
 };
 
 // Clicking the EXCEL card directly opens the file picker

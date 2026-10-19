@@ -1,25 +1,13 @@
-﻿using System;
-
 namespace SopalTrace.Domain.Exceptions;
 
-// =================================================================
-// EXCEPTIONS SPÉCIFIQUES AU MODULE "MAGASIN / ERP" (Sprint 2)
-// =================================================================
-
-public class OfIntrouvableException : DomainException
+/// <summary>Étiquette déjà scannée (même lot pour le même article, ou OF déjà associé) : 409, la saisie est ignorée.</summary>
+public class ScanEnDoubleException : DomainException
 {
-    public OfIntrouvableException(string numeroOf)
-        : base($"L'Ordre de Fabrication '{numeroOf}' n'existe pas ou est introuvable dans l'ERP.") { }
+    public ScanEnDoubleException(string message) : base(message) { }
 }
 
-public class BlIntrouvableException : DomainException
+/// <summary>Contenu lu par la douchette illisible ou au mauvais format : 400.</summary>
+public class EtiquetteIllisibleException : DomainException
 {
-    public BlIntrouvableException(string numeroBl)
-        : base($"Le Bon de Livraison '{numeroBl}' est introuvable dans l'ERP.") { }
-}
-
-public class NomenclatureIntrouvableException : DomainException
-{
-    public NomenclatureIntrouvableException(string numeroOf)
-        : base($"Aucune nomenclature (composants) n'a été trouvée pour l'OF '{numeroOf}'.") { }
+    public EtiquetteIllisibleException(string message) : base(message) { }
 }

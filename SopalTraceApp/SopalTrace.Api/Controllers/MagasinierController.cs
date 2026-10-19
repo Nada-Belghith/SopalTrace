@@ -1,148 +1,66 @@
-using SopalTrace.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SopalTrace.Domain.Entities;
-using SopalTrace.Infrastructure.Data;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
+using SopalTrace.Application.DTOs.Magasin;
+using SopalTrace.Application.Interfaces;
+using SopalTrace.Domain.Constants;
 
 namespace SopalTrace.Api.Controllers;
 
+/// <summary>
+/// Magasin : préparation des OF et expédition des BL à la douchette. Chaque scan est un appel (enregistré aussitôt) ;
+/// le contenu brut est lu et validé par le serveur. Le magasinier est celui du jeton.
+/// </summary>
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.Magasinier)]
 [Route("api/magasinier")]
 [ApiController]
 public class MagasinierController : ControllerBase
 {
-    private readonly SopalTraceDbContext _context;
+    private readonly IMagasinService _service;
 
-    public MagasinierController(SopalTraceDbContext context)
+    public MagasinierController(IMagasinService service)
     {
-        _context = context;
+        _service = service;
     }
+
+    // ── Préparation des OF ──
 
     [HttpGet("of/{numeroOf}")]
-    public async Task<IActionResult> GetOfDetails(string numeroOf)
-    {
-        if (string.IsNullOrWhiteSpace(numeroOf))
-            return BadRequest(new { message = "Le numéro d'OF est requis." });
+    public async Task<IActionResult> GetOf(string numeroOf) => Ok(await _service.GetOfAsync(numeroOf));
 
-        var ofEntry = await _context.MfgheadOrdreFabrications
-            .Include(o => o.CodeArticleNavigation)
-                .ThenInclude(a => a.NatureArticleCodeNavigation)
-            .Include(o => o.MfgmatBesoinOfs)
-                .ThenInclude(m => m.CodeArticleNavigation)
-                    .ThenInclude(a => a.NatureArticleCodeNavigation)
-            .FirstOrDefaultAsync(o => o.NumeroOf.ToLower() == numeroOf.Trim().ToLower());
+    [HttpPost("preparations")]
+    public async Task<IActionResult> OuvrirPreparation([FromBody] OuvrirPreparationRequest request) =>
+        Ok(await _service.OuvrirPreparationAsync(request.NumeroOf));
 
-        if (ofEntry == null)
-            return NotFound(new { message = $"Ordre de fabrication '{numeroOf}' introuvable dans le système." });
+    [HttpPost("preparations/{id:guid}/scans")]
+    public async Task<IActionResult> ScannerComposant(Guid id, [FromBody] ScanRequest request) =>
+        Ok(await _service.ScannerComposantAsync(id, request.Contenu));
 
-        var nomenclature = ofEntry.MfgmatBesoinOfs.Select(m => new
-        {
-            code = m.CodeArticle,
-            designation = m.CodeArticleNavigation?.Designation ?? "Composant sans désignation",
-            quantite = m.QuantiteRequise,
-            nature = m.CodeArticleNavigation?.NatureArticleCodeNavigation?.Libelle ?? "COMPOSANT"
-        }).ToList();
+    [HttpDelete("preparations/{id:guid}/scans/{lotId:guid}")]
+    public async Task<IActionResult> RetirerLot(Guid id, Guid lotId) => Ok(await _service.RetirerLotAsync(id, lotId));
 
-        var result = new
-        {
-            numeroOF = ofEntry.NumeroOf,
-            articleCode = ofEntry.CodeArticle,
-            articleDesignation = ofEntry.CodeArticleNavigation?.Designation ?? "Article sans désignation",
-            articleNatureCode = ofEntry.CodeArticleNavigation?.NatureArticleCode ?? "SF",
-            articleNatureLibelle = ofEntry.CodeArticleNavigation?.NatureArticleCodeNavigation?.Libelle ?? "Semi-Fini",
-            quantitePrevue = ofEntry.QuantitePrevue,
-            nomenclature = nomenclature
-        };
+    [HttpPost("preparations/{id:guid}/terminer")]
+    public async Task<IActionResult> TerminerPreparation(Guid id, [FromBody] TerminerPreparationRequest request) =>
+        Ok(await _service.TerminerPreparationAsync(id, request.Motif));
 
-        return Ok(new { success = true, data = result });
-    }
+    [HttpPost("preparations/{id:guid}/annuler")]
+    public async Task<IActionResult> AnnulerPreparation(Guid id) => Ok(await _service.AnnulerPreparationAsync(id));
 
-    [HttpPost("preparation")]
-    public async Task<IActionResult> SavePreparation([FromBody] SavePreparationRequest request)
-    {
-        if (request == null || string.IsNullOrWhiteSpace(request.NumeroOF))
-            return BadRequest(new { message = "Données de préparation invalides." });
+    // ── Expédition des BL ──
 
-        var ofEntry = await _context.MfgheadOrdreFabrications
-            .FirstOrDefaultAsync(o => o.NumeroOf == request.NumeroOF);
+    [HttpGet("bl/{numeroBl}")]
+    public async Task<IActionResult> GetBl(string numeroBl) => Ok(await _service.GetBlAsync(numeroBl));
 
-        if (ofEntry == null)
-            return NotFound(new { message = $"L'OF '{request.NumeroOF}' n'existe pas." });
+    [HttpPost("expeditions")]
+    public async Task<IActionResult> OuvrirExpedition([FromBody] OuvrirExpeditionRequest request) =>
+        Ok(await _service.OuvrirExpeditionAsync(request.NumeroBl));
 
-        // Trouver un magasinier ou prendre le premier admin pour le mock si non fourni
-        var matriculeMagasinier = request.MatriculeMagasinier ?? "MAG01";
-        var magasinierExists = await _context.UtilisateursApps.AnyAsync(u => u.Matricule == matriculeMagasinier);
-        if (!magasinierExists)
-        {
-            var firstUser = await _context.UtilisateursApps.FirstOrDefaultAsync();
-            matriculeMagasinier = firstUser?.Matricule ?? RolesApp.Admin;
-        }
+    [HttpPost("expeditions/{id:guid}/scans")]
+    public async Task<IActionResult> ScannerOf(Guid id, [FromBody] ScanRequest request) =>
+        Ok(await _service.ScannerOfAsync(id, request.Contenu));
 
-        var prep = new MagPreparationOf
-        {
-            Id = Guid.NewGuid(),
-            NumeroOf = request.NumeroOF,
-            MatriculeMagasinier = matriculeMagasinier,
-            Statut = "TERMINE", // Respecte la contrainte de validation CHECK (Statut IN ('EN_COURS', 'TERMINE'))
-            DateDebut = DateTime.UtcNow.AddMinutes(-30),
-            DateFin = DateTime.UtcNow
-        };
+    [HttpDelete("expeditions/{id:guid}/scans/{scanId:guid}")]
+    public async Task<IActionResult> RetirerOf(Guid id, Guid scanId) => Ok(await _service.RetirerOfAsync(id, scanId));
 
-        _context.MagPreparationOfs.Add(prep);
-
-        foreach (var item in request.Items)
-        {
-            if (string.IsNullOrWhiteSpace(item.Lots)) continue;
-
-            var lotList = item.Lots.Split(';').Select(l => l.Trim()).Where(l => !string.IsNullOrEmpty(l));
-            foreach (var lot in lotList)
-            {
-                var prepLot = new MagPreparationOfLot
-                {
-                    Id = Guid.NewGuid(),
-                    PreparationOfid = prep.Id,
-                    CodeArticle = item.Code,
-                    NumeroLotScanne = lot,
-                    Quantite = item.Quantite,
-                    DateScan = DateTime.UtcNow
-                };
-                _context.MagPreparationOfLots.Add(prepLot);
-            }
-
-            // Enregistrer le rapport de contrôle rapide (QC) s'il est renseigné dans le QR code
-            if (!string.IsNullOrWhiteSpace(item.RapportQC))
-            {
-                var qcRapport = new MagQuickControlRapport
-                {
-                    Id = Guid.NewGuid(),
-                    NumeroOf = request.NumeroOF,
-                    CodeArticle = item.Code,
-                    NumeroRapportQc = item.RapportQC.Trim(),
-                    DateScan = DateTime.UtcNow
-                };
-                _context.MagQuickControlRapports.Add(qcRapport);
-            }
-        }
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new { success = true, message = "La préparation de l'OF a été validée avec succès !" });
-    }
-}
-
-public class SavePreparationRequest
-{
-    public string NumeroOF { get; set; } = null!;
-    public string? MatriculeMagasinier { get; set; }
-    public System.Collections.Generic.List<PreparationItemRequest> Items { get; set; } = new();
-}
-
-public class PreparationItemRequest
-{
-    public string Code { get; set; } = null!;
-    public string Lots { get; set; } = null!;
-    public double Quantite { get; set; }
-    public string? RapportQC { get; set; }
+    [HttpPost("expeditions/{id:guid}/terminer")]
+    public async Task<IActionResult> TerminerExpedition(Guid id) => Ok(await _service.TerminerExpeditionAsync(id));
 }

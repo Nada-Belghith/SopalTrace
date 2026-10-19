@@ -17,7 +17,13 @@ public partial class MagPreparationOf
 
     public DateTime? DateFin { get; set; }
 
+    public string? IncompleteReason { get; set; }
+
+    public byte[] RowVersion { get; set; } = null!;
+
     public virtual ICollection<MagPreparationOfLot> MagPreparationOfLots { get; set; } = new List<MagPreparationOfLot>();
+
+    public virtual Autili MatriculeMagasinierNavigation { get; set; } = null!;
 
     public virtual MfgheadOrdreFabrication NumeroOfNavigation { get; set; } = null!;
 }

@@ -16,20 +16,20 @@ public class RefFormulaireService : IRefFormulaireService
     private readonly IModeleFabricationService _modeleFabricationService;
     private readonly IPlanFabricationService _planFabricationService;
     private readonly IDocumentService _documentService;
-    private readonly IPlanVerifMachineService _planVerifMachineService;
+    private readonly IDocumentVerifMachineService _documentVerifMachineService;
 
     public RefFormulaireService(
         IUnitOfWork unitOfWork,
         IModeleFabricationService modeleFabricationService,
         IPlanFabricationService planFabricationService,
         IDocumentService documentService,
-        IPlanVerifMachineService planVerifMachineService)
+        IDocumentVerifMachineService documentVerifMachineService)
     {
         _unitOfWork = unitOfWork;
         _modeleFabricationService = modeleFabricationService;
         _planFabricationService = planFabricationService;
         _documentService = documentService;
-        _planVerifMachineService = planVerifMachineService;
+        _documentVerifMachineService = documentVerifMachineService;
     }
 
     public async Task<RefFormulaireDto> GetByIdAsync(Guid id)
@@ -37,7 +37,7 @@ public class RefFormulaireService : IRefFormulaireService
         var form = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(id);
         if (form == null) throw new InvalidOperationException("Formulaire introuvable.");
 
-        var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(form.CodeReference);
+        var cols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(form.Id);
 
         return new RefFormulaireDto
         {
@@ -58,7 +58,7 @@ public class RefFormulaireService : IRefFormulaireService
         if (form == null) return false;
 
         var parsedCols = ColonneJsonMapper.Deserialize(dto.ConfigurationStructureJson);
-        await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(form.CodeReference, parsedCols);
+        await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(form.Id, parsedCols);
 
         await _unitOfWork.RefFormulaireRepository.UpdateAsync(form);
         await _unitOfWork.CommitAsync();
@@ -72,35 +72,39 @@ public class RefFormulaireService : IRefFormulaireService
             var oldForm = await _unitOfWork.RefFormulaireRepository.GetByIdAsync(dto.AncienId);
             if (oldForm == null) throw new InvalidOperationException("Ancien formulaire introuvable.");
 
-            var oldCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByCodeReferenceAsync(oldForm.CodeReference);
+            var oldCols = await _unitOfWork.RefFormulaireRepository.GetColonnesActivesByFormulaireIdAsync(oldForm.Id);
 
-            // Archiver l'ancien
+            // Les documents liés d'abord, puis l'ancien formulaire : la base refuse un document générique actif sur un
+            // formulaire archivé.
+            await _modeleFabricationService.ArchiveModelsByFormulaireAsync(oldForm.Id);
+            await _planFabricationService.ArchiveDocumentsByFormulaireAsync(oldForm.Id);
+            await _documentService.ArchiveDocumentsByFormulaireAsync(oldForm.Id);
+            await _documentVerifMachineService.ArchiveDocumentsByFormulaireAsync(oldForm.Id);
+            await _unitOfWork.CommitAsync();
             await _unitOfWork.RefFormulaireRepository.UpdateStatutAsync(oldForm.Id, StatutsPlan.Archive);
 
-            // Créer le nouveau
+            // Nouvelle version : même formulaire (lignée), même champ d'application.
             var newForm = new RefFormulaire
             {
                 Id = Guid.NewGuid(),
                 CodeReference = oldForm.CodeReference,
                 Designation = oldForm.Designation,
-                Version = oldForm.Version + 1,
+                Version = await _unitOfWork.RefFormulaireRepository.GetMaxVersionDuGroupeAsync(oldForm.VersionGroupId) + 1,
                 Statut = StatutsPlan.Actif,
-                CreeLe = DateTime.UtcNow,
                 Role = oldForm.Role,
+                PosteCode = oldForm.PosteCode,
+                FamilleProduitFiniCode = oldForm.FamilleProduitFiniCode,
+                TypeRobinetCode = oldForm.TypeRobinetCode,
+                MachineCode = oldForm.MachineCode,
+                NatureArticleCode = oldForm.NatureArticleCode,
+                VersionGroupId = oldForm.VersionGroupId
             };
+            await _unitOfWork.RefFormulaireRepository.AddAsync(newForm);
+            await _unitOfWork.CommitAsync();
 
             var parsedCols = ColonneJsonMapper.Deserialize(dto.ConfigurationStructureJson ?? ColonneJsonMapper.Serialize(oldCols));
-            await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(newForm.CodeReference, parsedCols);
+            await _unitOfWork.RefFormulaireRepository.SyncColonnesAsync(newForm.Id, parsedCols);
 
-            await _unitOfWork.RefFormulaireRepository.AddAsync(newForm);
-
-            // === AUTO-ARCHIVAGE ===
-            // Déléguer l'archivage aux services métier concernés
-            await _modeleFabricationService.ArchiverModelesByFormulaireAsync(oldForm.Id);
-            await _planFabricationService.ArchiverPlansByFormulaireAsync(oldForm.Id);
-            await _documentService.ArchiverDocumentsByFormulaireAsync(oldForm.Id);
-            await _planVerifMachineService.ArchiverPlansByFormulaireAsync(oldForm.Id);
-            
             return newForm.Id;
         });
     }

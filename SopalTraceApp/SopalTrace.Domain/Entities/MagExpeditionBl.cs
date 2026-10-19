@@ -17,7 +17,11 @@ public partial class MagExpeditionBl
 
     public DateTime? DateFin { get; set; }
 
+    public byte[] RowVersion { get; set; } = null!;
+
     public virtual ICollection<MagExpeditionBlScanOf> MagExpeditionBlScanOfs { get; set; } = new List<MagExpeditionBlScanOf>();
+
+    public virtual Autili MatriculeMagasinierNavigation { get; set; } = null!;
 
     public virtual Sdelivery NumeroBlNavigation { get; set; } = null!;
 }

@@ -22,7 +22,7 @@
           </option>
         </select>
         <span class="text-xs font-bold text-blue-500 italic hidden md:block">
-          La sélection du formulaire remplira automatiquement les champs suivants.
+          Famille, article et poste sont ceux du formulaire choisi (verrouillés).
         </span>
       </div>
     </div>
@@ -34,8 +34,8 @@
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Famille *</label>
         <select 
           v-model="store.entete.familleProduitCode" 
-          :disabled="isEditMode || isReadOnly || isPiston" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || isPiston) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :disabled="isEditMode || isReadOnly || isPiston || champVerrouille" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || isPiston || champVerrouille) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Sélectionner --</option>
           <option v-for="fam in famillesFiltrees" :key="fam.code" :value="fam.code">
             {{ fam.code }}
@@ -60,20 +60,20 @@
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Article *</label>
         <select 
           v-model="store.entete.natureComposantCode" 
-          :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
+          :disabled="isEditMode || isReadOnly || champVerrouille" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || champVerrouille) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">        
           <option value="">-- Sélectionner --</option>
           <option v-for="nat in composantsFiltres" :key="nat.code" :value="nat.code">{{ nat.libelle }}</option>
         </select>
       </div>
 
-      <!-- POSTE (Visible UNIQUEMENT si Famille=soupape ET Article=PF) -->
+      <!-- POSTE (visible uniquement si la famille a des plans par poste ET Article=PF) -->
       <div v-if="afficherPoste">
         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Poste</label>
         <select 
           v-model="store.entete.posteCode" 
-          :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
+          :disabled="isEditMode || isReadOnly || champVerrouille" 
+          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly || champVerrouille) ? 'cursor-not-allowed bg-gray-100 border-slate-200 text-slate-500' : 'bg-white border border-slate-300 text-slate-800 cursor-pointer']">       
           <option value="">-- Tous les postes --</option>
           <option v-for="p in postesDisponibles" :key="p.code" :value="p.code">
            {{ p.libelle }}
@@ -83,7 +83,7 @@
 
       <!-- LIBELLÉ -->
       <div>
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du Gabarit *</label>
+        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Libellé du plan *</label>
         <input 
           v-model="store.entete.libelle" 
           @blur="onLibelleBlur"
@@ -93,16 +93,7 @@
           :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
       </div>
 
-      <div class="pt-4">
-        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5">Version de départ</label>
-        <input 
-          v-model.number="store.entete.versionInitiale" 
-          type="number" 
-          min="0" 
-          placeholder="Ex: 0"
-          :disabled="isEditMode || isReadOnly" 
-          :class="['w-full rounded px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 transition-shadow', (isEditMode || isReadOnly) ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border border-slate-300 text-slate-800']">
-      </div>
+      
 
     </div>
 
@@ -113,9 +104,12 @@
 <script setup>
 import { computed, watch, ref } from 'vue';
 import { useAssPlanStore } from '@/stores/assPlanStore';
+import { useReferentielStore } from '@/stores/referentielStore';
 import { parseDesignation } from '@/utils/designationParser';
 
 const store = useAssPlanStore();
+const refStore = useReferentielStore();
+
 const props = defineProps({
   isEditMode: {
     type: Boolean,
@@ -127,34 +121,31 @@ const props = defineProps({
   }
 });
 
-const formulairesReferences = computed(() => store.formulairesReferences || []);
+const formulairesReferences = computed(() => refStore.formulairesReferencesByRole['EN_COURS_DE_ASSEMBLAGE'] || []);
 const refFormulaireSelected = ref('');
 const isAutoFilling = ref(false);
+const formulaireChoisi = computed(() => formulairesReferences.value.find(r => r.id === refFormulaireSelected.value) ?? null);
+// Le formulaire est trouvé par son champ d'application exact : famille, article et poste sont les siens.
+const champVerrouille = computed(() => !!formulaireChoisi.value);
 
-  watch(refFormulaireSelected, async (newRefId) => {
+watch(refFormulaireSelected, async (newRefId) => {
   if (!newRefId) return;
   const refObj = formulairesReferences.value.find(r => r.id === newRefId);
   if (!refObj) return;
 
-  const designation = refObj.designation || '';
   isAutoFilling.value = true;
 
-  const parsed = parseDesignation(designation, store.famillesProduit || [], [], store.postes || []);
+  // Champ d'application du formulaire (référentiel) : une famille désigne un plan de produit fini, sans famille sa
+  // nature (ex. PISTON).
+  store.entete.familleProduitCode = refObj.familleProduitFiniCode || '';
+  store.entete.natureComposantCode = refObj.familleProduitFiniCode ? 'PF' : (refObj.natureArticleCode || '');
+  store.entete.posteCode = refObj.posteCode || '';
+  // L'opération ne fait pas partie du champ d'application : proposée d'après le nom du formulaire, modifiable.
+  const parsed = parseDesignation(refObj.designation || '', refStore.famillesProduit || [], [], refStore.postes || []);
+  if (parsed.operationCode) store.entete.operationCode = parsed.operationCode;
 
-  if (parsed.familleCode !== '') store.entete.familleProduitCode = parsed.familleCode;
-  else store.entete.familleProduitCode = '';
-
-  store.entete.natureComposantCode = parsed.natureComposantCode;
-  store.entete.operationCode = parsed.operationCode;
-  store.entete.posteCode = parsed.posteCode;
-
-  // DO NOT overwrite libelle with the designation of the reference form
-  // The user should type their own libelle for the model (e.g. Modèle MOD-TRONC-CORPS V1)
-
-  // ✅ Mémoriser le codeReference du formulaire sélectionné pour le versioning ciblé
   store.entete.refFormulaireCodeReference = refObj.codeReference || '';
   
-  // Appliquer la configuration des colonnes du formulaire sélectionné
   if (refObj.configurationStructureJson) {
     try {
       store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
@@ -168,7 +159,6 @@ const isAutoFilling = ref(false);
     store.entete.configurationColonnes = [];
   }
 
-  // Libérer le flag après la propagation de la réactivité
   setTimeout(() => {
     isAutoFilling.value = false;
   }, 100);
@@ -180,42 +170,35 @@ const onLibelleBlur = () => {
   if (!lib) return;
   
   isAutoFilling.value = true;
-  const parsed = parseDesignation(lib, store.famillesProduit || [], [], store.postes || []);
+  const parsed = parseDesignation(lib, refStore.famillesProduit || [], [], refStore.postes || []);
   
-  if (parsed.familleCode) store.entete.familleProduitCode = parsed.familleCode;
-  if (parsed.natureComposantCode) store.entete.natureComposantCode = parsed.natureComposantCode;
+  // Avec un formulaire choisi, son champ d'application ne change pas.
+  if (!champVerrouille.value) {
+    if (parsed.familleCode) store.entete.familleProduitCode = parsed.familleCode;
+    if (parsed.natureComposantCode) store.entete.natureComposantCode = parsed.natureComposantCode;
+    if (parsed.posteCode) store.entete.posteCode = parsed.posteCode;
+  }
   if (parsed.operationCode) store.entete.operationCode = parsed.operationCode;
-  if (parsed.posteCode) store.entete.posteCode = parsed.posteCode;
   
   setTimeout(() => {
     isAutoFilling.value = false;
   }, 100);
 };
 
-// =========================================================================
-// LOGIQUE PRINCIPALE : AFFICHER POSTE SI FAMILLE=SOUPAPE ET ARTICLE=PF
-// =========================================================================
-
 const afficherPoste = computed(() => {
-  const famille = String(store.entete.familleProduitCode || '').trim().toLowerCase();
+  const famille = (refStore.famillesProduit || []).find(f => f.code === store.entete.familleProduitCode);
   const article = String(store.entete.natureComposantCode || '').trim().toUpperCase();
 
-  // Afficher Poste UNIQUEMENT si :
-  // 1. Famille contient "soupape"
-  // 2. ET Article = "PF"
-  return famille.includes('soupape') && article === 'PF';
+  // Famille dont les plans sont propres à chaque poste (FamilleProduitFini.PlanParPoste), ou poste du formulaire choisi
+  return (!!famille?.planParPoste && article === 'PF') || !!formulaireChoisi.value?.posteCode;
 });
 
 const isPiston = computed(() => {
   return String(store.entete.natureComposantCode || '').trim().toUpperCase() === 'PISTON';
 });
 
-// =========================================================================
-// FILTRES DYNAMIQUES
-// =========================================================================
-
 const composantsFiltres = computed(() => {
-  let toutesLesNatures = store.naturesComposant || [];
+  let toutesLesNatures = refStore.naturesComposant || [];
   
   toutesLesNatures = toutesLesNatures.filter(n => {
     const code = (n.code || '').trim().toUpperCase();
@@ -223,11 +206,10 @@ const composantsFiltres = computed(() => {
   });
 
   const selectedOp = (store.entete.operationCode || '').trim().toUpperCase();
-  const gammes = store.gammesOperatoires || [];
+  const gammes = refStore.gammesOperatoires || [];
 
   if (!selectedOp || !gammes.length) return toutesLesNatures;
 
-  // Filtrer les natures autorisées pour l'opération sélectionnée
   const naturesPermises = gammes
     .filter(g => (g.operationCode || '').trim().toUpperCase() === selectedOp)
     .map(g => (g.natureComposantCode || '').trim().toUpperCase());
@@ -236,18 +218,17 @@ const composantsFiltres = computed(() => {
 });
 
 const famillesFiltrees = computed(() => {
-  const allFamilies = store.famillesProduit || [];
+  const allFamilies = refStore.famillesProduit || [];
   if (isPiston.value) {
-    // On ajoute 'TOUS' au début mais on laisse les autres familles accessibles
     return [{ code: 'TOUS' }, ...allFamilies];
   }
   return allFamilies;
 });
 
 const operationsFiltrees = computed(() => {
-  const toutesLesOperations = store.operations || [];
+  const toutesLesOperations = refStore.operations || [];
   const selectedNature = (store.entete.natureComposantCode || '').trim().toUpperCase();
-  const gammes = store.gammesOperatoires || [];
+  const gammes = refStore.gammesOperatoires || [];
 
   if (!gammes.length) return toutesLesOperations;
 
@@ -256,7 +237,6 @@ const operationsFiltrees = computed(() => {
     return nat === 'PISTON' || nat === 'PF';
   });
 
-  // Si une nature est sélectionnée, on filtre les opérations liées à cette nature
   if (selectedNature) {
     const opsPermises = gammesFiltrees
       .filter(g => (g.natureComposantCode || '').trim().toUpperCase() === selectedNature)
@@ -265,13 +245,12 @@ const operationsFiltrees = computed(() => {
     return toutesLesOperations.filter(op => opsPermises.includes((op.code || '').trim().toUpperCase()));
   }
 
-  // Sinon, on montre toutes les opérations qui existent dans les gammes filtrées
   const toutesOpsDansGammes = [...new Set(gammesFiltrees.map(g => (g.operationCode || '').trim().toUpperCase()))];
   return toutesLesOperations.filter(op => toutesOpsDansGammes.includes((op.code || '').trim().toUpperCase()));
 });
 
 const postesDisponibles = computed(() =>
-  (store.postes || [])
+  (refStore.postes || [])
     .map(p => ({
       code: p.code || p.Code || p.codePoste || p.CodePoste,
       libelle: p.libelle || p.Libelle || p.designation || p.Designation
@@ -330,7 +309,7 @@ watch(() => store.entete.natureComposantCode, (newVal, oldVal) => {
   }
 });
 
-// Si condition Poste change (soupape check) → Réinitialise Poste
+// Si condition Poste change → Réinitialise Poste
 watch(afficherPoste, (val) => {
   if (!val) {
     store.entete.posteCode = '';

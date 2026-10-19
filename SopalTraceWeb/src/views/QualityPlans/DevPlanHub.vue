@@ -3,13 +3,7 @@
     <Toast position="top-right" />
     <ConfirmDialog></ConfirmDialog>
 
-    <div class="mb-4 md:mb-0">
-      <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-        <i class="pi pi-th-large text-blue-600"></i>
-        Plans par Article
-      </h1>
-      <p class="text-slate-500 text-sm mt-1">Visualisez et gérez vos plans de contrôle instanciés par article.</p>
-    </div>
+    <EnTetePage class="mb-4 md:mb-0" titre="Plans par article" sous-titre="Visualisez et gérez vos plans de contrôle instanciés par article." />
 
     <!-- ========================================== -->
     <!-- BARRE DE CONTRÔLE : Onglets & Filtres      -->
@@ -109,6 +103,9 @@
             <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
               {{ plan.category === 'FAB' ? (plan.codeArticleSage || plan.libelle || plan.designation || '(Sans désignation)') : (plan.libelle || plan.designation || '(Sans désignation)') }}
             </h3>
+            <p v-if="plan.creeLe" class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="pi pi-calendar text-[9px]"></i> Créé le {{ new Date(plan.creeLe).toLocaleDateString('fr-FR') }} à {{ new Date(plan.creeLe).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+            </p>
           </div>
 
           <!-- Tags -->
@@ -192,6 +189,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import { useRouter } from 'vue-router';
 import { useAppToast } from '@/composables/useAppToast';
 import { useAppConfirm } from '@/composables/useAppConfirm';
@@ -264,12 +262,9 @@ const filteredPlans = computed(() => {
 
     return matchTab && matchOp && matchSearch && matchStatut;
   }).sort((a, b) => {
-    const priorite = { 'ACTIF': 1, 'ARCHIVE': 2 };
-    const pA = priorite[a.statut] || 99;
-    const pB = priorite[b.statut] || 99;
-    
-    if (pA !== pB) return pA - pB;
-    return (a.codeArticleSage || '').localeCompare(b.codeArticleSage || '');
+    const dateA = new Date(a.archiveLe || a.modifieLe || a.creeLe || 0).getTime();
+    const dateB = new Date(b.archiveLe || b.modifieLe || b.creeLe || 0).getTime();
+    return dateB - dateA;
   });
 });
 

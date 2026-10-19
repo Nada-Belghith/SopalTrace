@@ -1,0 +1,95 @@
+<template>
+  <div class="mb-10">
+    <!-- NOUVEAU DESIGN POUR REF FORMULAIRE -->
+    <div v-if="!isReadOnly && !isEditMode" class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col md:flex-row gap-4 mb-6 shadow-inner">
+      <div class="flex items-center text-blue-800 font-black tracking-widest text-xs min-w-[150px]">
+        <i class="pi pi-file-import mr-2 text-lg text-blue-600"></i> RÉF. FORMULAIRE *
+      </div>
+      <div class="flex-1 flex gap-4 items-center relative">
+        <select 
+          v-model="refFormulaireSelected" 
+          class="w-full md:w-1/2 rounded-lg px-4 py-2 text-sm font-bold shadow-sm focus:ring-2 focus:ring-blue-400 outline-none transition-shadow bg-white border border-blue-200 text-blue-900 cursor-pointer">
+          <option value="">-- Choisir un formulaire générique --</option>
+          <option v-for="ref in (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || [])" :key="ref.id" :value="ref.id">
+            {{ ref.codeReference }} - {{ ref.designation }}
+          </option>
+        </select>
+        <span class="text-xs font-bold text-blue-500 italic hidden md:block">
+          La famille est celle du formulaire choisi (verrouillée).
+        </span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-1 gap-8 bg-slate-50/50 p-6 rounded-xl border border-slate-100">
+      
+      <!-- FAMILLE PRODUIT (Obligatoire) -->
+      <div>
+        <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.1em] mb-2">Famille de Produit Fini</label>
+        <div v-if="isReadOnly" class="text-sm font-black text-blue-900 bg-blue-50/50 px-4 py-2.5 rounded-lg border border-blue-100/50 flex items-center gap-2">
+           <i class="pi pi-box text-blue-400"></i>
+           {{ store.entete.familleProduitFiniCode || 'Non spécifié' }}
+        </div>
+        <select v-else v-model="store.entete.familleProduitFiniCode" :disabled="!!formulaireChoisi"
+                class="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition-all cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
+          <option value="">-- Sélectionner la famille --</option>
+          <option v-for="fam in (refStore.famillesProduit || [])" :key="fam.code" :value="fam.code">{{ fam.code }}</option>
+        </select>
+      </div>
+
+      
+
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, watch, computed } from 'vue';
+import { usedocumentProduitFiniStore } from '@/stores/documentProduitFiniStore';
+import { useReferentielStore } from '@/stores/referentielStore';
+const store = usedocumentProduitFiniStore();
+const refStore = useReferentielStore();
+const refFormulaireSelected = ref('');
+// Le formulaire est trouvé par son champ d'application exact : la famille est la sienne.
+const formulaireChoisi = computed(() =>
+  (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || []).find(r => r.id === refFormulaireSelected.value) ?? null);
+
+const props = defineProps({
+  isReadOnly: {
+    type: Boolean,
+    default: false
+  },
+  isEditMode: {
+    type: Boolean,
+    default: false
+  }
+});
+
+onMounted(() => {
+  if (!props.isReadOnly && !props.isEditMode) {
+    refStore.fetchFormulairesReferences('PRODUIT_FINI');
+  }
+});
+
+watch(refFormulaireSelected, (newRefId) => {
+  if (!newRefId) return;
+  const refObj = (refStore.formulairesReferencesByRole['PRODUIT_FINI'] || []).find(r => r.id === newRefId);
+  if (!refObj) return;
+
+  store.entete.familleProduitFiniCode = refObj.familleProduitFiniCode || '';
+  store.entete.refFormulaireCodeReference = refObj.codeReference;
+
+  // Appliquer la configuration des colonnes du formulaire sélectionné
+  if (refObj.configurationStructureJson) {
+    try {
+      store.entete.configurationColonnes = typeof refObj.configurationStructureJson === 'string' 
+        ? JSON.parse(refObj.configurationStructureJson) 
+        : refObj.configurationStructureJson;
+    } catch (e) {
+      console.error("Erreur parsing configuration colonnes:", e);
+      store.entete.configurationColonnes = [];
+    }
+  } else {
+    store.entete.configurationColonnes = [];
+  }
+});
+</script>

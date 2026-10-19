@@ -13,10 +13,10 @@ export const useExecEncfStore = defineStore('execEncf', {
       this.loading = true;
       this.error = null;
       try {
-        const response = await apiClient.get(`/api/exec/encf/${id}`);
+        const response = await apiClient.get(`/exec/encf/${id}`);
         this.execData = response.data;
         if (this.execData.planSourceId) {
-          const planRes = await apiClient.get(`/planrccf/${this.execData.planSourceId}`);
+          const planRes = await apiClient.get(`/Document/${this.execData.planSourceId}`);
           this.planSourceData = planRes.data;
         }
         this.ensureTranches(this.execData);
@@ -31,10 +31,10 @@ export const useExecEncfStore = defineStore('execEncf', {
       this.loading = true;
       this.error = null;
       try {
-        const response = await apiClient.get(`/api/exec/encf/by-of/${numeroOf}/poste/${posteCode}`);
+        const response = await apiClient.get(`/exec/encf/by-of/${numeroOf}/poste/${posteCode}`);
         this.execData = response.data;
         if (this.execData.planSourceId) {
-          const planRes = await apiClient.get(`/planrccf/${this.execData.planSourceId}`);
+          const planRes = await apiClient.get(`/Document/${this.execData.planSourceId}`);
           this.planSourceData = planRes.data;
         }
         this.ensureTranches(this.execData);
@@ -49,7 +49,7 @@ export const useExecEncfStore = defineStore('execEncf', {
       this.loading = true;
       this.error = null;
       try {
-        const response = await apiClient.post('/api/exec/encf', this.execData);
+        const response = await apiClient.post('/exec/encf', this.execData);
         this.execData = response.data;
         this.ensureTranches(this.execData);
         return { success: true };

@@ -9,15 +9,17 @@ public partial class FamilleProduitFini
 
     public string Designation { get; set; } = null!;
 
-    public string? TypeRobinetCode { get; set; }
+    public string TypeRobinetCode { get; set; } = null!;
 
     public bool Actif { get; set; }
 
-    public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
+    public bool PlanParPoste { get; set; }
 
-    public virtual ICollection<ModeleFabricationEntete> ModeleFabricationEntetes { get; set; } = new List<ModeleFabricationEntete>();
+    public virtual ICollection<DocumentEntete> DocumentEntetes { get; set; } = new List<DocumentEntete>();
 
     public virtual ICollection<ProduitFini> ProduitFinis { get; set; } = new List<ProduitFini>();
 
-    public virtual TypeRobinet? TypeRobinetCodeNavigation { get; set; }
+    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
+
+    public virtual TypeRobinet TypeRobinetCodeNavigation { get; set; } = null!;
 }

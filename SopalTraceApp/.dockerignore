@@ -28,3 +28,9 @@ README.md
 !.git/config
 !.git/packed-refs
 !.git/refs/heads/**
+# Le SDK de compilation de l image est fixé par le Dockerfile (le global.json vise le poste et la CI).
+global.json
+# Inutiles dans l image de l API
+tests
+**/logs
+**/TestResults

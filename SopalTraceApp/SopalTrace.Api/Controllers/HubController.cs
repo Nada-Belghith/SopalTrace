@@ -4,8 +4,11 @@ using SopalTrace.Application.Interfaces;
 using System;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.Authorization;
+
 namespace SopalTrace.Api.Controllers;
 
+[Authorize(Roles = RolesApp.Admin + "," + RolesApp.ResponsableDI + "," + RolesApp.ResponsableQualite + "," + RolesApp.SuperviseurQualite)]
 [Route("api/hub")]
 [ApiController]
 public class HubController : ControllerBase
@@ -16,6 +19,10 @@ public class HubController : ControllerBase
     {
         _service = service;
     }
+
+    /// <summary>Compteurs du tableau de bord superviseur : documents génériques / spécifiques par statut et par type.</summary>
+    [HttpGet("statistiques")]
+    public async Task<IActionResult> GetStatistiques() => Ok(await _service.GetStatistiquesAsync());
 
     [HttpGet("modeles")]
     public async Task<IActionResult> GetTousLesModeles()
@@ -38,9 +45,21 @@ public class HubController : ControllerBase
         return Ok(new { success = true, data });
     }
 
+    /// <summary>
+    /// Archiver, réactiver ou supprimer un brouillon : le superviseur qualité (documents qualité), le responsable DI pour la
+    /// fabrication seulement, l'administrateur. Le responsable qualité consulte sans modifier.
+    /// </summary>
+    private const string RolesModification = RolesApp.Admin + "," + RolesApp.SuperviseurQualite + "," + RolesApp.ResponsableDI;
+    private const string CategorieFabrication = "FAB";
+
+    private bool HorsDeSonPerimetre(string category) =>
+        User.IsInRole(RolesApp.ResponsableDI) && !string.Equals(category, CategorieFabrication, StringComparison.OrdinalIgnoreCase);
+
+    [Authorize(Roles = RolesModification)]
     [HttpPut("modeles/{category}/{id}/statut")]
     public async Task<IActionResult> ChangerStatutModele(string category, Guid id, [FromQuery] string statut)
     {
+        if (HorsDeSonPerimetre(category)) return Forbid();
         if (statut != StatutsPlan.Actif && statut != StatutsPlan.Archive)
         {
             return BadRequest("Le statut doit être ACTIF ou ARCHIVE.");
@@ -55,9 +74,11 @@ public class HubController : ControllerBase
         return Ok(new { success = true, message = $"Le modèle a été passé en {statut}." });
     }
 
+    [Authorize(Roles = RolesModification)]
     [HttpPut("plans/{category}/{id}/statut")]
     public async Task<IActionResult> ChangerStatutPlan(string category, Guid id, [FromQuery] string statut)
     {
+        if (HorsDeSonPerimetre(category)) return Forbid();
         if (statut != StatutsPlan.Actif && statut != StatutsPlan.Archive)
         {
             return BadRequest("Le statut doit être ACTIF ou ARCHIVE.");
@@ -72,9 +93,11 @@ public class HubController : ControllerBase
         return Ok(new { success = true, message = $"Le plan a été passé en {statut}." });
     }
 
+    [Authorize(Roles = RolesModification)]
     [HttpDelete("plans/{category}/{id}")]
     public async Task<IActionResult> SupprimerBrouillonPlan(string category, Guid id)
     {
+        if (HorsDeSonPerimetre(category)) return Forbid();
         var deleted = await _service.SupprimerBrouillonPlanAsync(category, id);
         if (!deleted)
         {

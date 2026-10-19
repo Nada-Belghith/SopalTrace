@@ -1,106 +1,78 @@
+/**
+ * Service d'accès à l'API pour les documents centralisés.
+ * Types concernés : CTRL_POSTE, RESULTAT_CF, PLAN_ASS, PLAN_PF.
+ *
+ * Droits :
+ * - Lecture          : tous les utilisateurs authentifiés
+ * - Création/Version/Correction : SuperviseurQualite uniquement
+ * - Suppression      : Admin uniquement
+ */
 import apiClient from './apiClient'
 
 export const documentService = {
-  // ----------------------------------------------------
-  // BASE API CALLS (Unified TPH DocumentController)
-  // ----------------------------------------------------
+
+  // ── Lecture ──────────────────────────────────────────────────────────────
+
+  /** Récupère un document par son ID. */
   async getById(id) {
     const response = await apiClient.get(`/Document/${id}`)
     return response.data
   },
 
+  /** Recherche de documents par filtres (typeDocumentCode requis). */
   async getByFilters(params) {
     const response = await apiClient.get(`/Document`, { params })
     return response.data
   },
 
-  async create(payload) {
+  // ── Écriture (SuperviseurQualite) ─────────────────────────────────────────
+
+  /**
+   * Crée un nouveau document (V1, ACTIF).
+   * Si un actif existe déjà pour ce contexte, il est archivé côté serveur.
+   */
+  async createDocument(payload) {
     const response = await apiClient.post(`/Document`, payload)
     return response.data
   },
 
-  async createNewVersion(id, payload) {
-    const response = await apiClient.post(`/Document/${id}/version`, payload)
+  /**
+   * Crée une nouvelle version (V+1, ACTIF).
+   * L'ancien document (ancienId) est archivé côté serveur.
+   * @param {string|object} ancienId - ID du document actif à archiver ou payload complet
+   * @param {object} [payload]  - Doit contenir ancienId + tous les champs du nouveau document
+   */
+  async createNewVersion(ancienId, payload) {
+    const targetId = (typeof ancienId === 'object' && ancienId !== null) ? (ancienId.ancienId || ancienId.id) : ancienId;
+    const body = (typeof ancienId === 'object' && ancienId !== null) ? ancienId : payload;
+    const response = await apiClient.post(`/Document/${targetId}/version`, body)
     return response.data
   },
 
-  async restaurer(id, payload) {
-    const response = await apiClient.post(`/Document/${id}/restaurer`, payload)
+  /**
+   * Correction mineure : modifie le document en place.
+   * Aucun changement de version, aucun archivage.
+   * payload.rowVersion (version reçue au chargement) est obligatoire : refus 409 si le document a changé entre-temps.
+   * @returns {{ rowVersion: string }} nouvelle version, à conserver pour l'enregistrement suivant
+   */
+  async updateDocument(id, payload) {
+    const response = await apiClient.put(`/Document/${id}`, payload)
     return response.data
   },
 
-  async deleteDocument(id) {
-    const response = await apiClient.delete(`/Document/${id}`)
-    return response.data
-  },
+  // ── Utilitaires ───────────────────────────────────────────────────────────
 
-  // ----------------------------------------------------
-  // ----------------------------------------------------
-  // ALIASES FOR PLAN_ASS (Used by AssPlan components)
-  // ----------------------------------------------------
-  async getModelesByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null, familleProduitCode = null) {
-    const params = {
-      typeDocumentCode: 'PLAN_ASS',
-      natureComposantCode,
-      operationCode,
-      posteCode,
-      familleProduitCode: familleProduitCode || typeRobinet
-    };
-    return await this.getByFilters(params);
-  },
-
-  async getPlansByFilters(typeRobinet, natureComposantCode, operationCode, posteCode = null) {
-    return await this.getByFilters({ typeDocumentCode: 'PLAN_ASS', natureComposantCode, operationCode, posteCode });
-  },
-
-  async createPlan(payload) {
-    payload.typeDocumentCode = 'PLAN_ASS';
-    const id = await this.create(payload);
-    return { data: { planId: id, version: 1 } };
-  },
-
-  async newPlanVersion(payload) {
-    payload.typeDocumentCode = 'PLAN_ASS';
-    const id = await this.createNewVersion(payload.ancienId, payload);
-    return { data: { planId: id } };
-  },
-
-  async updatePlanValeurs(id, payload) {
-    return await this.createNewVersion(id, payload);
-  },
-
-  async activerPlan(id) {
-    return Promise.resolve({ data: { success: true } });
-  },
-
-  async getPlanById(id) {
-    return this.getById(id);
-  },
-
-  async restorePlan(payload) {
-    let dto = {
-      documentArchiveId: payload.documentArchiveId || payload.DocumentArchiveId || payload.documentId,
-      motifRestoration: payload.motifRestoration || 'Restoration'
-    };
-    return this.restaurer(dto.documentArchiveId, dto);
-  },
-
-  async deletePlan(id) {
-    return this.deleteDocument(id);
-  },
-
-  // Added missing method for Periodicite
+  /** Crée une periodicité (référentiel). */
   async createPeriodicite(payload) {
-    const response = await apiClient.post('/referentiels/periodicites', payload);
-    return response.data;
+    const response = await apiClient.post('/referentiels/periodicites', payload)
+    return response.data
   },
 
+  /** Import Excel d'un plan. */
   async importExcel(formData) {
     const response = await apiClient.post('/ExcelImport/plan', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
-    return response.data;
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
   }
 }

@@ -17,11 +17,7 @@ public partial class DocumentSection
 
     public Guid? PeriodiciteId { get; set; }
 
-    public Guid? RegleEchantillonnageId { get; set; }
-
     public string? Notes { get; set; }
-
-    public string? NormeReference { get; set; }
 
     public int? NqaId { get; set; }
 
@@ -29,11 +25,13 @@ public partial class DocumentSection
 
     public virtual DocumentEntete Entete { get; set; } = null!;
 
+    public virtual ICollection<ExecPrelevementIntermediaire> ExecPrelevementIntermediaires { get; set; } = new List<ExecPrelevementIntermediaire>();
+
+    public virtual ICollection<ExecProductionPeriod> ExecProductionPeriods { get; set; } = new List<ExecProductionPeriod>();
+
     public virtual Nqa? Nqa { get; set; }
 
     public virtual Periodicite? Periodicite { get; set; }
-
-    public virtual RefRegleEchantillonnage? RegleEchantillonnage { get; set; }
 
     public virtual TypeSection? TypeSection { get; set; }
 }

@@ -1,3 +1,4 @@
+using SopalTrace.Domain.Exceptions;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -33,7 +34,7 @@ public class CatalogueReferentielService : ICatalogueReferentielService
         }
 
         var naturesComposant = natures
-            .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, x.Code == "MATIERE" || x.Code == "SEMI_FINI"))
+            .Select(x => new ReferenceItemDto(null, x.Code, x.Libelle, true, x.PlanGenerique))
             .ToList();
 
         var ops = await _repository.GetActiveOperationsAsync();
@@ -59,7 +60,7 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             .ToList();
 
         var typesSections = (await _repository.GetAllTypeSectionsAsync())
-            .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
+            .Select(x => new ReferenceItemDto(x.Id, x.TypeNormalise, x.Libelle, true, null))
             .ToList();
 
         var postes = (await _repository.GetActivePosteTravailsAsync())
@@ -69,8 +70,7 @@ public class CatalogueReferentielService : ICatalogueReferentielService
 
         var periodicites = (await _repository.GetAllPeriodicitesAsync())
             .Where(x => x.Actif)
-            .OrderBy(x => x.OrdreAffichage)
-            .Select(x => new PeriodiciteDto(x.Id, x.Code, x.Libelle, x.FrequenceNum, x.FrequenceUnite, x.OrdreAffichage, true))
+            .Select(x => new PeriodiciteDto(x.Id, x.NbrPieces, x.Unite, x.NbrHeures, true))
             .ToList();
 
         var instruments = (await _repository.GetActiveInstrumentsAsync())
@@ -85,16 +85,8 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             .Select(x => new ReferenceItemIntDto(x.Id, x.ValeurNqa.ToString(), x.ValeurNqa.ToString(), true))
             .ToList();
 
-        var defautheques = (await _repository.GetActiveDefauthequesAsync())
-            .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Description ?? x.Code, true, null))
-            .ToList();
-
-        var reglesEchantillonnage = (await _repository.GetActiveRegleEchantillonnagesAsync())
-            .Select(x => new ReferenceItemDto(x.Id, x.Code, x.Libelle, true, null))
-            .ToList();
-
         var famillesProduit = (await _repository.GetActiveFamilleProduitFinisAsync())
-            .Select(x => new FamilleProduitDto(x.Code, x.Designation ?? string.Empty, x.TypeRobinetCode ?? string.Empty))
+            .Select(x => new FamilleProduitDto(x.Code, x.Designation ?? string.Empty, x.TypeRobinetCode ?? string.Empty, x.PlanParPoste))
             .ToList();
 
         return new ReferentielsResponseDto(
@@ -110,8 +102,6 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             Postes: postes,
             Gammes: gammes,
             Nqa: nqas,
-            Defautheque: defautheques,
-            ReglesEchantillonnage: reglesEchantillonnage,
             FamillesProduit: famillesProduit
         );
     }
@@ -135,26 +125,37 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             .Select(r => new ReferenceItemDto(r.Id, r.CodeDefaut, r.LibelleDefaut, true, null))
             .ToList();
 
-        return new ControlePosteReferentielsDto(postes, machines, risquesDefauts);
+        var famillesProduit = (await _repository.GetActiveFamilleProduitFinisAsync())
+            .Select(x => new FamilleProduitDto(x.Code, x.Designation ?? string.Empty, x.TypeRobinetCode ?? string.Empty, x.PlanParPoste))
+            .ToList();
+
+        return new ControlePosteReferentielsDto(postes, machines, risquesDefauts, famillesProduit);
     }
 
     public async Task<VerifMachineReferentielsDto> GetVerifMachineReferentielsAsync()
     {
         var machines = (await _repository.GetActiveMachinesAsync())
-            .Select(m => new ReferenceItemDto(null, m.CodeMachine, m.Libelle, true, null))
+            .Select(m => new MachineVerifDto(m.CodeMachine, m.Libelle, true, m.VerifModele,
+                m.VerifSansConformite, m.VerifFuiteEtalon, m.VerifMoyenControleNumerote, m.VerifSansDeltaP,
+                m.VerifSansPression, m.VerifTablesEtalonSeparees, m.VerifFuiteEnPa, m.VerifColonnesParTableau))
             .ToList();
 
         var periodicites = (await _repository.GetAllPeriodicitesAsync())
             .Where(p => p.Actif)
+            .Select(p => new PeriodiciteDto(p.Id, p.NbrPieces, p.Unite, p.NbrHeures, true))
+            .ToList();
+
+        var periodicitesMachine = (await _repository.GetAllPeriodicitesMachineAsync())
+            .Where(p => p.Actif)
             .OrderBy(p => p.OrdreAffichage)
-            .Select(p => new PeriodiciteDto(p.Id, p.Code, p.Libelle, p.FrequenceNum, p.FrequenceUnite, p.OrdreAffichage, true))
+            .Select(p => new PeriodiciteMachineDto(p.Id, p.Code, p.Libelle, p.OrdreAffichage, true, p.ControlMoment))
             .ToList();
 
         var allPieces = await _repository.GetActivePieceReferencesAsync();
         var piecesRef = allPieces.Where(p => p.TypePiece == "PRC" || p.TypePiece == "PRNC")
-                                 .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.FamilleDesc, p.TypePiece)).ToList();
+                                 .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.TypePiece)).ToList();
         var fuitesEtalon = allPieces.Where(p => p.TypePiece == "FEC" || p.TypePiece == "FENC")
-                                    .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.FamilleDesc, p.TypePiece)).ToList();
+                                    .Select(p => new PieceRefDto(p.Id, p.Code, p.Designation, p.TypePiece)).ToList();
 
         var famillesCorps = (await _repository.GetAllFamilleCorpsAsync())
             .Where(f => f.Actif)
@@ -166,7 +167,15 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             .Select(m => new ReferenceItemDto(m.Id, m.Code, m.Designation, true, null))
             .ToList();
 
-        return new VerifMachineReferentielsDto(machines, periodicites, piecesRef, fuitesEtalon, famillesCorps, moyensDetection);
+        return new VerifMachineReferentielsDto(machines, periodicites, periodicitesMachine, piecesRef, fuitesEtalon, famillesCorps, moyensDetection);
+    }
+
+    public async Task<System.Collections.Generic.IEnumerable<InstrumentDto>> GetInstrumentsAsync()
+    {
+        var instruments = (await _repository.GetActiveInstrumentsAsync())
+            .Select(x => new InstrumentDto(x.CodeInstrument, x.Designation, true))
+            .ToList();
+        return instruments;
     }
 
     public async Task<ArticleDto?> GetArticleInfosAsync(string codeArticle)
@@ -207,28 +216,20 @@ public class CatalogueReferentielService : ICatalogueReferentielService
 
     public async Task<Guid> CreatePeriodiciteAsync(CreatePeriodiciteDto request)
     {
-        // Chercher d'abord par libellé (cas le plus courant)
-        var existingByLibelle = await _repository.GetPeriodiciteByLibelleAsync(request.Libelle);
-        if (existingByLibelle != null)
+        var allPerios = await _repository.GetAllPeriodicitesAsync();
+        var existing = allPerios.FirstOrDefault(p => p.NbrPieces == request.NbrPieces && p.Unite == request.Unite && p.NbrHeures == request.NbrHeures);
+        
+        if (existing != null)
         {
-            return existingByLibelle.Id; // Retourner l'existante au lieu d'erreur
-        }
-
-        // Puis par code
-        var existingByCode = await _repository.GetPeriodiciteByCodeAsync(request.Code);
-        if (existingByCode != null)
-        {
-            return existingByCode.Id; // Retourner l'existante au lieu d'erreur
+            return existing.Id;
         }
 
         var periodicite = new Periodicite
         {
             Id = Guid.NewGuid(),
-            Code = request.Code,
-            Libelle = request.Libelle, // ✅ Utiliser le libellé lisible, pas le code
-            FrequenceNum = request.FrequenceNum,
-            FrequenceUnite = request.FrequenceUnite,
-            OrdreAffichage = request.OrdreAffichage,
+            NbrPieces = request.NbrPieces,
+            Unite = request.Unite,
+            NbrHeures = request.NbrHeures,
             Actif = true
         };
 
@@ -244,7 +245,7 @@ public class CatalogueReferentielService : ICatalogueReferentielService
 
         if (existing != null)
         {
-            throw new InvalidOperationException($"Une caractéristique avec le libellé '{request.Libelle}' existe déjà.");
+            throw new RegleMetierException($"Une caractéristique avec le libellé '{request.Libelle}' existe déjà.");
         }
 
         var caracteristique = new TypeCaracteristique
@@ -267,7 +268,7 @@ public class CatalogueReferentielService : ICatalogueReferentielService
 
         if (existing != null)
         {
-            throw new InvalidOperationException($"Une pièce de référence avec le code {codeNormalise} existe déjà.");
+            throw new RegleMetierException($"Une pièce de référence avec le code {codeNormalise} existe déjà.");
         }
 
         var entite = new PieceReference
@@ -276,12 +277,11 @@ public class CatalogueReferentielService : ICatalogueReferentielService
             Code = codeNormalise,
             TypePiece = request.TypePiece,
             Designation = request.Designation?.Trim(),
-            FamilleDesc = request.FamilleDesc?.Trim(),
             Actif = true
         };
 
         await _repository.AddPieceReferenceAsync(entite);
         await _unitOfWork.CommitAsync();
-        return new PieceRefDto(entite.Id, entite.Code, entite.Designation, entite.FamilleDesc, entite.TypePiece);
+        return new PieceRefDto(entite.Id, entite.Code, entite.Designation, entite.TypePiece);
     }
 }

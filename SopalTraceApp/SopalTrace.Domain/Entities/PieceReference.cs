@@ -13,13 +13,13 @@ public partial class PieceReference
 
     public string? Designation { get; set; }
 
-    public string? FamilleDesc { get; set; }
-
     public Guid? FamilleCorpsId { get; set; }
 
     public bool Actif { get; set; }
 
+    public virtual ICollection<DocumentVerifMachineMatricePiece> DocumentVerifMachineMatricePieces { get; set; } = new List<DocumentVerifMachineMatricePiece>();
+
     public virtual RefFamilleCorp? FamilleCorps { get; set; }
 
-    public virtual ICollection<PlanVerifMachineMatricePiece> PlanVerifMachineMatricePieces { get; set; } = new List<PlanVerifMachineMatricePiece>();
+    public virtual ReferencePieceRole TypePieceNavigation { get; set; } = null!;
 }

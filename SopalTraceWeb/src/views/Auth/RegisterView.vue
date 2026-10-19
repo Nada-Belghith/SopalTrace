@@ -16,7 +16,19 @@
 
       <!-- Carte Inscription -->
       <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-8 rounded-3xl shadow-2xl">
-        <form @submit.prevent="handleRegister" class="space-y-5">
+
+        <!-- Étape 1 : Saisie du matricule et email -->
+        <form v-if="!emailSent" @submit.prevent="handleRegister" class="space-y-5">
+          <!-- Info sécurité -->
+          <div class="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex items-start gap-3">
+            <i class="pi pi-shield text-blue-400 mt-0.5 text-lg"></i>
+            <p class="text-xs text-blue-300 leading-relaxed">
+              Saisissez votre matricule et l'email professionnel enregistré dans l'ERP pour ce matricule
+              (toute autre adresse est ignorée).<br>
+              Votre demande est validée par un administrateur avant l'envoi de votre lien d'activation.
+            </p>
+          </div>
+
           <!-- Matricule -->
           <div>
             <label class="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Matricule Employé</label>
@@ -28,7 +40,7 @@
                 v-model="form.matricule"
                 type="text" 
                 required
-                placeholder="Ex: 4589"
+                placeholder="Ex: 45891"
                 class="w-full bg-slate-900/50 border border-slate-600 text-white pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-600 font-bold"
               />
             </div>
@@ -51,47 +63,6 @@
             </div>
           </div>
 
-          <!-- Mot de passe -->
-          <div>
-            <label class="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Mot de passe</label>
-            <div class="relative group">
-              <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500 group-focus-within:text-blue-400 transition-colors">
-                <i class="pi pi-lock text-lg"></i>
-              </span>
-              <input 
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'" 
-                required
-                placeholder="••••••••"
-                class="w-full bg-slate-900/50 border border-slate-600 text-white pl-12 pr-12 py-4 rounded-2xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-600 font-bold"
-              />
-              <button 
-                type="button"
-                @click="showPassword = !showPassword"
-                class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-white transition-colors"
-              >
-                <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- Confirmation -->
-          <div>
-            <label class="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Confirmer le mot de passe</label>
-            <div class="relative group">
-              <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500 group-focus-within:text-blue-400 transition-colors">
-                <i class="pi pi-check-circle text-lg"></i>
-              </span>
-              <input 
-                v-model="form.confirmPassword"
-                :type="showPassword ? 'text' : 'password'" 
-                required
-                placeholder="••••••••"
-                class="w-full bg-slate-900/50 border border-slate-600 text-white pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-600 font-bold"
-              />
-            </div>
-          </div>
-
           <!-- Erreur -->
           <div v-if="authStore.error" class="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-start gap-3">
             <i class="pi pi-exclamation-circle text-red-500 mt-0.5"></i>
@@ -105,9 +76,45 @@
             class="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:shadow-blue-500/30 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
           >
             <i v-if="authStore.isLoading" class="pi pi-spin pi-spinner text-xl"></i>
-            <span v-else>Créer mon compte</span>
+            <template v-else>
+              <i class="pi pi-send"></i>
+              <span>Envoyer ma demande</span>
+            </template>
           </button>
         </form>
+
+        <!-- Étape 2 : Confirmation email envoyé -->
+        <div v-else class="text-center space-y-6">
+          <div class="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/20 border border-emerald-500/30 rounded-full mx-auto">
+            <i class="pi pi-check-circle text-5xl text-emerald-400"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-black text-white mb-2">Demande transmise</h2>
+            <p class="text-slate-400 text-sm leading-relaxed">
+              Si le matricule et l'e-mail correspondent à votre fiche employé, vous recevrez un e-mail à<br>
+              <span class="text-blue-400 font-bold">{{ form.email }}</span>
+            </p>
+          </div>
+          <div class="bg-slate-900/50 border border-slate-700 p-4 rounded-2xl text-left space-y-2">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Prochaines étapes</p>
+            <div class="flex items-start gap-2 text-xs text-slate-300">
+              <i class="pi pi-1 text-blue-400 mt-0.5"></i>
+              <span>Un administrateur valide votre demande et vous attribue un rôle (sauf si votre accès a été préparé à l'avance)</span>
+            </div>
+            <div class="flex items-start gap-2 text-xs text-slate-300">
+              <i class="pi pi-2 text-blue-400 mt-0.5"></i>
+              <span>Vous recevez un lien d'activation personnel, utilisable une seule fois</span>
+            </div>
+            <div class="flex items-start gap-2 text-xs text-slate-300">
+              <i class="pi pi-3 text-blue-400 mt-0.5"></i>
+              <span>Vous choisissez votre mot de passe, puis vous vous connectez</span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-500">Rien reçu ? Vérifiez vos courriers indésirables, puis contactez l'administrateur.</p>
+          <router-link to="/login" class="inline-block w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-2xl font-bold transition-colors text-center">
+            Retour à la connexion
+          </router-link>
+        </div>
 
         <div class="mt-8 pt-6 border-t border-slate-700/50 text-center">
           <p class="text-slate-400 text-sm font-medium">
@@ -129,47 +136,30 @@
 
 <script setup>
 import { ref, reactive } from 'vue';
-import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'primevue/usetoast';
 
-const router = useRouter();
 const authStore = useAuthStore();
 const toast = useToast();
 
-const showPassword = ref(false);
+const emailSent = ref(false);
 const form = reactive({
   matricule: '',
-  email: '',
-  password: '',
-  confirmPassword: ''
+  email: ''
 });
 
 const handleRegister = async () => {
-  if (form.password !== form.confirmPassword) {
+  try {
+    await authStore.register(form.matricule, form.email);
+    emailSent.value = true;
+  } catch (err) {
+    const errorMsg = err.message || "Erreur lors de l'inscription";
     toast.add({
       severity: 'error',
-      summary: 'Erreur',
-      detail: 'Les mots de passe ne correspondent pas',
-      life: 3000
+      summary: "Erreur d'inscription",
+      detail: errorMsg,
+      life: 5000
     });
-    return;
-  }
-
-  try {
-    await authStore.register(form.matricule, form.email, form.password);
-    
-    toast.add({
-      severity: 'success',
-      summary: 'Inscription réussie',
-      detail: 'Votre compte a été créé avec succès',
-      life: 3000
-    });
-
-    router.push('/');
-  } catch {
-    // Erreur gérée par le store
   }
 };
 </script>
-"

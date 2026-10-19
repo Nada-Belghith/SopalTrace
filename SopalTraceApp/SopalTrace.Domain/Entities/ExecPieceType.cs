@@ -18,4 +18,6 @@ public partial class ExecPieceType
     public string MatriculeOperateur { get; set; } = null!;
 
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
+
+    public virtual Autili MatriculeOperateurNavigation { get; set; } = null!;
 }

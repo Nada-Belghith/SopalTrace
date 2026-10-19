@@ -1,11 +1,11 @@
+using SopalTrace.Domain.Constants;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SopalTrace.Application.Interfaces.Execution;
 using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.Repositories.Execution
 {
@@ -18,69 +18,60 @@ namespace SopalTrace.Infrastructure.Repositories.Execution
             _context = context;
         }
 
-        public async Task<ExecControleOf?> GetExecEncfAsync(Guid id)
+        private IQueryable<ExecControleOf> AvecDetails => _context.ExecControleOfs
+            .AsSplitQuery()
+            .Include(e => e.ExecPieceTypes)
+            .Include(e => e.ExecControleTranches)
+            .Include(e => e.ExecControleDocumentStatuts)
+            .Include(e => e.ExecControleOfSessions)
+            .Include(e => e.NumeroOfNavigation)
+                .ThenInclude(of => of.CodeArticleNavigation)
+            .Include(e => e.ExecControleOfPostes)
+                .ThenInclude(p => p.PosteCodeNavigation);
+
+        public async Task<ExecControleOf?> GetExecutionAsync(Guid execControleOfId)
         {
-            return await _context.ExecControleOfs
-                .Include(e => e.ExecPieceTypes)
-                .Include(e => e.ExecControleTranches)
-                .Include(e => e.NumeroOfNavigation)
-                    .ThenInclude(of => of.CodeArticleNavigation)
-                .Include(e => e.PosteCodeNavigation)
-                .FirstOrDefaultAsync(e => e.Id == id);
+            return await AvecDetails.FirstOrDefaultAsync(e => e.Id == execControleOfId);
         }
 
-        public async Task<ExecControleOf?> GetEnCoursExecEncfByOfAsync(string numeroOf, string posteCode)
+        public async Task<ExecControleOf?> GetExecutionOuverteAsync(string numeroOf, string posteCode)
         {
-            return await _context.ExecControleOfs
-                .Include(e => e.ExecPieceTypes)
-                .Include(e => e.ExecControleTranches)
-                .Include(e => e.NumeroOfNavigation)
-                    .ThenInclude(of => of.CodeArticleNavigation)
-                .Include(e => e.PosteCodeNavigation)
-                .Where(e => e.NumeroOf == numeroOf && e.PosteCode == posteCode && e.Statut == "EN_COURS")
+            return await AvecDetails
+                .Where(e => e.NumeroOf == numeroOf && e.Statut != StatutsExecution.Cloture
+                            && (e.TypeOf != TypesOf.Assemblage || e.ExecControleOfPostes.Any(p => p.PosteCode == posteCode)))
                 .OrderByDescending(e => e.DateDebut)
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<MfgheadOrdreFabrication?> GetOfDetailsAsync(string numeroOf)
+        public async Task<Guid?> TrouverFormulaireAsync(string? codeArticle, string? posteCode)
         {
-            return await _context.MfgheadOrdreFabrications
-                .Include(o => o.CodeArticleNavigation)
-                .FirstOrDefaultAsync(o => o.NumeroOf == numeroOf);
+            // Famille (et son type de robinet) d'un produit fini ; un composant n'en a pas.
+            var article = await _context.ProduitFinis.AsNoTracking()
+                .Where(p => p.CodeArticle == codeArticle)
+                .Select(p => new { p.FamilleProduitFiniCode, p.FamilleProduitFiniCodeNavigation!.TypeRobinetCode })
+                .FirstOrDefaultAsync();
+            return await FormulairesResultats.TrouverAsync(_context, RolesFormulaire.ResultatControleCf, posteCode,
+                article?.FamilleProduitFiniCode, article?.TypeRobinetCode);
         }
 
-        public async Task AddExecEncfAsync(ExecControleOf entity)
+        public async Task<Guid?> TrouverPlanAsync(ExecControleOf execution, string? posteCode)
         {
-            await _context.ExecControleOfs.AddAsync(entity);
+            if (execution.PlanSourceId is { } planFabrication) return planFabrication;
+            var applique = await _context.ExecControleDocumentStatuts.AsNoTracking()
+                .Where(s => s.ExecControleOfId == execution.Id && s.TypeDocument == TypesDocumentExecution.PlanAssemblage
+                            && s.DocId != null && (posteCode == null || s.PosteCode == posteCode))
+                .OrderBy(s => s.CreationOrder)
+                .Select(s => s.DocId)
+                .FirstOrDefaultAsync();
+            if (applique != null || posteCode == null) return applique;
+            // L'OF (et son article) est chargé avec l'exécution.
+            var codeArticle = execution.NumeroOfNavigation?.CodeArticle;
+            return codeArticle == null ? null : await new ExecPlanAssemblageRepository(_context).TrouverPlanAssemblageIdAsync(codeArticle, posteCode);
         }
 
-        public async Task SaveChangesAsync()
-        {
-            await _context.SaveChangesAsync();
-        }
-
-        public Task RemovePieceTypes(IEnumerable<ExecPieceType> items)
-        {
-            _context.ExecPieceTypes.RemoveRange(items);
-            return Task.CompletedTask;
-        }
-
-        public Task RemoveTranches(IEnumerable<ExecControleTranche> items)
-        {
-            _context.ExecControleTranches.RemoveRange(items);
-            return Task.CompletedTask;
-        }
-
-        public Task AddPieceType(ExecPieceType item)
-        {
-            _context.ExecPieceTypes.Add(item);
-            return Task.CompletedTask;
-        }
-
-        public Task AddTranche(ExecControleTranche item)
-        {
-            _context.ExecControleTranches.Add(item);
-            return Task.CompletedTask;
-        }
+        public void AddStatut(ExecControleDocumentStatut statut) => _context.ExecControleDocumentStatuts.Add(statut);
+        public void AddTranche(ExecControleTranche tranche) => _context.ExecControleTranches.Add(tranche);
+        public void AddPieceType(ExecPieceType pieceType) => _context.ExecPieceTypes.Add(pieceType);
+        public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
     }
 }

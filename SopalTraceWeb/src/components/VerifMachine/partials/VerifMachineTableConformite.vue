@@ -15,7 +15,7 @@
           </th>
           <th v-for="cCol in getCustomColumnsAfter('conformite', 'risque')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           <th :rowspan="hasSubHeaders ? 2 : 1" class="p-3 border-r border-slate-700 w-[15%]">
-            {{ strategy.role === 'BEE' ? 'Méthode de controle' : 'Moyen/ Méthode de contrôle' }}
+            {{ strategy.methodeControleLabel }}
           </th>
           <th v-for="cCol in getCustomColumnsAfter('conformite', 'methode')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           <th :rowspan="hasSubHeaders ? 2 : 1" class="p-3 border-r border-slate-700 w-[12%]">
@@ -23,34 +23,34 @@
           </th>
           <th v-for="cCol in getCustomColumnsAfter('conformite', 'periodicite')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           <th v-if="store.entete.afficheMoyenDetectionRisques" :rowspan="hasSubHeaders ? 2 : 1" class="p-3 border-r border-slate-700 w-[12%]">
-            {{ (strategy.isArchitectureA || strategy.role === 'BEE' || strategy.isMAS19 || strategy.isSER05) ? 'Moyen de contrôle' : 'Moyen de détection' }}
+            {{ strategy.moyenDetectionLabel }}
           </th>
           <template v-if="store.entete.afficheMoyenDetectionRisques">
             <th v-for="cCol in getCustomColumnsAfter('conformite', 'moyen_detection')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           </template>
           <template v-if="hasFamilleHeaders">
             <th :colspan="store.familles.length" class="p-2 border-b border-r border-slate-700 bg-slate-800/80">
-              {{ (strategy.role === 'BEE' || strategy.isMAS19) ? 'Numéro du moyen de contrôle' : ((strategy.isArchitectureA || strategy.isSER05) ? 'N° moyen de contrôle' : 'Numéro de la pièce référence') }}
+              {{ strategy.pieceReferenceLabel }}
             </th>
           </template>
           <th v-else :rowspan="hasSubHeaders ? 2 : 1" class="p-3 border-r border-slate-700 w-[15%]">
-            {{ (strategy.role === 'BEE' || strategy.isMAS19) ? 'Numéro du moyen de contrôle' : ((strategy.isArchitectureA || strategy.isSER05) ? 'N° moyen de contrôle' : 'Numéro de la pièce référence') }}
+            {{ strategy.pieceReferenceLabel }}
           </th>
           <th v-for="cCol in getCustomColumnsAfter('conformite', 'piece_reference')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
-          <th v-if="store.entete.afficheFuiteEtalon || strategy.role === 'BEE'" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[12%]">
-            {{ strategy.role === 'BEE' ? 'Numéro du fuite étalon' : 'Fuite Étalon' }}
+          <th v-if="props.showEtalonColumns && strategy.showFuiteEtalon" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[12%]">
+            {{ strategy.fuiteEtalonLabel }}
           </th>
-          <template v-if="store.entete.afficheFuiteEtalon || strategy.role === 'BEE'">
+          <template v-if="props.showEtalonColumns && strategy.showFuiteEtalon">
             <th v-for="cCol in getCustomColumnsAfter('conformite', 'fuite_etalon')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           </template>
-          <th v-if="!strategy.hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[8%] text-[10px]">
+          <th v-if="props.showEtalonColumns && !strategy.hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[8%] text-[10px]">
             Pression d'entrée affichée (en bar)
           </th>
           <th v-for="cCol in getCustomColumnsAfter('conformite', 'pression_entree')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
-          <th v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[8%] text-[10px]">
-            {{ store.entete.machineCode?.includes('BEE47') ? 'Fuite affichée (en Pa)' : 'ΔP affichée (en Pa)' }}
+          <th v-if="props.showEtalonColumns && !strategy.hideDp" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[8%] text-[10px]">
+            {{ strategy.dpAfficheeLabel }}
           </th>
-          <template v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp">
+          <template v-if="props.showEtalonColumns && !strategy.hideDp">
             <th v-for="cCol in getCustomColumnsAfter('conformite', 'dp_affichee')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           </template>
           <th :colspan="hasSubHeaders ? 2 : 1" :rowspan="1" class="p-2 border-r border-slate-700 w-[5%] text-[10px]">
@@ -58,7 +58,7 @@
           </th>
           <th v-for="cCol in getCustomColumnsAfter('conformite', 'resultat')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           <th :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[12%] text-[10px]">
-            {{ strategy.isSER05 ? 'Action en cas de non-conformité' : 'Observation en cas de non-conformité' }}
+            {{ strategy.observationLabel }}
           </th>
           <th v-for="cCol in getCustomColumnsAfter('conformite', 'observation')" :key="cCol.key" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-[10%] text-[10px] text-amber-400 uppercase">{{ cCol.label }}</th>
           <th v-if="!props.isReadOnly" :rowspan="hasSubHeaders ? 2 : 1" class="p-2 border-r border-slate-700 w-16 text-slate-400">Actions</th>
@@ -67,8 +67,18 @@
           <template v-if="hasFamilleHeaders">
             <th v-for="fam in store.familles" :key="fam.id" class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-24">{{ fam.libelle }}</th>
           </template>
-          <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-emerald-400">C</th>
-          <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-rose-400">NC</th>
+          <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-emerald-400">
+            <div class="flex flex-col items-center gap-1">
+              <span>C</span>
+              <button v-if="props.isExecution" @click="checkAllConformiteVisible(true)" class="text-[8px] bg-emerald-900/50 hover:bg-emerald-700 text-emerald-300 px-1 py-0.5 rounded shadow">TOUT</button>
+            </div>
+          </th>
+          <th class="p-2 border-r border-slate-700 bg-slate-800/50 text-[10px] w-8 text-rose-400">
+            <div class="flex flex-col items-center gap-1">
+              <span>NC</span>
+              <button v-if="props.isExecution" @click="checkAllConformiteVisible(false)" class="text-[8px] bg-rose-900/50 hover:bg-rose-700 text-rose-300 px-1 py-0.5 rounded shadow">TOUT</button>
+            </div>
+          </th>
         </tr>
     </thead>
 
@@ -80,14 +90,14 @@
           <td colspan="20" class="p-0" style="height: 6px; background: #cbd5e1; border-top: 2px solid #64748b;"></td>
         </tr>
         <template v-for="(group, gIdx) in ligne.groups" :key="group._uid">
-          <tr v-for="(row, rIdx) in group.rows" :key="row._uid" 
-              class="border-b border-slate-300 hover:bg-blue-50/20 transition-colors"
-              :class="{'border-t-2 border-slate-400': gIdx > 0 && rIdx === 0}">
+          <template v-if="estAffiche(group)">
+            <tr v-for="(row, rIdx) in group.rows" :key="row._uid" 
+                class="border-b border-slate-300 hover:bg-blue-50/20 transition-colors"
+                :class="{'border-t-2 border-slate-400': gIdx > 0 && rIdx === 0}">
             <!-- NIVEAU 1 : RISQUE (Rowspan global) -->
             <td v-if="gIdx === 0 && rIdx === 0" :rowspan="getLigneTotalRows(ligne)" class="p-2 border-r border-slate-400 align-top bg-white">
               <textarea 
-                :value="ligne.libelleRisque" 
-                @input="e => onUpdateRisqueName(ligne.libelleRisque, e.target.value)"
+                v-model="ligne.libelleRisque" 
                 rows="2" :disabled="props.isReadOnly"
                 class="w-full text-xs font-bold text-slate-900 border border-slate-200 focus:border-slate-400 rounded p-1 outline-none resize-none disabled:bg-transparent disabled:border-transparent"></textarea>
             </td>
@@ -116,18 +126,16 @@
             <!-- NIVEAU 2 : PÉRIODICITÉ -->
             <td v-if="rIdx === 0" :rowspan="group.rows.length" class="p-3 border-r border-slate-400 bg-slate-100/30 align-top">
               <div class="flex flex-col gap-2">
-                  <div class="flex items-center gap-1">
-                      <div v-if="props.isReadOnly" class="text-[11px] font-black uppercase text-slate-700 whitespace-normal leading-tight px-2 py-1">
-                          {{ store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteId || '').toString().toLowerCase())?.libelle || store.periodicites.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteId || '').toString().toLowerCase())?.Libelle || '--' }}
-                      </div>
-                      <select v-else v-model="group.periodiciteId" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm">
-                          <option value="">-- PERIODE --</option>
-                          <option v-for="p in store.periodicites" :key="p.id" :value="p.id">{{ p.libelle }}</option>
-                      </select>
-                      <button v-if="!props.isReadOnly" @click="store.ajouterGroupPeriodicite(ligne)" class="text-blue-600 hover:text-blue-800" title="Ajouter une autre période">
-                          <i class="ri-add-circle-fill text-xl"></i>
-                      </button>
-                  </div>
+                <div v-if="props.isReadOnly" class="text-[10px] font-black uppercase text-slate-800">
+                  {{ store.periodicitesMachine.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteMachineId || '').toString().toLowerCase())?.libelle || store.periodicitesMachine.find(p => (p.id || p.Id || '').toString().toLowerCase() === (group.periodiciteMachineId || '').toString().toLowerCase())?.Libelle || '--' }}
+                </div>
+                <select v-else v-model="group.periodiciteMachineId" class="w-full text-[10px] font-black uppercase border border-slate-400 rounded px-2 py-1.5 outline-none focus:border-slate-600 bg-white shadow-sm">
+                  <option value="">-- PERIODE --</option>
+                  <option v-for="p in store.periodicitesMachine" :key="p.id" :value="p.id">{{ p.libelle }}</option>
+                </select>
+                <button v-if="!props.isReadOnly" @click="store.ajouterGroupPeriodicite(ligne)" class="text-blue-600 hover:text-blue-800" title="Ajouter une autre période">
+                  <i class="ri-add-circle-fill text-xl"></i>
+                </button>
               </div>
             </td>
 
@@ -193,7 +201,7 @@
               <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(ligne)[cCol.key] || '--' }}</div>
             </td>
 
-            <td v-if="store.entete.afficheFuiteEtalon || strategy.role === 'BEE'" class="p-2 border-r border-slate-400 bg-blue-50/30 text-center">
+            <td v-if="props.showEtalonColumns && strategy.showFuiteEtalon" class="p-2 border-r border-slate-400 bg-blue-50/30 text-center">
               <div v-if="props.isReadOnly" class="text-xs font-bold text-blue-900 uppercase">
                   {{ store.fuitesEtalon.find(pr => pr.id === getFuiteValue(row))?.code || '--' }}
               </div>
@@ -207,7 +215,7 @@
             </td>
 
             <!-- CUSTOM COLUMNS après FUITE_ETALON -->
-            <template v-if="store.entete.afficheFuiteEtalon || strategy.role === 'BEE'">
+            <template v-if="props.showEtalonColumns && strategy.showFuiteEtalon">
               <td v-for="cCol in getCustomColumnsAfter('conformite', 'fuite_etalon')" :key="cCol.key" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
                 <textarea v-if="!props.isReadOnly" v-model="ensureColonnes(ligne)[cCol.key]" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
                 <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(ligne)[cCol.key] || '--' }}</div>
@@ -215,33 +223,82 @@
             </template>
 
             <!-- COLONNES OPÉRATEUR -->
-            <td v-if="!strategy.hidePressionAndDp" class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px]">Saisi par l'opérateur</td>
+            <td v-if="props.showEtalonColumns && !strategy.hidePressionAndDp" class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+              <template v-if="props.isExecution">
+                <InputNumber v-model="getReponse(row.id).pressionEntree" mode="decimal" :minFractionDigits="1" :maxFractionDigits="3" :readonly="props.isConsultationMode" class="w-full text-xs" :class="{'pointer-events-none': props.isConsultationMode}" inputClass="p-1 text-center w-full" />
+              </template>
+              <template v-else>
+                <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
+              </template>
+            </td>
             <!-- CUSTOM après pression_entree -->
             <td v-for="cCol in getCustomColumnsAfter('conformite', 'pression_entree')" :key="cCol.key" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
               <textarea v-if="!props.isReadOnly" v-model="ensureColonnes(ligne)[cCol.key]" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
               <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(ligne)[cCol.key] || '--' }}</div>
             </td>
-            <td v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp" class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px]">Saisi par l'opérateur</td>
+            <td v-if="props.showEtalonColumns && !strategy.hideDp" class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+              <template v-if="props.isExecution">
+                <InputNumber v-model="getReponse(row.id).fuiteAffichee" mode="decimal" :minFractionDigits="0" :maxFractionDigits="3" :readonly="props.isConsultationMode" class="w-full text-xs" :class="{'pointer-events-none': props.isConsultationMode}" inputClass="p-1 text-center w-full" />
+              </template>
+              <template v-else>
+                <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
+              </template>
+            </td>
             <!-- CUSTOM après dp_affichee -->
-            <template v-if="!strategy.isMAS19 && !strategy.hidePressionAndDp">
+            <template v-if="props.showEtalonColumns && !strategy.hideDp">
               <td v-for="cCol in getCustomColumnsAfter('conformite', 'dp_affichee')" :key="cCol.key" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
                 <textarea v-if="!props.isReadOnly" v-model="ensureColonnes(ligne)[cCol.key]" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
                 <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(ligne)[cCol.key] || '--' }}</div>
               </td>
             </template>
             <template v-if="hasSubHeaders">
-              <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center"></td>
-              <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center"></td>
+              <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+                <template v-if="props.isExecution">
+                  <div class="flex justify-center" :class="{'pointer-events-none': props.isConsultationMode}">
+                    <div @click.capture="handleRadioClick($event, row.id, true)"><RadioButton v-model="getReponse(row.id).conforme" :value="true" :name="'res_conf_'+row.id" /></div>
+                  </div>
+                </template>
+              </td>
+              <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+                <template v-if="props.isExecution">
+                  <div class="flex justify-center" :class="{'pointer-events-none': props.isConsultationMode}">
+                    <div @click.capture="handleRadioClick($event, row.id, false)"><RadioButton v-model="getReponse(row.id).conforme" :value="false" :name="'res_conf_'+row.id" /></div>
+                  </div>
+                </template>
+              </td>
             </template>
             <template v-else>
-              <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px] font-bold">C / NC</td>
+              <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+                <template v-if="props.isExecution">
+                   <div class="flex items-center justify-center gap-2" :class="{'pointer-events-none': props.isConsultationMode}">
+                     <div class="flex items-center gap-1">
+                       <div @click.capture="handleRadioClick($event, row.id, true)"><RadioButton v-model="getReponse(row.id).conforme" :value="true" :name="'res_conf_'+row.id" /></div>
+                       <label class="text-[10px] text-green-600 font-bold m-0" :class="{'cursor-pointer': !props.isConsultationMode}" @click="toggleConformeLabel(row.id, true)">C</label>
+                     </div>
+                     <div class="flex items-center gap-1">
+                       <div @click.capture="handleRadioClick($event, row.id, false)"><RadioButton v-model="getReponse(row.id).conforme" :value="false" :name="'res_conf_'+row.id" /></div>
+                       <label class="text-[10px] text-red-600 font-bold m-0" :class="{'cursor-pointer': !props.isConsultationMode}" @click="toggleConformeLabel(row.id, false)">NC</label>
+                     </div>
+                   </div>
+                </template>
+                <template v-else>
+                  <span class="text-slate-400 italic text-[10px] font-bold">C / NC</span>
+                </template>
+              </td>
             </template>
             <!-- CUSTOM après resultat -->
             <td v-for="cCol in getCustomColumnsAfter('conformite', 'resultat')" :key="cCol.key" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
               <textarea v-if="!props.isReadOnly" v-model="ensureColonnes(ligne)[cCol.key]" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
               <div v-else class="text-xs font-bold text-slate-800">{{ ensureColonnes(ligne)[cCol.key] || '--' }}</div>
             </td>
-            <td class="p-2 border-r border-slate-400 bg-slate-50/50 text-center text-slate-400 italic text-[10px]">Saisi par l'opérateur</td>
+            <td class="p-1 border-r border-slate-400 bg-slate-50/50 text-center">
+              <template v-if="props.isExecution">
+                <InputText v-model="getReponse(row.id).observation" :readonly="props.isConsultationMode" class="w-full text-xs p-1" :class="{'pointer-events-none': props.isConsultationMode}" placeholder="Observation..." />
+              </template>
+              <template v-else>
+                <span class="text-slate-400 italic text-[10px]">Saisi par l'opérateur</span>
+              </template>
+            </td>
             <!-- CUSTOM après observation -->
             <td v-for="cCol in getCustomColumnsAfter('conformite', 'observation')" :key="cCol.key" class="p-2 border-r border-slate-400 align-top bg-amber-50/20">
               <textarea v-if="!props.isReadOnly" v-model="ensureColonnes(ligne)[cCol.key]" class="w-full text-xs font-bold text-slate-800 border border-slate-200 focus:border-amber-400 outline-none rounded p-1 resize-none bg-white/50" rows="2"></textarea>
@@ -265,21 +322,31 @@
           </tr>
         </template>
       </template>
-      </tbody>
+    </template>
+    </tbody>
     </table>
   </div>
 </template>
 
 <script setup>
-
-
-
-
+import { periodiciteAffichee } from '@/utils/periodicitesMachine'
+import RadioButton from 'primevue/radiobutton';
+import InputNumber from 'primevue/inputnumber';
+import InputText from 'primevue/inputtext';
 import { useVerifMachineTable } from '../composables/useVerifMachineTable';
 
 const props = defineProps({
-  isReadOnly: { type: Boolean, default: false }
+  isReadOnly: { type: Boolean, default: false },
+  isExecution: { type: Boolean, default: false },
+  isConsultationMode: { type: Boolean, default: false },
+  execReponses: { type: Array, default: () => [] },
+  selectedPeriodiciteId: { type: String, default: null },
+  /** Moment imposé (assistant) : périodicités affichées ; prioritaire sur selectedPeriodiciteId. */
+  selectedPeriodiciteIds: { type: Array, default: null },
+  showEtalonColumns: { type: Boolean, default: false }
 });
+
+const estAffiche = (group) => periodiciteAffichee(group.periodiciteMachineId, { id: props.selectedPeriodiciteId, ids: props.selectedPeriodiciteIds })
 
 const emit = defineEmits(['add-piece']);
 
@@ -291,10 +358,55 @@ const {
   getCustomColumnsAfter,
   ensureColonnes,
   getLigneTotalRows,
-  onUpdateRisqueName,
   getFuiteValue,
   setFuiteValue
 } = useVerifMachineTable();
+
+const getReponse = (echeanceId) => {
+  if (!echeanceId) return {};
+  let r = props.execReponses.find(x => x.documentVerifMachineEcheanceId === echeanceId);
+  if (!r) {
+    r = { documentVerifMachineEcheanceId: echeanceId, pressionEntree: null, fuiteAffichee: null, conforme: null, observation: '' };
+    // eslint-disable-next-line vue/no-mutating-props
+    props.execReponses.push(r);
+  }
+  return r;
+};
+
+const checkAllConformiteVisible = (val) => {
+  if (!props.isExecution) return;
+  store.lignesConformite.forEach(ligne => {
+    (ligne.groups || []).forEach(group => {
+      if (estAffiche(group)) {
+        (group.rows || []).forEach(row => {
+          if (row && row.id) {
+            getReponse(row.id).conforme = val;
+          }
+        });
+      }
+    });
+  });
+};
+
+const handleRadioClick = (e, rowId, val) => {
+  if (props.isConsultationMode) return;
+  const reponse = getReponse(rowId);
+  if (reponse.conforme === val) {
+    reponse.conforme = null;
+    e.stopPropagation();
+    e.preventDefault();
+  }
+};
+
+const toggleConformeLabel = (rowId, val) => {
+  if (props.isConsultationMode) return;
+  const reponse = getReponse(rowId);
+  if (reponse.conforme === val) {
+    reponse.conforme = null;
+  } else {
+    reponse.conforme = val;
+  }
+};
 
 const onPieceSelectChange = (event, row, familleCorpsId, role) => {
   if (event.target.value === '__ADD__') {

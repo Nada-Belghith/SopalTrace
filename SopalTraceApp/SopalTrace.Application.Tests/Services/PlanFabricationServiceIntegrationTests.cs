@@ -25,7 +25,7 @@ namespace SopalTrace.Application.Tests.Services
         public PlanFabricationServiceIntegrationTests()
         {
             // 1. Configuration de la base de données "In-Memory"
-            var options = new DbContextOptionsBuilder<SopalTraceDbContext>()
+            var options = RowVersionEnMemoire.Activer(new DbContextOptionsBuilder<SopalTraceDbContext>())
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Une BDD unique par test
                 .Options;
 
@@ -34,7 +34,7 @@ namespace SopalTrace.Application.Tests.Services
 
             // 2. Mock des services annexes (pour simuler l'utilisateur et le formulaire PRC)
             _currentUserServiceMock = new Mock<ICurrentUserService>();
-            _currentUserServiceMock.Setup(c => c.UserInfo).Returns("TestUser");
+            _currentUserServiceMock.Setup(c => c.MatriculeRequis).Returns("TestUser");
 
             var formId = Guid.NewGuid();
             _context.RefFormulaires.Add(new RefFormulaire { Id = formId, CodeReference = "FE-PRC", Version = 1, Role = "EN_COURS_DE_FABRICATION", Designation = "FE-PRC", Statut = "ACTIF" });
@@ -49,12 +49,14 @@ namespace SopalTrace.Application.Tests.Services
 
             // 3. Instanciation du vrai service à tester
             var frequencyParserServiceMock = new Mock<IFrequencyParserService>();
+            var emailServiceMock = new Mock<IEmailService>();
 
             _planFabricationService = new PlanFabricationService(
                 unitOfWork,
                 _currentUserServiceMock.Object,
                 _formulaireStructureServiceMock.Object,
-                frequencyParserServiceMock.Object
+                frequencyParserServiceMock.Object,
+                emailServiceMock.Object
             );
         }
 
@@ -81,10 +83,10 @@ namespace SopalTrace.Application.Tests.Services
             };
 
             // Création du premier plan
-            Guid premierPlanId = await _planFabricationService.CreerPlanAsync(createReq);
+            Guid premierPlanId = await _planFabricationService.CreatePlanAsync(createReq);
 
             // Vérification intermédiaire
-            var premierPlanEnBase = await _context.PlanFabricationEntetes.FindAsync(premierPlanId);
+            var premierPlanEnBase = await _context.DocumentEntetes.FindAsync(premierPlanId);
             Assert.NotNull(premierPlanEnBase);
             Assert.Equal("ACTIF", premierPlanEnBase.Statut);
 
@@ -97,15 +99,15 @@ namespace SopalTrace.Application.Tests.Services
                 Nom = codeArticle,
                 OperationCode = "OP1"
             };
-            var deuxiemePlanId = await _planFabricationService.CreerNouvelleVersionPlanAsync(newVersionReq);
+            var deuxiemePlanId = await _planFabricationService.CreateNewVersionAsync(newVersionReq);
 
             // ==========================================
             // ASSERT (Vérification des résultats attendus)
             // ==========================================
             
             // Recharger les entités depuis la base In-Memory
-            var ancienPlan = await _context.PlanFabricationEntetes.FindAsync(premierPlanId);
-            var nouveauPlan = await _context.PlanFabricationEntetes.FindAsync(deuxiemePlanId);
+            var ancienPlan = await _context.DocumentEntetes.FindAsync(premierPlanId);
+            var nouveauPlan = await _context.DocumentEntetes.FindAsync(deuxiemePlanId);
 
             Assert.NotNull(ancienPlan);
             Assert.NotNull(nouveauPlan);
@@ -114,13 +116,13 @@ namespace SopalTrace.Application.Tests.Services
             Assert.Equal("ARCHIVE", ancienPlan.Statut);
             Assert.Equal("ACTIF", nouveauPlan.Statut);
 
-            // Assert sur l'incrémentation du Nom (.0 puis .1)
-            Assert.EndsWith(".0", ancienPlan.Nom);
-            Assert.EndsWith(".1", nouveauPlan.Nom);
+            // Assert sur le Nom qui correspond au CodeArticle
+            Assert.Equal(codeArticle, ancienPlan.Nom);
+            Assert.Equal(codeArticle, nouveauPlan.Nom);
 
             // 3. Règle métier : puisqu'on a simulé que le PRC est toujours en V1, le nouveau plan doit garder la version 1
             Assert.Equal(1, ancienPlan.Version);
-            Assert.Equal(1, nouveauPlan.Version);
+            Assert.Equal(2, nouveauPlan.Version);
             
             // 4. Les Ids doivent être différents
             Assert.NotEqual(ancienPlan.Id, nouveauPlan.Id);

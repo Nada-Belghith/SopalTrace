@@ -36,10 +36,14 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
                 .Include(d => d.DocumentSections)
                     .ThenInclude(s => s.DocumentLignes)
                 .Include(d => d.TypeDocumentCodeNavigation)
+                .Include(d => d.FamilleProduitFiniCodeNavigation)
                 .Include(e => e.Formulaire)
                 .Include(e => e.DocumentSections)
                 .ThenInclude(s => s.DocumentLignes)
-                    .ThenInclude(l => l.DocumentLigneExtraColonnes);
+                    .ThenInclude(l => l.DocumentLigneExtraColonnes)
+                .Include(e => e.DocumentSections)
+                .ThenInclude(s => s.DocumentLignes)
+                    .ThenInclude(l => l.DocumentLineImage);
         }
 
         return await query.FirstOrDefaultAsync(d => d.Id == id);
@@ -76,9 +80,8 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
     {
         if (_context.Entry(document).State == EntityState.Detached)
         {
-            _context.DocumentEntetes.Attach(document);
+            _context.DocumentEntetes.Update(document);
         }
-        _context.Entry(document).State = EntityState.Modified;
         return Task.CompletedTask;
     }
 
@@ -151,10 +154,13 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
         string? operationCode = null, 
         string? posteCode = null, 
         string? familleProduitCode = null,
-        string? statut = null)
+        string? statut = null,
+        string? refFormulaireCodeReference = null)
     {
         var query = _context.DocumentEntetes
             .Include(d => d.TypeDocumentCodeNavigation)
+            .Include(d => d.FamilleProduitFiniCodeNavigation)
+            .Include(d => d.Formulaire)
             .Where(d => d.TypeDocumentCodeNavigation != null && d.TypeDocumentCodeNavigation.Code == typeDocumentCode)
             .AsQueryable();
 
@@ -172,6 +178,9 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
             
         if (!string.IsNullOrEmpty(statut))
             query = query.Where(d => d.Statut == statut);
+
+        if (!string.IsNullOrEmpty(refFormulaireCodeReference))
+            query = query.Where(d => d.Formulaire != null && d.Formulaire.CodeReference == refFormulaireCodeReference);
 
         return await query.ToListAsync();
     }
@@ -194,7 +203,8 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
         string? operationCode = null,
         string? posteCode = null,
         string? natureComposantCode = null,
-        string? familleProduitCode = null)
+        string? familleProduitCode = null,
+        Guid? formulaireId = null)
     {
         var baseNom = GetBaseNom(nom);
         var query = _context.DocumentEntetes
@@ -220,6 +230,11 @@ public class DocumentEnteteRepository : IDocumentEnteteRepository
         if (!string.IsNullOrEmpty(familleProduitCode))
         {
             query = query.Where(d => d.FamilleProduitFiniCode == familleProduitCode);
+        }
+
+        if (formulaireId.HasValue)
+        {
+            query = query.Where(d => d.FormulaireId == formulaireId.Value);
         }
 
         var docs = await query.ToListAsync();

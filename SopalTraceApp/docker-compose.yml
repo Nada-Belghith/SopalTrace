@@ -4,12 +4,12 @@ services:
     build:
       context: .
       dockerfile: SopalTrace.Api/Dockerfile
-    ports:
-      - "9091:8080" 
+    # Pas de port publié : l'API n'est joignable que par nginx (service web), qui applique les en-têtes de sécurité.
     env_file:
       - .env
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - TZ=Africa/Tunis
+      - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__SopalTraceConnection=Server=sqlserver,1433;Database=SopalTraceDB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=False;
       - EmailSettings__SmtpServer=${SMTP_SERVER}
       - EmailSettings__Port=${SMTP_PORT}
@@ -17,21 +17,33 @@ services:
       - EmailSettings__SenderEmail=${EMAIL_SENDER}
       - EmailSettings__AppPassword=${EMAIL_PASSWORD}
       - EmailSettings__SenderName=SopalTrace Production
+      - Rapports__GotenbergUrl=http://gotenberg:3000
     depends_on:
       sqlserver:
         condition: service_healthy
+      gotenberg:
+        condition: service_started
+
+  # Conversion des documents générés (Excel rempli -> PDF) : LibreOffice, joignable uniquement par l'API.
+  gotenberg:
+    image: gotenberg/gotenberg:8.20.1
+    environment:
+      - TZ=Africa/Tunis
+    command: ["gotenberg", "--api-timeout=60s", "--chromium-auto-start=false", "--libreoffice-auto-start=true"]
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
     env_file:          
       - .env
     environment:
+      - TZ=Africa/Tunis
       - ACCEPT_EULA=Y  
       - MSSQL_PID=Developer
       - SA_PASSWORD=${DB_PASSWORD}
 
+    # Port SQL Server publié uniquement sur la machine hôte (jamais sur le réseau).
     ports:
-      - "1444:1433" 
+      - "127.0.0.1:14333:1433"
     volumes:
       - sopal_db_data:/var/opt/mssql
     healthcheck:
@@ -42,18 +54,15 @@ services:
 
   sopaltrace.web:
     build:
-      context: ../SopalTraceWeb  # <-- Les deux points ".." pour reculer
-      dockerfile: Dockerfile     # <-- AJOUT : On force le nom exact du fichier
-      target: build-stage
-    container_name: sopaltrace-web-dev
-    ports:
-      - "5173:5173"
-    volumes:
-      - ../SopalTraceWeb:/app    # <-- Le chemin est correct ici pour le volume
-      - /app/node_modules
+      context: ../SopalTraceWeb
+      dockerfile: Dockerfile
+      target: production-stage
     environment:
-      - CHOKIDAR_USEPOLLING=true
-    command: npm run dev -- --host
+      - TZ=Africa/Tunis
+    ports:
+      - "80:8080"
+    depends_on:
+      - sopaltrace.api
 
 volumes:
   sopal_db_data:

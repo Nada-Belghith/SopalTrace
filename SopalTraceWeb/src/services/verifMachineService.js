@@ -2,39 +2,40 @@ import apiClient from './apiClient';
 import { documentService } from './documentService';
 
 export const verifMachineService = {
-  getDictionnaires() {
+  getDictionaries() {
     return apiClient.get('/referentiels/verif-machine');
   },
 
-  getFamillesParMachine(machineCode) {
+  getFamiliesByMachine(machineCode) {
     // Si l'API backend n'a pas encore de endpoint pour les familles par machine, 
     // on peut renvoyer un tableau vide pour ne pas crasher.
     // return apiClient.get(`/referentiels/machines/${machineCode}/familles`);
     return Promise.resolve({ data: { data: [] } });
   },
 
-  getTousLesPlans() {
-    return apiClient.get('/PlanVerifMachine');
+  getAllDocuments() {
+    return apiClient.get('/DocumentVerifMachine');
   },
 
-  getPlanVerif(id) {
-    return apiClient.get(`/PlanVerifMachine/${id}`);
+  getDocumentById(id) {
+    return apiClient.get(`/DocumentVerifMachine/${id}`);
   },
 
-  creerPlanVerif(payload) {
-    return apiClient.post('/PlanVerifMachine', payload);
+  createDocument(payload) {
+    return apiClient.post('/DocumentVerifMachine', payload);
   },
 
-  mettreAJourPlanVerif(id, payload) {
-    // Le backend PlanVerifMachineController renvoie 204 NoContent, donc on mock la réponse pour le store
-    return apiClient.put(`/PlanVerifMachine/${id}`, payload).then(() => {
-      return { data: { id: id, version: payload.version } };
+  updateDocument(id, payload) {
+    // L'API renvoie la nouvelle version du document (rowVersion), à conserver pour l'enregistrement suivant.
+    return apiClient.put(`/DocumentVerifMachine/${id}`, payload).then(response => {
+      return { data: { id: id, version: payload.version, rowVersion: response.data.rowVersion } };
     });
   },
 
-  restaurerPlanVerif(payload) {
-    return apiClient.post(`/PlanVerifMachine/${payload.AncienId}/restaurer`, payload);
+  createNewVersion(payload) {
+    return apiClient.post('/DocumentVerifMachine/nouvelle-version', payload);
   },
+
 
   importExcel(file, configColonnesJson) {
     const formData = new FormData();

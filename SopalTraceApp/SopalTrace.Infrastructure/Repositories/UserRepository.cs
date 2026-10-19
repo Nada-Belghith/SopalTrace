@@ -1,9 +1,13 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Application.Interfaces;
-using SopalTrace.Domain.Entities; // <-- LA CORRECTION EST ICI !
+using SopalTrace.Domain.Constants;
+using SopalTrace.Domain.Exceptions;
+using SopalTrace.Domain.Entities;
 using SopalTrace.Infrastructure.Data;
 
 namespace SopalTrace.Infrastructure.Repositories;
@@ -17,54 +21,50 @@ public class UserRepository : IUserRepository
         _context = context;
     }
 
-    public async Task<bool> ExistsByMatriculeAsync(string matricule) =>
-        await _context.UtilisateursApps.AnyAsync(u => u.Matricule == matricule);
-
     public async Task<bool> ExistsByEmailAsync(string email) =>
         await _context.UtilisateursApps.AnyAsync(u => u.Email == email);
 
-    public async Task CreateUserAsync(string matricule, string nomComplet, string email, string passwordHash, string roleApp, string intituleMetier)
+    public async Task<List<string>> GetEmailsByRoleAsync(string roleApp) =>
+        await _context.UtilisateursApps
+            .Where(u => u.RoleApp == roleApp && u.AccountStatus == AccountStates.Active)
+            .Select(u => u.Email)
+            .ToListAsync();
+
+    public async Task<bool> TryAddUserAsync(UtilisateursApp user, PreassignedRole? preattributionConsommee)
     {
-        var user = new UtilisateursApp
-        {
-            Id = Guid.NewGuid(),
-            Matricule = matricule,
-            NomComplet = nomComplet,
-            Email = email,
-            MotDePasseHash = passwordHash,
-            RoleApp = roleApp,
-            IntituleMetier = intituleMetier,
-            EstActif = true,
-            DateCreation = DateTime.UtcNow
-        };
         _context.UtilisateursApps.Add(user);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<(string Id, string Hash, string Role, string Nom)> GetUserForLoginAsync(string matricule)
-    {
-        var user = await _context.UtilisateursApps
-            .FirstOrDefaultAsync(u => u.Matricule == matricule);
-
-        if (user == null)
+        if (preattributionConsommee != null) _context.PreassignedRoles.Remove(preattributionConsommee);
+        try
         {
-            throw new InvalidOperationException($"Utilisateur avec le matricule '{matricule}' introuvable.");
+            await _context.SaveChangesAsync();
+            return true;
         }
-
-        return (user.Id.ToString(), user.MotDePasseHash, user.RoleApp, user.NomComplet);
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+        {
+            // Deux demandes simultanées pour le même matricule ou le même e-mail : la seconde n'écrit rien.
+            _context.ChangeTracker.Clear();
+            return false;
+        }
     }
 
-    public async Task<UtilisateursApp?> GetUserByRefreshTokenAsync(string refreshToken)
-    {
-        return await _context.UtilisateursApps
-            .Include(u => u.RefreshTokens)
-            .FirstOrDefaultAsync(u => u.RefreshTokens.Any(rt => rt.Token == refreshToken));
-    }
+    public async Task<PreassignedRole?> GetPreassignedRoleAsync(string matricule) =>
+        await _context.PreassignedRoles
+            .Include(p => p.RoleCodeNavigation)
+            .FirstOrDefaultAsync(p => p.Matricule == matricule);
+
+    public async Task<UtilisateursApp?> GetByActivationTokenHashAsync(string empreinte) =>
+        await _context.UtilisateursApps.FirstOrDefaultAsync(u => u.ActivationTokenHash == empreinte);
 
     public async Task<UtilisateursApp?> GetUserByEmailAsync(string email)
     {
         return await _context.UtilisateursApps
             .FirstOrDefaultAsync(u => u.Email == email);
+    }
+
+    public async Task<UtilisateursApp?> GetUserByMatriculeAsync(string matricule)
+    {
+        return await _context.UtilisateursApps
+            .FirstOrDefaultAsync(u => u.Matricule == matricule);
     }
 
     public async Task<UtilisateursApp?> GetByIdAsync(Guid id) =>
@@ -73,58 +73,48 @@ public class UserRepository : IUserRepository
     public async Task UpdateUserAsync(UtilisateursApp user)
     {
         _context.UtilisateursApps.Update(user);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task AddRefreshTokenAsync(string userId, string token, string jwtId, DateTime expiration)
-    {
-        var refreshToken = new RefreshToken
+        try
         {
-            Id = Guid.NewGuid(),
-            UtilisateurId = Guid.Parse(userId),
-            Token = token,
-            JwtId = jwtId,
-            DateCreation = DateTime.UtcNow,
-            DateExpiration = expiration,
-            EstRevoque = false
-        };
-        _context.RefreshTokens.Add(refreshToken);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> ValidateRefreshTokenAsync(string token, string userId)
-    {
-        var refreshToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == token && rt.UtilisateurId == Guid.Parse(userId));
-
-        if (refreshToken == null)
-            return false;
-
-        if (refreshToken.DateExpiration < DateTime.UtcNow)
-            return false;
-
-        if (refreshToken.EstRevoque == true)
-            return false;
-
-        return true;
-    }
-
-    public async Task RevokeRefreshTokenAsync(string token)
-    {
-        var refreshToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == token);
-
-        if (refreshToken != null)
-        {
-            refreshToken.EstRevoque = true;
-            _context.RefreshTokens.Update(refreshToken);
             await _context.SaveChangesAsync();
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Le statut a changé depuis la lecture (autre administrateur, activation simultanée).
+            throw new ConflitConcurrenceException("Ce compte vient d'être modifié par ailleurs : actualisez la liste puis recommencez.");
+        }
+    }
+
+    public async Task AddRefreshTokenAsync(Guid userId, string token, DateTime expiration)
+    {
+        _context.RefreshTokens.Add(new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UtilisateurId = userId,
+            TokenHash = JetonsSecurite.Empreinte(token),
+            JwtId = Guid.NewGuid().ToString(),
+            DateCreation = DateTime.Now,
+            DateExpiration = expiration,
+            EstRevoque = false
+        });
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<RefreshToken?> GetRefreshTokenAsync(string token)
+    {
+        var hash = JetonsSecurite.Empreinte(token);
+        return await _context.RefreshTokens
+            .Include(rt => rt.Utilisateur)
+            .FirstOrDefaultAsync(rt => rt.TokenHash == hash);
+    }
+
+    public async Task RevokeRefreshTokenAsync(RefreshToken refreshToken)
+    {
+        refreshToken.EstRevoque = true;
+        await _context.SaveChangesAsync();
     }
 
     public async Task RevokeAllTokensForUserAsync(Guid userId)
     {
-        // ExecuteUpdateAsync est excellent pour les perfs ! (EF Core 7+)
         await _context.RefreshTokens
             .Where(rt => rt.UtilisateurId == userId && rt.EstRevoque != true)
             .ExecuteUpdateAsync(setters => setters.SetProperty(rt => rt.EstRevoque, true));

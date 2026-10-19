@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SopalTrace.Application.Interfaces;
+using SopalTrace.Domain.Entities;
+using SopalTrace.Domain.Exceptions;
 using SopalTrace.Infrastructure.Data;
 using SopalTrace.Infrastructure.Repositories;
 using SopalTrace.Application.Interfaces.Repositories;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace SopalTrace.Infrastructure.UnitOfWork;
@@ -35,13 +38,13 @@ public class UnitOfWork : IUnitOfWork
     public IRefFormulaireRepository RefFormulaireRepository
         => _refFormulaireRepository ??= new RefFormulaireRepository(_context);
 
-    private IPlanVerifMachineEnteteRepository? _planVerifMachineEnteteRepository;
-    public IPlanVerifMachineEnteteRepository PlanVerifMachineEnteteRepository
-        => _planVerifMachineEnteteRepository ??= new PlanVerifMachineEnteteRepository(_context);
+    private IDocumentVerifMachineEnteteRepository? _documentVerifMachineEnteteRepository;
+    public IDocumentVerifMachineEnteteRepository DocumentVerifMachineEnteteRepository
+        => _documentVerifMachineEnteteRepository ??= new DocumentVerifMachineEnteteRepository(_context);
 
-    private IPlanEchantillonnageEnteteRepository? _planEchantillonnageEnteteRepository;
-    public IPlanEchantillonnageEnteteRepository PlanEchantillonnageEnteteRepository
-        => _planEchantillonnageEnteteRepository ??= new PlanEchantillonnageEnteteRepository(_context);
+    private IDocumentEchantillonnageEnteteRepository? _DocumentEchantillonnageEnteteRepository;
+    public IDocumentEchantillonnageEnteteRepository DocumentEchantillonnageEnteteRepository
+        => _DocumentEchantillonnageEnteteRepository ??= new DocumentEchantillonnageEnteteRepository(_context);
 
     private IModeleFabricationEnteteRepository? _modeleFabricationEnteteRepository;
     public IModeleFabricationEnteteRepository ModeleFabricationEnteteRepository
@@ -51,6 +54,17 @@ public class UnitOfWork : IUnitOfWork
     public IPlanFabricationEnteteRepository PlanFabricationEnteteRepository
         => _planFabricationEnteteRepository ??= new PlanFabricationEnteteRepository(_context);
 
+    private IAlerteRepository? _alerteRepository;
+    public IAlerteRepository AlerteRepository
+        => _alerteRepository ??= new AlerteRepository(_context);
+
+    private IExecControleOfRepository? _execControleOfRepository;
+    public IExecControleOfRepository ExecControleOfRepository
+        => _execControleOfRepository ??= new ExecControleOfRepository(_context);
+
+    private IExecEchantillonnageRepository? _execEchantillonnageRepository;
+    public IExecEchantillonnageRepository ExecEchantillonnageRepository
+        => _execEchantillonnageRepository ??= new ExecEchantillonnageRepository(_context);
     public async Task BeginTransactionAsync()
     {
         _transaction = await _context.Database.BeginTransactionAsync();
@@ -70,6 +84,7 @@ public class UnitOfWork : IUnitOfWork
         }
         catch (DbUpdateException ex)
         {
+            // Le détail de l'exception est journalisé par ExceptionMiddleware.
             await RollbackAsync();
             throw ex.ToDomainExceptionOrSelf("Un enregistrement concurrent a déjà été validé.");
         }
@@ -94,6 +109,15 @@ public class UnitOfWork : IUnitOfWork
         return await _context.SaveChangesAsync();
     }
 
+    /// <inheritdoc/>
+    public void DetachAllEntities()
+    {
+        foreach (var entry in _context.ChangeTracker.Entries().ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
     public async Task RollbackAsync()
     {
         try
@@ -111,6 +135,41 @@ public class UnitOfWork : IUnitOfWork
                 _transaction = null;
             }
         }
+    }
+
+    /// <inheritdoc/>
+    public void Ajouter(object entite)
+    {
+        // L'entité et ses enfants encore inconnus du suivi (valeurs de colonnes, image) sont inscrits comme ajoutés ;
+        // le parcours s'arrête aux entités déjà suivies (section ou entête existants), qui restent inchangées.
+        _context.ChangeTracker.TrackGraph(entite, noeud =>
+        {
+            if (noeud.Entry.State == EntityState.Detached)
+                noeud.Entry.State = EntityState.Added;
+        });
+    }
+
+    /// <inheritdoc/>
+    public void VerifierVersionDocument(DocumentEntete document, string? versionClient, bool obligatoire)
+    {
+        if (string.IsNullOrWhiteSpace(versionClient))
+        {
+            if (obligatoire)
+                throw new RegleMetierException("Version du document manquante : rechargez le document avant de l'enregistrer.");
+            return;
+        }
+
+        byte[] version;
+        try { version = Convert.FromBase64String(versionClient); }
+        catch (FormatException) { throw new RegleMetierException("Version du document illisible : rechargez le document."); }
+
+        if (!version.AsSpan().SequenceEqual(document.RowVersion))
+            throw new ConflitConcurrenceException("Ce document a été modifié par un autre utilisateur depuis son ouverture.");
+
+        var entree = _context.Entry(document);
+        entree.Property(d => d.RowVersion).OriginalValue = version;
+        // ModifieLe est renseigné par l'intercepteur : l'entête est réécrit, sa version contrôlée puis incrémentée.
+        entree.Property(d => d.ModifieLe).IsModified = true;
     }
 
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)

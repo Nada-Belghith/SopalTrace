@@ -8,6 +8,7 @@ namespace SopalTrace.Application.Interfaces;
 public interface IHubService
 {
     Task<IReadOnlyList<HubModeleDto>> GetTousLesModelesAsync();
+    Task<HubStatistiquesDto> GetStatistiquesAsync();
     Task<bool> ChangerStatutModeleAsync(string category, Guid id, string statut);
     Task<IReadOnlyList<HubPlanDto>> GetTousLesPlansAsync();
     Task<IReadOnlyList<HubPlanDto>> GetToutesLesStructuresAsync();

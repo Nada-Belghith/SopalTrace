@@ -13,5 +13,5 @@ public partial class TypeRobinet
 
     public virtual ICollection<FamilleProduitFini> FamilleProduitFinis { get; set; } = new List<FamilleProduitFini>();
 
-    public virtual ICollection<ProduitFini> ProduitFinis { get; set; } = new List<ProduitFini>();
+    public virtual ICollection<RefFormulaire> RefFormulaires { get; set; } = new List<RefFormulaire>();
 }

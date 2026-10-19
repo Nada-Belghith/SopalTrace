@@ -15,11 +15,5 @@ public partial class TypeCaracteristique
 
     public virtual ICollection<DocumentLigne> DocumentLignes { get; set; } = new List<DocumentLigne>();
 
-    public virtual ICollection<ModeleFabricationLigne> ModeleFabricationLignes { get; set; } = new List<ModeleFabricationLigne>();
-
-    public virtual ICollection<OutilControle> OutilControles { get; set; } = new List<OutilControle>();
-
-    public virtual ICollection<PlanFabricationLigne> PlanFabricationLignes { get; set; } = new List<PlanFabricationLigne>();
-
     public virtual ICollection<RefCaracteristique> RefCaracteristiques { get; set; } = new List<RefCaracteristique>();
 }

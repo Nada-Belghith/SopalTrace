@@ -7,7 +7,9 @@ using Serilog;
 using SopalTrace.Api.Middlewares;
 using SopalTrace.Application.Interfaces;
 using SopalTrace.Application.Services;
+using SopalTrace.Application.Strategies;
 using SopalTrace.Application.Validators;
+using SopalTrace.Application.Interfaces.Execution;
 using SopalTrace.Infrastructure.Data;
 using SopalTrace.Infrastructure.Repositories;
 using SopalTrace.Infrastructure.Services;
@@ -16,15 +18,15 @@ using SopalTrace.Infrastructure.Services.Security;
 using SopalTrace.Infrastructure.UnitOfWork;
 using SopalTrace.Application.Services.QualityPlans.Referentiels;
 using SopalTrace.Application.Interfaces.Repositories;
+using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Enregistrement du fournisseur d'encodage pour supporter Windows-1252 (utile pour l'import Excel/CSV)
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-// Configuration globale pour EPPlus 8+
-OfficeOpenXml.ExcelPackage.License.SetNonCommercialPersonal("SopalTrace");
 
 // Configuration de Serilog avec enrichissement de contexte
 Log.Logger = new LoggerConfiguration()
@@ -39,7 +41,8 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // Add services to the container.
-builder.Services.AddControllers();
+// Validation automatique : tout DTO reçu doté d'un validateur FluentValidation est contrôlé avant l'action.
+builder.Services.AddControllers(options => options.Filters.Add<SopalTrace.Api.Filters.ValidationFluentFiltre>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -98,19 +101,92 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // Register new Document Domain services
 builder.Services.AddScoped<IDocumentEnteteRepository, DocumentEnteteRepository>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
-builder.Services.AddScoped<IPlanVerifMachineService, PlanVerifMachineService>();
-builder.Services.AddScoped<IPlanEchantillonnageService, PlanEchantillonnageService>();
+builder.Services.AddScoped<IDocumentTypeStrategy, PlanAssemblageStrategy>();
+builder.Services.AddScoped<IDocumentTypeStrategy, PlanProduitFiniStrategy>();
+builder.Services.AddScoped<IDocumentTypeStrategy, ControlePosteStrategy>();
+builder.Services.AddScoped<IDocumentVerifMachineService, DocumentVerifMachineService>();
+builder.Services.AddScoped<IDocumentEchantillonnageService, DocumentEchantillonnageService>();
+builder.Services.AddScoped<IIso2859Service, SopalTrace.Infrastructure.Services.Iso2859Service>();
+builder.Services.AddScoped<IExecEchantillonnageService, ExecEchantillonnageService>();
+builder.Services.AddScoped<IExecRcPosteRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecRcPosteRepository>();
+builder.Services.AddScoped<IExecRcPosteService, ExecRcPosteService>();
 builder.Services.AddScoped<IModeleFabricationService, ModeleFabricationService>();
 builder.Services.AddScoped<IPlanFabricationService, PlanFabricationService>();
 
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecEncfRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecEncfService, SopalTrace.Application.Services.ExecEncfService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecPlanAssemblageRepository, SopalTrace.Infrastructure.Repositories.Execution.ExecPlanAssemblageRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecPlanAssemblageService, SopalTrace.Application.Services.ExecPlanAssemblageService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.ITracabiliteRepository, SopalTrace.Infrastructure.Repositories.Execution.TracabiliteRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.ITracabiliteService, SopalTrace.Application.Services.TracabiliteService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOperateurRepository, SopalTrace.Infrastructure.Repositories.Execution.OperateurRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IOccurrenceRepository, SopalTrace.Infrastructure.Repositories.Execution.OccurrenceRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecutionOfService, SopalTrace.Application.Services.Execution.ExecutionOfService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IExecutionCatalogueService, SopalTrace.Application.Services.Execution.ExecutionCatalogueService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IAssemblageExecutionService, SopalTrace.Application.Services.Execution.AssemblageExecutionService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IAvancementAssemblageService, SopalTrace.Application.Services.Execution.AvancementAssemblageService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IVerifMachinePosteService, SopalTrace.Application.Services.Execution.VerifMachinePosteService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IVerifMachineExecutionService, SopalTrace.Application.Services.Execution.VerifMachineExecutionService>();
+builder.Services.AddScoped<IOccurrenceService, SopalTrace.Application.Services.OccurrenceService>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IDemarragePosteRepository, SopalTrace.Infrastructure.Repositories.Execution.DemarragePosteRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IPlanificationProductionRepository, SopalTrace.Infrastructure.Repositories.Execution.PlanificationProductionRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Execution.IPlanificationProductionService, SopalTrace.Application.Services.Execution.PlanificationProductionService>();
+// Contrôles de production de l'assemblage planifiés chaque minute, que les écrans soient ouverts ou non.
+builder.Services.AddHostedService<SopalTrace.Api.TachesDeFond.PlanificationProductionWorker>();
+// Documents générés à la demande : modèle Excel de Sopal en vigueur à la création du document, rempli depuis la base,
+// converti en PDF par Gotenberg, conservé en base.
+var parametresRapports = builder.Configuration.GetSection("Rapports").Get<SopalTrace.Application.Settings.RapportsSettings>()
+    ?? new SopalTrace.Application.Settings.RapportsSettings();
+builder.Services.AddSingleton(parametresRapports);
+builder.Services.AddSingleton<SopalTrace.Application.Interfaces.Rapports.IMoteurModeleExcel, SopalTrace.Infrastructure.Rapports.MoteurModeleExcel>();
+builder.Services.AddSingleton<SopalTrace.Application.Interfaces.Rapports.IModelesLivres>(sp =>
+    new SopalTrace.Infrastructure.Rapports.ModelesLivres(sp.GetRequiredService<SopalTrace.Application.Settings.RapportsSettings>().DossierModelesLivres));
+builder.Services.AddSingleton<SopalTrace.Application.Rapports.IDefinitionRapport>(new SopalTrace.Application.Rapports.DefinitionRapportPlan(SopalTrace.Domain.Constants.TypesDocument.PlanAssemblage));
+builder.Services.AddSingleton<SopalTrace.Application.Rapports.IDefinitionRapport>(new SopalTrace.Application.Rapports.DefinitionRapportPlan(SopalTrace.Domain.Constants.TypesDocument.PlanProduitFini));
+builder.Services.AddHttpClient<SopalTrace.Application.Interfaces.Rapports.IConvertisseurPdf, SopalTrace.Infrastructure.Rapports.ConvertisseurPdfGotenberg>(client =>
+    client.Timeout = TimeSpan.FromSeconds(Math.Max(10, parametresRapports.DelaiConversionSecondes)));
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Rapports.IModeleRapportRepository, SopalTrace.Infrastructure.Repositories.Rapports.ModeleRapportRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.Rapports.IDocumentGenereRepository, SopalTrace.Infrastructure.Repositories.Rapports.DocumentGenereRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDonneesExecutionRepository, SopalTrace.Infrastructure.Repositories.Rapports.DonneesExecutionRepository>();
+// Documents d'exécution mis en forme : valeurs lues par les mêmes services que les écrans des opérateurs.
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportEchantillonnage>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportControlePoste>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportVerifMachine>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportResultatsAssemblage>();
+builder.Services.AddScoped<SopalTrace.Application.Rapports.Execution.IDefinitionRapportExecution, SopalTrace.Application.Rapports.Execution.DefinitionRapportRegistre>();
+builder.Services.AddScoped<SopalTrace.Application.Services.Rapports.IModeleRapportService, SopalTrace.Application.Services.Rapports.ModeleRapportService>();
+builder.Services.AddScoped<SopalTrace.Application.Services.Rapports.IGenerationDocumentService, SopalTrace.Application.Services.Rapports.GenerationDocumentService>();
+builder.Services.AddHostedService<SopalTrace.Api.TachesDeFond.ImportModelesLivresWorker>();
 builder.Services.AddScoped<IErpService, SqlErpService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IJournalConnexionRepository, JournalConnexionRepository>();
 builder.Services.AddScoped<ISecurityService, SecurityService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IUserSessionValidator, UserSessionValidator>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("Auth").Get<SopalTrace.Application.Settings.AuthSettings>()
+    ?? new SopalTrace.Application.Settings.AuthSettings());
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserAdministrationRepository, UserAdministrationRepository>();
+builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService>();
+builder.Services.AddScoped<IMagasinRepository, MagasinRepository>();
+builder.Services.AddScoped<IMagasinService, MagasinService>();
+// Documents externes déposés par les services (achats, commercial, qualité) et retrouvés pour chaque OF.
+builder.Services.AddSingleton(builder.Configuration.GetSection("DocumentsExternes").Get<SopalTrace.Application.Settings.DocumentsExternesSettings>()
+    ?? new SopalTrace.Application.Settings.DocumentsExternesSettings());
+builder.Services.AddSingleton<SopalTrace.Application.Interfaces.IRepertoirePartage, SopalTrace.Infrastructure.Services.RepertoirePartage>();
+builder.Services.AddScoped<SopalTrace.Application.Interfaces.IDocumentExterneRepository, SopalTrace.Infrastructure.Repositories.DocumentExterneRepository>();
+builder.Services.AddScoped<SopalTrace.Application.Services.IDocumentExterneService, SopalTrace.Application.Services.DocumentExterneService>();
+builder.Services.AddScoped<SopalTrace.Application.Services.IRelanceDocumentsExternesService, SopalTrace.Application.Services.RelanceDocumentsExternesService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Alertes
+builder.Services.AddScoped<SopalTrace.Application.Alertes.IAlerteDefinition<SopalTrace.Application.Alertes.PlanManquantContexte>, SopalTrace.Application.Alertes.AlertePlanManquantDefinition>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.PlanManquantContexte>>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.IAlerteDefinition<SopalTrace.Application.Alertes.NotifsSuperviseurContexte>, SopalTrace.Application.Alertes.SuperviseurNotifsAlerteDefinition>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.NotifsSuperviseurContexte>>();
+
+builder.Services.AddScoped<SopalTrace.Application.Alertes.IAlerteDefinition<SopalTrace.Application.Alertes.NotifsManagerContexte>, SopalTrace.Application.Alertes.ManagerNotifsAlerteDefinition>();
+builder.Services.AddScoped<SopalTrace.Application.Alertes.AlerteService<SopalTrace.Application.Alertes.NotifsManagerContexte>>();
 builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 builder.Services.AddScoped<IFrequencyParserService, FrequencyParserService>();
 builder.Services.AddScoped<IRefFormulaireRepository, RefFormulaireRepository>();
@@ -128,8 +204,11 @@ builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IExcel
 builder.Services.AddScoped<SopalTrace.Infrastructure.Services.ExcelImport.IExcelImportRccfService, SopalTrace.Infrastructure.Services.ExcelImport.ExcelImportRccfService>();
 
 // --- CONFIGURATION DE L'AUTHENTIFICATION JWT ---
-var secretKey = builder.Configuration["Jwt:Secret"] ?? "VotreCleSecreteDePlusDe32Caracteres";
-var key = Encoding.ASCII.GetBytes(secretKey);
+// Aucune valeur par défaut : une clé connue publiquement permettrait de forger des jetons.
+var secretKey = builder.Configuration["Jwt:Secret"];
+if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32)
+    throw new InvalidOperationException("La clé 'Jwt:Secret' doit être configurée (32 caractères minimum).");
+var key = Encoding.UTF8.GetBytes(secretKey);
 
 builder.Services.AddAuthentication(x =>
 {
@@ -138,8 +217,8 @@ builder.Services.AddAuthentication(x =>
 })
 .AddJwtBearer(x =>
 {
-    x.RequireHttpsMetadata = false;
-    x.SaveToken = true;
+    x.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+    x.SaveToken = false;
     x.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
@@ -151,22 +230,92 @@ builder.Services.AddAuthentication(x =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
+    // Un jeton signé ne suffit pas : le compte doit être ACTIVE, son tampon de sécurité inchangé et son rôle
+    // identique à celui du jeton (changement de rôle, désactivation ou nouveau mot de passe ferment les sessions aussitôt).
+    x.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var validateur = context.HttpContext.RequestServices.GetRequiredService<IUserSessionValidator>();
+            var sub = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var tampon = context.Principal?.FindFirst(SessionClaims.SecurityStamp)?.Value;
+            var role = context.Principal?.FindFirst(ClaimTypes.Role)?.Value;
+            if (!Guid.TryParse(sub, out var userId) || !await validateur.IsSessionValidAsync(userId, tampon, role))
+                context.Fail("Session révoquée.");
+        }
+    };
 });
 
 // --- CONFIGURATION DU CORS ---
+// Origines autorisées lues depuis la configuration (Cors__AllowedOrigins__0, __1...).
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+if (allowedOrigins.Length == 0 && builder.Environment.IsDevelopment())
+    allowedOrigins = new[] { "http://localhost:5173" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("VueJsPolicy", b =>
-        b.WithOrigins("http://localhost:5173")
-         .AllowAnyMethod()
-         .AllowAnyHeader()
+        b.WithOrigins(allowedOrigins)
+         .WithMethods("GET", "POST", "PUT", "DELETE")
+         .WithHeaders("Authorization", "Content-Type", "Accept")
          .AllowCredentials());
 });
+
+// --- LIMITATION DE DÉBIT (anti-DoS / anti-brute-force) ---
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst("matricule")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonyme",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 300, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+
+    // Points d'entrée anonymes de l'authentification : limite stricte par adresse IP.
+    options.AddPolicy(SopalTrace.Api.PolitiquesDebit.Authentification, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "anonyme",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("Auth:RequetesParMinute", 10),
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
+// Derrière nginx : l'adresse du client est lue dans X-Forwarded-For (sinon tous les postes partageraient
+// l'adresse de nginx et la limite de débit de l'authentification s'appliquerait à toute l'usine).
+// L'API n'est joignable que par nginx (aucun port publié) : un seul saut de proxy est accepté.
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                             | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
 var app = builder.Build();
 
 // 3. Middleware
+app.UseForwardedHeaders();
 app.UseMiddleware<ExceptionMiddleware>();
+
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    // L'API ne sert que du JSON ; Swagger (dev uniquement) a besoin de charger ses scripts.
+    if (!context.Request.Path.StartsWithSegments("/swagger"))
+    {
+        headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
+        headers["Cache-Control"] = "no-store";
+    }
+    await next();
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -174,9 +323,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
 
 app.UseCors("VueJsPolicy");
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

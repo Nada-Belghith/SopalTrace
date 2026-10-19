@@ -23,7 +23,15 @@ public partial class ExecControleTranche
 
     public string? MatriculeApprobateur { get; set; }
 
+    public string? Remarques { get; set; }
+
+    public Guid? SessionId { get; set; }
+
+    public byte[] RowVersion { get; set; } = null!;
+
     public virtual ExecControleOf ExecControleOf { get; set; } = null!;
 
-    public virtual ICollection<ExecPrelevement> ExecPrelevements { get; set; } = new List<ExecPrelevement>();
+    public virtual Autili? MatriculeApprobateurNavigation { get; set; }
+
+    public virtual ExecControleOfSession? Session { get; set; }
 }

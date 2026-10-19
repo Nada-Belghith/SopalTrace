@@ -70,9 +70,9 @@ export function parseFrequenceLibelle(libelle, periodicites = []) {
     return result;
   }
 
-  const perMatch = periodicites.find(p => p.libelle.toLowerCase() === lib);
+  const perMatch = periodicites.find(p => libellePeriodicite(p).toLowerCase() === lib);
   if (perMatch) {
-    result.modeFreq = 'FIXE';
+    result.modeFreq = 'VARIABLE';
     result.periodiciteId = perMatch.id;
     return result;
   }
@@ -89,20 +89,15 @@ export function resolveFrequencyFromPeriodiciteId(periodiciteId, periodicites = 
   if (!perio) return null;
 
   let modeFreq = 'VARIABLE';
-  let freqNum = perio.frequenceNum !== undefined ? perio.frequenceNum : (perio.FrequenceNum !== undefined ? perio.FrequenceNum : 1);
+  let freqNum = perio.nbrPieces !== undefined ? perio.nbrPieces : (perio.NbrPieces !== undefined ? perio.NbrPieces : 1);
   let typeVariable = 'HEURE';
-  let freqHours = 1;
+  let freqHours = perio.nbrHeures !== undefined ? perio.nbrHeures : (perio.NbrHeures !== undefined ? perio.NbrHeures : 1);
 
-  const unite = (perio.frequenceUnite || perio.FrequenceUnite || '').toUpperCase();
+  const unite = (perio.unite || perio.Unite || '').toUpperCase();
   if (!unite) {
     modeFreq = 'SANS';
-  } else if (unite.includes('HEURE') || unite.includes('PCT_HEURE')) {
+  } else if (unite === 'HEURE') {
     typeVariable = 'HEURE';
-    if (unite.includes('4_HEURE')) {
-      freqHours = 4;
-    } else {
-      freqHours = 1;
-    }
   } else if (unite === 'SERIE') {
     typeVariable = 'SERIE';
   } else if (unite === 'ECHANTILLON') {
@@ -117,3 +112,27 @@ export function resolveFrequencyFromPeriodiciteId(periodiciteId, periodicites = 
     freqHours
   };
 }
+
+/**
+ * Libellé d'une périodicité, identique à celui de l'API (PeriodiciteDto.Libelle) : une périodicité créée
+ * pendant l'édition et ajoutée à la liste locale doit s'afficher et se rechercher comme une périodicité relue.
+ */
+export function libellePeriodicite(p) {
+  if (!p) return '';
+  const existant = p.libelle || p.Libelle;
+  if (existant) return existant;
+  const n = p.nbrPieces ?? p.NbrPieces;
+  const unite = p.unite || p.Unite;
+  const heures = p.nbrHeures ?? p.NbrHeures;
+  if (!n || !unite) return '';
+  const pluriel = n > 1 ? 's' : '';
+  if (unite === 'HEURE') {
+    const h = (heures === 1 || heures == null) ? 'heure' : `${heures} heures`;
+    return n === 100 ? `100% des pièces / ${h}` : `${n} pièce${pluriel} / ${h}`;
+  }
+  if (unite === 'ECHANTILLON') return `${n} échantillon${pluriel}`;
+  return `une série de ${n} pièce${pluriel}`;
+}
+
+/** Périodicité prête à être ajoutée à une liste du référentiel (libellé calculé). */
+export const periodiciteAvecLibelle = (p) => ({ ...p, libelle: libellePeriodicite(p) });

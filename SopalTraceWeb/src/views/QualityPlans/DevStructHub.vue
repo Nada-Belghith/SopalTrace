@@ -3,13 +3,7 @@
     <Toast position="top-right" />
     <ConfirmDialog></ConfirmDialog>
 
-    <div class="mb-4 md:mb-0">
-      <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-        <i class="pi pi-th-large text-blue-600"></i>
-        Hub des Plans Spécifiques
-      </h1>
-      <p class="text-slate-500 text-sm mt-1">Visualisez les structures de référence des plans en cours de fabrication.</p>
-    </div>
+    <EnTetePage class="mb-4 md:mb-0" titre="Plans spécifiques" sous-titre="Visualisez les structures de référence des plans en cours de fabrication." />
 
     <!-- ========================================== -->
     <!-- BARRE DE CONTRÔLE : Onglets & Filtres      -->
@@ -103,6 +97,9 @@
             <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
               {{ plan.libelle || plan.designation || '(Sans désignation)' }}
             </h3>
+            <p v-if="plan.creeLe" class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="pi pi-calendar text-[9px]"></i> Créé le {{ new Date(plan.creeLe).toLocaleDateString('fr-FR') }} à {{ new Date(plan.creeLe).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+            </p>
           </div>
 
           <!-- Tags -->
@@ -111,7 +108,7 @@
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
               <i class="pi pi-box text-[9px]"></i> {{ (plan.category === 'RC' && plan.nature === 'POSTE') ? 'RÉSULTAT DE CONTRÔLE' : plan.nature }}
             </span>
-            <span v-if="plan.type && plan.type !== 'N/A'"
+            <span v-if="plan.type && plan.type !== 'N/A' && plan.type !== 'GEN'"
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded">
               <i class="pi pi-tag text-[9px]"></i> {{ plan.type }}
             </span>
@@ -144,9 +141,7 @@
               <button v-if="plan.statut === 'ACTIF'" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
                 <i class="pi pi-pencil"></i>
               </button>
-              <button v-if="plan.statut === 'ARCHIVE'" @click.stop="upgrader(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Mettre à jour vers le dernier PRC">
-                <i class="pi pi-arrow-up"></i>
-              </button>
+
               <button v-if="plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Archiver">
                 <i class="pi pi-box"></i>
               </button>
@@ -186,6 +181,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import { useRouter } from 'vue-router';
 import { useAppToast } from '@/composables/useAppToast';
 import { useAppConfirm } from '@/composables/useAppConfirm';
@@ -315,14 +311,6 @@ const editer = (category, id) => {
   };
   if (routes[category]) router.push(routes[category]);
   else toast.warn('Édition non disponible.', 'Catégorie inconnue');
-};
-
-const upgrader = (category, id) => {
-  const routes = {
-    FAB: { path: `/dev/fab/plans/editer/${id}`, query: { upgrade: 'true' } }
-  };
-  if (routes[category]) router.push(routes[category]);
-  else toast.warn('Mise à jour non disponible.', 'Catégorie inconnue');
 };
 
 const consulter = (category, id) => {

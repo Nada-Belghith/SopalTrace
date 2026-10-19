@@ -7,6 +7,9 @@ namespace SopalTrace.Application.DTOs.QualityPlans.Modeles;
 // --- CRÉATION ---
 public record CreateModeleRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string? RowVersion { get; init; }
+
     public required string Code { get; init; }
     public required string Libelle { get; init; }
     public required string? TypeRobinetCode { get; init; }
@@ -17,7 +20,6 @@ public record CreateModeleRequestDto
     public string? Notes { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
     public string? CreePar { get; init; } = "SYSTEM";
-    public int? VersionInitiale { get; init; }
     public string? ConfigurationColonnesJson { get; init; } = null;
     /// <summary>Code du formulaire référence sélectionné par l'utilisateur (ex: FE-ASS-PISTON). Permet de versionner le bon formulaire.</summary>
     public string? RefFormulaireCodeReference { get; init; } = null;
@@ -46,7 +48,6 @@ public record CreateModeleRequestDto
 /// COMPORTEMENT À L'IMPORT (aperçu seulement) :
 /// - Les sections complexes SANS fréquence restent en LibelleSection
 /// - TypeSectionId reste NULL (pas de création auto)
-/// - RegleEchantillonnageId reste NULL (cherche seulement si existe)
 /// - L'admin décide lors de la création du modèle/plan
 /// </summary>
 public record SectionModeleEditDto
@@ -57,8 +58,6 @@ public record SectionModeleEditDto
     public Guid? TypeSectionId { get; init; }
     public Guid? PeriodiciteId { get; set; }
     public string? FrequenceLibelle { get; init; } = null;
-    public Guid? RegleEchantillonnageId { get; init; }
-    public string? RegleEchantillonnageLibelle { get; init; }
     public string? Notes { get; init; } = null;
     public List<LigneModeleEditDto> Lignes { get; init; } = new();
 }
@@ -97,6 +96,9 @@ public record ChangeModeleStatusRequestDto
 
 public record NouvelleVersionModeleRequestDto
 {
+    /// <summary>Version reçue à l'ouverture du document : un document modifié entre-temps par un autre utilisateur est refusé (409).</summary>
+    public string? RowVersion { get; init; }
+
     public required Guid AncienId { get; init; }
     public string? CreePar { get; init; }
     public string? ModifiePar { get; init; }
@@ -110,7 +112,6 @@ public record NouvelleVersionModeleRequestDto
     public string? FamilleProduitCode { get; init; } = null;
     public string? Notes { get; init; } = null;
     public string? LegendeMoyens { get; init; } = null;
-    public int? VersionInitiale { get; init; }
     public List<SectionModeleEditDto> Sections { get; init; } = new();
     public string? ConfigurationColonnesJson { get; init; } = null;
     /// <summary>Code du formulaire référence sélectionné (ex: FE-ASS-PISTON). Permet de versionner le bon formulaire spécifiquement.</summary>
@@ -120,6 +121,9 @@ public record NouvelleVersionModeleRequestDto
 // --- RÉPONSES ---
 public record ModeleResponseDto
 {
+    /// <summary>Version du document (RowVersion en base64), à renvoyer telle quelle lors de l'enregistrement.</summary>
+    public string? RowVersion { get; init; }
+
     public required Guid Id { get; init; }
     public required string Code { get; init; }
     public required string Libelle { get; init; }
@@ -138,7 +142,7 @@ public record ModeleResponseDto
     public DateTime? ModifieLe { get; init; }
     public string? ArchivePar { get; init; }
     public DateTime? ArchiveLe { get; init; }
-    public string? ConfigurationColonnesJson { get; init; }
+    public string? ConfigurationColonnesJson { get; set; }
     public string? CodeReferenceFormulaire { get; init; }
     public int? FormulaireVersion { get; init; }
     public List<ModeleSectionResponseDto> Sections { get; init; } = new();
@@ -152,8 +156,6 @@ public record ModeleSectionResponseDto
     public Guid? TypeSectionId { get; init; }
     public Guid? PeriodiciteId { get; init; }
     public string? FrequenceLibelle { get; init; }
-    public Guid? RegleEchantillonnageId { get; init; }
-    public string? RegleEchantillonnageLibelle { get; init; }
     public List<ModeleLigneResponseDto> Lignes { get; init; } = new();
 }
 

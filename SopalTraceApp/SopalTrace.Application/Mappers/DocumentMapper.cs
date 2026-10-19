@@ -1,5 +1,6 @@
 using SopalTrace.Application.DTOs.QualityPlans.Documents;
 using SopalTrace.Domain.Constants;
+using SopalTrace.Application.Helpers;
 using SopalTrace.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -16,6 +17,7 @@ public static class DocumentMapper
         return new DocumentEnteteDto
         {
             Id = entite.Id,
+            RowVersion = VersionsDocument.EnTexte(entite.RowVersion),
             TypeDocumentCode = entite.TypeDocumentCode,
             Nom = entite.Nom,
             Designation = entite.Designation,
@@ -33,9 +35,8 @@ public static class DocumentMapper
             NatureArticleCode = entite.NatureArticleCode,
             FamilleProduitFiniCode = entite.FamilleProduitFiniCode,
             PosteCode = entite.PosteCode,
-            Libre1 = entite.Libre1,
-            Libre2 = entite.Libre2,
-            Libre3 = entite.Libre3,
+            // Le type de robinet n'est pas stocké sur le document : il vient de la famille.
+            TypeRobinetCode = entite.FamilleProduitFiniCodeNavigation?.TypeRobinetCode,
             // ConfigurationColonnesJson will be populated directly in DocumentService
             ConfigurationColonnesJson = null,
             LignesControlePoste = entite.TypeDocumentCode == "CTRL_POSTE"
@@ -45,8 +46,7 @@ public static class DocumentMapper
                     .Select(l => new ControlePosteLigneDto
                     {
                         Id = l.Id,
-                        // MachineCodeCtrlPoste stores the machine for CTRL_POSTE lines
-                        MachineCode = l.MachineCodeCtrlPoste ?? l.MachineCode,
+                        MachineCode = l.MachineCode,
                         RisqueDefautId = l.RisqueDefautId,
                         LibelleDefaut = l.LibelleAffiche,
                         OrdreAffiche = l.OrdreAffiche
@@ -59,9 +59,10 @@ public static class DocumentMapper
                 CleColonne = c.CleColonne,
                 LabelAffiche = c.LabelAffiche,
                 TypeValeur = c.TypeValeur,
-                InsertAfter = c.InsertAfter
+                InsertAfter = c.InsertAfter,
+                Options = c.ColumnAllowedValues.Where(v => v.Active).OrderBy(v => v.DisplayOrder).Select(v => v.Value).ToList()
             }).ToList() ?? new List<DocumentColonneDefDto>(),
-            Sections = entite.DocumentSections?.Select(s => new DocumentSectionDto
+            Sections = entite.DocumentSections?.OrderBy(s => s.OrdreAffiche).Select(s => new DocumentSectionDto
             {
                 Id = s.Id,
                 EnteteId = s.EnteteId,
@@ -69,15 +70,13 @@ public static class DocumentMapper
                 LibelleSection = s.LibelleSection,
                 TypeSectionId = s.TypeSectionId,
                 PeriodiciteId = s.PeriodiciteId,
-                RegleEchantillonnageId = s.RegleEchantillonnageId,
                 Notes = s.Notes,
-                NormeReference = s.NormeReference,
                 NqaId = s.NqaId,
-                Lignes = s.DocumentLignes?.Select(l => new DocumentLigneDto
+                Lignes = s.DocumentLignes?.OrderBy(l => l.OrdreAffiche).Select(l => new DocumentLigneDto
                 {
                     Id = l.Id,
                     EnteteId = l.EnteteId,
-                    SectionId = l.SectionId,
+                    SectionId = s.Id,
                     OrdreAffiche = l.OrdreAffiche,
                     CaracteristiqueId = l.CaracteristiqueId,
                     LibelleAffiche = l.LibelleAffiche,
@@ -91,19 +90,10 @@ public static class DocumentMapper
                     EstCritique = l.EstCritique,
                     Instruction = l.Instruction,
                     Observations = l.Observations,
-                    ImageBase64 = l.ImageBase64,
+                    ImageBase64 = l.EnDataUrl(),
                     MachineCode = l.MachineCode,
-                    EstVerifPresence = l.EstVerifPresence,
-                    DefauthequeId = l.DefauthequeId,
-                    RefPlanProduit = l.RefPlanProduit,
-                    MachineCodeCtrlPoste = l.MachineCodeCtrlPoste,
                     RisqueDefautId = l.RisqueDefautId,
-                    Libre1 = l.Libre1,
-                    Libre2 = l.Libre2,
-                    Libre3 = l.Libre3,
-                    Libre4 = l.Libre4,
-                    Libre5 = l.Libre5,
-                    ExtraColonnes = l.DocumentLigneExtraColonnes?.Select(ec => new DocumentExtraColonneDto
+                    ExtraColonnes = l.DocumentLigneExtraColonnes?.OrderBy(ec => ec.OrdreAffiche).Select(ec => new DocumentExtraColonneDto
                     {
                         Id = ec.Id,
                         CleColonne = ec.CleColonne,
@@ -123,18 +113,15 @@ public static class DocumentMapper
             TypeDocumentCode = dto.TypeDocumentCode,
             Nom = dto.Nom,
             Designation = dto.Designation,
-            Version = dto.VersionInitiale ?? 0,
+            Version = 0, // Set explicitly by the service
             Statut = "ACTIF", // Default
             OperationCode = string.IsNullOrWhiteSpace(dto.OperationCode) ? null : dto.OperationCode,
-            FormulaireId = formulaireId,
+            FormulaireId = formulaireId ?? dto.FormulaireId,
             LegendeMoyens = dto.LegendeMoyens,
             Remarques = dto.Remarques,
             NatureArticleCode = string.IsNullOrWhiteSpace(dto.NatureArticleCode) ? null : dto.NatureArticleCode,
             FamilleProduitFiniCode = string.IsNullOrWhiteSpace(dto.FamilleProduitFiniCode) ? null : dto.FamilleProduitFiniCode,
             PosteCode = string.IsNullOrWhiteSpace(dto.PosteCode) ? null : dto.PosteCode,
-            Libre1 = dto.Libre1,
-            Libre2 = (dto.Libre2 != null && dto.Libre2.TrimStart().StartsWith("[")) ? null : dto.Libre2,
-            Libre3 = dto.Libre3,
             CreePar = user,
             CreeLe = DateTime.Now
         };
@@ -151,9 +138,7 @@ public static class DocumentMapper
                     LibelleSection = secDto.LibelleSection,
                     TypeSectionId = secDto.TypeSectionId,
                     PeriodiciteId = secDto.PeriodiciteId,
-                    RegleEchantillonnageId = secDto.RegleEchantillonnageId,
                     Notes = secDto.Notes,
-                    NormeReference = secDto.NormeReference,
                     NqaId = secDto.NqaId
                 };
 
@@ -179,18 +164,9 @@ public static class DocumentMapper
                             EstCritique = ligDto.EstCritique,
                             Instruction = ligDto.Instruction,
                             Observations = ligDto.Observations,
-                            ImageBase64 = ligDto.ImageBase64,
+                            DocumentLineImage = ImagesLigne.Creer(ligDto.ImageBase64),
                             MachineCode = string.IsNullOrWhiteSpace(ligDto.MachineCode) ? null : ligDto.MachineCode,
-                            EstVerifPresence = ligDto.EstVerifPresence,
-                            DefauthequeId = ligDto.DefauthequeId,
-                            RefPlanProduit = string.IsNullOrWhiteSpace(ligDto.RefPlanProduit) ? null : ligDto.RefPlanProduit,
-                            MachineCodeCtrlPoste = string.IsNullOrWhiteSpace(ligDto.MachineCodeCtrlPoste) ? null : ligDto.MachineCodeCtrlPoste,
                             RisqueDefautId = ligDto.RisqueDefautId,
-                            Libre1 = ligDto.Libre1,
-                            Libre2 = ligDto.Libre2,
-                            Libre3 = ligDto.Libre3,
-                            Libre4 = ligDto.Libre4,
-                            Libre5 = ligDto.Libre5
                         };
 
                         if (ligDto.ExtraColonnes != null)
@@ -217,5 +193,90 @@ public static class DocumentMapper
         }
 
         return entite;
+    }
+
+    public static void UpdateEntityScalaires(DocumentEntete doc, UpdateDocumentRequestDto request)
+    {
+        if (request.Nom != null) doc.Nom = request.Nom;
+        if (request.LegendeMoyens != null) doc.LegendeMoyens = request.LegendeMoyens;
+        if (request.Remarques != null) doc.Remarques = request.Remarques;
+    }
+
+    public static DocumentSection CreateSection(CreateDocumentSectionDto dto, Guid entiteId)
+    {
+        return new DocumentSection
+        {
+            Id = (dto.Id.HasValue && dto.Id.Value != Guid.Empty) ? dto.Id.Value : Guid.NewGuid(),
+            EnteteId = entiteId,
+            OrdreAffiche = dto.OrdreAffiche,
+            LibelleSection = dto.LibelleSection,
+            TypeSectionId = dto.TypeSectionId,
+            PeriodiciteId = dto.PeriodiciteId,
+            Notes = dto.Notes,
+            NqaId = dto.NqaId
+        };
+    }
+
+    public static void UpdateSection(DocumentSection sec, CreateDocumentSectionDto dto)
+    {
+        sec.OrdreAffiche = dto.OrdreAffiche;
+        sec.LibelleSection = dto.LibelleSection;
+        sec.TypeSectionId = dto.TypeSectionId;
+        sec.PeriodiciteId = dto.PeriodiciteId;
+        sec.Notes = dto.Notes;
+        sec.NqaId = dto.NqaId;
+    }
+
+    public static DocumentLigne CreateLigne(CreateDocumentLigneDto dto, Guid entiteId, Guid sectionId)
+    {
+        return new DocumentLigne
+        {
+            Id = (dto.Id.HasValue && dto.Id.Value != Guid.Empty) ? dto.Id.Value : Guid.NewGuid(),
+            EnteteId = entiteId,
+            SectionId = sectionId,
+            OrdreAffiche = dto.OrdreAffiche,
+            CaracteristiqueId = dto.CaracteristiqueId,
+            LibelleAffiche = dto.LibelleAffiche,
+            TypeCaracteristiqueId = dto.TypeCaracteristiqueId,
+            TypeControleId = dto.TypeControleId,
+            MoyenControleId = dto.MoyenControleId,
+            MoyenTexteLibre = dto.MoyenTexteLibre,
+            InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode,
+            PeriodiciteId = dto.PeriodiciteId,
+            LimiteSpecTexte = dto.LimiteSpecTexte,
+            EstCritique = dto.EstCritique,
+            Instruction = dto.Instruction,
+            Observations = dto.Observations,
+            DocumentLineImage = ImagesLigne.Creer(dto.ImageBase64),
+            MachineCode = string.IsNullOrWhiteSpace(dto.MachineCode) ? null : dto.MachineCode,
+            RisqueDefautId = dto.RisqueDefautId,
+            DocumentLigneExtraColonnes = dto.ExtraColonnes?.Select(ec => new DocumentLigneExtraColonne
+            {
+                Id = Guid.NewGuid(),
+                CleColonne = ec.CleColonne,
+                ValeurColonne = ec.ValeurColonne,
+                OrdreAffiche = ec.OrdreAffiche
+            }).ToList() ?? new List<DocumentLigneExtraColonne>()
+        };
+    }
+
+    public static void UpdateLigne(DocumentLigne lig, CreateDocumentLigneDto dto)
+    {
+        lig.OrdreAffiche = dto.OrdreAffiche;
+        lig.CaracteristiqueId = dto.CaracteristiqueId;
+        lig.LibelleAffiche = dto.LibelleAffiche;
+        lig.TypeCaracteristiqueId = dto.TypeCaracteristiqueId;
+        lig.TypeControleId = dto.TypeControleId;
+        lig.MoyenControleId = dto.MoyenControleId;
+        lig.MoyenTexteLibre = dto.MoyenTexteLibre;
+        lig.InstrumentCode = string.IsNullOrWhiteSpace(dto.InstrumentCode) ? null : dto.InstrumentCode;
+        lig.PeriodiciteId = dto.PeriodiciteId;
+        lig.LimiteSpecTexte = dto.LimiteSpecTexte;
+        lig.EstCritique = dto.EstCritique;
+        lig.Instruction = dto.Instruction;
+        lig.Observations = dto.Observations;
+        lig.DefinirImage(dto.ImageBase64);
+        lig.MachineCode = string.IsNullOrWhiteSpace(dto.MachineCode) ? null : dto.MachineCode;
+        lig.RisqueDefautId = dto.RisqueDefautId;
     }
 }

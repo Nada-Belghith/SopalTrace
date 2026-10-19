@@ -1,26 +1,15 @@
+import { normaliserTypeColonne } from '@/constants/columnTypes'
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { modeleFabricationService as fabModeleService } from '@/services/modeleFabricationService';
 import { referentielsService } from '@/services/referentielsService';
-import { resolveSectionDisplayTitle } from '@/utils/sectionTitleUtils';
+import { titreSection } from '@/utils/sectionTitleUtils';
+import { useReferentielStore } from './referentielStore';
+import { verifierImportExcel } from '@/utils/importExcelResultat';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
-  // --- DICTIONNAIRES ---
-  const operations = ref([]);
-  const typesRobinet = ref([]);
-  const naturesComposant = ref([]);
-  const typesCaracteristique = ref([]);
-  const typesControle = ref([]);
-  const moyensControle = ref([]);
-  const periodicites = ref([]);
-  const reglesEchantillonnage = ref([]); // Ajouté pour les règles ISO
-  const typesSection = ref([]);
-  const instruments = ref([]);
-  const postes = ref([]);
-  const famillesProduit = ref([]);
-  const gammesOperatoires = ref([]);
-  const formulairesReferences = ref([]);
-  const isDicosLoaded = ref(false);
+  // Dictionnaires are now in useReferentielStore
+  const isDicosLoaded = ref(false); // Can be kept for backwards compat or removed if not needed
 
   // --- ÉTAT DU MODÈLE ---
   const entete = ref({
@@ -33,7 +22,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     legendeMoyens: '',
     posteCode: '',
     familleProduitCode: '',
-    versionInitiale: null,
     refFormulaireCodeReference: '',  // Code du formulaire ref sélectionné (ex: PRC)
     configurationColonnes: []
   });
@@ -44,7 +32,12 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   const parseConfigurationColonnes = (configJson) => {
     if (!configJson) return [];
     try {
-      return typeof configJson === 'string' ? JSON.parse(configJson) : configJson;
+      const parsed = typeof configJson === 'string' ? JSON.parse(configJson) : configJson;
+      // If parsed is an object with customCols (DocumentControlePoste structure), extract only customCols
+      if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.customCols)) {
+        return parsed.customCols;
+      }
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -52,7 +45,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const findFormulaireActif = (codeReference) => {
     if (!codeReference) return null;
-    const refs = formulairesReferences.value || [];
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     return refs
       .filter(r => (r.codeReference || '').trim() === codeReference.trim())
       .sort((a, b) => {
@@ -65,7 +59,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const applyFormulaireConfiguration = (codeReference = null, force = false) => {
     if (!force && entete.value.configurationColonnes && entete.value.configurationColonnes.length > 0) return;
-    const refs = formulairesReferences.value || [];
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     if (!refs.length) return;
 
     const codeRef = (codeReference || entete.value.refFormulaireCodeReference || refs[0]?.codeReference || '').trim();
@@ -80,10 +75,29 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     applyFormulaireConfiguration(null, true);
   };
 
+  const applyFormulaireVersionConfiguration = (codeReference, version) => {
+    if (!codeReference || version === undefined || version === null) return;
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
+    const refObj = refs.find(r => (r.codeReference || '').trim() === codeReference.trim() && (r.version === version || r.Version === version));
+    if (refObj) {
+      entete.value.refFormulaireCodeReference = refObj.codeReference || '';
+      entete.value.configurationColonnes = parseConfigurationColonnes(getFormulaireConfigJson(refObj));
+    } else {
+      // Fallback
+      applyFormulaireConfiguration(codeReference, true);
+    }
+  };
+
   /** Colonnes PRC/PRNC : Retourner les colonnes de l'entete si elles existent, sinon celles du formulaire actif */
   const effectiveConfigurationColonnes = computed(() => {
     if (entete.value.configurationColonnes !== undefined && entete.value.configurationColonnes !== null) {
-      return entete.value.configurationColonnes;
+      const cols = entete.value.configurationColonnes;
+      // Normalize: if it's an object with customCols (wrong structure), extract the array
+      if (!Array.isArray(cols) && cols && Array.isArray(cols.customCols)) {
+        return cols.customCols;
+      }
+      return Array.isArray(cols) ? cols : [];
     }
 
     const codeRef = (entete.value.refFormulaireCodeReference || '').trim();
@@ -93,7 +107,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       if (cols.length > 0) return cols;
     }
 
-    const refs = formulairesReferences.value || [];
+    const refStore = useReferentielStore();
+    const refs = refStore.formulairesReferencesByRole['EN_COURS_DE_FABRICATION'] || [];
     if (refs.length > 0) {
       const latest = [...refs].sort((a, b) => {
         const statutA = String(a.statut || a.Statut || '').trim().toUpperCase() === 'ACTIF' ? 0 : 1;
@@ -124,7 +139,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       const newCol = {
         key: cc.key,
         label: cc.label,
-        type: cc.type,
+        type: normaliserTypeColonne(cc.type),
+        options: cc.options || [],
         width: 'w-[12%]',
         textAlign: 'center',
         isCustom: true
@@ -152,45 +168,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   });
 
   // --- ACTIONS ---
-  const fetchDictionnaires = async () => {
-    try {
-      const response = await referentielsService.getDictionnaires();
-      const data = response.data.data;
-
-      operations.value = data.operations || [];
-      typesRobinet.value = data.typesRobinet || [];
-      naturesComposant.value = data.naturesComposant || [];
-      typesCaracteristique.value = data.typesCaracteristique || [];
-      typesControle.value = data.typesControle || [];
-      moyensControle.value = data.moyensControle || [];
-      periodicites.value = data.periodicites || [];
-      reglesEchantillonnage.value = data.reglesEchantillonnage || []; // Récupération depuis le backend
-      typesSection.value = data.typesSection || data.typesSections || [];
-      instruments.value = data.instruments || [];
-      postes.value = data.postes || [];
-      famillesProduit.value = (data.famillesProduit || []).map(f => ({
-        code: f.code,
-        libelle: f.designation || f.libelle || '',
-        typeRobinetCode: f.typeRobinetCode
-      }));
-      gammesOperatoires.value = data.gammes || [];
-
-      isDicosLoaded.value = true;
-    } catch (apiError) {
-      console.error("Erreur réseau (Dictionnaires):", apiError);
-      throw apiError;
-    }
-  };
-
-  const fetchFormulairesReferences = async (role) => {
-    try {
-      const response = await referentielsService.getFormulairesListByRole(role);
-      formulairesReferences.value = response.data?.data || [];
-      applyFormulaireConfiguration();
-    } catch (e) {
-      console.error("Erreur fetch formulaires:", e);
-    }
-  };
 
   const addSection = () => {
     sections.value.push({
@@ -198,7 +175,6 @@ export const useFabModeleStore = defineStore('fabModele', () => {
       ordreAffiche: sections.value.length + 1,
       typeSectionId: '',
       periodiciteId: null,
-      regleEchantillonnageId: null, // Ajouté pour la règle d'échantillonnage
       libelleSection: '',
       frequenceLibelle: '',
       notes: '',
@@ -218,7 +194,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     section.lignes.push({
       id: crypto.randomUUID(),
       ordreAffiche: section.lignes.length + 1,
-      typeCaracteristiqueId: typesCaracteristique.value.length > 0 ? typesCaracteristique.value[0].id : '',
+      typeCaracteristiqueId: '',
       typeControleId: null,
       libelleAffiche: '',
       moyenControleId: null,
@@ -241,9 +217,10 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   };
 
   const syncSectionLibellesFromTypes = () => {
+    const refStore = useReferentielStore();
     sections.value.forEach((section) => {
       if (!section.typeSectionId) return;
-      section.libelleSection = resolveSectionDisplayTitle(section, typesSection.value);
+      section.libelleSection = titreSection(section, refStore.typesSection, refStore.periodicites);
     });
   };
 
@@ -254,25 +231,23 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     const codeRef = entete.value.refFormulaireCodeReference || null;
 
     return {
+      // Version reçue au chargement : refus 409 si le modèle a été modifié entre-temps
+      rowVersion: entete.value.rowVersion,
       nom: codeModeleAuto.value || entete.value.code,
       designation: entete.value.libelle || `Modèle ${codeModeleAuto.value} V${version.value}`,
-      libre1: entete.value.typeRobinetCode || null,
       natureArticleCode: entete.value.natureComposantCode || '',
       operationCode: entete.value.operationCode || '',
       posteCode: entete.value.posteCode || null,
       familleProduitFiniCode: entete.value.familleProduitCode || null,
       remarques: entete.value.notes || "",
       legendeMoyens: legendeMoyens || '',
-      versionInitiale: entete.value.versionInitiale,
-      libre2: null,
       colonneDefs: typeof configCols === 'string' ? JSON.parse(configCols) : configCols,
       refFormulaireCodeReference: codeRef,
       sections: sections.value.map((s, idx) => ({
         ordreAffiche: idx + 1,
         typeSectionId: (s.typeSectionId && s.typeSectionId !== '') ? s.typeSectionId : null,
         periodiciteId: s.periodiciteId || null,
-        regleEchantillonnageId: s.regleEchantillonnageId || null,
-        libelleSection: s.libelleSection || resolveSectionDisplayTitle(s, typesSection.value) || 'SECTION SANS NOM',
+        libelleSection: s.libelleSection || 'SECTION SANS NOM',
         frequenceLibelle: s.frequenceLibelle || '',
         notes: s.notes || '',
         lignes: (s.lignes || []).map((l, lIdx) => ({
@@ -302,7 +277,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     isLoading.value = true;
     try {
       const payload = mapPayload(legendeMoyens);
-      const res = await fabModeleService.createModele(payload);
+      const res = await fabModeleService.createModel(payload);
       return res.data; // Return the whole data which includes modeleId and version
     } finally {
       isLoading.value = false;
@@ -318,7 +293,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         modifiePar: 'Admin',
         motifModification: motif
       };
-      const res = await fabModeleService.newModeleVersion(payload);
+      const res = await fabModeleService.createNewVersion(payload);
       return res.data;
     } finally {
       isLoading.value = false;
@@ -330,7 +305,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     try {
       const payload = mapPayload(legendeMoyens);
       // Ensure we send sections and other required fields properly for PUT
-      const res = await fabModeleService.updateModeleValeurs(id, payload);
+      const res = await fabModeleService.updateModel(id, payload);
+      entete.value.rowVersion = res.data?.rowVersion ?? entete.value.rowVersion;
       return res.data;
     } finally {
       isLoading.value = false;
@@ -347,6 +323,8 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     }
   };
 
+
+
   const importerDepuisExcel = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -361,13 +339,13 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     isLoading.value = true;
     try {
       // Pour les modèles, on utilise l'import generic plan (qui a été unifié côté backend)
-      const parsedData = await fabModeleService.importExcel(formData);
-      
+      const parsedData = verifierImportExcel(await fabModeleService.importExcel(formData));
+
       if (parsedData && parsedData.sections) {
         if (parsedData.remarques && parsedData.remarques.trim() !== '') {
           entete.value.notes = (entete.value.notes ? entete.value.notes + '\n' : '') + parsedData.remarques.trim();
         }
-        
+
         sections.value = parsedData.sections.map(sec => ({
           id: sec.id || crypto.randomUUID(),
           isFromDb: false,
@@ -385,6 +363,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
             typeCaracteristiqueId: lig.typeCaracteristiqueId,
             typeControleId: lig.typeControleId,
             moyenControleId: lig.moyenControleId,
+            moyenTexteLibre: lig.moyenTexteLibre || '',
             instrumentCode: lig.instrumentCode,
             valeurNominale: lig.valeurNominale,
             toleranceSuperieure: lig.toleranceSuperieure,
@@ -395,11 +374,10 @@ export const useFabModeleStore = defineStore('fabModele', () => {
             instruction: lig.instruction,
             estCritique: lig.estCritique,
             libelleAffiche: lig.libelleAffiche,
-            imageBase64: lig.imageBase64 || null
+            imageBase64: lig.imageBase64 || null,
+            valeursColonnesSpecifiques: lig.colonnesSupplementaires || {}
           }))
         }));
-
-        await fetchDictionnaires();
       }
       return parsedData;
     } finally {
@@ -408,23 +386,14 @@ export const useFabModeleStore = defineStore('fabModele', () => {
   };
 
   return {
-    operations, typesRobinet, naturesComposant,
-    typesCaracteristique, typesControle, moyensControle,
-    periodicites, typesSection, reglesEchantillonnage,
-    instruments,
-    postes,
-    famillesProduit,
-    gammesOperatoires,
-    formulairesReferences,
     isDicosLoaded,
 
     // État Modèle
     entete, sections, isLoading, version, codeModeleAuto, effectiveConfigurationColonnes, tableColumns,
     // Actions
-    fetchDictionnaires,
-    fetchFormulairesReferences,
     applyFormulaireConfiguration,
     syncConfigurationFromFormulaire,
+    applyFormulaireVersionConfiguration,
     addSection,
     removeSection, addLigneLibre, removeLigne, saveModele, creerNouvelleVersion, updateModele, activerModeleDraft, importerDepuisExcel,
     isBeingLoaded

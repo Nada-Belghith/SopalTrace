@@ -6,9 +6,11 @@ namespace SopalTrace.Application.Interfaces;
 
 public interface IDictionnaireQualiteRepository
 {
-    Task<Periodicite?> GetPeriodiciteByLibelleAsync(string libelle);
-    Task<Periodicite?> GetPeriodiciteByCodeAsync(string code);
     Task AddPeriodiciteAsync(Periodicite entite);
+
+    Task<PeriodiciteMachine?> GetPeriodiciteMachineByLibelleAsync(string libelle);
+    Task<PeriodiciteMachine?> GetPeriodiciteMachineByCodeAsync(string code);
+    Task AddPeriodiciteMachineAsync(PeriodiciteMachine entite);
     Task<TypeSection?> GetTypeSectionByLibelleAsync(string libelle);
     Task AddTypeSectionAsync(TypeSection entite);
     Task<System.Collections.Generic.List<TypeSection>> GetAllTypeSectionsAsync();
@@ -24,9 +26,6 @@ public interface IDictionnaireQualiteRepository
 
     Task<Instrument?> GetInstrumentByCodeAsync(string codeInstrument);
     Task AddInstrumentAsync(Instrument entite);
-
-    Task<RefRegleEchantillonnage?> GetRegleEchantillonnageByLibelleAsync(string libelle);
-    Task AddRegleEchantillonnageAsync(RefRegleEchantillonnage entite);
 
     Task<PieceReference?> GetPieceReferenceByCodeAsync(string code);
     Task AddPieceReferenceAsync(PieceReference entite);
@@ -49,11 +48,11 @@ public interface IDictionnaireQualiteRepository
     Task<System.Collections.Generic.List<MoyenControle>> GetActiveMoyenControlesAsync();
     Task<System.Collections.Generic.List<PosteTravail>> GetActivePosteTravailsAsync();
     Task<System.Collections.Generic.List<Periodicite>> GetAllPeriodicitesAsync();
+    Task<System.Collections.Generic.List<PeriodiciteMachine>> GetAllPeriodicitesMachineAsync();
     Task<System.Collections.Generic.List<Instrument>> GetActiveInstrumentsAsync();
+    Task<System.Collections.Generic.List<Instrument>> GetInstrumentsByCodesAsync(System.Collections.Generic.List<string> codes);
     Task<System.Collections.Generic.List<Nqa>> GetActiveNqasAsync();
     Task AddNqaAsync(Nqa entite);
-    Task<System.Collections.Generic.List<Defautheque>> GetActiveDefauthequesAsync();
-    Task<System.Collections.Generic.List<RefRegleEchantillonnage>> GetActiveRegleEchantillonnagesAsync();
     Task<System.Collections.Generic.List<FamilleProduitFini>> GetActiveFamilleProduitFinisAsync();
     Task<System.Collections.Generic.List<Machine>> GetAllMachinesAsync();
     Task<System.Collections.Generic.List<Machine>> GetActiveMachinesAsync();
@@ -65,4 +64,5 @@ public interface IDictionnaireQualiteRepository
     Task<System.Collections.Generic.IReadOnlyList<Article>> SearchArticlesSfAsync(string query, int maxResults = 15);
     Task<string?> GetTypeRobinetCodeForArticleAsync(string codeNormalise);
     Task<string?> GetFamilleProduitCodeForArticleAsync(string codeNormalise);
+    Task<string?> GetFamilleArticleLibelleAsync(string? codeArticle, string? numeroOf = null);
 }

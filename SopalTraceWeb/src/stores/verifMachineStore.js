@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { verifMachineService } from '@/services/verifMachineService';
 import { referentielsService } from '@/services/referentielsService';
+import { useReferentielStore } from './referentielStore';
 import { genererUid } from '@/utils/uuidUtils';
+import { signatureColonnes } from '@/utils/colonnesUtils';
 
 /**
  * Store Pinia pour la gestion des Plans de Vérification Machine.
@@ -10,15 +12,23 @@ import { genererUid } from '@/utils/uuidUtils';
  */
 export const useVerifMachineStore = defineStore('verifMachine', () => {
 
-  // --- DICTIONNAIRES (chargés depuis le backend) ---
-  const machines = ref([]);
-  const periodicites = ref([]);
-  const famillesCorps = ref([]);
-  const moyensDetection = ref([]);
-  const piecesReference = ref([]);
-  const fuitesEtalon = ref([]);
-  const formulairesReferences = ref([]);
-  const isDicosLoaded = ref(false);
+  const refStore = useReferentielStore();
+
+  // --- DICTIONNAIRES ALIASES depuis useReferentielStore ---
+  const isDicosLoaded = computed(() => refStore.isDicosVerifMachineLoaded);
+  const periodicitesMachine = computed(() => refStore.periodicitesMachine);
+  const moyensDetection = computed(() => refStore.moyensDetection);
+  const piecesReference = computed(() => refStore.piecesReference);
+  const fuitesEtalon = computed(() => refStore.fuitesEtalon);
+  const periodicites = computed(() => refStore.periodicites);
+  const machines = computed(() => refStore.machines);
+  const famillesCorps = computed(() => refStore.famillesCorps);
+
+  // Configuration du formulaire de la machine (table Machine, colonnes Verif*) : aucun comportement déduit du code.
+  const getMachineConfig = (machineCode) => {
+    const code = (machineCode || '').trim().toUpperCase();
+    return refStore.machines.find(m => (m.code || '').toUpperCase() === code) || {};
+  };
 
   // --- ÉTAT DU PLAN ---
   const entete = ref({
@@ -48,6 +58,10 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   const snapshotOriginal = ref(null);
   const plansExistants = ref([]);
 
+  const fetchDictionnaires = async () => {
+    await refStore.fetchDictionnaires('verif-machine', true);
+  };
+
   const prendreSnapshot = () => {
     snapshotOriginal.value = JSON.stringify(buildPayload());
   };
@@ -67,7 +81,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
   const creerGroupVide = () => ({
     _uid: genererUid(),
-    periodiciteId: '',
+    periodiciteMachineId: '',
     rows: [creerRowVide()],
   });
 
@@ -81,31 +95,30 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
   // --- MAPPING VERS LE FORMAT BACKEND (APLATISSEMENT) ---
   const buildPayload = () => {
-    const code = entete.value.machineCode?.toUpperCase().replace('-', '').replace(' ', '').trim() || '';
-    const isSansConformiteAuto = code.includes('BEE46') || code.includes('BEE47') ||
-      code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
-    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
-      code.includes('MAS22');
+    const code = entete.value.machineCode?.trim().toUpperCase() || '';
+    const config = getMachineConfig(code);
 
-    const finalAfficheConformite = isSansConformiteAuto ? false : entete.value.afficheConformite;
-    const finalAfficheFuiteEtalon = hasFuiteEtalonByDefault ? true : entete.value.afficheFuiteEtalon;
+    const finalAfficheConformite = config.sansConformite ? false : entete.value.afficheConformite;
+    const finalAfficheFuiteEtalon = config.fuiteEtalon ? true : entete.value.afficheFuiteEtalon;
 
     return {
+      // Version reçue au chargement : refus 409 si le plan a été modifié entre-temps
+      RowVersion: entete.value.rowVersion,
       Nom: entete.value.nom,
       MachineCode: entete.value.machineCode,
-      VersionInitiale: entete.value.versionInitiale,
       AfficheConformite: finalAfficheConformite,
       AfficheMoyenDetectionRisques: entete.value.afficheMoyenDetectionRisques,
       AfficheFamilles: entete.value.afficheFamilles,
       AfficheFuiteEtalon: finalAfficheFuiteEtalon,
       Remarques: entete.value.remarques || '',
       LegendeMoyens: entete.value.legendeMoyens || '',
-      RefFormulaireCodeReference: entete.value.refFormulaireCodeReference || `FE-VM-${code}`,
+      // Sans formulaire indiqué, le serveur prend celui de la machine (le code n'est jamais fabriqué ici).
+      RefFormulaireCodeReference: entete.value.refFormulaireCodeReference || null,
       ColonneDefs: typeof entete.value.configurationColonnes === 'string' ? JSON.parse(entete.value.configurationColonnes || '[]') : (entete.value.configurationColonnes || []),
       Familles: familles.value
         .filter((f, idx, self) => self.findIndex(t => t.refFamilleCorpsId === f.refFamilleCorpsId) === idx)
         .map((f, idx) => ({
-          Id: f.id,
+          Id: f.refFamilleCorpsId || f.id,
           RefFamilleCorpsId: f.refFamilleCorpsId,
           OrdreAffiche: idx + 1,
         })),
@@ -117,22 +130,22 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const mapLigneVersBackend = (ligne, indexLigne, typeLigne) => {
-    const rawEcheances = ligne.groups.flatMap((group, gIdx) =>
+    const echeancesAplaties = ligne.groups.flatMap((group, gIdx) =>
       group.rows.map((row, rIdx) => ({
-        PeriodiciteId: group.periodiciteId || '00000000-0000-0000-0000-000000000000',
+        PeriodiciteMachineId: group.periodiciteMachineId || '00000000-0000-0000-0000-000000000000',
         RefMoyenDetectionId: row.refMoyenDetectionId || null,
         MatricePieces: row.matricePieces.map(mp => ({
           FamilleId: mp.familleId || null,
-          RoleVerif: mp.roleVerif || '',
-          PieceRefId: mp.pieceRefId || null,
-        })),
+          RoleVerif: mp.roleVerif,
+          PieceRefId: mp.pieceRefId
+        }))
       }))
-    ).filter(ech => ech.PeriodiciteId !== '00000000-0000-0000-0000-000000000000');
+    ).filter(ech => ech.PeriodiciteMachineId !== '00000000-0000-0000-0000-000000000000');
 
     // Fusionner les doublons (Perio + Moyen) pour éviter les erreurs SQL UNIQUE KEY
     const mergedMap = new Map();
-    rawEcheances.forEach(ech => {
-      const key = `${ech.PeriodiciteId}|${ech.RefMoyenDetectionId || 'null'}`;
+    for (const ech of echeancesAplaties) {
+      const key = `${ech.PeriodiciteMachineId}|${ech.RefMoyenDetectionId || 'null'}`;
       if (!mergedMap.has(key)) {
         mergedMap.set(key, { ...ech, MatricePieces: [...ech.MatricePieces] });
       } else {
@@ -144,7 +157,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
           if (!mpExists) existing.MatricePieces.push(mp);
         });
       }
-    });
+    }
 
     return {
       OrdreAffiche: indexLigne + 1,
@@ -175,15 +188,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     entete.value.afficheFamilles = true;
     entete.value.afficheFuiteEtalon = false;
 
-    const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-    const isSansConformiteAuto = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
-      code.startsWith('SER') || code.includes('MAS19') || code.includes('MAS20');
-    const hasFuiteEtalonByDefault = code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47');
-
-    if (isSansConformiteAuto) {
+    const config = getMachineConfig(machineCode);
+    if (config.sansConformite) {
       entete.value.afficheConformite = false;
     }
-    if (hasFuiteEtalonByDefault) {
+    if (config.fuiteEtalon) {
       entete.value.afficheFuiteEtalon = true;
     }
 
@@ -191,7 +200,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
 
     // ✅ CHARGEMENT DYNAMIQUE des familles depuis Machine_FamilleCorps (API)
     try {
-      const response = await verifMachineService.getFamillesParMachine(machineCode);
+      const response = await verifMachineService.getFamiliesByMachine(machineCode);
       const dataArray = response.data?.data; // Car l'API renvoie { success, data: [] }
 
       if (dataArray && dataArray.length > 0) {
@@ -217,7 +226,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const resetPlan = () => {
-    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, versionInitiale: null, statut: 'ACTIF', remarques: '', legendeMoyens: '', configurationColonnes: [], refFormulaireCodeReference: '' };
+    entete.value = { id: null, nom: '', machineCode: '', afficheConformite: true, afficheMoyenDetectionRisques: true, afficheFamilles: true, afficheFuiteEtalon: false, version: 0, statut: 'ACTIF', remarques: '', legendeMoyens: '', configurationColonnes: [], refFormulaireCodeReference: '' };
     familles.value = [];
     lignesConformite.value = [];
     lignesRisques.value = [];
@@ -230,11 +239,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     if (!refFamilleCorpsId) return;
 
     // On cherche d'abord dans les familles de corps
-    let itemRef = famillesCorps.value.find(f => f.id === refFamilleCorpsId);
+    let itemRef = refStore.famillesCorps.find(f => f.id === refFamilleCorpsId);
 
     // Si non trouvé, on cherche dans les pièces de référence (PRC/PRNC)
     if (!itemRef) {
-      const pieceRef = piecesReference.value.find(p => p.id === refFamilleCorpsId);
+      const pieceRef = refStore.piecesReference.find(p => p.id === refFamilleCorpsId);
       if (pieceRef) {
         itemRef = {
           id: pieceRef.id,
@@ -262,7 +271,11 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   const ajouterLigneConformite = () => lignesConformite.value.push(creerLigneVide());
-  const ajouterLigneRisque = () => lignesRisques.value.push(creerLigneVide());
+  const ajouterLigneRisque = (isEtalon = false) => {
+    const l = creerLigneVide();
+    if (isEtalon) l.isEtalon = true;
+    lignesRisques.value.push(l);
+  };
 
   const supprimerLigne = (uid, type) => {
     if (type === 'CONFORMITE') {
@@ -317,50 +330,25 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
   };
 
   // --- ACTIONS: API ---
-  const fetchDictionnaires = async (force = false) => {
-    if (isDicosLoaded.value && !force) return;
-    try {
-      const response = await verifMachineService.getDictionnaires();
-      const data = response.data.data || response.data;
-      machines.value = data.machines || [];
-      periodicites.value = data.periodicites || [];
-      famillesCorps.value = data.famillesCorps || [];
-      moyensDetection.value = data.moyensDetection || [];
-      piecesReference.value = data.piecesReferences || [];
-      fuitesEtalon.value = data.fuitesEtalon || [];
-      isDicosLoaded.value = true;
-    } catch (apiError) {
-      console.error("Erreur réseau (Dictionnaires VM):", apiError);
-      throw apiError;
-    }
-  };
-
-  const fetchFormulairesReferences = async (role) => {
-    try {
-      const response = await referentielsService.getFormulairesListByRole(role);
-      formulairesReferences.value = response.data?.data || [];
-    } catch (e) {
-      console.error("Erreur fetch formulaires:", e);
-    }
-  };
 
   const fetchTousLesPlans = async () => {
     try {
-      const response = await verifMachineService.getTousLesPlans();
+      const response = await verifMachineService.getAllDocuments();
       plansExistants.value = response.data.data || response.data || [];
     } catch (err) {
       console.error("Erreur chargement plans existants:", err);
     }
   };
 
-  const chargerPlanVerif = async (id) => {
+  const loadDocumentById = async (id) => {
     isLoading.value = true;
     try {
-      const response = await verifMachineService.getPlanVerif(id);
+      const response = await verifMachineService.getDocumentById(id);
       const data = response.data.data || response.data;
 
       entete.value = {
         id: data.id,
+        rowVersion: data.rowVersion,
         nom: data.nom,
         machineCode: data.machineCode,
         afficheConformite: data.afficheConformite,
@@ -372,22 +360,43 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         remarques: data.remarques || '',
         legendeMoyens: data.legendeMoyens || '',
         configurationColonnes: data.configurationColonnesJson ? (typeof data.configurationColonnesJson === 'string' ? JSON.parse(data.configurationColonnesJson) : data.configurationColonnesJson) : [],
-        refFormulaireCodeReference: data.formulaire?.codeReference || `FE-VM-${data.machineCode}`,
+        refFormulaireCodeReference: data.formulaire?.codeReference || '',
       };
+      entete.value.colonnesChargees = signatureColonnes(entete.value.configurationColonnes);
 
-      familles.value = (data.familles || []).map(f => {
-        const dicoFam = famillesCorps.value.find(fc => fc.id === f.refFamilleCorpsId);
-        return {
-          id: f.id || genererUid(),
-          refFamilleCorpsId: f.refFamilleCorpsId,
-          libelle: dicoFam ? dicoFam.libelle : 'Inconnue',
-        };
-      });
+      familles.value = (data.familles || [])
+        .slice()
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .map(f => {
+          const dicoFam = refStore.famillesCorps.find(fc => fc.id === f.refFamilleCorpsId);
+          let libelle = 'Inconnue';
+
+          if (dicoFam) {
+            libelle = dicoFam.libelle;
+          } else {
+            const pieceRef = refStore.piecesReference.find(pr => pr.id === f.refFamilleCorpsId);
+            if (pieceRef) {
+              libelle = pieceRef.code + (pieceRef.designation ? ` - ${pieceRef.designation}` : '');
+            }
+          }
+
+          return {
+            id: f.id || genererUid(),
+            refFamilleCorpsId: f.refFamilleCorpsId,
+            libelle: libelle,
+          };
+        });
 
       const toutesLesLignes = data.lignes || data.Lignes || [];
-      lignesConformite.value = toutesLesLignes.filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'CONFORMITE').map(mapPlanLigneFromBackend);
-      lignesRisques.value = toutesLesLignes.filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'RISQUE').map(mapPlanLigneFromBackend);
-      
+      lignesConformite.value = toutesLesLignes
+        .filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'CONFORMITE')
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .map(mapPlanLigneFromBackend);
+      lignesRisques.value = toutesLesLignes
+        .filter(l => (l.typeLigne || l.TypeLigne || '').toUpperCase() === 'RISQUE')
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .map(mapPlanLigneFromBackend);
+
 
       planInitialise.value = true;
       prendreSnapshot();
@@ -401,35 +410,59 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     const groups = [];
     const groupedByPerio = {};
 
-    (ligne.echeances || ligne.Echeances || []).forEach(ech => {
-      const pId = ech.periodiciteId || ech.PeriodiciteId || 'none';
-      if (!groupedByPerio[pId]) {
-        groupedByPerio[pId] = {
+    (ligne.echeances || ligne.Echeances || [])
+      .slice()
+      .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+      .forEach(ech => {
+        const pId = ech.periodiciteMachineId || ech.PeriodiciteMachineId || 'none';
+        if (!groupedByPerio[pId]) {
+          groupedByPerio[pId] = {
+            _uid: genererUid(),
+            periodiciteMachineId: ech.periodiciteMachineId || ech.PeriodiciteMachineId || '',
+            rows: []
+          };
+          groups.push(groupedByPerio[pId]);
+        }
+        groupedByPerio[pId].rows.push({
           _uid: genererUid(),
-          periodiciteId: ech.periodiciteId || ech.PeriodiciteId || '',
-          rows: []
-        };
-        groups.push(groupedByPerio[pId]);
-      }
-      groupedByPerio[pId].rows.push({
-        _uid: genererUid(),
-        refMoyenDetectionId: ech.refMoyenDetectionId || ech.RefMoyenDetectionId || '',
-        matricePieces: (ech.matricePieces || ech.MatricePieces || ech.piecesRef || []).map(mp => ({
-          familleId: mp.familleId || mp.FamilleId || null,
-          roleVerif: mp.roleVerif || mp.RoleVerif || '',
-          pieceRefId: mp.pieceRefId || mp.PieceRefId || null,
-        }))
+          id: ech.id || ech.Id,
+          refMoyenDetectionId: ech.refMoyenDetectionId || ech.RefMoyenDetectionId || '',
+          matricePieces: (ech.matricePieces || ech.MatricePieces || ech.piecesRef || []).map(mp => {
+            const backendFamilleId = mp.familleId || mp.FamilleId || null;
+            const matchedFamille = familles.value.find(f => f.id === backendFamilleId);
+            return {
+              familleId: matchedFamille ? matchedFamille.refFamilleCorpsId : backendFamilleId,
+              roleVerif: mp.roleVerif || mp.RoleVerif || '',
+              pieceRefId: mp.pieceRefId || mp.PieceRefId || null,
+            };
+          })
+        });
       });
+
+    const extraCols = ligne.extraColonnes || ligne.ExtraColonnes || [];
+    const hasEtalonCols = extraCols.some(col => {
+      const key = col.cleColonne || col.CleColonne || '';
+      return key === 'fuite_etalon' || key === 'pression_entree' || key === 'dp_affichee';
     });
+    const hasEtalonPieces = (ligne.echeances || ligne.Echeances || []).some(ech =>
+      (ech.matricePieces || ech.MatricePieces || ech.piecesRef || []).some(mp => {
+        const role = mp.roleVerif || mp.RoleVerif || '';
+        return role === 'FEC' || role === 'FENC';
+      })
+    );
 
     return {
       _uid: genererUid(),
+      isEtalon: hasEtalonCols || hasEtalonPieces,
       libelleRisque: ligne.libelleRisque || ligne.LibelleRisque || '',
       libelleMethode: ligne.libelleMethode || ligne.LibelleMethode || '',
-      valeursColonnesSpecifiques: (ligne.extraColonnes || ligne.ExtraColonnes || []).reduce((acc, col) => {
-        acc[col.cleColonne || col.CleColonne] = col.valeurColonne || col.ValeurColonne;
-        return acc;
-      }, {}),
+      valeursColonnesSpecifiques: extraCols
+        .slice()
+        .sort((a, b) => (a.ordreAffiche ?? a.OrdreAffiche ?? 0) - (b.ordreAffiche ?? b.OrdreAffiche ?? 0))
+        .reduce((acc, col) => {
+          acc[col.cleColonne || col.CleColonne] = col.valeurColonne || col.ValeurColonne;
+          return acc;
+        }, {}),
       groups: groups.length > 0 ? groups : [creerGroupVide()],
     };
   };
@@ -443,13 +476,14 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     try {
       const payload = buildPayload();
       if (entete.value.id) {
-        const response = await verifMachineService.mettreAJourPlanVerif(entete.value.id, payload);
-        const newId = response.data.planId || response.data.id;
+        const response = await verifMachineService.updateDocument(entete.value.id, payload);
+        const newId = response.data.planId || response.data.id || entete.value.id;
         entete.value.id = newId;
+        entete.value.rowVersion = response.data.rowVersion ?? entete.value.rowVersion;
         prendreSnapshot();
         return { id: newId, noChanges: false, version: response.data.version };
       } else {
-        const response = await verifMachineService.creerPlanVerif(payload);
+        const response = await verifMachineService.createDocument(payload);
         const newId = response.data.planId || response.data.id;
         entete.value.id = newId;
         prendreSnapshot();
@@ -461,20 +495,31 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     }
   };
 
-  const restaurerPlanVerif = async (id, motif = "Restauration d'une ancienne version") => {
+  const createNewVersion = async (motif) => {
     isLoading.value = true;
     try {
       const payload = {
-        AncienId: id,
-        ModifiePar: "ADMIN",
-        MotifModification: motif
+        ancienId: entete.value.id,
+        rowVersion: entete.value.rowVersion,
+        modifiePar: 'ADMIN',
+        motifModification: motif,
+        donnees: buildPayload()
       };
-      const response = await verifMachineService.restaurerPlanVerif(payload);
-      return response.data;
+      const response = await verifMachineService.createNewVersion(payload);
+      const newId = response.data.planId || response.data.id;
+      entete.value.id = newId;
+      prendreSnapshot();
+      await fetchTousLesPlans();
+      return { success: true, newId };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || 'Erreur création nouvelle version' };
     } finally {
       isLoading.value = false;
     }
   };
+  const creerNouvelleVersion = createNewVersion;
+
+
 
   const importerDepuisExcel = async (file) => {
     isLoading.value = true;
@@ -487,7 +532,9 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
       const data = response.data.data;
 
       // ✅ REFRESH DICTIONARIES (Backend might have created new families/pieces)
-      await fetchDictionnaires(true);
+      if (!refStore.isDicosVerifMachineLoaded) {
+        await refStore.fetchDictionnaires('verif-machine', true);
+      }
 
       const targetMachineCode = data.machineCode || entete.value.machineCode;
 
@@ -501,9 +548,6 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         lignesRisques.value = [];
       }
 
-      // Re-charger les dictionnaires pour inclure les éventuelles nouvelles pièces créées par le backend
-      await fetchDictionnaires(true);
-
       // ✅ IMPORT DES FAMILLES DÉTECTÉES DANS L'EXCEL
       // On importe les familles de l'Excel UNIQUEMENT si la machine n'a pas déjà de familles configurées.
       if (data.familles?.length > 0 && familles.value.length === 0) {
@@ -512,7 +556,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         data.familles.forEach(fStr => {
           const normFStr = normalizeStr(fStr);
           // On cherche dans les dicos fraîchement mis à jour
-          const famRef = famillesCorps.value.find(fc =>
+          const famRef = refStore.famillesCorps.find(fc =>
             normalizeStr(fc.libelle) === normFStr ||
             normalizeStr(fc.code) === normFStr ||
             fStr.includes(`(${fc.libelle})`)
@@ -522,7 +566,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
             ajouterFamille(famRef.id);
           } else {
             // C'est peut-être une pièce de référence directe
-            const pRef = piecesReference.value.find(pr =>
+            const pRef = refStore.piecesReference.find(pr =>
               normalizeStr(pr.code) === normFStr
             );
             if (pRef) ajouterFamille(pRef.id);
@@ -544,46 +588,66 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
           valeursColonnesSpecifiques: li.colonnesSupplementaires || {},
           groups: li.echeances.map(ech => ({
             _uid: genererUid(),
-            periodiciteId: ech.periodiciteId || '',
+            periodiciteMachineId: ech.periodiciteMachineId || '',
             // 🟢 NOUVEAU : Mapper chaque Row (moyen) sous la périodicité
             rows: (ech.rows || []).map(rowItem => ({
               _uid: genererUid(),
-              refMoyenDetectionId: moyensDetection.value.find(m =>
+              refMoyenDetectionId: refStore.moyensDetection.find(m =>
                 m.libelle?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase() ||
                 m.code?.trim().toUpperCase() === rowItem.moyenDetectionLibelle?.trim().toUpperCase()
               )?.id || '',
               matricePieces: (() => {
                 const pieces = (rowItem.matricePieces || []).map(mp => {
-                  const pieceRef = piecesReference.value.find(p => p.code === mp.pieceRefCode)
-                    || fuitesEtalon.value.find(p => p.code === mp.pieceRefCode);
+                  const pieceRef = refStore.piecesReference.find(p =>
+                    (mp.pieceRefId && p.id === mp.pieceRefId) ||
+                    (mp.pieceRefCode && p.code?.trim().toUpperCase() === mp.pieceRefCode?.trim().toUpperCase())
+                  ) || refStore.fuitesEtalon.find(p =>
+                    (mp.pieceRefId && p.id === mp.pieceRefId) ||
+                    (mp.pieceRefCode && p.code?.trim().toUpperCase() === mp.pieceRefCode?.trim().toUpperCase())
+                  );
+
+                  const finalPieceRefId = mp.pieceRefId || (pieceRef ? pieceRef.id : null);
 
                   let matchingFamId = null;
                   if (mp.familleCode) {
-                    // Correction des fautes de frappe courantes dans les fichiers Excel
-                    let correctedFamCode = mp.familleCode
-                      .replace('2580A01', '25B0A01')
-                      .replace('25AUA01', '25UA01');
+                    const rawFamCode = mp.familleCode;
+                    const normMpFam = rawFamCode.replace(/\s+/g, '').toUpperCase();
 
-                    const normMpFam = correctedFamCode.replace(/\s+/g, '').toUpperCase();
-                    const importedFam = familles.value.find(f => {
-                      const normFLib = f.libelle?.replace(/\s+/g, '').toUpperCase() || '';
-                      return normFLib === normMpFam || correctedFamCode.includes(`(${f.libelle})`);
+                    let importedFam = familles.value.find(f => {
+                      const normFLib = (f.libelle || '').replace(/\s+/g, '').toUpperCase();
+                      const normFCode = (f.code || '').replace(/\s+/g, '').toUpperCase();
+                      return normFLib === normMpFam || normFCode === normMpFam || normMpFam.includes(normFLib) || (normFCode && normMpFam.includes(normFCode));
                     });
-                    if (importedFam) matchingFamId = importedFam.refFamilleCorpsId;
+
+                    if (!importedFam && refStore.famillesCorps) {
+                      const globalFam = refStore.famillesCorps.find(fc => {
+                        const normLib = (fc.libelle || '').replace(/\s+/g, '').toUpperCase();
+                        const normCode = (fc.code || '').replace(/\s+/g, '').toUpperCase();
+                        return normLib === normMpFam || normCode === normMpFam || normMpFam.includes(normLib) || (normCode && normMpFam.includes(normCode)) || rawFamCode.includes(`(${fc.libelle})`);
+                      });
+
+                      if (globalFam) {
+                        ajouterFamille(globalFam.id);
+                        importedFam = familles.value.find(f => f.refFamilleCorpsId === globalFam.id);
+                      }
+                    }
+
+                    if (importedFam) {
+                      matchingFamId = importedFam.refFamilleCorpsId;
+                    }
                   }
 
                   return {
                     familleId: matchingFamId,
                     roleVerif: mp.roleVerif,
-                    pieceRefId: mp.pieceRefId || (pieceRef ? pieceRef.id : null)
+                    pieceRefId: finalPieceRefId
                   };
                 });
 
-                // Deduplicate to prevent UNIQUE KEY violations
                 const seen = new Set();
                 return pieces.filter(p => {
-                  if (!p.pieceRefId) return false;
-                  const key = `${p.familleId || 'null'}-${p.roleVerif}`;
+                  if (!p.pieceRefId || !p.familleId) return false;
+                  const key = `${p.familleId}-${p.roleVerif}`;
                   if (seen.has(key)) return false;
                   seen.add(key);
                   return true;
@@ -594,27 +658,12 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
         }));
       };
 
-      const checkMachineSansConformite = (machineCode) => {
-        if (!machineCode) return false;
-        const code = machineCode.toUpperCase().replace('-', '').replace(' ', '').trim();
-        return code.includes('BEE22') || code.includes('BEE46') || code.includes('BEE47') ||
-          code.includes('MAS19') || code.includes('MAS20') || code.startsWith('SER');
-      };
-
-      if (checkMachineSansConformite(entete.value.machineCode)) {
-        // Force all lines into Risques if the machine doesn't support Conformite
-        const combinedLines = [...(data.lignesConformite || []), ...(data.lignesRisques || [])];
-        if (combinedLines.length > 0) {
-          lignesRisques.value = mapLignes(combinedLines);
-        }
-      } else {
-        if (data.lignesConformite?.length > 0) {
-          lignesConformite.value = mapLignes(data.lignesConformite);
-          entete.value.afficheConformite = true;
-        }
-        if (data.lignesRisques?.length > 0) {
-          lignesRisques.value = mapLignes(data.lignesRisques);
-        }
+      if (data.lignesConformite?.length > 0) {
+        lignesConformite.value = mapLignes(data.lignesConformite);
+        entete.value.afficheConformite = true;
+      }
+      if (data.lignesRisques?.length > 0) {
+        lignesRisques.value = mapLignes(data.lignesRisques);
       }
 
       return { success: true };
@@ -623,8 +672,18 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     }
   };
 
+  const machineConfig = computed(() => getMachineConfig(entete.value.machineCode));
+
   return {
-    machines, periodicites, famillesCorps, moyensDetection, piecesReference, fuitesEtalon, isDicosLoaded, formulairesReferences,
+    isDicosLoaded,
+    machineConfig, getMachineConfig,
+    periodicitesMachine,
+    moyensDetection,
+    piecesReference,
+    fuitesEtalon,
+    periodicites,
+    machines,
+    famillesCorps,
     entete, familles, lignesConformite, lignesRisques,
     isLoading, planInitialise, plansExistants,
     genererUid, creerGroupVide, creerLigneVide,
@@ -633,7 +692,7 @@ export const useVerifMachineStore = defineStore('verifMachine', () => {
     ajouterLigneConformite, ajouterLigneRisque, supprimerLigne,
     ajouterGroupPeriodicite, supprimerGroupPeriodicite, ajouterRowDetail, supprimerRowDetail,
     getPieceValue, setPieceValue,
-    fetchDictionnaires, fetchFormulairesReferences, fetchTousLesPlans, chargerPlanVerif, sauvegarderPlanVerif, buildPayload, aDesModifications,
-    restaurerPlanVerif, importerDepuisExcel
+    fetchTousLesPlans, loadDocumentById, sauvegarderPlanVerif, buildPayload, aDesModifications, createNewVersion, creerNouvelleVersion,
+    importerDepuisExcel, fetchDictionnaires
   };
 });

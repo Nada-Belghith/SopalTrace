@@ -32,36 +32,33 @@ export const planFabricationService = {
   },
 
   async upgradePlan(id) {
-    const response = await apiClient.post(`/PlanFabrication/nouvelle-version`, { ancienId: id });
+    const response = await apiClient.post(`/PlanFabrication/${id}/upgrade`);
     return { data: { planId: response.data.id } }; // Formatting to match frontend expectations
   },
 
-  async restorePlan(payload) {
-    let req = {
-      documentArchiveId: payload.documentArchiveId || payload.DocumentArchiveId || payload.documentId,
-      motifRestoration: payload.motifRestoration || 'Restoration'
-    };
-    const response = await apiClient.post(`/PlanFabrication/restaurer`, req);
-    return response.data;
-  },
-
-  async mettreAJourValeurs(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage) {
+  /**
+   * Enregistre le plan en place. rowVersion = version reçue au chargement (refus 409 si le plan a changé entre-temps).
+   * @returns {Promise<string>} nouvelle version du plan, à conserver pour l'enregistrement suivant
+   */
+  async updatePlanValues(planId, payloadData, legendeMoyens, remarques, finaliser, nomPlan, modifiePar, codeArticleSage, codeArticleSageVersionne, rowVersion) {
     const payload = {
+      rowVersion,
       nom: nomPlan,
+      codeArticleSageVersionne: codeArticleSageVersionne,
       legendeMoyens: legendeMoyens,
       remarques: remarques,
-      libre1: codeArticleSage,
       sections: payloadData.sections || payloadData,
       colonneDefs: payloadData.colonneDefs || []
     };
-    await apiClient.put(`/PlanFabrication/${planId}`, payload);
+    const response = await apiClient.put(`/PlanFabrication/${planId}`, payload);
     if (finaliser) {
       await apiClient.put(`/hub/plans/FAB/${planId}/statut?statut=ACTIF`);
     }
+    return response.data.rowVersion;
   },
 
-  async verifierEtatPlan(articleCode, familleCode, natureCode, modeleId, operationCode = null, posteCode = null) {
-    const plans = await this.getPlansByFilters(familleCode, natureCode, operationCode, posteCode, articleCode);
+  async verifyPlanState(articleCode, familleCode, natureCode, modeleId, operationCode = null, posteCode = null) {
+    const plans = await this.getPlansByFilters(familleCode, natureCode, operationCode, posteCode, null);
 
     // Le backend stocke le nom avec un suffixe numérique ex: "C-25B0A01.1"
     // alors que l'articleCode du wizard est "C-25B0A01"
@@ -83,7 +80,7 @@ export const planFabricationService = {
     const actif = plans.find(p => p.statut === 'ACTIF' && matches(p));
     const brouillon = plans.find(p => p.statut === 'BROUILLON' && matches(p));
 
-    console.log('[verifierEtatPlan] article:', articleCode, '| plans:', plans.length, '| brouillon:', brouillon?.id || null, '| actif:', actif?.id || null);
+    console.log('[verifyPlanState] article:', articleCode, '| plans:', plans.length, '| brouillon:', brouillon?.id || null, '| actif:', actif?.id || null);
 
     return {
       data: {
@@ -99,7 +96,8 @@ export const planFabricationService = {
 
   async instantiatePlan(payload) {
     let newDoc = {
-      nom: payload.codeArticleSage,
+      nom: payload.codeArticleSageVersionne || payload.nom || payload.codeArticleSage,
+      codeArticleSageVersionne: payload.codeArticleSageVersionne,
       designation: payload.designation,
       statut: payload.statut,
       versionInitiale: payload.versionInitiale || 1,
@@ -108,7 +106,6 @@ export const planFabricationService = {
       natureArticleCode: payload.natureComposantCode,
       familleProduitFiniCode: payload.familleCode,
       posteCode: payload.posteCode,
-      libre1: payload.codeArticleSage,
       legendeMoyens: payload.legendeMoyens,
       remarques: payload.remarques,
       colonneDefs: payload.colonneDefs || [],
@@ -122,7 +119,6 @@ export const planFabricationService = {
         libelleSection: s.libelleSection || s.nom || '',
         typeSectionId: s.typeSectionId || null,
         periodiciteId: s.periodiciteId || null,
-        regleEchantillonnageId: s.regleEchantillonnageId || null,
         lignes: (s.lignes || []).map((l, lIdx) => ({
           ordreAffiche: l.ordreAffiche || lIdx + 1,
           libelleAffiche: l.libelleAffiche || '',
@@ -150,9 +146,7 @@ export const planFabricationService = {
         libelleSection: s.libelleSection,
         typeSectionId: s.typeSectionId,
         periodiciteId: s.periodiciteId,
-        regleEchantillonnageId: s.regleEchantillonnageId,
         notes: s.notes,
-        normeReference: s.normeReference,
         nqaId: s.nqaId,
         lignes: s.lignes.map(l => ({
           ordreAffiche: l.ordreAffiche,
@@ -168,7 +162,6 @@ export const planFabricationService = {
           estCritique: l.estCritique,
           instruction: l.instruction,
           observations: l.observations,
-          libre1: l.codeArticleSage,
           extraColonnes: l.extraColonnes || []
         }))
       }));
@@ -203,9 +196,7 @@ export const planFabricationService = {
         libelleSection: s.libelleSection,
         typeSectionId: s.typeSectionId,
         periodiciteId: s.periodiciteId,
-        regleEchantillonnageId: s.regleEchantillonnageId,
         notes: s.notes,
-        normeReference: s.normeReference,
         nqaId: s.nqaId,
         lignes: s.lignes.map(l => ({
           ordreAffiche: l.ordreAffiche,
@@ -222,12 +213,7 @@ export const planFabricationService = {
           instruction: l.instruction,
           observations: l.observations,
           machineCode: l.machineCode,
-          estVerifPresence: l.estVerifPresence,
-          defauthequeId: l.defauthequeId,
-          refPlanProduit: l.refPlanProduit,
-          machineCodeCtrlPoste: l.machineCodeCtrlPoste,
           risqueDefautId: l.risqueDefautId,
-          libre1: payload.nouveauCodeArticleSage,
           extraColonnes: l.extraColonnes || []
         }))
       }))

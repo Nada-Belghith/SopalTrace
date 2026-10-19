@@ -1,0 +1,54 @@
+<template>
+  <div class="p-6">
+    <Toast position="top-right" />
+    <ConfirmDialog />
+    <PlanHeader 
+      v-if="store.entete"
+      :id="store.entete.id"
+      title="Plan de contrôle de Poste"
+      :subtitle="store.entete.nom"
+      icon="pi pi-list"
+      iconColorClass="text-teal-500"
+      :is-read-only="isReadOnly"
+      :version="store.entete.version"
+      :statut="store.entete.statut"
+      :showRestaurerBtn="false"
+    />
+    <!-- Fiche que rempliront les opérateurs, mise en forme avec son modèle (consultation) -->
+    <PdfDocumentQualite v-if="store.entete?.id" :document-id="store.entete.id" class="mb-4" />
+
+    <documentControlePosteForm v-if="store.entete" :is-read-only="isReadOnly" />
+  </div>
+</template>
+
+<script setup>
+import { onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { usedocumentControlePosteStore } from '@/stores/documentControlePosteStore';
+import { useReferentielStore } from '@/stores/referentielStore';
+import DocumentControlePosteForm from '@/components/DocumentControlePoste/DocumentControlePosteForm.vue';
+import PlanHeader from '@/components/Shared/PlanHeader.vue';
+import PdfDocumentQualite from '@/components/Qualite/PdfDocumentQualite.vue';
+import Toast from 'primevue/toast';
+import ConfirmDialog from 'primevue/confirmdialog';
+import { useDocumentHeaderMeta } from '@/composables/useDocumentHeaderMeta';
+
+const store = usedocumentControlePosteStore();
+const refStore = useReferentielStore();
+const route = useRoute();
+
+const { isReadOnly } = useDocumentHeaderMeta(route, store);
+
+onMounted(async () => {
+  if (!refStore.isDicosControlePosteLoaded) {
+    await refStore.fetchDictionnaires('controle-poste');
+  }
+  if (!refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE']?.length) {
+    await refStore.fetchFormulairesReferences('RESULTAT_CONTROLE_POSTE');
+  }
+  const planId = route.params.id;
+  if (!planId || planId === 'nouveau') {
+    store.resetState();
+  }
+});
+</script>

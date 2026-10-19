@@ -1,0 +1,232 @@
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import apiClient from '@/services/apiClient'
+import EnTetePage from '@/components/Shared/EnTetePage.vue'
+import ProgressSpinner from 'primevue/progressspinner'
+import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
+   
+const route = useRoute()
+const router = useRouter()
+const execControleOfId = route.params.execControleOfId
+
+const posteCode = route.query.posteCode || ''
+
+const echantillonnagePlan = ref(null)
+const isLoading = ref(true)
+const errorMessage = ref('')
+
+onMounted(async () => { 
+  try {
+    const response = await apiClient.get(`/ExecEchantillonnage/${execControleOfId}`, { params: { posteCode: posteCode || undefined } })
+    echantillonnagePlan.value = response.data
+  } catch (error) {
+    console.error("Erreur chargement:", error)
+    errorMessage.value = "Erreur lors du chargement des données."
+  } finally {
+    isLoading.value = false
+  }
+})
+
+const goBack = () => {
+  router.push({ name: 'operateur-of-fini', query: { execControleOfId: execControleOfId, posteCode: posteCode, equipe: route.query.equipe || undefined } })
+}
+
+// Helpers for UI state
+const isNiveauActive = (lvl) => {
+  if (!echantillonnagePlan.value?.niveauControle) return false;
+  return echantillonnagePlan.value.niveauControle.toUpperCase() === lvl;
+}
+
+const isPlanActive = (plan) => {
+  if (!echantillonnagePlan.value?.typePlan) return false;
+  return echantillonnagePlan.value.typePlan.toUpperCase() === plan;
+}
+
+const isModeActive = (mode) => {
+  if (!echantillonnagePlan.value?.modeControle) return false;
+  const m = echantillonnagePlan.value.modeControle.toUpperCase();
+  if (mode === 'RÉDUIT') return m === 'REDUIT' || m === 'RÉDUIT';
+  if (mode === 'RENFORCÉ') return m === 'RENFORCE' || m === 'RENFORCÉ';
+  return m === mode;
+}
+
+</script>
+
+<template>
+  <div class="p-6 min-h-screen bg-slate-50 font-sans">
+    <EnTetePage class="mb-6" titre="Fiche d'échantillonnage" complement="ISO 2859"
+                sous-titre="Plan de contrôle dynamique généré pour l'OF" retour @retour="goBack" />
+
+    <div v-if="isLoading" class="flex justify-center p-12">
+      <ProgressSpinner />
+    </div>
+
+    <div v-else-if="errorMessage" class="bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-3">
+      <i class="pi pi-exclamation-triangle text-2xl"></i>
+      <p>{{ errorMessage }}</p>
+    </div>
+
+    <div v-else-if="echantillonnagePlan" class="space-y-8 mt-6">
+      
+      <!-- EN-TÊTE DU DOCUMENT -->
+      <div class="border rounded-md overflow-hidden shadow-sm bg-white">
+        <!-- Header -->
+        <div class="bg-[#1f2937] text-white px-5 py-3 flex items-center gap-2 font-bold uppercase tracking-wide text-[13px]">
+          <i class="pi pi-file-o text-green-400"></i> Informations Générales
+        </div>
+        <!-- Body -->
+        <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-center text-sm">
+          <div>
+            <p><span class="font-bold text-gray-700">Code article :</span> {{ echantillonnagePlan.codeArticle || '-' }}</p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Atelier :</span> {{ echantillonnagePlan.atelier || '-' }}</p>
+            <p class="mt-3 flex items-center gap-2">
+              <span class="font-bold text-gray-700 whitespace-nowrap">Poste :</span> 
+              <template v-if="!echantillonnagePlan?.estTermine">
+                <InputText v-model="echantillonnagePlan.posteCode" placeholder="Poste" class="w-24" />
+              </template>
+              <template v-else>
+                <span class="text-gray-800 font-medium">{{ echantillonnagePlan.posteCode || '-' }}</span>
+              </template>
+            </p>
+          </div>
+          <div>
+            <p><span class="font-bold text-gray-700">Désignation :</span> <span class="text-gray-800 font-medium">{{ echantillonnagePlan.designation || '-' }}</span></p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Date de fabrication :</span> 
+              <input v-if="!echantillonnagePlan?.estTermine" type="date" :value="echantillonnagePlan.dateFabrication ? echantillonnagePlan.dateFabrication.split('T')[0] : ''" @input="echantillonnagePlan.dateFabrication = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500" />
+              <span v-else class="text-gray-800 font-medium ml-2">{{ echantillonnagePlan.dateFabrication ? echantillonnagePlan.dateFabrication.split('T')[0] : '-' }}</span>
+            </p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Code instrument de mesure :</span> 
+              <span class="text-gray-800">{{ echantillonnagePlan.instrumentCodes?.join('  ') || '-' }}</span>
+            </p>
+          </div>
+          <div>
+            <p><span class="font-bold text-gray-700">Numéro de l'OF :</span> <span class="text-gray-800">{{ echantillonnagePlan.numeroOf || '-' }}</span></p>
+            <p class="mt-3"><span class="font-bold text-gray-700">Date de l'échantillonnage :</span> 
+              <input v-if="!echantillonnagePlan?.estTermine" type="datetime-local" :value="echantillonnagePlan.dateEchantillonnage ? echantillonnagePlan.dateEchantillonnage.substring(0, 16) : ''" @input="echantillonnagePlan.dateEchantillonnage = $event.target.value" class="border border-gray-300 rounded px-2 py-1 text-sm mt-1 w-full focus:outline-none focus:border-blue-500" />
+              <span v-else class="text-gray-800 font-medium ml-2">{{ echantillonnagePlan.dateEchantillonnage ? echantillonnagePlan.dateEchantillonnage.substring(0, 16).replace('T', ' ') : '-' }}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- PARAMÈTRES DU PLAN -->
+      <div class="border rounded-md overflow-hidden shadow-sm bg-white">
+        <!-- Header -->
+        <div class="bg-[#1f2937] text-white px-5 py-3 flex items-center gap-2 font-bold uppercase tracking-wide text-[13px]">
+          <i class="pi pi-sliders-h text-green-400"></i> Paramètres du plan
+        </div>
+        <!-- Body -->
+        <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-8 items-end">
+          
+          <!-- Niveau de contrôle -->
+          <div>
+            <p class="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">Niveau de contrôle</p>
+            <div class="flex gap-1 bg-gray-50 p-1 rounded border border-gray-200">
+              <div v-for="lvl in ['I', 'II', 'III']" :key="lvl" 
+                   class="flex-1 text-center py-2 text-[11px] font-bold rounded transition-colors"
+                   :class="isNiveauActive(lvl) ? 'bg-[#059669] text-white shadow-sm' : 'text-gray-400 bg-transparent'">
+                NIVEAU {{ lvl }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Plan d'échantillonnage -->
+          <div>
+            <p class="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">Plan d'échantillonnage</p>
+            <div class="flex gap-1 bg-gray-50 p-1 rounded border border-gray-200">
+              <div v-for="plan in ['SIMPLE', 'DOUBLE']" :key="plan" 
+                   class="flex-1 text-center py-2 text-[11px] font-bold rounded transition-colors"
+                   :class="isPlanActive(plan) ? 'bg-[#059669] text-white shadow-sm' : 'text-gray-400 bg-transparent'">
+                {{ plan }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Mode de contrôle -->
+          <div>
+            <p class="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">Mode de contrôle</p>
+            <div class="flex gap-1 bg-gray-50 p-1 rounded border border-gray-200">
+              <div v-for="mode in ['RÉDUIT', 'NORMAL', 'RENFORCÉ']" :key="mode" 
+                   class="flex-1 text-center py-2 text-[11px] font-bold rounded transition-colors"
+                   :class="isModeActive(mode) ? 'bg-[#059669] text-white shadow-sm' : 'text-gray-400 bg-transparent'">
+                {{ mode }}
+              </div>
+            </div>
+          </div>
+
+          <!-- NQA -->
+          <div>
+            <p class="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">NQA</p>
+            <div class="flex items-center justify-center py-[7px] text-[13px] font-bold border border-green-200 rounded text-gray-700 bg-white shadow-sm w-[120px]">
+              {{ echantillonnagePlan.nqaValeur ?? '-' }}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TABLEAU DE DÉTERMINATION -->
+      <div class="border rounded-md overflow-hidden shadow-sm bg-white">
+        <!-- Header -->
+        <div class="bg-[#1f2937] text-white px-5 py-3 flex items-center gap-2 font-bold uppercase tracking-wide text-[13px]">
+          <i class="pi pi-table text-green-400"></i> Tableau de détermination de l'échantillon
+        </div>
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-center border-collapse">
+            <thead>
+              <tr class="bg-[#f8fafc] text-[11px] text-gray-600 font-bold uppercase tracking-wider border-b border-gray-200">
+                <th class="py-4 px-2 border-r border-gray-200 w-16">N°</th>
+                <th class="py-4 px-2 border-r border-gray-200">Effectif du lot<br><span class="text-gray-400 font-normal"></span></th>
+                <th class="py-4 px-2 border-r border-gray-200">Lettre<br>Code</th>
+                <th class="py-4 px-2 border-r border-gray-200">Échantillon global (A)</th>
+                <th class="py-4 px-2 border-r border-gray-200">Nb postes (B)</th>
+                <th class="py-4 px-2 border-r border-gray-200">Échantillon /poste (A/B)</th>
+                <th class="py-4 px-2 border-r border-gray-200 text-[#059669]">Critère d'acceptation</th>
+                <th class="py-4 px-2 text-[#dc2626]">Critère de rejet</th>
+              </tr>
+            </thead>
+            <tbody class="text-[13px] font-bold text-gray-700">
+              <tr>
+                <td class="py-5 px-2 border-r border-gray-200 text-gray-400">1</td>
+                <td class="py-5 px-2 border-r border-gray-200">{{ echantillonnagePlan.tailleLot }}</td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputText v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.lettreCode" class="w-16 text-center" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.lettreCode }}</span>
+                </td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputNumber v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.effectifEchantillonA" class="w-20" inputClass="text-center w-full" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.effectifEchantillonA }}</span>
+                </td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputNumber v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.nbPostesB" class="w-16" inputClass="text-center w-full" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.nbPostesB }}</span>
+                </td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <InputNumber v-if="!echantillonnagePlan?.estTermine" v-model="echantillonnagePlan.effectifParPosteAb" class="w-20" inputClass="text-center w-full" />
+                  <span v-else class="text-gray-800 font-bold text-sm">{{ echantillonnagePlan.effectifParPosteAb }}</span>
+                </td>
+                <td class="py-2 px-2 border-r border-gray-200">
+                  <span class="font-bold text-[#059669] text-base">
+                    {{ echantillonnagePlan.critereAcceptationAc }}
+                  </span>
+                </td>
+                <td class="py-2 px-2">
+                  <span class="font-bold text-[#dc2626] text-base">
+                    {{ echantillonnagePlan.critereRejetRe }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* Les styles additionnels ne sont plus nécessaires grâce à TailwindCSS */
+</style>

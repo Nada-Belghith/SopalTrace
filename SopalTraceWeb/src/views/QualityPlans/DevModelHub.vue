@@ -4,14 +4,8 @@
     <ConfirmDialog></ConfirmDialog>
 
     <div class="mb-10 flex justify-between items-start">
-      <div>
-        <h1 class="text-3xl font-black text-slate-900 tracking-tight">
-          {{ isModeleFabRoute ? 'Modèles de Fabrication' : 'DOCUMENTS GÉNÉRIQUES' }}
-        </h1>
-        <p class="text-slate-500 mt-1 font-medium text-sm">
-          {{ isModeleFabRoute ? 'Visualisez et gérez vos plans de contrôle génériques pour la fabrication.' : 'Visualisez et gérez vos plans de contrôle génériques existants.' }}
-        </p>
-      </div>
+      <EnTetePage :titre="isModeleFabRoute ? 'Modèles de fabrication' : 'Documents génériques'"
+                  :sous-titre="isModeleFabRoute ? 'Visualisez et gérez vos plans de contrôle génériques pour la fabrication.' : 'Visualisez et gérez vos plans de contrôle génériques existants.'" />
       <div v-if="isModeleFabRoute">
         <router-link to="/dev/fab/nouveau" class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-md transition-all active:scale-95">
           <i class="pi pi-plus font-bold"></i> NOUVEAU MODÈLE
@@ -122,6 +116,9 @@
             <h3 class="text-base font-bold text-slate-800 leading-tight mb-1 transition-colors line-clamp-2" :class="categoryStyles[plan.category]?.titleHoverClass || 'group-hover:text-blue-600'">
               {{ plan.libelle }}
             </h3>
+            <p v-if="plan.creeLe" class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="pi pi-calendar text-[9px]"></i> Créé le {{ new Date(plan.creeLe).toLocaleDateString('fr-FR') }} à {{ new Date(plan.creeLe).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+            </p>
           </div>
 
           <!-- Tags: Nature, Type, Opération -->
@@ -130,7 +127,7 @@
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded">
               <i class="pi pi-box text-[9px]"></i> {{ (plan.category === 'RC' && plan.nature === 'POSTE') ? 'RÉSULTAT DE CONTRÔLE' : plan.nature }}
             </span>
-            <span v-if="plan.type && plan.type !== 'N/A'"
+            <span v-if="plan.type && plan.type !== 'N/A' && plan.type !== 'GEN'"
               class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded">
               <i class="pi pi-tag text-[9px]"></i> {{ plan.type }}
             </span>
@@ -165,9 +162,13 @@
                <button v-if="!isReadOnlyGenericHub && (plan.statut === 'ACTIF' || plan.statut === 'BROUILLON')" @click.stop="editer(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Éditer">
                  <i class="pi pi-pencil"></i>
                </button>
-               <button v-if="!isReadOnlyGenericHub && plan.statut === 'ARCHIVE'" @click.stop="upgrader(plan.category, plan.id)" class="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded transition-colors" title="Mettre à jour vers le dernier PRC">
-                 <i class="pi pi-arrow-up"></i>
+
+               <button v-if="!isReadOnlyGenericHub && plan.statut === 'ARCHIVE' && !activeCombinations.has(`${plan.category || ''}-${plan.nature || ''}-${plan.operation || ''}-${plan.type || ''}-${plan.poste || ''}`)" 
+                       @click.stop="editer(plan.category, plan.id, true)" 
+                       class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Mettre à niveau">
+                 <i class="pi pi-arrow-circle-up"></i>
                </button>
+
                <button v-if="!isReadOnlyGenericHub && plan.statut === 'ACTIF'" @click.stop="confirmArchivage(plan)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Archiver">
                  <i class="pi pi-box"></i>
                </button>
@@ -208,6 +209,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import EnTetePage from '@/components/Shared/EnTetePage.vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
@@ -247,7 +249,7 @@ const tabs = computed(() => {
     { id: 'FAB', label: 'Fabrication', short: 'Fab', icon: 'pi pi-cog' },
     { id: 'ASS', label: 'Assemblage', short: 'Ass', icon: 'pi pi-sitemap' },
     { id: 'VM', label: 'Vérif Machine', short: 'Vérif', icon: 'pi pi-desktop' },
-    { id: 'RC', label: 'Résultat Contrôle', short: 'Contrôle', icon: 'pi pi-list' },
+    { id: 'RC', label: 'Résultat Contrôle Poste', short: 'Contrôle Poste', icon: 'pi pi-list' },
     { id: 'RCCF', label: 'Résultat Contrôle CF', short: 'Contrôle CF', icon: 'pi pi-check-circle' },
     { id: 'ECH', label: 'Échantillonnage', short: 'Échan', icon: 'pi pi-check-square' },
     { id: 'PF', label: 'Produit Fini', short: 'PF', icon: 'pi pi-box' },
@@ -260,7 +262,7 @@ const categoryStyles = {
   FAB: { label: 'Fabrication', icon: 'pi pi-cog', colorClass: 'bg-amber-500', textClass: 'text-amber-500', hoverClass: 'hover:border-amber-300', titleHoverClass: 'group-hover:text-amber-600' },
   ASS: { label: 'Assemblage', icon: 'pi pi-sitemap', colorClass: 'bg-indigo-500', textClass: 'text-indigo-500', hoverClass: 'hover:border-indigo-300', titleHoverClass: 'group-hover:text-indigo-600' },
   VM: { label: 'Vérif Machine', icon: 'pi pi-desktop', colorClass: 'bg-emerald-500', textClass: 'text-emerald-500', hoverClass: 'hover:border-emerald-300', titleHoverClass: 'group-hover:text-emerald-600' },
-  RC: { label: 'Résultat Contrôle', icon: 'pi pi-list', colorClass: 'bg-teal-500', textClass: 'text-teal-500', hoverClass: 'hover:border-teal-300', titleHoverClass: 'group-hover:text-teal-600' },
+  RC: { label: 'Résultat Contrôle Poste', icon: 'pi pi-list', colorClass: 'bg-teal-500', textClass: 'text-teal-500', hoverClass: 'hover:border-teal-300', titleHoverClass: 'group-hover:text-teal-600' },
   RCCF: { label: 'Résultat Contrôle CF', icon: 'pi pi-check-circle', colorClass: 'bg-cyan-500', textClass: 'text-cyan-500', hoverClass: 'hover:border-cyan-300', titleHoverClass: 'group-hover:text-cyan-600' },
   ECH: { label: 'Échantillonnage', icon: 'pi pi-check-square', colorClass: 'bg-purple-500', textClass: 'text-purple-500', hoverClass: 'hover:border-purple-300', titleHoverClass: 'group-hover:text-purple-600' },
   PF: { label: 'Produit Fini', icon: 'pi pi-box', colorClass: 'bg-blue-500', textClass: 'text-blue-500', hoverClass: 'hover:border-blue-300', titleHoverClass: 'group-hover:text-blue-600' }
@@ -268,6 +270,15 @@ const categoryStyles = {
 
 onMounted(async () => {
   await chargerModeles();
+});
+
+const activeCombinations = computed(() => {
+  const actives = new Set();
+  modeles.value.filter(m => m.statut === 'ACTIF').forEach(m => {
+    const key = `${m.category || ''}-${m.nature || ''}-${m.operation || ''}-${m.type || ''}-${m.poste || ''}`;
+    actives.add(key);
+  });
+  return actives;
 });
 
 const chargerModeles = async () => {
@@ -284,7 +295,7 @@ const chargerModeles = async () => {
 };
 
 const filteredPlans = computed(() => {
-  return modeles.value.filter(plan => {
+  const filtered = modeles.value.filter(plan => {
     // Si c'est le Hub Générique, exclure les modèles de Fabrication
     if (!isModeleFabRoute.value && plan.category === 'FAB') return false;
 
@@ -309,6 +320,13 @@ const filteredPlans = computed(() => {
     const matchStatut = vueActuelle.value === 'ALL' || plan.statut === vueActuelle.value;
 
     return matchTab && matchOp && matchSearch && matchStatut;
+  });
+
+  // Tri par date de création ou modification (du plus récent au plus ancien)
+  return filtered.sort((a, b) => {
+    const dateA = new Date(a.archiveLe || a.modifieLe || a.creeLe || 0).getTime();
+    const dateB = new Date(b.archiveLe || b.modifieLe || b.creeLe || 0).getTime();
+    return dateB - dateA;
   });
 });
 
@@ -368,9 +386,9 @@ const archiver = async (mod) => {
 
 
 
-const editer = (category, id) => {
+const editer = (category, id, isUpgrade = false) => {
   const routes = {
-    'FAB': { path: `/dev/fab/editer/${id}`, query: { type: 'FAB' } },
+    'FAB': { path: `/dev/fab/editer/${id}`, query: { type: 'FAB', ...(isUpgrade && { upgrade: 'true' }) } },
     'ASS': { path: `/dev/ass/editer/${id}` },
     'VM': { path: `/dev/verif-machine/editer/${id}` },
     'RC': { path: `/dev/resultat-controle/editer/${id}` },
@@ -380,14 +398,6 @@ const editer = (category, id) => {
   };
   if (routes[category]) router.push(routes[category]);
   else toast.add({ severity: 'warn', summary: 'Non disponible', detail: 'Édition non configurée pour cette catégorie.', life: 3000 });
-};
-
-const upgrader = (category, id) => {
-  const routes = {
-    'FAB': { path: `/dev/fab/editer/${id}`, query: { upgrade: 'true' } }
-  };
-  if (routes[category]) router.push(routes[category]);
-  else toast.add({ severity: 'warn', summary: 'Non disponible', detail: 'Mise à jour non configurée pour cette catégorie.', life: 3000 });
 };
 
 const consulter = (category, id) => {

@@ -1,14 +1,16 @@
-﻿// IAuthService
 using SopalTrace.Application.DTOs.Auth;
 
 namespace SopalTrace.Application.Interfaces;
 
 public interface IAuthService
 {
-    Task<(AuthResponseDto Response, string RefreshToken)> RegisterAsync(RegisterRequestDto request);
+    Task RegisterAsync(RegisterRequestDto request);
+    Task SetupPasswordAsync(SetupPasswordDto request);
     Task<(AuthResponseDto Response, string RefreshToken)> LoginAsync(LoginRequestDto request);
-    Task<(AuthResponseDto Response, string RefreshToken)> RefreshTokenAsync(string expiredJwt, string refreshToken);
+    Task<(AuthResponseDto Response, string RefreshToken)> RefreshTokenAsync(string refreshToken);
     Task ForgotPasswordAsync(ForgotPasswordDto request);
     Task ResetPasswordAsync(ResetPasswordDto request);
-    Task RevokeUserTokensAsync(Guid userId, string? matricule = null);
+
+    /// <summary>Déconnexion : révoque les sessions du compte, retrouvé par le jeton de rafraîchissement (même si le jeton d'accès a expiré) ou par l'utilisateur connecté.</summary>
+    Task LogoutAsync(string? refreshToken, Guid? userId, string? matricule);
 }

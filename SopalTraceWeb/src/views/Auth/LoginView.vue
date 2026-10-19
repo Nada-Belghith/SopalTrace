@@ -7,9 +7,7 @@
     <div class="w-full max-w-md animate-in fade-in zoom-in duration-700">
       <!-- Logo / Header -->
       <div class="text-center mb-10">
-        <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl shadow-2xl shadow-blue-500/20 mb-6 rotate-3">
-          <i class="pi pi-shield text-4xl text-white"></i>
-        </div>
+        <LogoSopalTrace class="inline-block w-20 h-20 mb-6 drop-shadow-2xl" />
         <h1 class="text-4xl font-black text-white tracking-tight mb-2">Sopal<span class="text-blue-500">Trace</span></h1>
         <p class="text-slate-400 font-medium">Système de Traçabilité & Qualité</p>
       </div>
@@ -104,6 +102,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from 'primevue/usetoast';
+import LogoSopalTrace from '@/components/Shared/LogoSopalTrace.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -124,14 +123,10 @@ const handleLogin = async () => {
       life: 3000
     });
 
-    // Redirection intelligente selon le rôle de l'utilisateur
-    if (authStore.userRole === 'MAGASINIER') {
-      router.push('/magasinier/scan-of');
-    } else if (authStore.userRole === 'OPERATEUR') {
-      router.push('/dev/hub-plans');
-    } else {
-      router.push('/dev/hub');
-    }
+    // Retour à la page demandée avant la connexion (chemin interne uniquement, jamais une autre adresse) ; sinon la
+    // redirection intelligente du routeur (path: '/') mène à l'accueil du rôle.
+    const retour = router.currentRoute.value.query.retour;
+    router.push(typeof retour === 'string' && retour.startsWith('/') && !retour.startsWith('//') && !retour.includes('\\') ? retour : '/');
   } catch {
     // L'erreur est gérée dans le store
   }
@@ -139,6 +134,12 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
+/* Masquer l'icône native (Edge/IE) de révélation du mot de passe */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 .animate-shake {
   animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }

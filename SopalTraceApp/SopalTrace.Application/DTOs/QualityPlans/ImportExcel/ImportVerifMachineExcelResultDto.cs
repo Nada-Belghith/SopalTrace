@@ -26,7 +26,7 @@ public class ImportVerifMachineLigneDto
 public class ImportVerifMachineEcheanceDto
 {
     public string PeriodiciteLibelle { get; set; } = string.Empty;
-    public Guid? PeriodiciteId { get; set; }
+    public Guid? PeriodiciteMachineId { get; set; }
     // 🟢 NOUVEAU : Liste des Rows (Moyens) sous cette périodicité
     public List<ImportVerifMachineRowDto> Rows { get; set; } = new();
 }
