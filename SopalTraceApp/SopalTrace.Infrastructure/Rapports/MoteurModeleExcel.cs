@@ -127,7 +127,12 @@ public sealed class MoteurModeleExcel : IMoteurModeleExcel
 
         var decalage = 0;
         if (structure.Bloc is { } bloc)
-            decalage = RepeterBloc(classeur, feuille, bloc, donnees, DerniereColonne(feuille), structure.ColonnesFusion);
+        {
+            // Modèle avec le tableau fixe du lot : ses sections n'y sont pas répétées une seconde fois.
+            var tableauLot = analyse.Champs.Any(c => c.Nom.StartsWith("Lot1.", StringComparison.Ordinal));
+            var sections = donnees.Sections.Where(s => !(tableauLot && s.RepriseDansTableauLot)).ToList();
+            decalage = RepeterBloc(classeur, feuille, bloc, donnees, sections, DerniereColonne(feuille), structure.ColonnesFusion);
+        }
 
         // Champs du document hors du bloc (les lignes sous le bloc ont été décalées).
         foreach (var cellule in structure.CellulesHorsBloc)
@@ -309,8 +314,8 @@ public sealed class MoteurModeleExcel : IMoteurModeleExcel
     // ── Répétition du bloc ───────────────────────────────────────────────
 
     /// <summary>Écrit les sections et leurs lignes à la place du bloc ; retourne le nombre de lignes ajoutées (négatif si retirées).</summary>
-    private static int RepeterBloc(XLWorkbook classeur, IXLWorksheet feuille, Bloc bloc, DonneesRapport donnees, int derniereColonne,
-        IReadOnlyList<ColonneFusion> colonnesFusion)
+    private static int RepeterBloc(XLWorkbook classeur, IXLWorksheet feuille, Bloc bloc, DonneesRapport donnees,
+        IReadOnlyList<DonneesSectionRapport> sections, int derniereColonne, IReadOnlyList<ColonneFusion> colonnesFusion)
     {
         var tailleTitre = bloc.LigneDetail - bloc.Debut;
         var tailleModele = tailleTitre + 1;
@@ -320,7 +325,7 @@ public sealed class MoteurModeleExcel : IMoteurModeleExcel
         var travail = classeur.Worksheets.Add(FeuilleTravail);
         feuille.Range(bloc.Debut, 1, bloc.LigneDetail, derniereColonne).CopyTo(travail.Cell(1, 1));
 
-        var lignesNecessaires = donnees.Sections.Sum(s => tailleTitre + Math.Max(1, s.Lignes.Count));
+        var lignesNecessaires = sections.Sum(s => tailleTitre + Math.Max(1, s.Lignes.Count));
         var decalage = lignesNecessaires - tailleModele;
         if (decalage > 0)
             feuille.Row(bloc.LigneDetail).InsertRowsBelow(decalage);
@@ -335,7 +340,7 @@ public sealed class MoteurModeleExcel : IMoteurModeleExcel
             zone.Clear();
 
             var ligne = bloc.Debut;
-            foreach (var section in donnees.Sections)
+            foreach (var section in sections)
             {
                 if (tailleTitre > 0)
                 {

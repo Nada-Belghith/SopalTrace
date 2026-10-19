@@ -24,6 +24,8 @@ namespace SopalTrace.Application.Rapports.Execution;
 public sealed class DefinitionRapportResultatsAssemblage : IDefinitionRapportExecution
 {
     private static readonly string[] OrdreMoments = { "PREMIERE_PIECE", "REGLAGE", "100PCT", "DERNIERE_PIECE" };
+    /// <summary>Lignes du tableau fixe du lot de l'OF (fiche des robinets manuels : quatre caractéristiques).</summary>
+    public const int LignesTableauLot = 8;
 
     private readonly IDonneesExecutionRepository _donnees;
 
@@ -75,6 +77,16 @@ public sealed class DefinitionRapportResultatsAssemblage : IDefinitionRapportExe
             champs.Add(new($"{h}.Actions", $"Actions de correction de la tranche de {heure} h", ""));
             champs.Add(new($"{h}.Approbation", $"Matricule d'approbation de la tranche de {heure} h", "55555"));
         }
+        champs.Add(new("TitreLot", "Titre du tableau du lot de l'OF (section « lot OF » du plan)", "Caractéristiques à contrôler au niveau du lot (OF)"));
+        for (var i = 1; i <= LignesTableauLot; i++)
+        {
+            champs.Add(new($"Lot{i}.Caracteristique", $"Caractéristique n° {i} du lot de l'OF (première et dernière pièce)", "Couple de manœuvre"));
+            champs.Add(new($"Lot{i}.Conforme", $"« X » si la caractéristique n° {i} du lot est conforme", "X"));
+            champs.Add(new($"Lot{i}.NonConforme", $"« X » si la caractéristique n° {i} du lot est non conforme", ""));
+            champs.Add(new($"Lot{i}.Nc", $"Non-conformité de la caractéristique n° {i} du lot", ""));
+            champs.Add(new($"Lot{i}.Actions", $"Actions de correction de la caractéristique n° {i} du lot", ""));
+            champs.Add(new($"Lot{i}.Approbation", $"Matricule de la saisie de la caractéristique n° {i} du lot", "55555"));
+        }
         for (var q = 1; q <= 3; q++)
         {
             champs.Add(new($"Quart{q}.Conforme", $"« X » si le contrôle de fin de poste de l'équipe E{q} est conforme", "X"));
@@ -121,6 +133,7 @@ public sealed class DefinitionRapportResultatsAssemblage : IDefinitionRapportExe
             section.Champs["Moment"] = "";
             section.Champs["LibelleSection"] = sectionPlan.Libelle;
             section.Champs["Libelle"] = sectionPlan.Libelle;
+            section.RepriseDansTableauLot = sectionPlan.TypeSection == SectionTypes.LotOf;
             var numeroLigne = 0;
             foreach (var lignePlan in sectionPlan.Lignes.OrderBy(l => l.Ordre))
             {
@@ -185,6 +198,23 @@ public sealed class DefinitionRapportResultatsAssemblage : IDefinitionRapportExe
             c[$"Quart{q}.Approbation"] = estEquipe ? finDePoste.OrderByDescending(r => r.DateSaisie).First().MatriculeOperateur : "";
         }
 
+        // Tableau fixe du lot de l'OF : caractéristiques des sections « lot OF » du plan, dernière réponse de chacune
+        // (première ou dernière pièce) ; cases vides pour une fiche vierge.
+        var lignesLot = sections.Where(s => s.TypeSection == SectionTypes.LotOf).OrderBy(s => s.Ordre)
+            .SelectMany(s => s.Lignes.OrderBy(l => l.Ordre)).Take(LignesTableauLot).ToList();
+        c["TitreLot"] = sections.FirstOrDefault(s => s.TypeSection == SectionTypes.LotOf)?.Libelle ?? "Caractéristiques à contrôler au niveau du lot (OF)";
+        for (var i = 1; i <= LignesTableauLot; i++)
+        {
+            var lignePlan = i <= lignesLot.Count ? lignesLot[i - 1] : null;
+            var reponse = lignePlan == null ? null : reponses.Where(r => r.LigneId == lignePlan.Id).OrderByDescending(r => r.DateSaisie).FirstOrDefault();
+            c[$"Lot{i}.Caracteristique"] = Texte(lignePlan?.Caracteristique);
+            c[$"Lot{i}.Conforme"] = Croix(reponse?.ResultatType == ResultatsLigne.Conforme);
+            c[$"Lot{i}.NonConforme"] = Croix(reponse?.ResultatType == ResultatsLigne.NonConforme);
+            c[$"Lot{i}.Nc"] = Texte(reponse?.DetailsNc);
+            c[$"Lot{i}.Actions"] = Texte(reponse?.ActionsCorrection);
+            c[$"Lot{i}.Approbation"] = Texte(reponse?.MatriculeOperateur);
+        }
+
         // Contrôles de lot : une section par moment et par section du plan, dans l'ordre du poste.
         var sectionDeLigne = sections.SelectMany(s => s.Lignes.Select(l => (l.Id, Section: s))).ToDictionary(x => x.Id, x => x.Section);
         var groupes = reponses
@@ -202,6 +232,7 @@ public sealed class DefinitionRapportResultatsAssemblage : IDefinitionRapportExe
             section.Champs["Moment"] = moment;
             section.Champs["LibelleSection"] = groupe.Key.Section.Libelle;
             section.Champs["Libelle"] = $"{moment} · {groupe.Key.Section.Libelle}";
+            section.RepriseDansTableauLot = groupe.Key.Section.TypeSection == SectionTypes.LotOf;
             var dernieres = groupe.GroupBy(r => r.LigneId).ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.DateSaisie).First());
             var numeroLigne = 0;
             foreach (var lignePlan in groupe.Key.Section.Lignes.OrderBy(l => l.Ordre))

@@ -317,7 +317,7 @@ const toggleMobileMenu = () => {
             </li>
             <li>
               <router-link to="/magasinier/scan-bl" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm font-medium hover:bg-slate-800 hover:text-white" active-class="bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 font-bold">
-                <i class="pi pi-truck"></i> Produits Finis (Expéd.)
+                <i class="pi pi-truck"></i> Expédition Produits Finis
               </router-link>
             </li>
           </ul>

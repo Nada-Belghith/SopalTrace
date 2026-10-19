@@ -50,6 +50,11 @@ public sealed class DonneesRapport
 public sealed class DonneesSectionRapport
 {
     public SortedDictionary<string, string> Champs { get; } = new(StringComparer.Ordinal);
+    /// <summary>
+    /// Section reprise aussi dans le tableau fixe du lot (champs Lot1.*, Lot2.*…) : un modèle qui place ce tableau ne la
+    /// répète pas dans son bloc de sections ; un modèle sans ce tableau la répète comme les autres.
+    /// </summary>
+    public bool RepriseDansTableauLot { get; set; }
     public List<DonneesLigneRapport> Lignes { get; } = new();
 }
 

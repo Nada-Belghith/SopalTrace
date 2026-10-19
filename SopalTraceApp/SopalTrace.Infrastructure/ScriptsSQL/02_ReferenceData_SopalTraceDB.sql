@@ -338,7 +338,7 @@ INSERT INTO dbo.TypeDocument (Code, Libelle) VALUES
     ('PLAN_FAB',     'Plan de fabrication'),
     ('VERIF_MACHINE','Plan de vérification machine'),
     ('PLAN_ECHANTILLONNAGE','Plan d''échantillonnage'),
-    ('CTRL_POSTE',   'Plan de contrôle de Poste (Tally)'),
+    ('CTRL_POSTE',   'Plan de contrôle de Poste'),
     ('RESULTAT_CF',  'Résultats Contrôle en cours de Fabrication'),
     ('PLAN_ASS',     'Plan Assemblage'),
     ('PLAN_PF',      'Plan Produit Fini');
@@ -386,6 +386,7 @@ INSERT INTO dbo.ReportTemplate (Code, Name, ExecutionDocumentTypeCode, FormRole)
     ('VERIF_MACHINE_SER05', N'Rapport de vérification machine de marquage SER05 (FE0798)', 'VERIF_MACHINE', 'VERIF_MACHINE'),
     ('PLAN_ASS_RESULTATS', N'Résultats du contrôle en cours d''assemblage — poste 71 (FE0816)', 'PLAN_ASS', 'RESULTAT_CONTROLE_ASSEMBLAGE'),
     ('PLAN_ASS_RESULTATS_PAS72', N'Résultats du contrôle en cours d''assemblage — postes 72 et 78 (FE0817)', 'PLAN_ASS', 'RESULTAT_CONTROLE_ASSEMBLAGE'),
+    ('PLAN_ASS_RESULTATS_MANU', N'Résultats du contrôle en cours d''assemblage — robinets manuels (FE0593)', 'PLAN_ASS', 'RESULTAT_CONTROLE_ASSEMBLAGE'),
     ('REGISTRE_TRACA', N'Registre de traçabilité assemblage (FE0129)', 'REGISTRE_TRACA', 'REGISTRE_TRACABILITE');
 
 -- =================================================================================
@@ -456,7 +457,7 @@ INSERT INTO dbo.ReportTemplateInitialForm (FormCodeReference, ReportTemplateCode
     ('FE-PF-RBGFA_SOUPAPE_PAS78', 'PLAN_ASS'),
     ('FE-RC-ENCF-ASS-AUTO', 'PLAN_ASS_RESULTATS'),
     ('FE-RC-ENCF-ASS-PAS71_SOUPAPE', 'PLAN_ASS_RESULTATS'),
-    ('FE-RC-ENCF-ASS-MANU', 'PLAN_ASS_RESULTATS_PAS72'),
+    ('FE-RC-ENCF-ASS-MANU', 'PLAN_ASS_RESULTATS_MANU'),
     ('FE-RC-ENCF-ASS-PAS72_SOUPAPE', 'PLAN_ASS_RESULTATS_PAS72'),
     ('FE-RC-ENCF-ASS-PAS78_SOUPAPE', 'PLAN_ASS_RESULTATS_PAS72'),
     ('FE-VM-BEE22', 'VERIF_MACHINE'),

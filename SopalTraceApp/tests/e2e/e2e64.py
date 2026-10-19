@@ -477,7 +477,7 @@ check("R traçabilité de l'OF : seulement les fiches remplies, jamais les clôt
 # Chaque fiche reçoit le modèle de son formulaire : résultats d'assemblage selon le formulaire de résultats fixé à sa
 # création (poste 71 / auto : FE0816 ; postes 72 et 78 / manuel : FE0817), vérification machine selon la machine.
 MODELE_DU_FORMULAIRE = {'FE-RC-ENCF-ASS-AUTO': 'PLAN_ASS_RESULTATS', 'FE-RC-ENCF-ASS-PAS71_SOUPAPE': 'PLAN_ASS_RESULTATS',
-                        'FE-RC-ENCF-ASS-MANU': 'PLAN_ASS_RESULTATS_PAS72', 'FE-RC-ENCF-ASS-PAS72_SOUPAPE': 'PLAN_ASS_RESULTATS_PAS72',
+                        'FE-RC-ENCF-ASS-MANU': 'PLAN_ASS_RESULTATS_MANU', 'FE-RC-ENCF-ASS-PAS72_SOUPAPE': 'PLAN_ASS_RESULTATS_PAS72',
                         'FE-RC-ENCF-ASS-PAS78_SOUPAPE': 'PLAN_ASS_RESULTATS_PAS72'}
 data_ok = lambda reponse: (reponse[1].get('data') or []) if isinstance(reponse[1], dict) else []
 MODELE_DE_LA_MACHINE = {'BEE22': 'VERIF_MACHINE', 'BEE46': 'VERIF_MACHINE', 'BEE47': 'VERIF_MACHINE', 'MAS19': 'VERIF_MACHINE_MAS',

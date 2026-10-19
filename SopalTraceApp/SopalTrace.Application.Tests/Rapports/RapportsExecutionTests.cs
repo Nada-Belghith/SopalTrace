@@ -26,6 +26,7 @@ public class RapportsExecutionTests
         new object[] { "VERIF_MACHINE_SER05", new DefinitionRapportVerifMachine(null!) },
         new object[] { "PLAN_ASS_RESULTATS", new DefinitionRapportResultatsAssemblage(null!) },
         new object[] { "PLAN_ASS_RESULTATS_PAS72", new DefinitionRapportResultatsAssemblage(null!) },
+        new object[] { "PLAN_ASS_RESULTATS_MANU", new DefinitionRapportResultatsAssemblage(null!) },
         new object[] { "REGISTRE_TRACA", new DefinitionRapportRegistre(null!) },
     };
 
@@ -110,6 +111,47 @@ public class RapportsExecutionTests
         Assert.Equal("Étanchéité interne", feuille.Cell("A8").GetString());
         Assert.Equal("Dernière pièce · Caractéristiques à contrôler au début du poste", feuille.Cell("A10").GetString());
         Assert.Equal("Caractéristiques contrôlées", feuille.Cell("A11").GetString());   // en-têtes répétés pour chaque contrôle
+    }
+
+    [Fact]
+    public void ResultatsAssemblageManuel_LotDeLOfDansSonTableauFixe_SansDoublonDansLeBloc()
+    {
+        var reglage = new SectionPlanRapport(Guid.NewGuid(), 1, "Caractéristiques à contrôler aux réglages", SectionTypes.Reglage, new[]
+        {
+            new LignePlanRapport(Guid.NewGuid(), 1, "Fonctionnement")
+        });
+        var lot = new SectionPlanRapport(Guid.NewGuid(), 3, "Caractéristiques à contrôler au niveau du lot (OF)", SectionTypes.LotOf, new[]
+        {
+            new LignePlanRapport(Guid.NewGuid(), 1, "Couple excessif position ouverte"), new LignePlanRapport(Guid.NewGuid(), 2, "Couple de manœuvre")
+        });
+        var debut = new DateTime(2026, 10, 14, 6, 10, 0);
+        var reponses = new[]
+        {
+            new ReponseLigneRapport(reglage.Lignes[0].Id, "REGLAGE", "1", ResultatsLigne.Conforme, null, null, "55555", debut),
+            new ReponseLigneRapport(lot.Lignes[0].Id, "PREMIERE_PIECE", null, ResultatsLigne.NonConforme, "Couple trop élevé", "Réglage visseuse", "55556", debut.AddMinutes(20)),
+        };
+
+        var donnees = DefinitionRapportResultatsAssemblage.Construire(Statut(), new[] { reglage, lot }, reponses,
+            Array.Empty<OccurrenceRapport>(), Array.Empty<TrancheRapport>());
+
+        Assert.Equal(("Couple excessif position ouverte", "", "X", "Couple trop élevé", "55556"), (donnees.Champs["Lot1.Caracteristique"],
+            donnees.Champs["Lot1.Conforme"], donnees.Champs["Lot1.NonConforme"], donnees.Champs["Lot1.Nc"], donnees.Champs["Lot1.Approbation"]));
+        Assert.Equal(("Couple de manœuvre", "", ""), (donnees.Champs["Lot2.Caracteristique"], donnees.Champs["Lot2.Conforme"], donnees.Champs["Lot2.NonConforme"]));
+        Assert.Equal("", donnees.Champs["Lot3.Caracteristique"]);
+        Assert.Equal("Caractéristiques à contrôler au niveau du lot (OF)", donnees.Champs["TitreLot"]);
+
+        // Fiche des robinets manuels : le lot de l'OF dans son tableau, pas répété dans le bloc des contrôles.
+        using (var manuel = new XLWorkbook(new MemoryStream(_moteur.Remplir(ModelesDeTest.Livres.Lire("PLAN_ASS_RESULTATS_MANU")!, donnees))))
+        {
+            var cellules = manuel.Worksheet(1).CellsUsed(XLCellsUsedOptions.Contents).Select(c => c.GetString()).ToList();
+            Assert.DoesNotContain(cellules, t => t.Contains("{{"));
+            Assert.Single(cellules, t => t == "Couple excessif position ouverte");
+            Assert.DoesNotContain(cellules, t => t.StartsWith("Première pièce ·"));
+            Assert.Contains(cellules, t => t == "Réglage 1 · Caractéristiques à contrôler aux réglages");
+        }
+        // Modèle sans tableau du lot (postes 72 et 78) : le lot de l'OF reste dans le bloc des contrôles.
+        using var p72 = new XLWorkbook(new MemoryStream(_moteur.Remplir(ModelesDeTest.Livres.Lire("PLAN_ASS_RESULTATS_PAS72")!, donnees)));
+        Assert.Contains(p72.Worksheet(1).CellsUsed(XLCellsUsedOptions.Contents), c => c.GetString() == "Première pièce · Caractéristiques à contrôler au niveau du lot (OF)");
     }
 
     [Fact]
