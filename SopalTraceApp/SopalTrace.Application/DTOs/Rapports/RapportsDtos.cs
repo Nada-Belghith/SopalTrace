@@ -288,6 +288,22 @@ public class TracabiliteOfDto
     public List<SourceDocumentDto> Documents { get; set; } = new();
     /// <summary>Documents externes de l'OF (fournisseurs, clients, produit fini), retrouvés en cascade.</summary>
     public SopalTrace.Application.DTOs.DocumentsExternes.DossierExterneOfDto Externes { get; set; } = new();
+    /// <summary>
+    /// OF des semi-finis (corps, volant) choisis dans le registre de traçabilité de cet OF d'assemblage : leurs documents
+    /// de fabrication (tronçonnage, estampage, usinage) et les lots de matière servis.
+    /// </summary>
+    public List<SemiFiniTracabiliteDto> SemiFinis { get; set; } = new();
+}
+
+/// <summary>OF d'un semi-fini utilisé par l'OF d'assemblage, avec son propre dossier.</summary>
+public class SemiFiniTracabiliteDto
+{
+    public string NumeroOf { get; set; } = "";
+    public string CodeArticle { get; set; } = "";
+    public string? Designation { get; set; }
+    public string? Nature { get; set; }
+    public List<SourceDocumentDto> Documents { get; set; } = new();
+    public SopalTrace.Application.DTOs.DocumentsExternes.DossierExterneOfDto Externes { get; set; } = new();
 }
 
 /// <summary>Fichier à télécharger.</summary>

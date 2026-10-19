@@ -317,8 +317,16 @@ public class DocumentExterneService : IDocumentExterneService
                 .Where(d => documents.All(x => x.Id != d.Id)));
 
         string Libelle(string code) => types.GetValueOrDefault(code, code);
-        CarteDocumentExterneDto Carte(string typeCode, DocumentExterneEnVigueur? document, string? nomAttendu, string raison) => document == null
-            ? new CarteDocumentExterneDto { TypeCode = typeCode, TypeLibelle = Libelle(typeCode), NomFichier = nomAttendu, Etat = Manquant, RaisonManquant = raison }
+        // Numéros connus d'un document manquant : ils permettent de relancer le service qui le dépose.
+        Dictionary<string, string>? Numeros(params (string Code, string? Valeur)[] numeros) =>
+            numeros.All(n => !string.IsNullOrEmpty(n.Valeur)) ? numeros.ToDictionary(n => n.Code, n => n.Valeur!) : null;
+        CarteDocumentExterneDto Carte(string typeCode, DocumentExterneEnVigueur? document, string? nomAttendu, string raison,
+            Dictionary<string, string>? numerosRelance = null) => document == null
+            ? new CarteDocumentExterneDto
+            {
+                TypeCode = typeCode, TypeLibelle = Libelle(typeCode), NomFichier = nomAttendu, Etat = Manquant, RaisonManquant = raison,
+                NumerosRelance = numerosRelance
+            }
             : new CarteDocumentExterneDto
             {
                 TypeCode = typeCode, TypeLibelle = Libelle(typeCode), NomFichier = document.NomFichier, Etat = Disponible,
@@ -338,7 +346,8 @@ public class DocumentExterneService : IDocumentExterneService
             };
             ligne.Documents.Add(Carte(TypesDocumentExterne.RapportControle, rapport, null, lot.NumeroRapport == null
                 ? "Aucun n° de rapport sur l'étiquette scannée par le magasinier."
-                : $"Rapport de contrôle {lot.NumeroRapport} non déposé par le service qualité."));
+                : $"Rapport de contrôle {lot.NumeroRapport} non déposé par le service qualité.",
+                Numeros((ChampsDocumentExterne.NumeroRapport, lot.NumeroRapport))));
             var sansCommande = lot.NumeroRapport == null
                 ? "Commande fournisseur inconnue : l'étiquette ne porte pas de n° de rapport."
                 : "Commande fournisseur inconnue tant que le rapport de contrôle n'est pas déposé.";
@@ -346,13 +355,15 @@ public class DocumentExterneService : IDocumentExterneService
                 ? Carte(TypesDocumentExterne.CommandeFournisseur, null, null, sansCommande)
                 : Carte(TypesDocumentExterne.CommandeFournisseur,
                     documents.FirstOrDefault(d => d.TypeCode == TypesDocumentExterne.CommandeFournisseur && d.NumeroCommandeFournisseur == commande),
-                    Nom(null, null, null, null, commande, null) + ".pdf", $"Bon de commande fournisseur {commande} non déposé par le service achats."));
+                    Nom(null, null, null, null, commande, null) + ".pdf", $"Bon de commande fournisseur {commande} non déposé par le service achats.",
+                    Numeros((ChampsDocumentExterne.NumeroCommandeFournisseur, commande))));
             ligne.Documents.Add(commande == null
                 ? Carte(TypesDocumentExterne.CertificatConformite, null, null, sansCommande)
                 : Carte(TypesDocumentExterne.CertificatConformite,
                     documents.FirstOrDefault(d => d.TypeCode == TypesDocumentExterne.CertificatConformite && d.NumeroCommandeFournisseur == commande && d.CodeArticle == lot.CodeArticle),
                     Nom(null, lot.CodeArticle, null, null, commande, null) + ".pdf",
-                    $"Certificat de conformité de {lot.CodeArticle} (commande {commande}) non déposé par le service qualité."));
+                    $"Certificat de conformité de {lot.CodeArticle} (commande {commande}) non déposé par le service qualité.",
+                    Numeros((ChampsDocumentExterne.CodeArticle, lot.CodeArticle), (ChampsDocumentExterne.NumeroCommandeFournisseur, commande))));
             dossier.Fournisseurs.Add(ligne);
         }
 
@@ -367,7 +378,9 @@ public class DocumentExterneService : IDocumentExterneService
             };
             livraison.Documents.Add(Carte(TypesDocumentExterne.BonLivraison, depot,
                 reference == null ? null : Nom(null, null, bl.NumeroBl, null, null, reference) + ".pdf",
-                $"Bon de livraison {bl.NumeroBl} non déposé par le service commercial."));
+                $"Bon de livraison {bl.NumeroBl} non déposé par le service commercial.",
+                // Sans référence client, le BL ne peut pas encore être déposé (la commande Sage doit la porter).
+                reference == null ? null : Numeros((ChampsDocumentExterne.NumeroBl, bl.NumeroBl), (ChampsDocumentExterne.NumeroCommande, bl.NumeroCommande))));
             livraison.Documents.Add(reference == null
                 ? Carte(TypesDocumentExterne.CommandeClient, null, null, bl.NumeroCommande == null
                     ? "Commande client inconnue : Sage ne donne pas la commande de ce BL."
@@ -375,7 +388,8 @@ public class DocumentExterneService : IDocumentExterneService
                 : Carte(TypesDocumentExterne.CommandeClient,
                     documents.FirstOrDefault(d => d.TypeCode == TypesDocumentExterne.CommandeClient && d.ReferenceCommandeClient == reference),
                     Nom(null, null, null, null, null, reference) + ".pdf",
-                    $"Bon de commande client « {reference} » (commande {bl.NumeroCommande}) non déposé par le service commercial."));
+                    $"Bon de commande client « {reference} » (commande {bl.NumeroCommande}) non déposé par le service commercial.",
+                    Numeros((ChampsDocumentExterne.ReferenceCommandeClient, reference))));
             dossier.Clients.Add(livraison);
         }
 
@@ -383,10 +397,12 @@ public class DocumentExterneService : IDocumentExterneService
         {
             dossier.ProduitFini.Add(Carte(TypesDocumentExterne.PlanDefinitionProduitFini,
                 documents.FirstOrDefault(d => d.TypeCode == TypesDocumentExterne.PlanDefinitionProduitFini && d.CodeArticle == articleProduitFini),
-                articleProduitFini + ".pdf", $"Plan de définition de l'article {articleProduitFini} non déposé par le service développement industriel."));
+                articleProduitFini + ".pdf", $"Plan de définition de l'article {articleProduitFini} non déposé par le service développement industriel.",
+                Numeros((ChampsDocumentExterne.CodeArticle, articleProduitFini))));
             dossier.ProduitFini.Add(Carte(TypesDocumentExterne.RapportProduitFini,
                 documents.FirstOrDefault(d => d.TypeCode == TypesDocumentExterne.RapportProduitFini && d.NumeroOf == numeroOf),
-                numeroOf + ".pdf", $"Rapport de contrôle rapide du produit fini de l'OF {numeroOf} non déposé par le service qualité."));
+                numeroOf + ".pdf", $"Rapport de contrôle rapide du produit fini de l'OF {numeroOf} non déposé par le service qualité.",
+                Numeros((ChampsDocumentExterne.NumeroOf, numeroOf))));
         }
         return dossier;
     }

@@ -36,7 +36,14 @@ const documentsExternesService = {
   lister: (type, recherche) => apiClient.get('/documents-externes', { params: { type: type || undefined, recherche: recherche || undefined } })
     .then(r => r.data.data),
 
-  fichier: (id) => apiClient.get(`/documents-externes/${id}/fichier`, { responseType: 'blob', timeout: DELAI_FICHIER }).then(r => r.data)
+  fichier: (id) => apiClient.get(`/documents-externes/${id}/fichier`, { responseType: 'blob', timeout: DELAI_FICHIER }).then(r => r.data),
+
+  /**
+   * Relance du service qui dépose un document manquant (responsable qualité) : e-mail avec le lien de dépôt prérempli.
+   * Renvoie le message de confirmation (service et nombre de destinataires).
+   */
+  relancer: (typeCode, numeros, numeroOf) =>
+    apiClient.post('/documents-externes/relances', { typeCode, numeros, numeroOf }).then(r => r.data.message)
 }
 
 /**

@@ -140,7 +140,8 @@
  * numéros exigés (vérifiés dans Sage) et le PDF ; la base forme le nom normalisé. Un document déjà déposé se remplace
  * avec un motif, l'ancien reste consultable.
  */
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import ChoixFichier from '@/components/Qualite/ChoixFichier.vue'
 import documentsExternesService, { nomNormalise } from '@/services/documentsExternesService'
 import { ouvrirPdf } from '@/services/rapportsService'
@@ -242,10 +243,21 @@ const ouvrir = async (d) => {
   }
 }
 
+// Lien d'une relance (e-mail du responsable qualité) : type et numéros dans l'adresse, si ce type est déposé ici.
+const route = useRoute()
+const preremplir = async () => {
+  const prevu = types.value.find(t => t.code === route.query.type)
+  if (!prevu) return
+  typeCode.value = prevu.code
+  await nextTick()   // le changement de type vide les numéros : les remplir ensuite
+  for (const c of prevu.champs) if (typeof route.query[c.code] === 'string') valeurs[c.code] = route.query[c.code]
+}
+
 onMounted(async () => {
   try {
     types.value = await documentsExternesService.getTypes()
     if (types.value.length === 1) typeCode.value = types.value[0].code
+    await preremplir()
   } catch (e) {
     erreurTypes.value = e.message
   }

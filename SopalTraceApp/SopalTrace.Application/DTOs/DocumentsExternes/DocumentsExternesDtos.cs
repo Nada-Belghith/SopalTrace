@@ -101,7 +101,23 @@ public class CarteDocumentExterneDto
     public Guid? DocumentId { get; set; }
     public DateTime? DeposeLe { get; set; }
     public string? DeposeParNom { get; set; }
+    /// <summary>
+    /// Document manquant dont les numéros sont connus : numéros à transmettre au service qui le dépose (relance). Null
+    /// quand on ne peut pas encore le désigner (ex. certificat tant que le rapport, qui donne la commande, manque).
+    /// </summary>
+    public Dictionary<string, string>? NumerosRelance { get; set; }
 }
+
+/// <summary>Relance du service qui dépose un document manquant : type, numéros connus, OF concerné.</summary>
+public class RelanceDocumentExterneRequest
+{
+    public string TypeCode { get; set; } = "";
+    public Dictionary<string, string> Numeros { get; set; } = new();
+    public string? NumeroOf { get; set; }
+}
+
+/// <summary>Résultat d'une relance : service et nombre de personnes prévenues.</summary>
+public record RelanceDocumentExterneDto(string Service, int Destinataires);
 
 /// <summary>Lot servi à l'OF (étiquette scannée par le magasinier) et ses documents fournisseur.</summary>
 public class LotFournisseurDto

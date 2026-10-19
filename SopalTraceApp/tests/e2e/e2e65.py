@@ -268,6 +268,26 @@ st, r = call(OP, 'POST', f"/Operateur/tracabilite/ligne/{l2.get('id')}/annuler",
 check('registre : ligne annulée avec motif, gardée dans l\'historique', st == 200 and sql(
     f"SELECT CancellationReason+'/'+CancelledBy FROM ExecRegistreTracabilite WHERE Id='{l2.get('id')}'") == 'Saisie en double/55555', (st, r))
 check('registre : annulation sans motif refusée', call(OP, 'POST', f"/Operateur/tracabilite/ligne/{l1.get('id')}/annuler", {'raison': ''})[0] == 400)
+
+# Traçabilité de l'OF (responsable qualité) : corps et volant du registre avec leur propre dossier (semi-finis).
+RQ = jwt('22222', 'RESPONSABLE_QUALITE')
+st, r = call(RQ, 'GET', '/rapports/tracabilite/OF2607ASS01')
+dossier = data(r) if st == 200 else {}
+check('traçabilité : corps et volant du registre en semi-finis (avec leurs documents et lots)',
+      sorted(s['numeroOf'] for s in dossier.get('semiFinis', [])) == ['OF26050439', 'OF26080157']
+      and all('documents' in s and 'fournisseurs' in s['externes'] for s in dossier.get('semiFinis', [])), (st, dossier.get('semiFinis')))
+rapport = next((c for l in dossier.get('externes', {}).get('fournisseurs', []) for c in l['documents']
+                if c['typeCode'] == 'CONTROL_REPORT' and c['etat'] == 'MANQUANT'), {})
+check('traçabilité : rapport manquant relançable avec son n° (lu sur l\'étiquette)',
+      rapport.get('numerosRelance') == {'numeroRapport': 'RC2607001'}, rapport)
+certificat = next((c for l in dossier.get('externes', {}).get('fournisseurs', []) for c in l['documents']
+                   if c['typeCode'] == 'CONFORMITY_CERTIFICATE'), {})
+check('traçabilité : certificat non relançable tant que le rapport (qui donne la commande) manque',
+      certificat.get('etat') == 'MANQUANT' and certificat.get('numerosRelance') is None, certificat)
+check('relance : réservée au responsable qualité (403)', call(OP, 'POST', '/documents-externes/relances',
+      {'typeCode': 'CONTROL_REPORT', 'numeros': {'numeroRapport': 'RC2607001'}})[0] == 403)
+st, r = call(RQ, 'POST', '/documents-externes/relances', {'typeCode': 'CONFORMITY_CERTIFICATE', 'numeros': {'codeArticle': '2903201-1'}})
+check('relance : document pas encore désignable refusé (400)', st == 400 and 'désigné' in json.dumps(r, ensure_ascii=False), (st, r))
 check('registre : à confirmer par E1', tache(avancement(of), 'TRACABILITE').get('etat') == 'A_FAIRE')
 st, r = call(OP, 'POST', f'/Operateur/tracabilite/{of}/confirmer?posteCode={POSTE}')
 check("registre : E1 confirme ses lots (tâche faite, registre toujours ouvert)", st == 200 and tache(avancement(of), 'TRACABILITE').get('etat') == 'FAIT'

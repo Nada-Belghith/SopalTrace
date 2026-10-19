@@ -123,8 +123,10 @@ const handleLogin = async () => {
       life: 3000
     });
 
-    // La redirection intelligente est gérée par le routeur (path: '/')
-    router.push('/');
+    // Retour à la page demandée avant la connexion (chemin interne uniquement, jamais une autre adresse) ; sinon la
+    // redirection intelligente du routeur (path: '/') mène à l'accueil du rôle.
+    const retour = router.currentRoute.value.query.retour;
+    router.push(typeof retour === 'string' && retour.startsWith('/') && !retour.startsWith('//') && !retour.includes('\\') ? retour : '/');
   } catch {
     // L'erreur est gérée dans le store
   }

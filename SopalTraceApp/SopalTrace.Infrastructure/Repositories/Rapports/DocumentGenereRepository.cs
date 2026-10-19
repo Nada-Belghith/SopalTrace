@@ -124,6 +124,18 @@ public class DocumentGenereRepository : IDocumentGenereRepository
 
     public Task<bool> OfExisteAsync(string numeroOf) => _context.MfgheadOrdreFabrications.AnyAsync(o => o.NumeroOf == numeroOf);
 
+    public async Task<List<SemiFiniDeLOf>> GetSemiFinisAsync(string numeroOf)
+    {
+        var lignes = _context.ExecRegistreTracabilites.Where(r => r.ExecControleOf.NumeroOf == numeroOf && r.CancelledAt == null);
+        var numeros = lignes.Select(r => r.Corps).Concat(lignes.Select(r => r.Volant)).Where(n => n != null && n != numeroOf).Distinct();
+        return await _context.MfgheadOrdreFabrications.AsNoTracking()
+            .Where(o => numeros.Contains(o.NumeroOf))
+            .OrderBy(o => o.CodeArticleNavigation.NatureArticleCode).ThenBy(o => o.NumeroOf)
+            .Select(o => new SemiFiniDeLOf(o.NumeroOf, o.CodeArticle, o.CodeArticleNavigation.Designation,
+                o.CodeArticleNavigation.NatureArticleCodeNavigation!.Libelle))
+            .ToListAsync();
+    }
+
     public Task<List<ModeleDuType>> GetModelesDesTypesAsync() =>
         _context.ReportTemplates.AsNoTracking()
             .Select(t => new ModeleDuType(t.Code, t.Name, t.DocumentTypeCode, t.ExecutionDocumentTypeCode, t.FormRole))

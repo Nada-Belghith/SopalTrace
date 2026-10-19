@@ -40,6 +40,9 @@ public sealed record SourceDocumentQualite(Guid Id, string TypeDocumentCode, str
     public OperationDocument? Operation { get; init; }
 }
 
+/// <summary>OF d'un semi-fini (corps, volant) utilisé par un OF d'assemblage.</summary>
+public sealed record SemiFiniDeLOf(string NumeroOf, string CodeArticle, string? Designation, string? Nature);
+
 /// <summary>Opération de fabrication (estompage, tronçonnage, usinage, assemblage).</summary>
 public sealed record OperationDocument(string Code, string Libelle);
 
@@ -151,6 +154,8 @@ public interface IDocumentGenereRepository
     /// <summary>Toutes les fiches d'un OF (avec ou sans modèle), sans les clôtures de poste ; un registre par poste.</summary>
     Task<List<SourceDocumentExecution>> GetFichesDeLOfAsync(string numeroOf);
     Task<bool> OfExisteAsync(string numeroOf);
+    /// <summary>OF des corps et volants choisis dans le registre de traçabilité de cet OF (lignes non annulées).</summary>
+    Task<List<SemiFiniDeLOf>> GetSemiFinisAsync(string numeroOf);
 
     /// <summary>Modèles des types de documents (code, type, rôle des formulaires).</summary>
     Task<List<ModeleDuType>> GetModelesDesTypesAsync();

@@ -365,7 +365,8 @@ router.beforeEach(async (to, from) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth !== false);
 
   if (requiresAuth && !authStore.isAuthenticated) {
-    return { name: 'login' };
+    // Page demandée gardée (lien d'un e-mail de relance, par exemple) : la connexion y ramène.
+    return to.fullPath === '/' ? { name: 'login' } : { name: 'login', query: { retour: to.fullPath } };
   }
 
   if (to.name === 'login' && authStore.isAuthenticated) {

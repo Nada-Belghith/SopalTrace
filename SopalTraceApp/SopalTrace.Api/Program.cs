@@ -175,6 +175,7 @@ builder.Services.AddSingleton(builder.Configuration.GetSection("DocumentsExterne
 builder.Services.AddSingleton<SopalTrace.Application.Interfaces.IRepertoirePartage, SopalTrace.Infrastructure.Services.RepertoirePartage>();
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.IDocumentExterneRepository, SopalTrace.Infrastructure.Repositories.DocumentExterneRepository>();
 builder.Services.AddScoped<SopalTrace.Application.Services.IDocumentExterneService, SopalTrace.Application.Services.DocumentExterneService>();
+builder.Services.AddScoped<SopalTrace.Application.Services.IRelanceDocumentsExternesService, SopalTrace.Application.Services.RelanceDocumentsExternesService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Alertes

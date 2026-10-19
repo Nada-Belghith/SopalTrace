@@ -77,10 +77,11 @@
         </div>
 
         <div class="flex flex-col gap-5 relative z-10">
-          <p v-if="!externes.fournisseurs.length" class="m-0 text-xs text-slate-400">Aucun lot scanné par le magasinier pour cet OF.</p>
-          <template v-for="(lot, index) in externes.fournisseurs" :key="`${lot.codeArticle}|${lot.numeroLot}`">
+          <p v-if="!lotsFournisseurs.length" class="m-0 text-xs text-slate-400">Aucun lot scanné par le magasinier pour cet OF ni pour ses semi-finis.</p>
+          <template v-for="(lot, index) in lotsFournisseurs" :key="cleLot(lot)">
             <div v-if="index > 0" class="h-px bg-slate-200"></div>
             <div>
+              <p v-if="lot.origine" class="m-0 mb-1 text-[10px] font-black uppercase tracking-wider text-violet-500">Matière · {{ lot.origine }}</p>
               <h3 @click="basculer(cleLot(lot))" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between gap-2 cursor-pointer hover:text-slate-600 transition-colors">
                 <span class="flex items-center gap-2 min-w-0">
                   <i class="pi pi-box shrink-0"></i>
@@ -96,7 +97,7 @@
                   {{ lot.designationArticle }}<template v-if="lot.numeroRapport"> · rapport {{ lot.numeroRapport }}</template><template v-if="lot.numeroCommandeFournisseur"> · commande {{ lot.numeroCommandeFournisseur }}</template>
                 </p>
                 <DocumentCard v-for="c in lot.documents" :key="c.typeCode" :title="titreCarte(c)" :subtitle="sousTitreCarte(c)"
-                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c)" />
+                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c, lot.numeroOf)" />
               </div>
             </div>
           </template>
@@ -117,17 +118,28 @@
         </div>
 
         <div class="flex flex-col gap-5 relative z-10">
-          <template v-for="(operation, index) in operations" :key="operation.code">
-            <div v-if="index > 0" class="h-px bg-slate-200"></div>
+          <template v-for="groupe in groupes" :key="groupe.code">
+            <!-- En-tête : semi-finis (tronçonnage, estampage, usinage) puis assemblage du produit fini -->
+            <div class="rounded-xl border border-slate-200 bg-white/80 px-4 py-2.5">
+              <p class="m-0 text-sm font-black text-slate-800">{{ groupe.libelle }}</p>
+              <p class="m-0 text-[11px] font-semibold text-slate-500">{{ groupe.operationsLibelle }}</p>
+            </div>
+            <p v-if="!groupe.operations.length" class="m-0 text-xs text-slate-400">{{ groupe.vide }}</p>
+          <template v-for="(operation, index) in groupe.operations" :key="operation.cle">
+            <div v-if="index > 0 && !operation.entete" class="h-px bg-slate-200"></div>
+            <p v-if="operation.entete" class="m-0 mt-1 text-[11px] font-black uppercase tracking-wider text-blue-600">
+              <i class="pi pi-cog mr-1"></i>{{ operation.entete }}
+            </p>
             <div>
-              <h3 @click="basculer(operation.code)" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between cursor-pointer hover:text-slate-600 transition-colors">
+              <h3 @click="basculer(operation.cle)" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between cursor-pointer hover:text-slate-600 transition-colors">
                 <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full" :class="operation.couleur"></span> {{ operation.libelle }} ({{ operation.code }})</span>
                 <span class="flex items-center gap-2">
+                  <span v-if="manquantsDe([...operation.documents, ...operation.externes])" class="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">{{ manquantsDe([...operation.documents, ...operation.externes]) }}</span>
                   <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black">{{ operation.documents.length + operation.externes.length }}</span>
-                  <i :class="ouvertes[operation.code] ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
+                  <i :class="ouvertes[operation.cle] ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
                 </span>
               </h3>
-              <div v-show="ouvertes[operation.code]" class="flex flex-col gap-3">
+              <div v-show="ouvertes[operation.cle]" class="flex flex-col gap-3">
                 <p v-if="!operation.documents.length && !operation.externes.length" class="m-0 text-xs text-slate-400">Aucun document pour cette opération.</p>
                 <DocumentCard
                   v-for="d in operation.documents"
@@ -140,9 +152,10 @@
                   @click="selection = d"
                 />
                 <DocumentCard v-for="c in operation.externes" :key="c.typeCode" :title="titreCarte(c)" :subtitle="sousTitreCarte(c)"
-                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c)" />
+                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c, resultat.numeroOf)" />
               </div>
             </div>
+          </template>
           </template>
         </div>
       </div>
@@ -171,7 +184,7 @@
               </p>
               <div class="flex flex-col gap-3">
                 <DocumentCard v-for="c in bl.documents" :key="c.typeCode" :title="titreCarte(c)" :subtitle="sousTitreCarte(c)"
-                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c)" />
+                              :category="c.typeLibelle" :icon="ICONES_EXTERNES[c.typeCode]" :status="etatExterne(c)" @click="ouvrirExterne(c, resultat.numeroOf)" />
               </div>
             </div>
           </template>
@@ -180,11 +193,21 @@
     </div>
 
     <!-- Document externe manquant : la raison et qui doit le déposer -->
-    <Dialog :visible="!!externeManquant" modal :header="externeManquant?.typeLibelle" :style="{ width: '32rem' }" :breakpoints="{ '640px': '95vw' }"
+    <Dialog :visible="!!externeManquant" modal :header="externeManquant?.carte.typeLibelle" :style="{ width: '32rem' }" :breakpoints="{ '640px': '95vw' }"
             @update:visible="valeur => { if (!valeur) externeManquant = null }">
       <div v-if="externeManquant" class="flex flex-col gap-3 text-sm">
-        <p class="m-0 text-red-700"><i class="pi pi-exclamation-triangle mr-1"></i>{{ externeManquant.raisonManquant }}</p>
-        <p v-if="externeManquant.nomFichier" class="m-0 text-slate-600">Nom attendu : <span class="font-mono font-bold">{{ externeManquant.nomFichier }}</span></p>
+        <p class="m-0 text-red-700"><i class="pi pi-exclamation-triangle mr-1"></i>{{ externeManquant.carte.raisonManquant }}</p>
+        <p v-if="externeManquant.carte.nomFichier" class="m-0 text-slate-600">Nom attendu : <span class="font-mono font-bold">{{ externeManquant.carte.nomFichier }}</span></p>
+        <!-- Relance : e-mail au service qui dépose ce document, avec le lien de dépôt prérempli -->
+        <template v-if="externeManquant.carte.numerosRelance">
+          <button type="button" @click="relancer" :disabled="relance.envoi || !!relance.message"
+                  class="self-start inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold border-0 cursor-pointer">
+            <i class="pi" :class="relance.envoi ? 'pi-spin pi-spinner' : 'pi-send'"></i> Relancer le service
+          </button>
+          <p v-if="relance.message" class="m-0 text-emerald-700"><i class="pi pi-check mr-1"></i>{{ relance.message }}</p>
+          <p v-if="relance.erreur" class="m-0 text-red-700">{{ relance.erreur }}</p>
+        </template>
+        <p v-else class="m-0 text-xs text-slate-500">Relance impossible pour l'instant : ce document ne peut pas encore être désigné (numéros inconnus).</p>
       </div>
     </Dialog>
 
@@ -261,14 +284,17 @@ const BRANCHES = [
   { libelle: 'Branche Clients', icone: 'pi-send', fond: 'bg-emerald-100', couleur: 'text-emerald-600' }
 ]
 const STATUTS = { ACTIF: 'Actif', ARCHIVE: 'Archivé', BROUILLON: 'Brouillon', EN_COURS: 'En cours', TERMINE: 'Terminé', CLOTURE: 'OF clôturé' }
-// Opérations de la gamme, dans l'ordre de fabrication, puis le contrôle du produit fini.
-const OPERATIONS = [
-  { code: 'ESTOMP', libelle: 'Estompage', couleur: 'bg-orange-400' },
+// Opérations de la gamme dans l'ordre de fabrication : semi-finis (corps, volant), puis assemblage et produit fini.
+const OPERATIONS_SEMI_FINI = [
   { code: 'TRONC', libelle: 'Tronçonnage', couleur: 'bg-rose-400' },
-  { code: 'USINAG', libelle: 'Usinage', couleur: 'bg-cyan-400' },
+  { code: 'ESTOMP', libelle: 'Estampage', couleur: 'bg-orange-400' },
+  { code: 'USINAG', libelle: 'Usinage', couleur: 'bg-cyan-400' }
+]
+const OPERATIONS_PRODUIT_FINI = [
   { code: 'ASS', libelle: 'Assemblage', couleur: 'bg-blue-500' },
   { code: 'PF', libelle: 'Produit fini', couleur: 'bg-emerald-500' }
 ]
+const OPERATIONS = [...OPERATIONS_SEMI_FINI, ...OPERATIONS_PRODUIT_FINI]
 const ICONES_EXTERNES = {
   CONTROL_REPORT: 'pi pi-file-check',
   CONFORMITY_CERTIFICATE: 'pi pi-verified',
@@ -280,7 +306,7 @@ const ICONES_EXTERNES = {
 }
 
 const cle = (d) => d.documentEnteteId ?? d.execControleDocumentStatutId
-const cleLot = (lot) => `lot|${lot.codeArticle}|${lot.numeroLot}`
+const cleLot = (lot) => `lot|${lot.numeroOf}|${lot.codeArticle}|${lot.numeroLot}`
 const formaterDate = (d) => d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : ''
 const date = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : ''
 const sousTitre = (d) => d.etat === 'MANQUANT' && d.raisonManquant
@@ -297,30 +323,61 @@ const etatExterne = (c) => c.etat === 'MANQUANT' ? 'manquant' : 'disponible'
 const manquantsDe = (cartes) => cartes.filter(c => c.etat === 'MANQUANT').length
 
 const externes = computed(() => resultat.value?.externes ?? { fournisseurs: [], clients: [], produitFini: [] })
+// Corps et volants choisis dans le registre de traçabilité de l'OF d'assemblage, avec leur propre dossier.
+const semiFinis = computed(() => resultat.value?.semiFinis ?? [])
 
-// Plans qualité appliqués d'abord, puis les documents remplis dans l'ordre de l'OF ; le produit fini reçoit son plan de
-// définition et son rapport de contrôle rapide (documents externes).
-const operations = computed(() => {
-  const documents = resultat.value?.documents ?? []
-  const produitFini = externes.value.produitFini
-  const connues = OPERATIONS
-    .map(o => ({
-      ...o,
-      libelle: documents.find(d => d.operation === o.code)?.operationLibelle ?? o.libelle,
-      documents: documents.filter(d => d.operation === o.code),
-      externes: o.code === 'PF' ? produitFini : []
-    }))
-    // La rubrique produit fini n'existe que pour un OF de produit fini.
-    .filter(o => o.code !== 'PF' || o.documents.length || o.externes.length)
-  const autres = documents.filter(d => !OPERATIONS.some(o => o.code === d.operation))
-  return autres.length ? [...connues, { code: 'AUTRES', libelle: 'Autres documents', couleur: 'bg-slate-400', documents: autres, externes: [] }] : connues
+// Lots servis à l'OF, puis les lots de matière de ses semi-finis (avec leur origine).
+const lotsFournisseurs = computed(() => [
+  ...externes.value.fournisseurs.map(l => ({ ...l, numeroOf: resultat.value.numeroOf, origine: null })),
+  ...semiFinis.value.flatMap(sf => sf.externes.fournisseurs.map(l => ({ ...l, numeroOf: sf.numeroOf, origine: `${sf.nature ?? 'Semi-fini'} ${sf.codeArticle} · OF ${sf.numeroOf}` })))
+])
+
+// Documents d'un OF pour une opération (plans appliqués d'abord, puis fiches remplies dans l'ordre de l'OF).
+const operation = (o, documents, prefixe, externesOperation = []) => ({
+  ...o,
+  cle: `${prefixe}|${o.code}`,
+  libelle: documents.find(d => d.operation === o.code)?.operationLibelle ?? o.libelle,
+  documents: documents.filter(d => d.operation === o.code),
+  externes: externesOperation
 })
+
+// Production en deux en-têtes : semi-finis (tronçonnage, estampage, usinage) et produit fini (assemblage, contrôle).
+// Un OF de semi-fini montre ses propres opérations ; un OF d'assemblage, celles des corps et volants de son registre.
+const groupes = computed(() => {
+  const documents = resultat.value?.documents ?? []
+  const numeroOf = resultat.value?.numeroOf
+  const fabrication = OPERATIONS_SEMI_FINI.map(o => operation(o, documents, numeroOf)).filter(o => o.documents.length)
+  const semiFini = [
+    ...fabrication,
+    ...semiFinis.value.flatMap(sf => OPERATIONS_SEMI_FINI.map((o, i) => ({
+      ...operation(o, sf.documents, sf.numeroOf),
+      entete: i === 0 ? `${sf.nature ?? 'Semi-fini'} ${sf.codeArticle} · OF ${sf.numeroOf}${sf.designation ? ` — ${sf.designation}` : ''}` : null
+    })))
+  ]
+  const produitFini = OPERATIONS_PRODUIT_FINI
+    .map(o => operation(o, documents, numeroOf, o.code === 'PF' ? externes.value.produitFini : []))
+    .filter(o => o.documents.length || o.externes.length)
+  const autres = documents.filter(d => !OPERATIONS.some(o => o.code === d.operation))
+  if (autres.length) produitFini.push({ code: 'AUTRES', cle: `${numeroOf}|AUTRES`, libelle: 'Autres documents', couleur: 'bg-slate-400', documents: autres, externes: [] })
+  return [
+    {
+      code: 'SEMI_FINIS', libelle: 'Semi-finis (corps, volant)', operationsLibelle: 'Tronçonnage → Estampage → Usinage',
+      vide: 'Aucun corps ni volant enregistré dans le registre de traçabilité de cet OF.', operations: semiFini
+    },
+    {
+      code: 'PRODUIT_FINI', libelle: 'Produit fini', operationsLibelle: 'Assemblage → Contrôle du produit fini',
+      vide: "Pas d'assemblage pour cet OF.", operations: produitFini
+    }
+  ]
+})
+const toutesLesOperations = computed(() => groupes.value.flatMap(g => g.operations))
 // État donné par le serveur : disponible (son PDF peut être produit, ou consultable) ou manquant, avec la raison.
 const etatCarte = (d) => d.etat === 'MANQUANT' ? 'manquant' : 'disponible'
 
 const toutesLesCartes = computed(() => [
   ...(resultat.value?.documents ?? []),
-  ...externes.value.fournisseurs.flatMap(l => l.documents),
+  ...semiFinis.value.flatMap(sf => sf.documents),
+  ...lotsFournisseurs.value.flatMap(l => l.documents),
   ...externes.value.clients.flatMap(b => b.documents),
   ...externes.value.produitFini
 ])
@@ -329,9 +386,25 @@ const compteurs = computed(() => ({
   disponibles: toutesLesCartes.value.filter(d => d.etat !== 'MANQUANT').length
 }))
 
-const ouvrirExterne = async (c) => {
+// Relance du document manquant ouvert : une seule par ouverture de la fenêtre.
+const relance = reactive({ envoi: false, message: '', erreur: '' })
+const relancer = async () => {
+  const { carte, numeroOf } = externeManquant.value
+  relance.envoi = true
+  relance.erreur = ''
+  try {
+    relance.message = await documentsExternesService.relancer(carte.typeCode, carte.numerosRelance, numeroOf)
+  } catch (e) {
+    relance.erreur = e.message
+  } finally {
+    relance.envoi = false
+  }
+}
+
+const ouvrirExterne = async (c, numeroOf) => {
   if (!c.documentId) {
-    externeManquant.value = c
+    Object.assign(relance, { envoi: false, message: '', erreur: '' })
+    externeManquant.value = { carte: c, numeroOf }
     return
   }
   try {
@@ -349,8 +422,8 @@ const tracer = async () => {
   resultat.value = null
   try {
     resultat.value = await rapportsService.getTracabilite(numero)
-    for (const o of operations.value) ouvertes[o.code] = o.documents.length + o.externes.length > 0
-    for (const lot of externes.value.fournisseurs) ouvertes[cleLot(lot)] = true
+    for (const o of toutesLesOperations.value) ouvertes[o.cle] = o.documents.length + o.externes.length > 0
+    for (const lot of lotsFournisseurs.value) ouvertes[cleLot(lot)] = true
     router.replace({ query: { of: numero } })
   } catch (e) {
     erreur.value = e.message

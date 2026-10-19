@@ -79,6 +79,19 @@ public class DocumentsExternesController : ControllerBase
     public async Task<IActionResult> Lister([FromQuery] string? type, [FromQuery] string? recherche) =>
         Ok(new { success = true, data = await _documents.ListerAsync(Role, type, recherche) });
 
+    /// <summary>
+    /// Relance d'un document manquant (traçabilité d'un OF) : e-mail au service qui le dépose, avec un lien vers la page
+    /// de dépôt où le type et les numéros sont déjà remplis. Réservé au responsable qualité.
+    /// </summary>
+    [Authorize(Roles = RolesApp.ResponsableQualite)]
+    [HttpPost("relances")]
+    public async Task<IActionResult> Relancer([FromBody] RelanceDocumentExterneRequest demande,
+        [FromServices] IRelanceDocumentsExternesService relances)
+    {
+        var resultat = await relances.RelancerAsync(demande);
+        return Ok(new { success = true, message = $"Relance envoyée au service {resultat.Service} ({resultat.Destinataires} destinataire(s)).", data = resultat });
+    }
+
     /// <summary>Fichier PDF d'un document, ouvert dans le navigateur.</summary>
     [Authorize(Roles = RolesConsultation)]
     [HttpGet("{id:guid}/fichier")]

@@ -186,6 +186,9 @@ public class RapportsController : ControllerBase
     {
         var dossier = await _generation.GetTracabiliteOfAsync(numeroOf);
         dossier.Externes = await externes.GetDossierOfAsync(dossier.NumeroOf);
+        // Lots de matière des semi-finis et leurs documents fournisseur.
+        foreach (var semiFini in dossier.SemiFinis)
+            semiFini.Externes = await externes.GetDossierOfAsync(semiFini.NumeroOf);
         return Ok(new { success = true, data = dossier });
     }
 

@@ -101,6 +101,19 @@ public class GenerationDocumentService : IGenerationDocumentService
         numeroOf = numeroOf?.Trim() ?? "";
         if (numeroOf.Length == 0 || !await _documents.OfExisteAsync(numeroOf))
             throw new RessourceIntrouvableException($"L'OF {numeroOf} est inconnu de Sage.");
+        var dossier = new TracabiliteOfDto { NumeroOf = numeroOf, Documents = await DocumentsDeLOfAsync(numeroOf) };
+        // Corps et volants choisis dans le registre : leur propre dossier (tronçonnage, estampage, usinage).
+        foreach (var semiFini in await _documents.GetSemiFinisAsync(numeroOf))
+            dossier.SemiFinis.Add(new SemiFiniTracabiliteDto
+            {
+                NumeroOf = semiFini.NumeroOf, CodeArticle = semiFini.CodeArticle, Designation = semiFini.Designation, Nature = semiFini.Nature,
+                Documents = await DocumentsDeLOfAsync(semiFini.NumeroOf)
+            });
+        return dossier;
+    }
+
+    private async Task<List<SourceDocumentDto>> DocumentsDeLOfAsync(string numeroOf)
+    {
         var documents = await _documents.GetDocumentsAppliquesAsync(numeroOf);
         // Seules les fiches remplies : une fiche ouverte puis laissée vide n'est pas un document de l'OF.
         var fiches = (await _documents.GetFichesDeLOfAsync(numeroOf)).Where(f => f.Remplie).OrderBy(f => f.OrdreCreation).ToList();
@@ -123,7 +136,7 @@ public class GenerationDocumentService : IGenerationDocumentService
             resultat.Add(dto);
         }
         resultat.AddRange(fiches.Select(f => Etat(VersDto(f, contexte))));
-        return new TracabiliteOfDto { NumeroOf = numeroOf, Documents = resultat };
+        return resultat;
     }
 
     /// <summary>Disponible : son PDF peut être produit (modèle en place) ; sinon manquant, avec la raison.</summary>
