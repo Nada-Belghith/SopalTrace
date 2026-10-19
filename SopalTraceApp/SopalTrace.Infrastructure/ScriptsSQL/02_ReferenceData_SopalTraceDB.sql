@@ -373,7 +373,9 @@ INSERT INTO dbo.FormRole (Code, Label, DisplayOrder, Nature, ScopeByFamily, Scop
 -- L'administrateur envoie à chaque formulaire son modèle dédié (page « Modèles Excel ») ; les tests importent les
 -- fichiers de tests/fixtures/modeles pour les formulaires de ReportTemplateInitialForm.
 INSERT INTO dbo.ReportTemplate (Code, Name, DocumentTypeCode, FormRole) VALUES
-    ('PLAN_ASS', N'Plan de contrôle d''assemblage (FE0594)', 'PLAN_ASS', 'EN_COURS_DE_ASSEMBLAGE');
+    ('PLAN_ASS', N'Plan de contrôle d''assemblage (FE0594)', 'PLAN_ASS', 'EN_COURS_DE_ASSEMBLAGE'),
+    -- Même structure que le plan d'assemblage (sections et caractéristiques), un modèle par formulaire de famille.
+    ('PLAN_PF', N'Plan de contrôle du produit fini', 'PLAN_PF', 'PRODUIT_FINI');
 INSERT INTO dbo.ReportTemplate (Code, Name, ExecutionDocumentTypeCode, FormRole) VALUES
     ('ECHANTILLONNAGE', N'Fiche d''échantillonnage (FE0591)', 'ECHANTILLONNAGE', 'ECHANTILLONNAGE'),
     ('RESULTAT_CONTROLE_POSTE', N'Résultat de contrôle au poste (FE0794)', 'RESULTAT_CONTROLE_POSTE', 'RESULTAT_CONTROLE_POSTE'),

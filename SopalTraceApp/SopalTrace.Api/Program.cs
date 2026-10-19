@@ -142,6 +142,7 @@ builder.Services.AddSingleton<SopalTrace.Application.Interfaces.Rapports.IMoteur
 builder.Services.AddSingleton<SopalTrace.Application.Interfaces.Rapports.IModelesLivres>(sp =>
     new SopalTrace.Infrastructure.Rapports.ModelesLivres(sp.GetRequiredService<SopalTrace.Application.Settings.RapportsSettings>().DossierModelesLivres));
 builder.Services.AddSingleton<SopalTrace.Application.Rapports.IDefinitionRapport>(new SopalTrace.Application.Rapports.DefinitionRapportPlan(SopalTrace.Domain.Constants.TypesDocument.PlanAssemblage));
+builder.Services.AddSingleton<SopalTrace.Application.Rapports.IDefinitionRapport>(new SopalTrace.Application.Rapports.DefinitionRapportPlan(SopalTrace.Domain.Constants.TypesDocument.PlanProduitFini));
 builder.Services.AddHttpClient<SopalTrace.Application.Interfaces.Rapports.IConvertisseurPdf, SopalTrace.Infrastructure.Rapports.ConvertisseurPdfGotenberg>(client =>
     client.Timeout = TimeSpan.FromSeconds(Math.Max(10, parametresRapports.DelaiConversionSecondes)));
 builder.Services.AddScoped<SopalTrace.Application.Interfaces.Rapports.IModeleRapportRepository, SopalTrace.Infrastructure.Repositories.Rapports.ModeleRapportRepository>();
