@@ -1,4 +1,4 @@
-# SopalTrace
+﻿# SopalTrace
 
 Application web de **traçabilité qualité** de la production Sopal (robinets de bouteilles de gaz) : plans de contrôle,
 exécution des contrôles par les opérateurs, préparation et expédition par le magasin, documents qualité générés en PDF,
@@ -75,6 +75,29 @@ Dossier `SopalTraceApp/SopalTrace.Infrastructure/ScriptsSQL/`.
 > livrés dans `ScriptsSQL/Migrations/` (à appliquer dans l'ordre de leur date, rejouables, en tout ou rien).
 
 ## 5. Installer sur un serveur (Docker)
+
+### Installation rapide (script automatique)
+
+Un script interactif est fourni dans `deploy/installer.sh` : il télécharge les fichiers nécessaires depuis
+ce dépôt, demande les secrets (mot de passe SQL, clé JWT, SMTP, matricule du premier administrateur, jeton
+GitHub pour les images Docker), génère le `.env`, télécharge les images, crée la base, démarre les services
+et pré-attribue le rôle administrateur. **Prérequis : Docker + Docker Compose.**
+
+```bash
+# Télécharger et lancer le script (une seule commande) :
+curl -fsSL https://raw.githubusercontent.com/Nada-Belghith/SopalTrace/main/SopalTraceApp/deploy/installer.sh | bash
+```
+
+Le script propose deux modes :
+- **Production** : scripts SQL 01 + 02 uniquement
+- **Démonstration** : scripts 01 à 04 + comptes et données de test
+
+> Le jeton GitHub nécessaire pour télécharger les images Docker privées se crée sur
+> **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)**
+> avec le droit `read:packages`.
+
+### Installation manuelle (étape par étape)
+
 
 Procédure complète : [SopalTraceApp/deploy/INSTALLATION.md](SopalTraceApp/deploy/INSTALLATION.md). Résumé :
 
