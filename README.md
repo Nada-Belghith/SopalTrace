@@ -1,4 +1,4 @@
-﻿# SopalTrace
+# SopalTrace
 
 Application web de **traçabilité qualité** de la production Sopal (robinets de bouteilles de gaz) : plans de contrôle,
 exécution des contrôles par les opérateurs, préparation et expédition par le magasin, documents qualité générés en PDF,
@@ -85,7 +85,8 @@ et pré-attribue le rôle administrateur. **Prérequis : Docker + Docker Compose
 
 ```bash
 # Télécharger et lancer le script (une seule commande) :
-curl -fsSL https://raw.githubusercontent.com/Nada-Belghith/SopalTrace/main/SopalTraceApp/deploy/installer.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Nada-Belghith/SopalTrace/main/SopalTraceApp/deploy/installer.sh -o installer.sh
+bash installer.sh
 ```
 
 Le script propose deux modes :
