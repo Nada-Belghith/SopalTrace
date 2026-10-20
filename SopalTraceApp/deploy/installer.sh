@@ -264,7 +264,7 @@ done
 echo ""
 echo -e "${BLEU}--- Attribution du role ADMIN au matricule ${ADMIN_MATRICULE} ---${RESET}"
 
-docker compose -f docker-compose.prod.yml exec -T sqlserver \
+MSYS_NO_PATHCONV=1 docker compose -f docker-compose.prod.yml exec -T sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "${DB_PASSWORD}" -d SopalTraceDB \
     -Q "INSERT INTO dbo.PreassignedRole (Matricule, RoleCode, AssignedBy) VALUES ('${ADMIN_MATRICULE}', 'ADMIN', '${ASSIGNED_BY}');"
 
@@ -278,13 +278,13 @@ if [ "$MODE" = "demo" ] && [ -f "sql/Demo_Comptes_Services.sql" ]; then
     echo -e "${BLEU}--- Injection des donnees de demonstration ---${RESET}"
 
     docker cp "sql/Demo_Comptes_Services.sql" "$(docker compose -f docker-compose.prod.yml ps -q sqlserver)":/tmp/demo1.sql && \
-    docker compose -f docker-compose.prod.yml exec -T sqlserver \
+    MSYS_NO_PATHCONV=1 docker compose -f docker-compose.prod.yml exec -T sqlserver \
         /opt/mssql-tools18/bin/sqlcmd -C -I -b -f 65001 -S localhost -U sa -P "${DB_PASSWORD}" -d SopalTraceDB \
         -i /tmp/demo1.sql
 
     if [ -f "sql/Demo_Commandes_Sage.sql" ]; then
         docker cp "sql/Demo_Commandes_Sage.sql" "$(docker compose -f docker-compose.prod.yml ps -q sqlserver)":/tmp/demo2.sql && \
-        docker compose -f docker-compose.prod.yml exec -T sqlserver \
+        MSYS_NO_PATHCONV=1 docker compose -f docker-compose.prod.yml exec -T sqlserver \
             /opt/mssql-tools18/bin/sqlcmd -C -I -b -f 65001 -S localhost -U sa -P "${DB_PASSWORD}" -d SopalTraceDB \
             -i /tmp/demo2.sql
     fi
