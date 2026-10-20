@@ -118,12 +118,23 @@ prompt_read "Matricule Sage du premier administrateur : " ADMIN_MATRICULE
 prompt_read "Qui realise l'installation ? [INSTALLATION] : " ASSIGNED_BY
 ASSIGNED_BY=${ASSIGNED_BY:-INSTALLATION}
 
-# Token GitHub pour ghcr.io
+# Acces aux images Docker (ghcr.io)
 echo ""
-echo -e "${GRAS}--- Acces aux images (ghcr.io) ---${RESET}"
-echo -e "${JAUNE}  Creez un Personal Access Token (PAT) sur GitHub avec le droit : read:packages${RESET}"
-prompt_read "Nom d'utilisateur GitHub : " GITHUB_USER
-prompt_secret "Jeton GitHub (PAT) : " GITHUB_TOKEN
+echo -e "${GRAS}--- Acces aux images Docker (ghcr.io) ---${RESET}"
+echo "  Les images Docker sont-elles publiques ou privees ?"
+echo "  1) Publiques  (pas besoin de jeton GitHub)"
+echo "  2) Privees    (jeton GitHub avec droit read:packages)"
+prompt_read "Choix [1/2] : " IMAGES_ACCESS
+if [ "$IMAGES_ACCESS" = "2" ]; then
+    echo -e "${JAUNE}  Creez un PAT sur : GitHub > Settings > Developer settings > Personal access tokens${RESET}"
+    echo -e "${JAUNE}  Droit necessaire : read:packages${RESET}"
+    prompt_read "Nom d'utilisateur GitHub : " GITHUB_USER
+    prompt_secret "Jeton GitHub (PAT) : " GITHUB_TOKEN
+else
+    echo -e "${VERT}-> Images publiques, aucune authentification requise.${RESET}"
+    GITHUB_USER=""
+    GITHUB_TOKEN=""
+fi
 
 # =============================================================================
 # 3. CREATION DU DOSSIER ET TELECHARGEMENT
@@ -196,12 +207,15 @@ mkdir -p sauvegardes
 echo -e "${VERT}[OK] Fichier .env genere avec succes.${RESET}"
 
 # =============================================================================
-# 5. CONNEXION GHCR.IO ET PULL DES IMAGES
+# 5. CONNEXION GHCR.IO (SI PRIVE) ET PULL DES IMAGES
 # =============================================================================
 echo ""
-echo -e "${BLEU}--- Connexion a ghcr.io et telechargement des conteneurs ---${RESET}"
+echo -e "${BLEU}--- Telechargement des images Docker ---${RESET}"
 
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin
+if [ -n "$GITHUB_TOKEN" ]; then
+    echo "  Connexion a ghcr.io..."
+    echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin
+fi
 
 docker compose -f docker-compose.prod.yml pull
 echo -e "${VERT}[OK] Images Docker recuperees.${RESET}"
