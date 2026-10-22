@@ -16,7 +16,7 @@ Le serveur n'a besoin que de **Docker** (avec Docker Compose) : rien n'est compi
 
 ```bash
 cp .env.prod.example .env          # puis compléter les secrets
-docker login ghcr.io               # jeton GitHub avec le droit « read:packages »
+docker login ghcr.io               # si images privées : jeton GitHub avec le droit « read:packages »
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml --profile init run --rm init-db
 docker compose -f docker-compose.prod.yml up -d

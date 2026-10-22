@@ -79,8 +79,8 @@ Dossier `SopalTraceApp/SopalTrace.Infrastructure/ScriptsSQL/`.
 ### Installation rapide (script automatique)
 
 Un script interactif est fourni dans `deploy/installer.sh` : il télécharge les fichiers nécessaires depuis
-ce dépôt, demande les secrets (mot de passe SQL, clé JWT, SMTP, matricule du premier administrateur, jeton
-GitHub pour les images Docker), génère le `.env`, télécharge les images, crée la base, démarre les services
+ce dépôt, demande les secrets (mot de passe SQL, clé JWT, SMTP, matricule du premier administrateur, et jeton
+GitHub seulement si les images Docker sont privées), génère le `.env`, télécharge les images, crée la base, démarre les services
 et pré-attribue le rôle administrateur. **Prérequis : Docker + Docker Compose.**
 
 ```bash
@@ -93,7 +93,8 @@ Le script propose deux modes :
 - **Production** : scripts SQL 01 + 02 uniquement
 - **Démonstration** : scripts 01 à 04 + comptes et données de test
 
-> Le jeton GitHub nécessaire pour télécharger les images Docker privées se crée sur
+> Le script demande si les images Docker sont **publiques** (aucun jeton) ou **privées**. Dans ce second cas,
+> le jeton GitHub se crée sur
 > **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)**
 > avec le droit `read:packages`.
 
@@ -119,9 +120,9 @@ Renseigner dans `.env` :
 | `SMTP_*`, `EMAIL_*` | serveur d'envoi des e-mails (serveur Sopal, ou Brevo) |
 | `INIT_SCRIPTS` | production : `01… 02…` ; test : `01… 02… 03… 04…` |
 
-**Étape 3 — Télécharger les images** (privées sur GitHub Container Registry) :
+**Étape 3 — Télécharger les images** (GitHub Container Registry) :
 ```bash
-docker login ghcr.io        # utilisateur GitHub + jeton avec le droit read:packages
+docker login ghcr.io        # uniquement si les images sont privées : utilisateur GitHub + jeton read:packages
 docker compose -f docker-compose.prod.yml pull
 ```
 
@@ -136,7 +137,8 @@ docker compose -f docker-compose.prod.yml up -d
 **Étape 6 — Comptes.**
 - *Test* : exécuter `Demo_Comptes_Services.sql` et `Demo_Commandes_Sage.sql` dans le conteneur SQL
   (`docker compose -f docker-compose.prod.yml exec sqlserver /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "<DB_PASSWORD>" -d SopalTraceDB -i /chemin/script.sql`,
-  ou SSMS). Les comptes 88881–88884 se connectent avec le mot de passe de démonstration communiqué à part.
+  ou SSMS). Les comptes 88881–88884 se connectent avec le mot de passe de démonstration `Passw0rdE2E!`
+  (comptes de test uniquement — jamais en production).
 - *Premier administrateur* (production comme test) : pré-attribuer le rôle à son matricule Sage, puis cette personne
   s'inscrit depuis la page d'inscription et reçoit directement son lien d'activation :
   ```sql
