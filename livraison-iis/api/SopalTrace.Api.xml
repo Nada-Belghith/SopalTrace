@@ -1,0 +1,295 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>SopalTrace.Api</name>
+    </assembly>
+    <members>
+        <member name="T:SopalTrace.Api.Controllers.AdminController">
+            <summary>Administration des comptes : réservé au rôle ADMIN. L'administrateur agissant est lu dans le jeton.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.AuthController.RefreshToken">
+            <summary>Le jeton de rafraîchissement est lu dans le cookie HttpOnly ; le corps de la requête n'est pas utilisé.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.AuthController.Logout">
+            <summary>
+            Accessible sans jeton d'accès valide : la session est retrouvée par le cookie de rafraîchissement,
+            ce qui permet de se déconnecter proprement même après l'expiration du jeton d'accès.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.DocumentController">
+            <summary>
+            Gestion des documents de types centralisés : CTRL_POSTE, RESULTAT_CF, PLAN_ASS, PLAN_PF.
+            
+            Droits d'accès :
+            - Lecture    : tous les utilisateurs authentifiés
+            - Écriture   : SuperviseurQualite uniquement
+            - Suppression: SuperviseurQualite uniquement
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentController.GetById(System.Guid)">
+            <summary>Récupère un document par son identifiant.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentController.GetByFilters(System.String,System.String,System.String,System.String,System.String,System.String,System.String)">
+            <summary>Recherche des documents par filtres (type, nature, poste, famille, statut…).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentController.Create(SopalTrace.Application.DTOs.QualityPlans.Documents.CreateDocumentRequestDto)">
+            <summary>
+            Crée un nouveau document (V1, statut ACTIF).
+            Si un document ACTIF existe déjà pour ce contexte, il est archivé automatiquement.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentController.CreateNewVersion(System.Guid,SopalTrace.Application.DTOs.QualityPlans.Documents.NouvelleVersionDocumentRequestDto)">
+            <summary>
+            Crée une nouvelle version du document (V+1, statut ACTIF).
+            L'ancien document est archivé automatiquement.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentController.UpdateDocument(System.Guid,SopalTrace.Application.DTOs.QualityPlans.Documents.UpdateDocumentRequestDto)">
+            <summary>
+            Correction mineure : modifie le document en place.
+            Aucune incrémentation de version, aucun archivage.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.DocumentsExternesController">
+            <summary>
+            Documents externes : chaque service (achats, commercial, qualité, développement industriel) dépose ses documents avec les numéros exigés par
+            leur type ; le nom normalisé est formé par la base. Le responsable qualité les consulte depuis la traçabilité par OF.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentsExternesController.GetTypes">
+            <summary>Types de documents que l'utilisateur dépose, avec les numéros à saisir.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentsExternesController.Deposer(Microsoft.AspNetCore.Http.IFormFile,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.String)">
+            <summary>Dépôt d'un document (formulaire multipart : numéros, fichier PDF ; remplacement avec motif).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentsExternesController.GetCommandeClient(System.String)">
+            <summary>Commande client Sage et sa référence client : aperçu du nom d'un BL avant son dépôt.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentsExternesController.Lister(System.String,System.String)">
+            <summary>Documents déposés (les plus récents d'abord) : ceux du service de l'utilisateur, ou tous pour le responsable qualité.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentsExternesController.Relancer(SopalTrace.Application.DTOs.DocumentsExternes.RelanceDocumentExterneRequest,SopalTrace.Application.Services.IRelanceDocumentsExternesService)">
+            <summary>
+            Relance d'un document manquant (traçabilité d'un OF) : e-mail au service qui le dépose, avec un lien vers la page
+            de dépôt où le type et les numéros sont déjà remplis. Réservé au responsable qualité.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.DocumentsExternesController.Fichier(System.Guid)">
+            <summary>Fichier PDF d'un document, ouvert dans le navigateur.</summary>
+        </member>
+        <member name="F:SopalTrace.Api.Controllers.ExcelImportController.TailleMaximaleOctets">
+            <summary>Aligné sur client_max_body_size de nginx ; un plan pèse quelques centaines de Ko, croquis compris.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ExcelImportController.ImporterAsync(Microsoft.AspNetCore.Http.IFormFile,System.Boolean,System.Func{System.IO.Stream,System.Threading.Tasks.Task{System.Object}})">
+            <summary>
+            Contrôle le fichier avant de l'ouvrir (taille, format réel) et transforme un classeur illisible
+            en erreur 400 explicite plutôt qu'en erreur serveur.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ExcelImportController.VerifierContenu(System.IO.MemoryStream,System.String,System.Boolean)">
+            <summary>Le contenu doit correspondre à l'extension : un .xlsx est une archive ZIP.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ExcelImportController.ContientUnClasseur(System.IO.MemoryStream)">
+            <summary>
+            Archive ZIP contenant bien un classeur : ClosedXML lève une NullReferenceException
+            sur une archive quelconque au lieu d'une erreur de format.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.Execution.AvancementAssemblageController">
+            <summary>
+            Assistant de l'opérateur d'assemblage, poste par poste : étape courante, tâches, fin de poste contrôlée et
+            clôture de l'OF. L'équipe de la tablette est passée en paramètre (par défaut celle qui tient le poste).
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.Execution.AvancementAssemblageController.DemarrerPoste(System.Guid,System.String,System.String)">
+            <summary>L'équipe prend un poste libre de l'OF : ses contrôles de démarrage puis de fin de poste deviennent dus.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.Execution.AvancementAssemblageController.DemarrerReglage(System.Guid,System.String)">
+            <summary>Réglage commencé sur le poste : les contrôles de production s'arrêtent jusqu'à un réglage conforme.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.Execution.AvancementAssemblageController.AnnulerReglage(System.Guid,System.String)">
+            <summary>Réglage abandonné avant toute saisie : la production du poste reprend.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.Execution.AvancementAssemblageController.DemanderCloture(System.Guid,SopalTrace.Application.DTOs.Execution.Operateur.DemandeClotureRequest)">
+            <summary>Fin de poste (ce poste seulement) ou clôture de l'OF (tous les postes, équipe seule sur l'OF).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.Execution.AvancementAssemblageController.Terminer(System.Guid,System.String,System.String)">
+            <summary>Termine le poste (ou clôture l'OF si elle est demandée) une fois les tâches de fin faites.</summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.Execution.VerifMachinePosteController">
+            <summary>Vérifications machine d'un poste d'assemblage : machines à vérifier, validation par moment, historique.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.HubController.GetStatistiques">
+            <summary>Compteurs du tableau de bord superviseur : documents génériques / spécifiques par statut et par type.</summary>
+        </member>
+        <member name="F:SopalTrace.Api.Controllers.HubController.RolesModification">
+            <summary>
+            Archiver, réactiver ou supprimer un brouillon : le superviseur qualité (documents qualité), le responsable DI pour la
+            fabrication seulement, l'administrateur. Le responsable qualité consulte sans modifier.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.MagasinierController">
+            <summary>
+            Magasin : préparation des OF et expédition des BL à la douchette. Chaque scan est un appel (enregistré aussitôt) ;
+            le contenu brut est lu et validé par le serveur. Le magasinier est celui du jeton.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.ModeleFabricationController">
+            <summary>Modèles de fabrication. Les erreurs sont journalisées et traduites par ExceptionMiddleware.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.OperateurController.FinPoste(System.Guid,System.String,System.String)">
+            <summary>
+            Fin de poste directe d'une équipe : le poste donné, sinon tous les postes qu'elle tient (contrôles de fin
+            vérifiés, sauf pour un administrateur qui force la fin).
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.OperateurController.VerifierFinAssemblageAsync(System.Guid,System.String)">
+            <summary>
+            OF d'assemblage : l'opérateur ne termine son poste (ou l'OF) que si les contrôles de fin sont faits sur
+            tous les postes ; un administrateur peut forcer la fin (supervision).
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.PlanFabricationController">
+            <summary>Plans de fabrication par article. Les erreurs sont journalisées et traduites par ExceptionMiddleware.</summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.RapportsController">
+            <summary>
+            Modèles de rapport (fichiers Excel de Sopal), gérés par l'administrateur (le superviseur qualité suit leur état), et documents mis en forme à la
+            demande (PDF, impression, Excel du modèle), consultés par les rôles qualité.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Controllers.RapportsController.PublicationRequest">
+            <summary>Publication d'une version : motif facultatif ; formulaire visé ou version remplacée selon l'action.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.PublicationRequest.#ctor(System.String,System.Nullable{System.Guid},System.Nullable{System.Guid})">
+            <summary>Publication d'une version : motif facultatif ; formulaire visé ou version remplacée selon l'action.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.EnvoyerVersion(System.String,Microsoft.AspNetCore.Http.IFormFile,System.String,System.Nullable{System.Guid})">
+            <summary>Envoie un nouveau fichier : enregistré en brouillon s'il est accepté, sinon refusé avec la liste des erreurs.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.PublierParDefaut(System.Guid,SopalTrace.Api.Controllers.RapportsController.PublicationRequest)">
+            <summary>La version devient le modèle par défaut de son type (documents créés à partir de maintenant).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.AffecterAuFormulaire(System.Guid,SopalTrace.Api.Controllers.RapportsController.PublicationRequest)">
+            <summary>Modèle conçu pour une version de formulaire (nouvelle structure), y compris pour ses documents déjà créés.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.Reviser(System.Guid,SopalTrace.Api.Controllers.RapportsController.PublicationRequest)">
+            <summary>Révision (logo…) d'une version : pour les documents créés à partir de maintenant, partout où elle servait.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.ChangerLogo(System.Guid,SopalTrace.Api.Controllers.RapportsController.ChangementLogoRequest)">
+            <summary>
+            Nouveau logo pour les formulaires choisis : chaque formulaire utilisé passe à sa version suivante avec ce modèle,
+            ses documents actifs sont archivés tels quels puis recréés en version suivante.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.GetDemandes(System.String)">
+            <summary>Demandes de modèle (toutes, ou d'un état : PENDING, DONE, CANCELLED).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.DemanderModele(System.Guid,SopalTrace.Api.Controllers.RapportsController.DemandeModeleRequest)">
+            <summary>Superviseur qualité : demande un nouveau modèle (même version ou version suivante) pour une ligne de formulaire.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.TraiterDemande(System.Int64,SopalTrace.Api.Controllers.RapportsController.TraitementDemandeRequest)">
+            <summary>Administrateur : rattache le modèle qui satisfait la demande (le choix de version du superviseur s'applique).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.GetTracabilite(System.String,SopalTrace.Application.Services.IDocumentExterneService)">
+            <summary>Dossier d'un OF : ses documents internes et ses documents externes. Réservé au responsable qualité.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.FicheViergePdf(System.Guid)">
+            <summary>PDF du document avec son modèle (ou le modèle actuel), produit à la demande.</summary>
+            <summary>Fiche vierge du document qualité (celle que rempliront les opérateurs), en PDF.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.FicheViergeExcel(System.Guid)">
+            <summary>Fiche vierge du document qualité, en Excel rempli.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.ExcelDocument(System.Guid,System.Boolean)">
+            <summary>Excel rempli du document.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.ModeleDocument(System.Guid,System.Boolean)">
+            <summary>Fichier Excel du modèle qui met en forme le document (vide, avec ses champs).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.RapportsController.TelechargerPdf(System.Guid)">
+            <summary>PDF ou Excel d'un document déjà produit (historique).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ReferentielController.CreatePieceReference(SopalTrace.Application.DTOs.QualityPlans.Referentiels.CreatePieceReferenceDto)">
+            <summary>
+            Cree une nouvelle piece de reference (PRC, PRNC) ou un etalon fuite (FEC, FENC)
+            directement depuis le formulaire Verification Machine.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ReferentielController.RolesDesFormulaires">
+            <summary>Rôles des formulaires : libellé, ordre d'affichage et critères permis du champ d'application.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ReferentielController.ListesChampApplication">
+            <summary>Listes du champ d'application d'un nouveau formulaire : familles, postes, machines, natures.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ReferentielController.DocumentsActifsFormulaire(System.Guid)">
+            <summary>Documents génériques en cours d'un formulaire : ceux qu'un changement de code ou de logo recrée (liste à confirmer).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ReferentielController.RenommerCodeFormulaire(System.Guid,SopalTrace.Api.Controllers.ReferentielController.CodeFormulaireRequest)">
+            <summary>
+            Le superviseur qualité change le code d'un formulaire (même version) : l'ancien formulaire et ses documents sont
+            archivés tels quels, le nouveau formulaire reçoit les mêmes documents recréés (traçabilité code + version).
+            </summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.ReferentielController.CreerFormulaire(SopalTrace.Api.Controllers.ReferentielController.CreationFormulaireRequest)">
+            <summary>Le superviseur qualité crée le formulaire d'un champ d'application (famille, poste, machine…).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.TracabiliteController.ValidateLot(System.Guid,System.String,System.String)">
+            <summary>Lot de corps / volant reconnu pour l'article de l'OF.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.TracabiliteController.ConfirmerEquipe(System.Guid,System.String)">
+            <summary>L'équipe en production confirme ses lots (obligatoire avant sa fin de poste).</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Controllers.TracabiliteController.AnnulerLigne(System.Guid,SopalTrace.Application.DTOs.Tracabilite.AnnulerLigneTracabiliteDto)">
+            <summary>Annule une ligne erronée : elle reste dans l'historique avec son motif.</summary>
+        </member>
+        <member name="M:SopalTrace.Api.Extensions.ClaimsPrincipalExtensions.GetMatricule(System.Security.Claims.ClaimsPrincipal)">
+            <summary>
+            Matricule de l'utilisateur authentifié. L'identité de l'opérateur est toujours lue depuis le jeton :
+            une valeur envoyée par le client ne doit jamais être utilisée pour tracer un contrôle.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Extensions.FormatsEntree">
+            <summary>Formats acceptés pour les codes reçus dans l'URL (poste, machine...).</summary>
+        </member>
+        <member name="T:SopalTrace.Api.Filters.ValidationFluentFiltre">
+            <summary>
+            Exécute, avant chaque action, le validateur FluentValidation enregistré pour chaque donnée reçue.
+            Un échec lève une <see cref="T:FluentValidation.ValidationException"/>, traduite en 400 avec le détail par ExceptionMiddleware.
+            Tout nouveau DTO doté d'un validateur est ainsi contrôlé sans code supplémentaire dans le contrôleur.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.Middlewares.ExceptionMiddleware">
+            <summary>
+            Convertit les exceptions en réponses JSON homogènes.
+            Seuls les messages des exceptions métier (DomainException et ses dérivées, ValidationException)
+            sont renvoyés au client ; toute autre exception produit un message générique
+            et l'identifiant de trace permet de retrouver le détail dans les logs serveur.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.PolitiquesDebit">
+            <summary>Noms des politiques de limitation de débit.</summary>
+        </member>
+        <member name="F:SopalTrace.Api.PolitiquesDebit.Authentification">
+            <summary>Connexion, inscription, mot de passe : 10 requêtes par minute et par adresse IP (anti force brute).</summary>
+        </member>
+        <member name="T:SopalTrace.Api.TachesDeFond.ImportModelesLivresWorker">
+            <summary>
+            Si Rapports:ImporterModelesLivres est activé (tests), importe le fichier du dossier Rapports:DossierModelesLivres de
+            chaque modèle de rapport qui n'a encore aucune version : au
+            démarrage puis toutes les quelques minutes (modèle ajouté par une migration pendant que l'API tourne). Aucun document
+            n'est généré ici : un PDF est produit quand quelqu'un le consulte ou l'imprime.
+            </summary>
+        </member>
+        <member name="T:SopalTrace.Api.TachesDeFond.PlanificationProductionWorker">
+            <summary>
+            Chaque minute, planifie les contrôles de production des OF d'assemblage en cours (ouverture / fermeture des
+            périodes, contrôles dus, retards, escalade) : un contrôle apparaît à son heure sur toutes les tablettes,
+            même si personne n'a l'écran des contrôles ouvert.
+            </summary>
+        </member>
+        <member name="M:SopalTrace.API.Controllers.Execution.ExecRcPosteController.ValiderEquipe(System.Guid)">
+            <summary>L'équipe en production valide ses heures sur le document du jour (partagé par les équipes).</summary>
+        </member>
+    </members>
+</doc>

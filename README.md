@@ -38,6 +38,7 @@ navigateur ──► nginx (front Vue 3, SPA) ──/api──► API .NET 8 ─
 | `SopalTraceApp/tests/fixtures/modeles/` | Modèles Excel d'exemple de Sopal (utilisés par les tests) |
 | `SopalTraceApp/deploy/` | Installation serveur : `docker-compose.prod.yml`, HTTPS, modèle `.env`, [INSTALLATION.md](SopalTraceApp/deploy/INSTALLATION.md) |
 | `SopalTraceWeb/` | Front Vue 3 (Vite, Tailwind, vue-router) ; servi par nginx en production |
+| `livraison-iis/` | Version **compilée** pour une installation **sans Docker** (Windows Server + IIS + SQL Server) : API, front, sauvegarde de la base, [INSTALLATION_IIS.md](livraison-iis/INSTALLATION_IIS.md) |
 | `.github/workflows/ci.yml` | Intégration continue (build, tests, E2E, recette Docker, publication des images, livraison) |
 
 Points techniques :
@@ -54,6 +55,7 @@ Points techniques :
 | Usage | À installer |
 |---|---|
 | Serveur (test ou production) | **Docker** + Docker Compose uniquement |
+| Serveur sans Docker (IIS) | IIS, SQL Server 2022, ASP.NET Core 8 Hosting Bundle, URL Rewrite, ARR (voir §5 bis) |
 | Développement | .NET SDK 10 (cible net8.0, voir `global.json`), Node.js 20, SQL Server ou LocalDB, Docker (Gotenberg), Python 3.12 + `openpyxl` pour les E2E |
 
 ## 4. Base de données : quels scripts exécuter
@@ -156,6 +158,24 @@ docker compose -f docker-compose.prod.yml -f docker-compose.https.yml up -d
 
 **Mise à jour** : sauvegarder la base, changer `SOPALTRACE_VERSION`, `pull` puis `up -d`, et appliquer les scripts de
 `Migrations/` livrés avec la nouvelle version s'il y en a.
+
+## 5 bis. Installer sur un serveur Windows sans Docker (IIS)
+
+Le dossier [`livraison-iis/`](livraison-iis/) contient une version prête à installer, sans SDK ni Node.js sur le serveur :
+
+| Dossier | Contenu |
+|---|---|
+| `api/` | API compilée (.NET 8) + modèle `appsettings.Production.exemple.json` |
+| `web/` | Front compilé + `web.config` (relais `/api` vers l'API, routes du site) |
+| `base/` | `SopalTraceDB.bak` (SQL Server 2022 minimum) + `creer_compte_api.sql` |
+
+Résumé : installer IIS, puis SQL Server 2022, le Hosting Bundle ASP.NET Core 8, URL Rewrite et ARR → restaurer la base
+→ créer `appsettings.Production.json` → créer deux sites IIS (API sur le port 5000, front sur le port 8080).
+Procédure pas à pas et dépannage : [livraison-iis/INSTALLATION_IIS.md](livraison-iis/INSTALLATION_IIS.md).
+
+> Cette version compilée n'est pas régénérée automatiquement : après une modification du code, refaire
+> `dotnet publish SopalTraceApp/SopalTrace.Api -c Release -o livraison-iis/api` et `npm run build` (dans
+> `SopalTraceWeb`, puis copier `dist/` dans `livraison-iis/web/` en conservant `web.config`).
 
 ## 6. Lancer en développement
 
