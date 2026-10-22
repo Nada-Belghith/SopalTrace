@@ -185,8 +185,8 @@ export function useOfControls(dependencies) {
 
   const handleUnload = (e) => {
     if (activeOfContext.value && activeOfContext.value.id && activeOfContext.value.statut === 'EN_COURS') {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5246';
-      const url = `${apiUrl}/api/Operateur/of/${activeOfContext.value.id}/pause`;
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const url = `${apiUrl}/Operateur/of/${activeOfContext.value.id}/pause`;
       
       fetch(url, {
         method: 'POST',
