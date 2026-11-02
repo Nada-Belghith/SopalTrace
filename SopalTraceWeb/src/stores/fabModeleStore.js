@@ -6,6 +6,7 @@ import { referentielsService } from '@/services/referentielsService';
 import { titreSection } from '@/utils/sectionTitleUtils';
 import { useReferentielStore } from './referentielStore';
 import { verifierImportExcel } from '@/utils/importExcelResultat';
+import { genererUid } from '@/utils/uuidUtils';
 
 export const useFabModeleStore = defineStore('fabModele', () => {
   // Dictionnaires are now in useReferentielStore
@@ -171,7 +172,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
 
   const addSection = () => {
     sections.value.push({
-      id: crypto.randomUUID(),
+      id: genererUid(),
       ordreAffiche: sections.value.length + 1,
       typeSectionId: '',
       periodiciteId: null,
@@ -192,7 +193,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
     if (!section) return;
 
     section.lignes.push({
-      id: crypto.randomUUID(),
+      id: genererUid(),
       ordreAffiche: section.lignes.length + 1,
       typeCaracteristiqueId: '',
       typeControleId: null,
@@ -347,7 +348,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
         }
 
         sections.value = parsedData.sections.map(sec => ({
-          id: sec.id || crypto.randomUUID(),
+          id: sec.id || genererUid(),
           isFromDb: false,
           nom: sec.nom || '',
           libelleSection: sec.nom,
@@ -358,7 +359,7 @@ export const useFabModeleStore = defineStore('fabModele', () => {
           typeVariable: sec.typeVariable,
           freqHours: sec.freqHours,
           lignes: sec.lignes.map(lig => ({
-            id: lig.id || crypto.randomUUID(),
+            id: lig.id || genererUid(),
             isFromDb: false,
             typeCaracteristiqueId: lig.typeCaracteristiqueId,
             typeControleId: lig.typeControleId,

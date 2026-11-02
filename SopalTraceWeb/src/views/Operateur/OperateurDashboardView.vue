@@ -257,14 +257,12 @@ onMounted(() => {
   }
 
   operateurStore.startGlobalPolling(toast, router);
-  window.addEventListener('beforeunload', handleUnload);
-  window.addEventListener('unload', handleUnload);
+  window.addEventListener('pagehide', handleUnload); // 'unload' est bloqué par les navigateurs récents
 });
 
 onUnmounted(() => {
   operateurStore.stopGlobalPolling();
-  window.removeEventListener('beforeunload', handleUnload);
-  window.removeEventListener('unload', handleUnload);
+  window.removeEventListener('pagehide', handleUnload);
 });
 
 watch(() => route.query.execution, (newVal) => {

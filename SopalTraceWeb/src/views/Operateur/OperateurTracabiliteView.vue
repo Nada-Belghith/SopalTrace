@@ -7,7 +7,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import apiClient from '@/services/apiClient'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 import AutoComplete from 'primevue/autocomplete'
 import { useAppToast } from '@/composables/useAppToast'
 import { useOperateurStore } from '@/stores/execution/operateurStore'
@@ -229,7 +229,7 @@ onMounted(charger)
                 <td v-for="c in composants" :key="c.codeArticle" class="px-3 py-2">
                   <span v-if="!c.lotsDisponibles.length" class="text-xs italic text-slate-400">Aucun lot</span>
                   <span v-else-if="c.lotsDisponibles.length === 1" class="inline-block px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-700">{{ c.lotsDisponibles[0] }}</span>
-                  <Dropdown v-else v-model="nouvelle.lots[c.codeArticle]" :options="c.lotsDisponibles" placeholder="Choisir…" class="w-40" />
+                  <Select v-else v-model="nouvelle.lots[c.codeArticle]" :options="c.lotsDisponibles" placeholder="Choisir…" class="w-40" />
                 </td>
                 <td class="px-3 text-center">
                   <button type="button" @click="ajouterLigne" :disabled="envoi"

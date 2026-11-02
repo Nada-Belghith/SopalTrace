@@ -118,7 +118,10 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Expires = DateTimeOffset.Now.AddDays(7),
-            Secure = true,
+            // Un navigateur ignore un cookie Secure reçu en HTTP (hors localhost) : sur un serveur de test en
+            // http://<ip>, la session ne se renouvellerait plus. Secure dès que la requête est en HTTPS
+            // (directement ou derrière nginx, via X-Forwarded-Proto).
+            Secure = Request.IsHttps,
             SameSite = SameSiteMode.Strict
         });
     }

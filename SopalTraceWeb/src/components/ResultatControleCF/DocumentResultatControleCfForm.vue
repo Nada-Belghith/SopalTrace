@@ -17,7 +17,7 @@
             <label class="text-xs font-black text-teal-800 uppercase tracking-widest">Réf. Formulaire <span class="text-red-500">*</span></label>
           </div>
           <div class="flex items-center gap-3">
-            <Dropdown v-model="store.entete.formulaireId" 
+            <Select v-model="store.entete.formulaireId" 
                       :options="(referentielStore.formulairesReferencesByRole['RESULTAT_CONTROLE_CF'] || [])" 
                       optionLabel="designation"
                       optionValue="id"
@@ -34,7 +34,7 @@
             <i class="pi pi-cog text-teal-600"></i>
             <label class="text-xs font-black text-teal-800 uppercase tracking-widest">Poste de Travail</label>
           </div>
-          <Dropdown v-model="store.entete.posteCode" 
+          <Select v-model="store.entete.posteCode" 
                     :options="referentielStore.postes || referentielStore.postesTravail || []" 
                     optionLabel="libelle"
                     optionValue="code"
@@ -291,7 +291,7 @@ import { usedocumentRccfStore } from '@/stores/documentRccfStore';
 import { useReferentielStore } from '@/stores/referentielStore';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
-import Dropdown from 'primevue/dropdown';
+import Select from 'primevue/select';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import DocumentSaveManager from '@/components/Shared/DocumentSaveManager.vue';

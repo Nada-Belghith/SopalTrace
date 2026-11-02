@@ -12,6 +12,7 @@
  */
 
 import { parseFrequenceLibelle } from '@/utils/frequencyUtils';
+import { genererUid } from '@/utils/uuidUtils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. mapLigneForBackend
@@ -210,7 +211,7 @@ export function mapImportedSection(sec) {
   }
 
   return {
-    id: sec.id || crypto.randomUUID(),
+    id: sec.id || genererUid(),
     isFromDb: false,
     nom: sec.nom || '',
     libelleSection: sec.nom || sec.libelleSection || '',
@@ -223,7 +224,7 @@ export function mapImportedSection(sec) {
     typeVariable,
     freqHours,
     lignes: (sec.lignes || []).map(lig => ({
-      id: lig.id || crypto.randomUUID(),
+      id: lig.id || genererUid(),
       isFromDb: false,
       typeCaracteristiqueId: lig.typeCaracteristiqueId || null,
       typeControleId: lig.typeControleId || null,

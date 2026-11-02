@@ -5,6 +5,7 @@ import { referentielsService } from '@/services/referentielsService';
 import { mapSectionForBackend, mapImportedSection } from '@/utils/sectionUtils';
 import { useReferentielStore } from './referentielStore';
 import { verifierImportExcel } from '@/utils/importExcelResultat';
+import { genererUid } from '@/utils/uuidUtils';
 
 export const useAssPlanStore = defineStore('assPlan', () => {
   // --- DICTIONNAIRES ---
@@ -93,7 +94,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
 
   const addSection = () => {
     sections.value.push({
-      id: crypto.randomUUID(),
+      id: genererUid(),
       ordreAffiche: sections.value.length + 1,
       typeSectionId: '',
       periodiciteId: null,
@@ -114,7 +115,7 @@ export const useAssPlanStore = defineStore('assPlan', () => {
     if (!section) return;
 
     section.lignes.push({
-      id: crypto.randomUUID(),
+      id: genererUid(),
       ordreAffiche: section.lignes.length + 1,
       typeCaracteristiqueId: typesCaracteristique.value.length > 0 ? typesCaracteristique.value[0].id : '',
       typeControleId: null,

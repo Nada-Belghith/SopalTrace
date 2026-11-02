@@ -1,11 +1,12 @@
 import { ref } from 'vue';
+import { genererUid } from '@/utils/uuidUtils';
 
 export function useEditorSections() {
   const sections = ref([]);
 
   const ajouterSection = () => {
     sections.value.push({
-      id: crypto.randomUUID(),
+      id: genererUid(),
       isFromDb: false,
       typeSectionId: '',
       nom: '',
@@ -38,7 +39,7 @@ export function useEditorSections() {
     const s = sections.value[sectionIndex];
     if (s) {
       s.lignes.push({
-        id: crypto.randomUUID(),
+        id: genererUid(),
         isFromDb: false,
         typeCaracteristiqueId: null,
         libelleAffiche: '',

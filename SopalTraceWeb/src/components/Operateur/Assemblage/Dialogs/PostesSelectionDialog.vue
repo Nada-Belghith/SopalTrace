@@ -8,7 +8,7 @@ import { ref, computed, watch } from 'vue'
 import Dialog from 'primevue/dialog'
 import MultiSelect from 'primevue/multiselect'
 import Button from 'primevue/button'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -112,7 +112,7 @@ const confirmer = () => emit('confirmer', {
           <i class="pi pi-users mr-1 text-primary"></i>
           Votre équipe *
         </label>
-        <Dropdown v-model="equipeSelectionnee" :options="EQUIPES" placeholder="Choisir l'équipe..." class="w-full" />
+        <Select v-model="equipeSelectionnee" :options="EQUIPES" placeholder="Choisir l'équipe..." class="w-full" />
       </div>
 
       <template v-if="equipeSelectionnee">

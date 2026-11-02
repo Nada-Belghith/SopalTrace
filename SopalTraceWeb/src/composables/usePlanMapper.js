@@ -1,5 +1,6 @@
 import { resolveFrequencyFromPeriodiciteId, parseFrequenceLibelle } from '@/utils/frequencyUtils';
 import { useReferentielStore } from '@/stores/referentielStore';
+import { genererUid } from '@/utils/uuidUtils';
 
 export function usePlanMapper(store) {
   // Les dictionnaires partagés viennent maintenant de useReferentielStore
@@ -100,7 +101,7 @@ export function usePlanMapper(store) {
       }
 
       return {
-        id: crypto.randomUUID(),
+        id: genererUid(),
         isFromDb: false,
         typeSectionId,
         modeFreq,
@@ -112,7 +113,7 @@ export function usePlanMapper(store) {
         frequenceLibelle: sec.frequenceLibelle || '',
         nom: cleanSectionName(sec.libelleSection, typeSectionId, sec.frequenceLibelle || '', ''),
         lignes: [...(sec.lignes || [])].filter(lig => lig != null).sort((a, b) => (a.ordreAffiche || 0) - (b.ordreAffiche || 0)).map(lig => ({
-          id: crypto.randomUUID(),
+          id: genererUid(),
           isFromDb: false,
           typeCaracteristiqueId: lig.typeCaracteristiqueId,
           typeControleId: lig.typeControleId,

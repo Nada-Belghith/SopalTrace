@@ -14,7 +14,7 @@
                   <i class="pi pi-file-import mr-2 text-emerald-600 text-lg"></i> RÉF. FORMULAIRE *
                 </label>
                   <div class="w-full md:w-1/2 flex items-center gap-2">
-                      <Dropdown v-model="refFormulaireSelected" :options="(refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || [])" optionLabel="codeReference" optionValue="id" 
+                      <Select v-model="refFormulaireSelected" :options="(refStore.formulairesReferencesByRole['RESULTAT_CONTROLE_POSTE'] || [])" optionLabel="codeReference" optionValue="id" 
                               placeholder="Sélectionner un formulaire générique" class="w-full" :disabled="store.entete.isModeleTemplate"
                               :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                         <template #value="slotProps">
@@ -26,7 +26,7 @@
                         <template #option="slotProps">
                             <div class="text-sm">{{ slotProps.option.codeReference }} - {{ slotProps.option.designation }}</div>
                         </template>
-                    </Dropdown>
+                    </Select>
                 </div>
                 <p class="text-xs text-emerald-600/80 font-medium italic">
                   Le poste et la famille sont ceux du formulaire choisi (verrouillés) : « PAS71 soupape » donne le poste PAS71 et la famille avec soupape.
@@ -36,7 +36,7 @@
               <!-- POSTE DE TRAVAIL -->
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Poste de travail concerné</label>
-                <Dropdown v-model="store.entete.posteCode" :options="refStore.postesTravail" optionLabel="libelle" optionValue="code" 
+                <Select v-model="store.entete.posteCode" :options="refStore.postesTravail" optionLabel="libelle" optionValue="code" 
                           placeholder="Choisir un poste" class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id || !!formulaireChoisi?.posteCode" @change="onSelectionChange"
                           :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                     <template #value="slotProps">
@@ -48,19 +48,19 @@
                     <template #option="slotProps">
                         <div class="text-sm">Poste {{ slotProps.option.code }} - {{ slotProps.option.libelle }}</div>
                     </template>
-                </Dropdown>
+                </Select>
               </div>
 
               <!-- FAMILLE DE PRODUIT FINI : document propre à une famille (ex. avec soupape) ; vide = tous les produits -->
               <div>
                 <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Famille de produit fini</label>
-                <Dropdown v-model="store.entete.familleProduitFiniCode" :options="refStore.famillesProduit" optionLabel="libelle" optionValue="code"
+                <Select v-model="store.entete.familleProduitFiniCode" :options="refStore.famillesProduit" optionLabel="libelle" optionValue="code"
                           placeholder="Toutes les familles" showClear class="w-full bg-slate-50" :disabled="isReadOnly || !!store.entete.id || !!formulaireChoisi"
                           :pt="{ overlay: { class: 'shadow-xl border border-slate-200 z-[9999]', style: { backgroundColor: '#ffffff' } }, listContainer: { style: { backgroundColor: '#ffffff' } } }">
                     <template #option="slotProps">
                         <div class="text-sm">{{ slotProps.option.code }} - {{ slotProps.option.libelle }}</div>
                     </template>
-                </Dropdown>
+                </Select>
               </div>
 
               
@@ -370,7 +370,7 @@ import { colonnesModifiees } from '@/utils/colonnesUtils';
 import RemarquesLegendeBox from '@/components/Shared/RemarquesLegendeBox.vue';
 import ColumnConfigurator from '@/components/Shared/ColumnConfigurator.vue';
 import { useActivePlanConfirmation } from '@/composables/useActivePlanConfirmation';
-import Dropdown from 'primevue/dropdown';
+import Select from 'primevue/select';
 import { referentielsService } from '@/services/referentielsService';
 import { EQUIPES_CONTROLE_POSTE_PAR_DEFAUT } from '@/constants/execution';
 
